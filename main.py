@@ -21,11 +21,11 @@ DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
 BACKEND_ENDPOINT = os.getenv('BACKEND_ENDPOINT')
 WEBSITE_URL = os.getenv('WEBSITE_URL')
 
-CONVIVIO_CHANNEL_ID = os.getenv('CONVIVIO_CHANNEL_ID')
-EVENT_CHANNEL_ID = os.getenv('EVENT_CHANNEL_ID')
-MAPSTATS_CHANNEL_ID = os.getenv('MAPSTATS_CHANNEL_ID')
-MOD_CHANNEL_ID = os.getenv('MOD_CHANNEL_ID')
-QUEST_CHANNEL_ID = os.getenv('QUEST_CHANNEL_ID')
+CONVIVIO_CHANNEL_ID = int(os.getenv('CONVIVIO_CHANNEL_ID'))
+EVENT_CHANNEL_ID = int(os.getenv('EVENT_CHANNEL_ID'))
+MAPSTATS_CHANNEL_ID = int(os.getenv('MAPSTATS_CHANNEL_ID'))
+MOD_CHANNEL_ID = int(os.getenv('MOD_CHANNEL_ID'))
+QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
 
 CLEAR_QUESTS_FILE = os.getenv('CLEAR_QUESTS_FILE')
 FILTER_FILE = os.getenv('FILTER_FILE')
@@ -36,14 +36,6 @@ VERSION_FILE = os.getenv('VERSION_FILE')
 
 ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
 
-
-
-
-## VARIABLES FOR CACHING SYSTEM REGARDING SPAM
-messagesReceived = []
-messagesToDelete = {}
-messagesFlaggedToBeDeleted = []
-authorToMute = ""
 
 ## QUESTS
 namesList = ["pokemon", "pokemonuteis"]
@@ -197,24 +189,6 @@ def get_version():
     with open(VERSION_FILE, 'r') as file:
         data = file.read().rstrip()
     return data
-    
-def handleMessageReceived(message):
-    if len(messagesReceived) > 50:
-        messagesReceived.pop(0)
-    messagesReceived.append({ "authorId": message.author.id,"messageId": message.id,"message": message.content, "timestamp": datetime.now().timestamp(), "channelId": message.channel.id })
-
-def checkIfDuplicate(message):
-    counter = 0
-    for msgRec in messagesReceived:
-        if msgRec["message"] == message.content and message.author.id == msgRec["authorId"] and msgRec["timestamp"] - datetime.now().timestamp() < 5:
-            counter += 1
-    return counter > 2
-
-def clearMessages(authorId):
-    i = 0
-    while i < len(messagesReceived):
-        if messagesReceived[i]["authorId"] == authorId:
-            messagesReceived.pop(i)
 
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
@@ -280,63 +254,14 @@ async def on_message(message):
 
     color = random.randint(0, 16777215)
 
-    if message.content in messagesFlaggedToBeDeleted and str(message.author.id) not in ADMIN_USERS_IDS:
-        try:
-            channel = client.get_channel(MOD_CHANNEL_ID)
-            user = message.author
-            await user.add_roles(muted_role, reason="Desiludiste o Lord Poliswag com o teu spam", atomic=True)
-            embed = discord.Embed(title=str(user) + " levou mute por spam!", description=message.content, color=color)
-            embed.set_thumbnail(url=user.avatar_url)
-            embed.add_field(name="DiscordId", value=user.id, inline=False)
-            await channel.send(embed=embed)
-            await message.delete()
-        except:
-            print('Failed at initial message')
-    elif len(message.content) > 8 and str(message.author.id) not in ADMIN_USERS_IDS and message.channel.id != QUEST_CHANNEL_ID:
-        handleMessageReceived(message)
-
     if message.channel.id == MAPSTATS_CHANNEL_ID:
         channel = client.get_channel(MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
             if message != msg:
                 await msg.delete()
 
-    if message.channel.id == EVENT_CHANNEL_ID:
-        if message.content.lower() == 'gold':
-            event_role = discord.utils.get(message.guild.roles, name="Gold")
-        elif message.content.lower() == 'silver':
-            event_role = discord.utils.get(message.guild.roles, name="Silver")
-        elif str(message.author.id) not in ADMIN_USERS_IDS:
-            await message.delete()
-        await message.author.add_roles(event_role, atomic=True)
-        await message.add_reaction("✅")
-
-    if message.channel.id != MOD_CHANNEL_ID and str(message.author.id) not in ADMIN_USERS_IDS:
-        toDelete = checkIfDuplicate(message)
-        if toDelete and message.content not in messagesFlaggedToBeDeleted:
-            messagesFlaggedToBeDeleted.append(message.content)
-
-            for msgDel in messagesReceived:
-                if msgDel["message"] in messagesFlaggedToBeDeleted:
-                    try:
-                        channelMsg = client.get_channel(msgDel["channelId"])
-                        msgd = await channelMsg.fetch_message(msgDel["messageId"])
-                        await msgd.delete()
-                    except:
-                        print('Failed deleting for loop')
-            try:
-                channel = client.get_channel(MOD_CHANNEL_ID)
-                user = message.author
-                await user.add_roles(muted_role, reason="Desiludiste o Lord Poliswag com o teu spam", atomic=True)
-                embed = discord.Embed(title=str(user) + " levou mute por spam!", description=message.content, color=color)
-                embed.set_thumbnail(url=user.avatar_url)
-                embed.add_field(name="DiscordId", value=user.id, inline=False)
-                await channel.send(embed=embed)
-            except:
-                print('Already deleted')
-            # clearMessages(msgDel["authorId"])
-
     if message.channel.id == MOD_CHANNEL_ID:
+        print(message)
         if str(message.author.id) in ADMIN_USERS_IDS:
             if message.content.startswith('!filter'):
                 await message.channel.send(load_filter_data())
