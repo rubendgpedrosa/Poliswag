@@ -35,3 +35,11 @@ def build_filter_message(discordMessage, jsonPokemonData):
         discordMessage = discordMessage + pokemonNames
 
     return discordMessage
+
+def build_quest_message(data):
+    return "[" + data['name'] + "](" + build_quest_location_url(data["latitude"], data["longitude"]) + ")"
+
+def build_quest_location_url(latitude, longitude):
+    coordinatesUrl = "https://www.google.com/maps/search/?api=1&query=" + str(latitude) + "," + str(longitude)
+
+    return coordinatesUrl
