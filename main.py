@@ -11,6 +11,7 @@ import helpers.globals as globals
 from helpers.notifications import load_filter_data, read_json_data, build_filter_message
 from helpers.environment import prepare_environment
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
+from helpers.utilities import check_current_version
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -35,11 +36,11 @@ def get_version():
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
     file_exists_scanned = exists(globals.SCANNED_FILE)
-    file_exists_version = exists(globals.VERSION_FILE)
+    file_exists_version = check_current_version()
     file_exists_clear = exists(globals.CLEAR_QUESTS_FILE)
+    color = random.randint(0, 16777215)
 
     if file_exists_scanned:
-        color = random.randint(0, 16777215)
         try:
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             try:
@@ -60,19 +61,16 @@ async def prepare_daily_quest_message_task():
             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
     
     if file_exists_version:
-        color = random.randint(0, 16777215)
         try:
             channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: " + get_version(), color=color)
             await channel.send(embed=embed)
-            os.remove(globals.VERSION_FILE)
         except OSError as e:
             f = open(globals.LOG_FILE, 'w')
             f.write('\nFORCE UPDATE ERROR: %s\n' % str(e))
             f.close()
 
     if file_exists_clear:
-        color = random.randint(0, 16777215)
         try:
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
@@ -127,8 +125,6 @@ async def on_message(message):
                 os.system('docker restart pokemon_alarm')
                 embed = discord.Embed(title="A lista de pokémon das notificações foi alterada", description="Utiliza !filter para ver quais são os novos filtros", color=color)
                 await message.channel.send(embed=embed)
-                channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
-                await channel.send(embed=embed)
 
             if message.content.startswith('!scan'):
                 embed = discord.Embed(title="Rescan de pokestops inicializado", color=color)
