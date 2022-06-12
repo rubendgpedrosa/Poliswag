@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import datetime, json, os, requests, random, sys
+import json, os, requests, random, sys
 from os.path import exists
 
 import discord
@@ -8,6 +8,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 from helpers.environment import prepare_environment
+from helpers.quests import fetch_today_data
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -174,15 +175,7 @@ def find_quest(receivedData, local):
 
     return allQuestDataMarinha
 
-def fetch_today_data():
-    data = requests.get(BACKEND_ENDPOINT + 'get_quests?fence=None')
-    questText = data.text
-    quests = json.loads(questText)
 
-    os.remove(QUESTS_FILE)
-
-    with open(QUESTS_FILE, 'w') as file:
-        json.dump(quests, file, indent=4)
 
 def get_version():
     #with open('savedVersion.txt', 'r') as data:
@@ -201,7 +194,7 @@ async def prepare_daily_quest_message_task():
         try:
             channel = client.get_channel(QUEST_CHANNEL_ID)
             try:
-                fetch_today_data()
+                fetch_today_data(BACKEND_ENDPOINT, QUESTS_FILE)
                 embed = discord.Embed(title="Scan de quests finalizado!", description="Todas as informações relacionadas com as quests foram recolhidas", color=color)
                 embed.set_footer(text="Esta informação só é válida até ao final do dia")
                 await channel.send(embed=embed)
