@@ -9,15 +9,35 @@ from dotenv import load_dotenv
 
 from helpers.environment import prepare_environment
 
+# Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
     print("Invalid number of arguments, usage: python3 main.py (dev|prod)")
     quit()
 
+# Environment variables are loaded into memory here 
 load_dotenv(prepare_environment(sys.argv[1]))
 DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
 
 BACKEND_ENDPOINT = os.getenv('BACKEND_ENDPOINT')
 WEBSITE_URL = os.getenv('WEBSITE_URL')
+
+CONVIVIO_CHANNEL_ID = os.getenv('CONVIVIO_CHANNEL_ID')
+EVENT_CHANNEL_ID = os.getenv('EVENT_CHANNEL_ID')
+MAPSTATS_CHANNEL_ID = os.getenv('MAPSTATS_CHANNEL_ID')
+MOD_CHANNEL_ID = os.getenv('MOD_CHANNEL_ID')
+QUEST_CHANNEL_ID = os.getenv('QUEST_CHANNEL_ID')
+
+CLEAR_QUESTS_FILE = os.getenv('CLEAR_QUESTS_FILE')
+FILTER_FILE = os.getenv('FILTER_FILE')
+LOG_FILE = os.getenv('LOG_FILE')
+QUESTS_FILE = os.getenv('QUESTS_FILE')
+SCANNED_FILE = os.getenv('SCANNED_FILE')
+VERSION_FILE = os.getenv('VERSION_FILE')
+
+ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
+
+
+
 
 ## VARIABLES FOR CACHING SYSTEM REGARDING SPAM
 messagesReceived = []
@@ -29,20 +49,8 @@ authorToMute = ""
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
 client = discord.Client()
-allowedUsers = ["98846248865398784", "308000681271492610", "313738342904627200", "237306098976161793"]
-fileFilter = "/root/MAD-docker/PokeAlarm/filters.json"
-fileQuest = "/root/MAD-docker/PokeAlarm/quest_data.json"
-fileScanned = '/root/poliswag/scanned.pogoleiria'
-fileVersion = '/root/poliswag/version.pogoleiria'
-fileClearQuests = '/root/poliswag/clearquests.pogoleiria'
-logFile = '/root/poliswag/log.txt'
+
 pogoleiriaurl = WEBSITE_URL + "static/images/header/pogoleiria_rounded.png"
-modChannel = 609087040939622400
-questChannel = 897240891759149087
-convivioChannel = 329321552241754115
-mapStatsChannel = 934146276377903124
-myId = 98846248865398784
-event_channel = 946803671881089095
 muted_role = ""
 
 comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
@@ -61,7 +69,7 @@ def load_filter_data():
     return discordMessage
 
 def read_json_data():
-    with open(fileFilter) as raw_data:
+    with open(FILTER_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
     return jsonPokemonData
 
@@ -106,7 +114,7 @@ def write_filter_data(receivedData, add=True):
     originalDiscordChannelName = {"raros": ["pokemon", "pokemonmarinha"], "uteis": ["pokemonuteis", "pokemonuteismarinha"]}
     filterName = {"raros": "spawns-raros", "uteis": "spawns-uteis"}
 
-    with open(fileFilter) as raw_data:
+    with open(FILTER_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
 
     try:
@@ -121,9 +129,9 @@ def write_filter_data(receivedData, add=True):
         elif not add and pokemon in jsonPokemonData['monsters']['filters'][name]['monsters']:
             jsonPokemonData['monsters']['filters'][name]['monsters'].remove(pokemon)
 
-    os.remove(fileFilter)
+    os.remove(FILTER_FILE)
 
-    with open(fileFilter, 'w') as file:
+    with open(FILTER_FILE, 'w') as file:
         json.dump(jsonPokemonData, file, indent=4)
 
     return pokemon + (" adicionado a " if add else " removido de ") + filterName[receivedData[1]]
@@ -132,7 +140,7 @@ def find_quest(receivedData, local):
     if receivedData and (receivedData == "!questleiria" or receivedData == "!questmarinha"):
         return False
 
-    with open(fileQuest) as raw_data:
+    with open(QUESTS_FILE) as raw_data:
         quests = json.load(raw_data)
     quests = sorted(quests, key=lambda k: k['quest_task'], reverse=True)
 
@@ -179,14 +187,14 @@ def fetch_today_data():
     questText = data.text
     quests = json.loads(questText)
 
-    os.remove(fileQuest)
+    os.remove(QUESTS_FILE)
 
-    with open(fileQuest, 'w') as file:
+    with open(QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
 
 def get_version():
     #with open('savedVersion.txt', 'r') as data:
-    with open('/root/version/savedVersion.txt', 'r') as file:
+    with open(VERSION_FILE, 'r') as file:
         data = file.read().rstrip()
     return data
     
@@ -210,27 +218,27 @@ def clearMessages(authorId):
 
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
-    file_exists_scanned = exists(fileScanned)
-    file_exists_version = exists(fileVersion)
-    file_exists_clear = exists(fileClearQuests)
+    file_exists_scanned = exists(SCANNED_FILE)
+    file_exists_version = exists(VERSION_FILE)
+    file_exists_clear = exists(CLEAR_QUESTS_FILE)
 
     if file_exists_scanned:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(questChannel)
+            channel = client.get_channel(QUEST_CHANNEL_ID)
             try:
                 fetch_today_data()
                 embed = discord.Embed(title="Scan de quests finalizado!", description="Todas as informações relacionadas com as quests foram recolhidas", color=color)
                 embed.set_footer(text="Esta informação só é válida até ao final do dia")
                 await channel.send(embed=embed)
-                os.remove(fileScanned)
+                os.remove(SCANNED_FILE)
             except OSError as e:
-                f = open(logFile, 'w')
+                f = open(LOG_FILE, 'w')
                 f.write('FETCHING QUESTS ERROR: %s' % str(e))
                 f.close()
                 os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
         except OSError as e:
-            f = open(logFile, 'w')
+            f = open(LOG_FILE, 'w')
             f.write('FETCHING QUESTS ERROR: %s' % str(e))
             f.close()
             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
@@ -238,24 +246,24 @@ async def prepare_daily_quest_message_task():
     if file_exists_version:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(convivioChannel)
+            channel = client.get_channel(CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: " + get_version(), color=color)
             await channel.send(embed=embed)
-            os.remove(fileVersion)
+            os.remove(VERSION_FILE)
         except OSError as e:
-            f = open(logFile, 'w')
+            f = open(LOG_FILE, 'w')
             f.write('\nFORCE UPDATE ERROR: %s\n' % str(e))
             f.close()
 
     if file_exists_clear:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(questChannel)
+            channel = client.get_channel(QUEST_CHANNEL_ID)
             embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
             await channel.send(embed=embed)
-            os.remove(fileClearQuests)
+            os.remove(CLEAR_QUESTS_FILE)
         except OSError as e:
-            f = open(logFile, 'w')
+            f = open(LOG_FILE, 'w')
             f.write('\nErro a a limpar quests: %s\n' % str(e))
             f.close()
 
@@ -272,9 +280,9 @@ async def on_message(message):
 
     color = random.randint(0, 16777215)
 
-    if message.content in messagesFlaggedToBeDeleted and str(message.author.id) not in allowedUsers:
+    if message.content in messagesFlaggedToBeDeleted and str(message.author.id) not in ADMIN_USERS_IDS:
         try:
-            channel = client.get_channel(modChannel)
+            channel = client.get_channel(MOD_CHANNEL_ID)
             user = message.author
             await user.add_roles(muted_role, reason="Desiludiste o Lord Poliswag com o teu spam", atomic=True)
             embed = discord.Embed(title=str(user) + " levou mute por spam!", description=message.content, color=color)
@@ -284,26 +292,26 @@ async def on_message(message):
             await message.delete()
         except:
             print('Failed at initial message')
-    elif len(message.content) > 8 and str(message.author.id) not in allowedUsers and message.channel.id != questChannel:
+    elif len(message.content) > 8 and str(message.author.id) not in ADMIN_USERS_IDS and message.channel.id != QUEST_CHANNEL_ID:
         handleMessageReceived(message)
 
-    if message.channel.id == mapStatsChannel:
-        channel = client.get_channel(mapStatsChannel)
+    if message.channel.id == MAPSTATS_CHANNEL_ID:
+        channel = client.get_channel(MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
             if message != msg:
                 await msg.delete()
 
-    if message.channel.id == event_channel:
+    if message.channel.id == EVENT_CHANNEL_ID:
         if message.content.lower() == 'gold':
             event_role = discord.utils.get(message.guild.roles, name="Gold")
         elif message.content.lower() == 'silver':
             event_role = discord.utils.get(message.guild.roles, name="Silver")
-        elif str(message.author.id) not in allowedUsers:
+        elif str(message.author.id) not in ADMIN_USERS_IDS:
             await message.delete()
         await message.author.add_roles(event_role, atomic=True)
         await message.add_reaction("✅")
 
-    if message.channel.id != modChannel and str(message.author.id) not in allowedUsers:
+    if message.channel.id != MOD_CHANNEL_ID and str(message.author.id) not in ADMIN_USERS_IDS:
         toDelete = checkIfDuplicate(message)
         if toDelete and message.content not in messagesFlaggedToBeDeleted:
             messagesFlaggedToBeDeleted.append(message.content)
@@ -317,7 +325,7 @@ async def on_message(message):
                     except:
                         print('Failed deleting for loop')
             try:
-                channel = client.get_channel(modChannel)
+                channel = client.get_channel(MOD_CHANNEL_ID)
                 user = message.author
                 await user.add_roles(muted_role, reason="Desiludiste o Lord Poliswag com o teu spam", atomic=True)
                 embed = discord.Embed(title=str(user) + " levou mute por spam!", description=message.content, color=color)
@@ -328,13 +336,8 @@ async def on_message(message):
                 print('Already deleted')
             # clearMessages(msgDel["authorId"])
 
-    if message.channel.id == modChannel:
-        if str(message.author.id) in allowedUsers:
-            if message.content.startswith('!m') and message.author.id == myId:
-                receivedData = message.content.replace("!m ","")
-                channel = client.get_channel(convivioChannel)
-                await channel.send(receivedData)
-
+    if message.channel.id == MOD_CHANNEL_ID:
+        if str(message.author.id) in ADMIN_USERS_IDS:
             if message.content.startswith('!filter'):
                 await message.channel.send(load_filter_data())
 
@@ -360,13 +363,13 @@ async def on_message(message):
                 os.system('docker restart pokemon_alarm')
                 embed = discord.Embed(title="A lista de pokémon das notificações foi alterada", description="Utiliza !filter para ver quais são os novos filtros", color=color)
                 await message.channel.send(embed=embed)
-                channel = client.get_channel(convivioChannel)
+                channel = client.get_channel(CONVIVIO_CHANNEL_ID)
                 await channel.send(embed=embed)
 
             if message.content.startswith('!scan'):
                 embed = discord.Embed(title="Rescan de pokestops inicializado", color=color)
                 await message.channel.send(embed=embed)
-                channel = client.get_channel(questChannel)
+                channel = client.get_channel(QUEST_CHANNEL_ID)
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
 
@@ -375,7 +378,7 @@ async def on_message(message):
                 events = fetch_events()
                 await message.channel.send(events)
 
-    if message.channel.id == questChannel:
+    if message.channel.id == QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
             embed = discord.Embed(title=comandoQuestsTitle, description=comandoQuestsBody, color=color)
             await message.channel.send(embed=embed)
@@ -441,50 +444,18 @@ async def on_message(message):
                 await message.channel.send(embed=embed)
         
         else:
-            if message.author != client.user and str(message.author.id) not in allowedUsers:
+            if message.author != client.user and str(message.author.id) not in ADMIN_USERS_IDS:
                 try:
                     await message.delete()
                 except:
                     print('woops')
 
-    if message.channel.id == convivioChannel:
+    if message.channel.id == CONVIVIO_CHANNEL_ID:
         if message.content.startswith('!alertas'):
             jsonPokemonData = read_json_data()
             discordMessage = ""
             discordMessage = build_filter_message(discordMessage, jsonPokemonData)
             embed = discord.Embed(title="**Lista de Notificações de Pokémon**", description=discordMessage, color=color)
             await message.channel.send(embed=embed)
-
-    if message.content.startswith('Mekye') and message.author.id == myId:
-        await message.channel.send("Mekye meu dude")
-
-def main_test():
-    global fileFilter
-    global fileQuest
-    global fileVersion
-    global fileScanned
-    global fileClearQuests
-    global modChannel
-    global mapStatsChannel
-    global questChannel
-    global convivioChannel
-    global messagesReceived
-    global event_channel
-    global messagesToDelete
-    global authorToMute
-    global muted_role
-    global messagesFlaggedToBeDeleted
-
-    modChannel = 896693003895328813
-    questChannel = 896693003895328813
-    convivioChannel = 896693003895328813
-    event_channel = 896693003895328813
-    #mapStatsChannel = 896693003895328813
-    
-    fileFilter = "filters.json"
-    fileQuest = "quest_data.json"
-    fileScanned = "scanned.pogoleiria"
-    fileVersion = "version.pogoleiria"
-    fileClearQuests = "clearquests.pogoleiria"
 
 client.run(DISCORD_API_KEY)
