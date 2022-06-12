@@ -1,3 +1,7 @@
+import requests
+
+from bs4 import BeautifulSoup
+
 def handle_event_roles(message):
     if message.channel.id == EVENT_CHANNEL_ID:
         if message.content.lower() == 'gold':
@@ -8,3 +12,15 @@ def handle_event_roles(message):
             #await message.delete()
     #await message.author.add_roles(event_role, atomic=True)
     #await message.add_reaction("✅")
+
+def fetch_events():
+    html = requests.get('https://www.leekduck.com/events/')
+    processedHTML = BeautifulSoup(html.text, 'html.parser')
+    targetDivs = processedHTML.find_all("div", {"class": "event-text"})
+    
+    eventMessages = "__**EVENTOS ATIVOS E FUTUROS EVENTOS**__\n\n"
+    for targetDiv in targetDivs:
+        eventMessages = eventMessages + "**" + targetDiv.find("h2", {"class": ""}).text + "**" + "\n"
+        eventMessages = eventMessages + "> " + targetDiv.find("p", {"class": ""}).text + "\n"
+
+    return eventMessages
