@@ -88,18 +88,6 @@ def build_quest_location_url(latitude, longitude):
 
     return coordinatesUrl
 
-def fetch_events():
-    html = requests.get('https://www.leekduck.com/events/')
-    processedHTML = BeautifulSoup(html.text, 'html.parser')
-    targetDivs = processedHTML.find_all("div", {"class": "event-text"})
-    
-    eventMessages = "__**EVENTOS ATIVOS E FUTUROS EVENTOS**__\n\n"
-    for targetDiv in targetDivs:
-        eventMessages = eventMessages + "**" + targetDiv.find("h2", {"class": ""}).text + "**" + "\n"
-        eventMessages = eventMessages + "> " + targetDiv.find("p", {"class": ""}).text + "\n"
-
-    return eventMessages
-
 def write_filter_data(receivedData, add=True):
     if len(receivedData) != 2:
         return False
@@ -290,11 +278,6 @@ async def on_message(message):
                 channel = client.get_channel(QUEST_CHANNEL_ID)
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
-
-
-            if message.content.startswith('!eventos'):
-                events = fetch_events()
-                await message.channel.send(events)
 
     if message.channel.id == QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
