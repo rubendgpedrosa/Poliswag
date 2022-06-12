@@ -20,10 +20,8 @@ if (len(sys.argv) != 2):
 # Environment variables are loaded into memory here 
 load_dotenv(prepare_environment(sys.argv[1]))
 
+# Initialize global variables
 globals.init()
-
-pogoleiriaurl = globals.WEBSITE_URL + "static/images/header/pogoleiria_rounded.png"
-muted_role = ""
 
 comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
 comandoQuestsBody = "> !questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido\n`(ex:!questmarinha startdust | !questleiria tribunal)`"
@@ -93,8 +91,6 @@ async def on_ready():
 async def on_message(message):
     if message.author == globals.CLIENT.user:
         return
-
-    muted_role = discord.utils.get(message.guild.roles, name="Muted")
 
     color = random.randint(0, 16777215)
 
