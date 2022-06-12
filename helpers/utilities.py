@@ -18,3 +18,7 @@ def check_current_version():
             return False
     else:
         return False
+
+def log_error(errorString):
+    with open(globals.LOG_FILE, 'w') as file:
+        file.write(errorString)
