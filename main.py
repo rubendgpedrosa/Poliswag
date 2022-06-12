@@ -27,12 +27,6 @@ globals.init()
 comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
 comandoQuestsBody = "> !questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido\n`(ex:!questmarinha startdust | !questleiria tribunal)`"
 
-def get_version():
-    #with open('savedVersion.txt', 'r') as data:
-    with open(globals.VERSION_FILE, 'r') as file:
-        data = file.read().rstrip()
-    return data
-
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
     file_exists_scanned = exists(globals.SCANNED_FILE)
@@ -63,7 +57,7 @@ async def prepare_daily_quest_message_task():
     if file_exists_version:
         try:
             channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
-            embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: " + get_version(), color=color)
+            embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: 0." + globals.SAVED_VERSION, color=color)
             await channel.send(embed=embed)
         except OSError as e:
             f = open(globals.LOG_FILE, 'w')
