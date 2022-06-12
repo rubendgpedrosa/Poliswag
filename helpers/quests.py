@@ -45,7 +45,7 @@ def write_filter_data(receivedData, add=True):
 
     return pokemon + (" adicionado a " if add else " removido de ") + filterName[receivedData[1]]
 
-def find_quest(receivedData, local):
+def find_quest(receivedData, leiria):
     if receivedData and (receivedData == "!questleiria" or receivedData == "!questmarinha"):
         return False
 
@@ -86,7 +86,7 @@ def find_quest(receivedData, local):
             print(e)
             return "Essa procura não me parece ser válida."
 
-    if local == 1:
+    if leiria:
         return allQuestData
 
     return allQuestDataMarinha
