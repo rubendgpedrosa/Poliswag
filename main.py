@@ -92,6 +92,7 @@ async def on_message(message):
             if message != msg:
                 await msg.delete()
 
+    # Moderation commands to manage the pokemon scanner
     if message.channel.id == globals.MOD_CHANNEL_ID:
         if str(message.author.id) in globals.ADMIN_USERS_IDS:
             if message.content.startswith('!filter'):
@@ -127,14 +128,21 @@ async def on_message(message):
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
 
+    # Quest channel commands in order do display quests
     if message.channel.id == globals.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
             embed = discord.Embed(title=comandoQuestsTitle, description=comandoQuestsBody, color=color)
             await message.channel.send(embed=embed)
 
-        if message.content.startswith('!questleiria'):
-            receivedData = message.content.replace("!questleiria ","")
-            returnedData = find_quest(receivedData, 1)
+        if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
+            leiria = False
+            if message.content.startswith('!questleiria'):
+                receivedData = message.content.replace("!questleiria ","")
+                leiria = True
+            else:
+                receivedData = message.content.replace("!questmarinha ","")
+            returnedData = find_quest(receivedData, leiria)
+
             if returnedData == False:
                 try:
                     await message.delete()
@@ -161,37 +169,6 @@ async def on_message(message):
             else:
                 embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                 await message.channel.send(embed=embed)
-
-        elif message.content.startswith('!questmarinha'):
-            receivedData = message.content.replace("!questmarinha ","")
-            returnedData = find_quest(receivedData, 2)
-            if returnedData == False:
-                try:
-                    await message.delete()
-                    return
-                except:
-                    print('woops')
-            
-            if len(returnedData) > 0 and len(returnedData) < 25:
-                try:
-                    for data in returnedData:
-                        # Initiate the discord main message
-                        embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=color)
-                        # Set pokestop thumbnail image
-                        embed.set_thumbnail(url=data["image"])
-                        # Tag the author + add the search query
-                        embed.add_field(name=message.author, value="Resultados para: " + receivedData.title(), inline=False) 
-                        await message.channel.send(embed=embed)
-                except Exception as e:
-                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
-                    await message.channel.send(embed=embed)
-            elif len(returnedData) == 0:
-                embed = discord.Embed(title="Não encontrei nenhum resultado para a tua pesquisa: "  + receivedData.title(), color=color)
-                await message.channel.send(embed=embed)
-            else:
-                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
-                await message.channel.send(embed=embed)
-        
         else:
             if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
                 try:
