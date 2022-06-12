@@ -1,4 +1,4 @@
-import os
+import os, json
 
 import discord
 
@@ -30,3 +30,8 @@ def init():
 
     global CLIENT
     CLIENT = discord.Client()
+
+    global SAVED_VERSION
+    with open(VERSION_FILE) as text:
+        SAVED_VERSION = text.read(10) or 0
+        
