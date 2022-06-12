@@ -16,6 +16,35 @@ def fetch_today_data():
     with open(globals.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
 
+def write_filter_data(receivedData, add=True):
+    if len(receivedData) != 2:
+        return False
+
+    originalDiscordChannelName = {"raros": ["pokemon", "pokemonmarinha"], "uteis": ["pokemonuteis", "pokemonuteismarinha"]}
+    filterName = {"raros": "spawns-raros", "uteis": "spawns-uteis"}
+
+    with open(globals.FILTER_FILE) as raw_data:
+        jsonPokemonData = json.load(raw_data)
+
+    try:
+        pokemon = receivedData[0].title()
+        affectedChannel = originalDiscordChannelName[receivedData[1]]
+    except:
+        return "Não reconheço esse comando. Aqui tens uma lista para te ajudar." + "\n\n__**COMANDOS IMPLEMENTADOS:**__\n\n> !add POKEMON CANAL\nPara se adicionar um Pokémon a um canal específico `(ex:!add Poliwag uteis)`\n> !remove POKEMON CANAL\nPara que se remova um Pokemon de um canal específico `(ex:!remove Poliwag raros)`\n> !reload\nApós se alterar a lista, podem reiniciar as notificações com as alterações usando `(ex:!reload)`"
+
+    for name in affectedChannel:
+        if add and pokemon not in jsonPokemonData['monsters']['filters'][name]['monsters']:
+            jsonPokemonData['monsters']['filters'][name]['monsters'].append(pokemon)
+        elif not add and pokemon in jsonPokemonData['monsters']['filters'][name]['monsters']:
+            jsonPokemonData['monsters']['filters'][name]['monsters'].remove(pokemon)
+
+    os.remove(globals.FILTER_FILE)
+
+    with open(globals.FILTER_FILE, 'w') as file:
+        json.dump(jsonPokemonData, file, indent=4)
+
+    return pokemon + (" adicionado a " if add else " removido de ") + filterName[receivedData[1]]
+
 def find_quest(receivedData, local):
     if receivedData and (receivedData == "!questleiria" or receivedData == "!questmarinha"):
         return False
