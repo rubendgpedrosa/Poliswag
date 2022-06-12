@@ -8,6 +8,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
+from helpers.notifications import load_filter_data
 from helpers.environment import prepare_environment
 from helpers.quests import fetch_today_data
 
@@ -21,47 +22,11 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 globals.init()
 
-## QUESTS
-namesList = ["pokemon", "pokemonuteis"]
-discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
-client = discord.Client()
-
 pogoleiriaurl = globals.WEBSITE_URL + "static/images/header/pogoleiria_rounded.png"
 muted_role = ""
 
 comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
 comandoQuestsBody = "> !questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido\n`(ex:!questmarinha startdust | !questleiria tribunal)`"
-
-def load_filter_data():
-    global discordMessage
-
-    jsonPokemonData = read_json_data()
-    discordMessage = "__** LISTA DE POKÉMON **__\n"
-
-    discordMessage = build_filter_message(discordMessage, jsonPokemonData)
-
-    discordMessage = discordMessage + "\n\n\n__**COMANDOS IMPLEMENTADOS:**__\n\n> !add POKEMON CANAL\nPara se adicionar um Pokémon a um canal específico `(ex:!add Poliwag uteis)`\n> !remove POKEMON CANAL\nPara que se remova um Pokemon de um canal específico `(ex:!remove Poliwag raros)`\n> !reload\nApós se alterar a lista, podem reiniciar as notificações com as alterações usando `(ex:!reload)`"
-
-    return discordMessage
-
-def read_json_data():
-    with open(globals.FILTER_FILE) as raw_data:
-        jsonPokemonData = json.load(raw_data)
-    return jsonPokemonData
-
-def build_filter_message(discordMessage, jsonPokemonData):
-    for name in namesList:
-        discordMessage = discordMessage + "\n**" + discordMessageChannels[name] + "**\n"
-        pokemonNames = []
-
-        for pokemonFilter in jsonPokemonData['monsters']['filters'][name]['monsters']:
-            pokemonNames.append(pokemonFilter)
-
-        pokemonNames = sorted(pokemonNames, key=str.lower)
-        pokemonNames = "> " + ', '.join(pokemonNames)
-        discordMessage = discordMessage + pokemonNames
-
-    return discordMessage
 
 def build_quest_message(data):
     return "[" + data['name'] + "](" + build_quest_location_url(data["latitude"], data["longitude"]) + ")"
@@ -163,7 +128,7 @@ async def prepare_daily_quest_message_task():
     if file_exists_scanned:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(globals.QUEST_CHANNEL_ID)
+            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             try:
                 fetch_today_data()
                 embed = discord.Embed(title="Scan de quests finalizado!", description="Todas as informações relacionadas com as quests foram recolhidas", color=color)
@@ -184,7 +149,7 @@ async def prepare_daily_quest_message_task():
     if file_exists_version:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(globals.CONVIVIO_CHANNEL_ID)
+            channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: " + get_version(), color=color)
             await channel.send(embed=embed)
             os.remove(globals.VERSION_FILE)
@@ -196,7 +161,7 @@ async def prepare_daily_quest_message_task():
     if file_exists_clear:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(globals.QUEST_CHANNEL_ID)
+            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
             await channel.send(embed=embed)
             os.remove(globals.CLEAR_QUESTS_FILE)
@@ -205,13 +170,13 @@ async def prepare_daily_quest_message_task():
             f.write('\nErro a a limpar quests: %s\n' % str(e))
             f.close()
 
-@client.event
+@globals.CLIENT.event
 async def on_ready():
     prepare_daily_quest_message_task.start()
 
-@client.event
+@globals.CLIENT.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author == globals.CLIENT.user:
         return
 
     muted_role = discord.utils.get(message.guild.roles, name="Muted")
@@ -219,7 +184,7 @@ async def on_message(message):
     color = random.randint(0, 16777215)
 
     if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
-        channel = client.get_channel(globals.MAPSTATS_CHANNEL_ID)
+        channel = globals.CLIENT.get_channel(globals.MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
             if message != msg:
                 await msg.delete()
@@ -251,13 +216,13 @@ async def on_message(message):
                 os.system('docker restart pokemon_alarm')
                 embed = discord.Embed(title="A lista de pokémon das notificações foi alterada", description="Utiliza !filter para ver quais são os novos filtros", color=color)
                 await message.channel.send(embed=embed)
-                channel = client.get_channel(globals.CONVIVIO_CHANNEL_ID)
+                channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
                 await channel.send(embed=embed)
 
             if message.content.startswith('!scan'):
                 embed = discord.Embed(title="Rescan de pokestops inicializado", color=color)
                 await message.channel.send(embed=embed)
-                channel = client.get_channel(QUEST_CHANNEL_ID)
+                channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
 
@@ -327,7 +292,7 @@ async def on_message(message):
                 await message.channel.send(embed=embed)
         
         else:
-            if message.author != client.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
+            if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
                 try:
                     await message.delete()
                 except:
@@ -341,4 +306,4 @@ async def on_message(message):
             embed = discord.Embed(title="**Lista de Notificações de Pokémon**", description=discordMessage, color=color)
             await message.channel.send(embed=embed)
 
-client.run(globals.DISCORD_API_KEY)
+globals.CLIENT.run(globals.DISCORD_API_KEY)
