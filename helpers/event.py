@@ -1,9 +1,12 @@
 import requests
 
 from bs4 import BeautifulSoup
+import discord
+
+import helpers.globals as globals
 
 def handle_event_roles(message):
-    if message.channel.id == EVENT_CHANNEL_ID:
+    if message.channel.id == globals.EVENT_CHANNEL_ID:
         if message.content.lower() == 'gold':
             event_role = discord.utils.get(message.guild.roles, name="Gold")
         elif message.content.lower() == 'silver':
