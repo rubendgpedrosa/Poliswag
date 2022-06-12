@@ -1,5 +1,7 @@
 import os
 
+import discord
+
 def init():
     global DISCORD_API_KEY
     DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
@@ -25,3 +27,6 @@ def init():
 
     global ADMIN_USERS_IDS
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
+
+    global CLIENT
+    CLIENT = discord.Client()
