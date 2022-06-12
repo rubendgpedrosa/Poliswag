@@ -11,7 +11,7 @@ import helpers.globals as globals
 from helpers.notifications import load_filter_data, read_json_data, build_filter_message
 from helpers.environment import prepare_environment
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
-from helpers.utilities import check_current_version
+from helpers.utilities import check_current_version, log_error
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -43,15 +43,11 @@ async def prepare_daily_quest_message_task():
                 embed.set_footer(text="Esta informação só é válida até ao final do dia")
                 await channel.send(embed=embed)
                 os.remove(globals.SCANNED_FILE)
-            except OSError as e:
-                f = open(globals.LOG_FILE, 'w')
-                f.write('FETCHING QUESTS ERROR: %s' % str(e))
-                f.close()
+            except Exception as e:
+                log_error('FETCHING QUESTS ERROR: %s' % str(e))
                 os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
-        except OSError as e:
-            f = open(globals.LOG_FILE, 'w')
-            f.write('FETCHING QUESTS ERROR: %s' % str(e))
-            f.close()
+        except Exception as e:
+            log_error('FETCHING QUESTS ERROR: %s' % str(e))
             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
     
     if file_exists_version:
@@ -59,10 +55,8 @@ async def prepare_daily_quest_message_task():
             channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: 0." + globals.SAVED_VERSION, color=color)
             await channel.send(embed=embed)
-        except OSError as e:
-            f = open(globals.LOG_FILE, 'w')
-            f.write('\nFORCE UPDATE ERROR: %s\n' % str(e))
-            f.close()
+        except Exception as e:
+            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))
 
     if file_exists_clear:
         try:
@@ -70,10 +64,8 @@ async def prepare_daily_quest_message_task():
             embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
             await channel.send(embed=embed)
             os.remove(globals.CLEAR_QUESTS_FILE)
-        except OSError as e:
-            f = open(globals.LOG_FILE, 'w')
-            f.write('\nErro a a limpar quests: %s\n' % str(e))
-            f.close()
+        except Exception as e:
+            log_error('\nERROR CLEARING QUESTS: %s\n' % str(e))
 
 @globals.CLIENT.event
 async def on_ready():
@@ -147,8 +139,8 @@ async def on_message(message):
                 try:
                     await message.delete()
                     return
-                except:
-                    print('woops')
+                except Exception as e:
+                    log_error('FAILED DUE TO EMPTY DATA: %s' % str(e))
 
             if len(returnedData) > 0 and len(returnedData) < 25:
                 try:
@@ -161,6 +153,7 @@ async def on_message(message):
                         embed.add_field(name=message.author, value="Resultados para: " + receivedData.title(), inline=False) 
                         await message.channel.send(embed=embed)
                 except Exception as e:
+                    log_error('FAILED IN QUEST ITERATION: %s' % str(e))
                     embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:
@@ -173,14 +166,13 @@ async def on_message(message):
             if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
                 try:
                     await message.delete()
-                except:
-                    print('woops')
+                except Exception as e:
+                    log_error('FAILED DELETING MESSAGE IN QUEST CHANNEL: %s' % str(e))
 
     if message.channel.id == globals.CONVIVIO_CHANNEL_ID:
         if message.content.startswith('!alertas'):
             jsonPokemonData = read_json_data()
-            discordMessage = ""
-            discordMessage = build_filter_message(discordMessage, jsonPokemonData)
+            discordMessage = build_filter_message("", jsonPokemonData)
             embed = discord.Embed(title="**Lista de Notificações de Pokémon**", description=discordMessage, color=color)
             await message.channel.send(embed=embed)
 
