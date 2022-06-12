@@ -1,6 +1,6 @@
 # Poliswag
 
-Poliswag is a Python Discord Bot that integrates the scanner from https://pogoleiria.pt into the discord's community.
+Poliswag is a Python Discord Bot that integrates the [Pokémon Scanner](https://pogoleiria.pt) into the [PoGoLeiria Discord](https://discord.gg/pASCYbp).
 
 ## Installation
 
