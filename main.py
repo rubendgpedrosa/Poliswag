@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from discord.ext import tasks
 from dotenv import load_dotenv
 
+import helpers.globals as globals
 from helpers.environment import prepare_environment
 from helpers.quests import fetch_today_data
 
@@ -17,33 +18,15 @@ if (len(sys.argv) != 2):
 
 # Environment variables are loaded into memory here 
 load_dotenv(prepare_environment(sys.argv[1]))
-DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
 
-BACKEND_ENDPOINT = os.getenv('BACKEND_ENDPOINT')
-WEBSITE_URL = os.getenv('WEBSITE_URL')
-
-CONVIVIO_CHANNEL_ID = int(os.getenv('CONVIVIO_CHANNEL_ID'))
-EVENT_CHANNEL_ID = int(os.getenv('EVENT_CHANNEL_ID'))
-MAPSTATS_CHANNEL_ID = int(os.getenv('MAPSTATS_CHANNEL_ID'))
-MOD_CHANNEL_ID = int(os.getenv('MOD_CHANNEL_ID'))
-QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
-
-CLEAR_QUESTS_FILE = os.getenv('CLEAR_QUESTS_FILE')
-FILTER_FILE = os.getenv('FILTER_FILE')
-LOG_FILE = os.getenv('LOG_FILE')
-QUESTS_FILE = os.getenv('QUESTS_FILE')
-SCANNED_FILE = os.getenv('SCANNED_FILE')
-VERSION_FILE = os.getenv('VERSION_FILE')
-
-ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
-
+globals.init()
 
 ## QUESTS
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
 client = discord.Client()
 
-pogoleiriaurl = WEBSITE_URL + "static/images/header/pogoleiria_rounded.png"
+pogoleiriaurl = globals.WEBSITE_URL + "static/images/header/pogoleiria_rounded.png"
 muted_role = ""
 
 comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
@@ -62,7 +45,7 @@ def load_filter_data():
     return discordMessage
 
 def read_json_data():
-    with open(FILTER_FILE) as raw_data:
+    with open(globals.FILTER_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
     return jsonPokemonData
 
@@ -95,7 +78,7 @@ def write_filter_data(receivedData, add=True):
     originalDiscordChannelName = {"raros": ["pokemon", "pokemonmarinha"], "uteis": ["pokemonuteis", "pokemonuteismarinha"]}
     filterName = {"raros": "spawns-raros", "uteis": "spawns-uteis"}
 
-    with open(FILTER_FILE) as raw_data:
+    with open(globals.FILTER_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
 
     try:
@@ -110,9 +93,9 @@ def write_filter_data(receivedData, add=True):
         elif not add and pokemon in jsonPokemonData['monsters']['filters'][name]['monsters']:
             jsonPokemonData['monsters']['filters'][name]['monsters'].remove(pokemon)
 
-    os.remove(FILTER_FILE)
+    os.remove(globals.FILTER_FILE)
 
-    with open(FILTER_FILE, 'w') as file:
+    with open(globals.FILTER_FILE, 'w') as file:
         json.dump(jsonPokemonData, file, indent=4)
 
     return pokemon + (" adicionado a " if add else " removido de ") + filterName[receivedData[1]]
@@ -121,7 +104,7 @@ def find_quest(receivedData, local):
     if receivedData and (receivedData == "!questleiria" or receivedData == "!questmarinha"):
         return False
 
-    with open(QUESTS_FILE) as raw_data:
+    with open(globals.QUESTS_FILE) as raw_data:
         quests = json.load(raw_data)
     quests = sorted(quests, key=lambda k: k['quest_task'], reverse=True)
 
@@ -167,33 +150,33 @@ def find_quest(receivedData, local):
 
 def get_version():
     #with open('savedVersion.txt', 'r') as data:
-    with open(VERSION_FILE, 'r') as file:
+    with open(globals.VERSION_FILE, 'r') as file:
         data = file.read().rstrip()
     return data
 
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
-    file_exists_scanned = exists(SCANNED_FILE)
-    file_exists_version = exists(VERSION_FILE)
-    file_exists_clear = exists(CLEAR_QUESTS_FILE)
+    file_exists_scanned = exists(globals.SCANNED_FILE)
+    file_exists_version = exists(globals.VERSION_FILE)
+    file_exists_clear = exists(globals.CLEAR_QUESTS_FILE)
 
     if file_exists_scanned:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(QUEST_CHANNEL_ID)
+            channel = client.get_channel(globals.QUEST_CHANNEL_ID)
             try:
-                fetch_today_data(BACKEND_ENDPOINT, QUESTS_FILE)
+                fetch_today_data()
                 embed = discord.Embed(title="Scan de quests finalizado!", description="Todas as informações relacionadas com as quests foram recolhidas", color=color)
                 embed.set_footer(text="Esta informação só é válida até ao final do dia")
                 await channel.send(embed=embed)
-                os.remove(SCANNED_FILE)
+                os.remove(globals.SCANNED_FILE)
             except OSError as e:
-                f = open(LOG_FILE, 'w')
+                f = open(globals.LOG_FILE, 'w')
                 f.write('FETCHING QUESTS ERROR: %s' % str(e))
                 f.close()
                 os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
         except OSError as e:
-            f = open(LOG_FILE, 'w')
+            f = open(globals.LOG_FILE, 'w')
             f.write('FETCHING QUESTS ERROR: %s' % str(e))
             f.close()
             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
@@ -201,24 +184,24 @@ async def prepare_daily_quest_message_task():
     if file_exists_version:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(CONVIVIO_CHANNEL_ID)
+            channel = client.get_channel(globals.CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: " + get_version(), color=color)
             await channel.send(embed=embed)
-            os.remove(VERSION_FILE)
+            os.remove(globals.VERSION_FILE)
         except OSError as e:
-            f = open(LOG_FILE, 'w')
+            f = open(globals.LOG_FILE, 'w')
             f.write('\nFORCE UPDATE ERROR: %s\n' % str(e))
             f.close()
 
     if file_exists_clear:
         color = random.randint(0, 16777215)
         try:
-            channel = client.get_channel(QUEST_CHANNEL_ID)
+            channel = client.get_channel(globals.QUEST_CHANNEL_ID)
             embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
             await channel.send(embed=embed)
-            os.remove(CLEAR_QUESTS_FILE)
+            os.remove(globals.CLEAR_QUESTS_FILE)
         except OSError as e:
-            f = open(LOG_FILE, 'w')
+            f = open(globals.LOG_FILE, 'w')
             f.write('\nErro a a limpar quests: %s\n' % str(e))
             f.close()
 
@@ -235,15 +218,14 @@ async def on_message(message):
 
     color = random.randint(0, 16777215)
 
-    if message.channel.id == MAPSTATS_CHANNEL_ID:
-        channel = client.get_channel(MAPSTATS_CHANNEL_ID)
+    if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
+        channel = client.get_channel(globals.MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
             if message != msg:
                 await msg.delete()
 
-    if message.channel.id == MOD_CHANNEL_ID:
-        print(message)
-        if str(message.author.id) in ADMIN_USERS_IDS:
+    if message.channel.id == globals.MOD_CHANNEL_ID:
+        if str(message.author.id) in globals.ADMIN_USERS_IDS:
             if message.content.startswith('!filter'):
                 await message.channel.send(load_filter_data())
 
@@ -269,7 +251,7 @@ async def on_message(message):
                 os.system('docker restart pokemon_alarm')
                 embed = discord.Embed(title="A lista de pokémon das notificações foi alterada", description="Utiliza !filter para ver quais são os novos filtros", color=color)
                 await message.channel.send(embed=embed)
-                channel = client.get_channel(CONVIVIO_CHANNEL_ID)
+                channel = client.get_channel(globals.CONVIVIO_CHANNEL_ID)
                 await channel.send(embed=embed)
 
             if message.content.startswith('!scan'):
@@ -279,7 +261,7 @@ async def on_message(message):
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
 
-    if message.channel.id == QUEST_CHANNEL_ID:
+    if message.channel.id == globals.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
             embed = discord.Embed(title=comandoQuestsTitle, description=comandoQuestsBody, color=color)
             await message.channel.send(embed=embed)
@@ -305,13 +287,13 @@ async def on_message(message):
                         embed.add_field(name=message.author, value="Resultados para: " + receivedData.title(), inline=False) 
                         await message.channel.send(embed=embed)
                 except Exception as e:
-                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + WEBSITE_URL, color=color)
+                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:
                 embed = discord.Embed(title="Não encontrei nenhum resultado para a tua pesquisa: "  + receivedData.title(), color=color)
                 await message.channel.send(embed=embed)
             else:
-                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + WEBSITE_URL, color=color)
+                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                 await message.channel.send(embed=embed)
 
         elif message.content.startswith('!questmarinha'):
@@ -335,23 +317,23 @@ async def on_message(message):
                         embed.add_field(name=message.author, value="Resultados para: " + receivedData.title(), inline=False) 
                         await message.channel.send(embed=embed)
                 except Exception as e:
-                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + WEBSITE_URL, color=color)
+                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:
                 embed = discord.Embed(title="Não encontrei nenhum resultado para a tua pesquisa: "  + receivedData.title(), color=color)
                 await message.channel.send(embed=embed)
             else:
-                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + WEBSITE_URL, color=color)
+                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
                 await message.channel.send(embed=embed)
         
         else:
-            if message.author != client.user and str(message.author.id) not in ADMIN_USERS_IDS:
+            if message.author != client.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
                 try:
                     await message.delete()
                 except:
                     print('woops')
 
-    if message.channel.id == CONVIVIO_CHANNEL_ID:
+    if message.channel.id == globals.CONVIVIO_CHANNEL_ID:
         if message.content.startswith('!alertas'):
             jsonPokemonData = read_json_data()
             discordMessage = ""
@@ -359,4 +341,4 @@ async def on_message(message):
             embed = discord.Embed(title="**Lista de Notificações de Pokémon**", description=discordMessage, color=color)
             await message.channel.send(embed=embed)
 
-client.run(DISCORD_API_KEY)
+client.run(globals.DISCORD_API_KEY)
