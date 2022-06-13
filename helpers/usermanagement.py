@@ -65,7 +65,8 @@ def build_response_message(role):
         
 async def remove_team_roles(role, user):
     roles_list = ["Instinct", "Mystic", "Valor"]
-    roles_list.remove(role)
+    if role not in role_list:
+        roles_list.remove(role)
     roleToRemove = discord.utils.get(user.guild.roles, name=role)
 
     for role_list in roles_list:
