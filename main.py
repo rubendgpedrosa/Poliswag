@@ -10,8 +10,10 @@ from dotenv import load_dotenv
 import helpers.globals as globals
 from helpers.notifications import load_filter_data, read_json_data, build_filter_message
 from helpers.environment import prepare_environment
+from helpers.usermanagement import prepare_view_roles_location,prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error
+from helpers.scanner import rename_voice_channel
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -70,6 +72,10 @@ async def prepare_daily_quest_message_task():
 @globals.CLIENT.event
 async def on_ready():
     prepare_daily_quest_message_task.start()
+@globals.CLIENT.event
+async def on_interaction(interaction):
+    await start_event_listeners(interaction)
+
 
 @globals.CLIENT.event
 async def on_message(message):
@@ -77,6 +83,13 @@ async def on_message(message):
         return
 
     color = random.randint(0, 16777215)
+
+    if message.content.startswith('!location'):
+        await message.delete()
+        await prepare_view_roles_location(message.channel)
+    if message.content.startswith('!teams'):
+        await message.delete()
+        await prepare_view_roles_teams(message.channel)
 
     if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
         channel = globals.CLIENT.get_channel(globals.MAPSTATS_CHANNEL_ID)
