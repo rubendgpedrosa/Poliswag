@@ -4,7 +4,7 @@ Poliswag is a Python Discord Bot that integrates the [Pokémon Scanner](https://
 
 ## Installation
 
-Python > 3.6.
+Python >= 3.5.3
 
 ```bash
 pip install -r requirements.txt
