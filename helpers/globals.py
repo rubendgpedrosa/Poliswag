@@ -29,7 +29,9 @@ def init():
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
 
     global CLIENT
-    CLIENT = discord.Client()
+    intents = discord.Intents.default()
+    intents.message_content = True
+    CLIENT = discord.Client(intents=intents)
 
     global SAVED_VERSION
     with open(VERSION_FILE) as text:
