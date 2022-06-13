@@ -5,15 +5,18 @@ async def prepare_view_roles_location(channel):
     buttonLeiria = Button(label="LEIRIA", style=discord.ButtonStyle.secondary, custom_id="AlertasLeiria")
     buttonMarinha = Button(label="MARINHA GRANDE", style=discord.ButtonStyle.secondary, custom_id="AlertasMarinha")
     buttonPvP = Button(label="PvP", style=discord.ButtonStyle.secondary, custom_id="AlertasPvP")
+    buttonRaids = Button(label="RAIDS", style=discord.ButtonStyle.secondary, custom_id="AlertasRaids")
 
     await add_button_event(buttonLeiria)
     await add_button_event(buttonMarinha)
     await add_button_event(buttonPvP)
+    await add_button_event(buttonRaids)
 
     view = View()
     view.add_item(buttonLeiria)
     view.add_item(buttonMarinha)
     view.add_item(buttonPvP)
+    view.add_item(buttonRaids)
 
     embed = discord.Embed(title="NOTIFICAÇÕES OPCIONAIS DO MAPA", description="Ao clickarem no botão correspondente, poderão ativar/desativar as notificações para as diferentes localidades.")
     await channel.send(embed=embed, view=view)
@@ -58,7 +61,7 @@ async def toggle_role(role, user):
             return {'msg': message + " ativadas.", 'color': 0x00ff00}
 
 def build_response_message(role):
-    if role.lower() == "alertasleiria" or role.lower() == "alertasmarinha" or role.lower() == "alertaspvp":
+    if role.lower() == "alertasleiria" or role.lower() == "alertasmarinha" or role.lower() == "alertaspvp" or role.lower() == "alertasraids":
         return "Notificações de " + role.title()
     elif role.lower() == "mystic" or role.lower() == "valor" or role.lower() == "instinct":
         return "Equipa atribuida"
