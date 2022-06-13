@@ -84,12 +84,13 @@ async def on_message(message):
 
     color = random.randint(0, 16777215)
 
-    if message.content.startswith('!location'):
-        await message.delete()
-        await prepare_view_roles_location(message.channel)
-    if message.content.startswith('!teams'):
-        await message.delete()
-        await prepare_view_roles_teams(message.channel)
+    if str(message.author.id) in globals.ADMIN_USERS_IDS:
+        if message.content.startswith('!location'):
+            await message.delete()
+            await prepare_view_roles_location(message.channel)
+        if message.content.startswith('!teams'):
+            await message.delete()
+            await prepare_view_roles_teams(message.channel)
 
     if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
         channel = globals.CLIENT.get_channel(globals.MAPSTATS_CHANNEL_ID)
