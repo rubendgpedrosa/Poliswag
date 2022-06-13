@@ -1,4 +1,6 @@
-import json, os, requests
+import json, os, requests, random
+
+import discord
 
 import helpers.globals as globals
 from helpers.notifications import build_quest_location_url
@@ -49,25 +51,16 @@ def find_quest(receivedData, leiria):
     if receivedData and (receivedData == "!questleiria" or receivedData == "!questmarinha"):
         return False
 
-    with open(globals.QUESTS_FILE) as raw_data:
-        quests = json.load(raw_data)
-    quests = sorted(quests, key=lambda k: k['quest_task'], reverse=True)
+    quests = retrieve_sort_quest_data()
 
     allQuestData = []
     allQuestDataMarinha = []
 
     for quest in quests:
-        if quest['quest_reward_type'] == 'Pokemon':
-            reward = quest['pokemon_name']
-        elif quest['quest_reward_type'] == 'Item':
-            reward = str(quest['item_amount']) + " " + quest['item_type']
-        elif quest['quest_reward_type'] == 'Stardust':
-            reward =  str(quest['item_amount']) + " " + quest['quest_reward_type']
-        else:
-            reward =  str(quest['item_amount']) + " " + quest['pokemon_name'] + " " + quest['item_type']
+        reward = build_reward_for_quest(quest)
 
         try:
-            if receivedData.lower() in reward.lower() or receivedData.lower() in quest['quest_task'].lower() or receivedData.lower() in quest["name"].lower():
+            if receivedData and receivedData.lower() in reward.lower() or receivedData.lower() in quest['quest_task'].lower() or receivedData.lower() in quest["name"].lower():
                 if "-8.9" not in str(quest['longitude']):
                     allQuestData.append({
                         "name": "[Leiria] " + quest["name"],
@@ -83,10 +76,26 @@ def find_quest(receivedData, leiria):
                         "image": quest["url"]
                     })
         except Exception as e:
-            print(e)
+            print("find_quest: " + e)
             return "Essa procura não me parece ser válida."
 
     if leiria:
         return allQuestData
 
     return allQuestDataMarinha
+
+def retrieve_sort_quest_data():
+    with open(globals.QUESTS_FILE) as raw_data:
+        quests = json.load(raw_data)
+    return sorted(quests, key=lambda k: k['quest_task'], reverse=True)
+
+def build_reward_for_quest(quest):
+    if quest['quest_reward_type'] == 'Pokemon':
+        reward = quest['pokemon_name']
+    elif quest['quest_reward_type'] == 'Item':
+        reward = str(quest['item_amount']) + " " + quest['item_type']
+    elif quest['quest_reward_type'] == 'Stardust':
+        reward =  str(quest['item_amount']) + " " + quest['quest_reward_type']
+    else:
+        reward =  str(quest['item_amount']) + " " + quest['pokemon_name'] + " " + quest['item_type']
+    return reward
