@@ -7,7 +7,7 @@ import helpers.globals as globals
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
 
-def load_filter_data():
+def load_filter_data(displayCommands = True):
     discordMessage = ""
     color = random.randint(0, 16777215)
 
@@ -18,7 +18,8 @@ def load_filter_data():
     for name in namesList:
         discordMessage = build_filter_message(jsonPokemonData, name)
         embed.add_field(name=discordMessageChannels[name], value=discordMessage, inline=True)
-    embed.set_footer(text="COMANDOS IMPLEMENTADOS:  !add POKEMON CANAL, !remove POKEMON CANAL, !reload")
+    if displayCommands:
+        embed.set_footer(text="COMANDOS IMPLEMENTADOS:  !add POKEMON CANAL, !remove POKEMON CANAL, !reload")
 
     return embed
 
@@ -29,11 +30,12 @@ def read_json_data():
 
 def build_filter_message(jsonPokemonData, name):
     pokemonNames = []
+
     for pokemonFilter in jsonPokemonData['monsters']['filters'][name]['monsters']:
         pokemonNames.append(pokemonFilter)
-
     pokemonNames = sorted(pokemonNames, key=str.lower)
     pokemonNames = "> " + ', '.join(pokemonNames)
+    
     return pokemonNames
 
 def build_quest_message(data):
