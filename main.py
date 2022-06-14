@@ -25,9 +25,8 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
-currentDay = datetime.datetime.now().day
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=1)
 async def prepare_daily_quest_message_task():
     #file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
@@ -51,10 +50,11 @@ async def prepare_daily_quest_message_task():
     #     except Exception as e:
     #         log_error('FETCHING QUESTS ERROR: %s' % str(e))
     #         os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
-
-    if datetime.datetime.now().day != currentDay:
+    
+    print(datetime.datetime.now().day != globals.CURRENT_DAY)
+    if datetime.datetime.now().day != globals.CURRENT_DAY:
         restart_pokestop_scanning()
-        currentDay = datetime.datetime.now().day
+        globals.CURRENT_DAY = datetime.datetime.now().day
     
     if new_version_forced:
         try:
