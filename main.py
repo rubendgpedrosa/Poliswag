@@ -12,7 +12,7 @@ from helpers.notifications import load_filter_data, read_json_data, build_filter
 from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
-from helpers.utilities import check_current_version, log_error
+from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
 from helpers.scanner import rename_voice_channel
 
 # Validates arguments passed to check what env was requested
@@ -92,6 +92,7 @@ async def on_message(message):
             await message.delete()
             await prepare_view_roles_teams(message.channel)
 
+    # Keeps the map status channel with the most recent message
     if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
         channel = globals.CLIENT.get_channel(globals.MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
@@ -101,35 +102,33 @@ async def on_message(message):
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == globals.MOD_CHANNEL_ID:
         if str(message.author.id) in globals.ADMIN_USERS_IDS:
-            if message.content.startswith('!filter'):
-                await message.channel.send(load_filter_data())
+            if message.content == ("<@" + str(globals.POLISWAG_ID) + ">"):
+                await message.delete()
+                await message.channel.send(embed=load_filter_data(), delete_after=300)
 
-            if message.content.startswith('!add'):
-                receivedData = message.content.replace("!add ","")
+            if message.content.startswith('!add') or message.content.startswith('!remove'):
+                await message.delete()
+                if message.content.startswith('!add'):
+                    receivedData = message.content.replace("!add ","")
+                    add = True
+                else:
+                    receivedData = message.content.replace("!remove ","")
+                    add = False
                 receivedData = receivedData.split(" ", 1)
-                returnedData = write_filter_data(receivedData)
+                returnedData = write_filter_data(receivedData, add)
                 if returnedData == False:
-                    await message.channel.send("Woops, parece que te enganaste migo.")
+                    await message.channel.send(embed=build_embed_object_title_description("Woops, parece que te enganaste migo."), delete_after=5)
                     return
-                await message.channel.send(returnedData)
-
-            if message.content.startswith('!remove'):
-                receivedData = message.content.replace("!remove ","")
-                receivedData = receivedData.split(" ", 1)
-                returnedData = write_filter_data(receivedData, False)
-                if returnedData == False:
-                    await message.channel.send("Woops, parece que te enganaste migo.")
-                    return
-                await message.channel.send(returnedData)
+                await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=5)
 
             if message.content.startswith('!reload'):
+                await message.delete()
                 os.system('docker restart pokemon_alarm')
-                embed = discord.Embed(title="A lista de pokémon das notificações foi alterada", description="Utiliza !filter para ver quais são os novos filtros", color=color)
-                await message.channel.send(embed=embed)
+                await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=5)
 
             if message.content.startswith('!scan'):
-                embed = discord.Embed(title="Rescan de pokestops inicializado", color=color)
-                await message.channel.send(embed=embed)
+                await message.delete()
+                await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de uma hora"), delete_after=5)
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
                 await channel.send(embed=embed)
                 os.system("bash /root/MAD-docker/scan.sh")
@@ -137,10 +136,11 @@ async def on_message(message):
     # Quest channel commands in order do display quests
     if message.channel.id == globals.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
-            embed = discord.Embed(title=comandoQuestsTitle, description=comandoQuestsBody, color=color)
-            await message.channel.send(embed=embed)
+            await message.delete()
+            await message.channel.send(embed=build_embed_object_title_description(comandoQuestsTitle, comandoQuestsBody))
 
         if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
+            await message.delete()
             leiria = False
             if message.content.startswith('!questleiria'):
                 receivedData = message.content.replace("!questleiria ","")
@@ -148,46 +148,28 @@ async def on_message(message):
             else:
                 receivedData = message.content.replace("!questmarinha ","")
             returnedData = find_quest(receivedData, leiria)
-
             if returnedData == False:
-                try:
-                    await message.delete()
-                    return
-                except Exception as e:
-                    log_error('FAILED DUE TO EMPTY DATA: %s' % str(e))
+                return
 
-            if len(returnedData) > 0 and len(returnedData) < 25:
-                try:
-                    for data in returnedData:
-                        # Initiate the discord main message
-                        embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=color)
-                        # Set pokestop thumbnail image
-                        embed.set_thumbnail(url=data["image"])
-                        # Tag the author + add the search query
-                        embed.add_field(name=message.author, value="Resultados para: " + receivedData.title(), inline=False) 
-                        await message.channel.send(embed=embed)
-                except Exception as e:
-                    log_error('FAILED IN QUEST ITERATION: %s' % str(e))
-                    embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
+            if len(returnedData) > 0 and len(returnedData) < 30:
+                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + receivedData.title()))
+                for data in returnedData:
+                    embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=color)
+                    embed.set_thumbnail(url=data["image"])
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:
-                embed = discord.Embed(title="Não encontrei nenhum resultado para a tua pesquisa: "  + receivedData.title(), color=color)
-                await message.channel.send(embed=embed)
+                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados: " + receivedData.title()))
             else:
-                embed = discord.Embed(title="Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL, color=color)
-                await message.channel.send(embed=embed)
+                await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL))
         else:
             if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
-                try:
-                    await message.delete()
-                except Exception as e:
-                    log_error('FAILED DELETING MESSAGE IN QUEST CHANNEL: %s' % str(e))
+                await message.delete()
+
 
     if message.channel.id == globals.CONVIVIO_CHANNEL_ID:
         if message.content.startswith('!alertas'):
             jsonPokemonData = read_json_data()
-            discordMessage = build_filter_message("", jsonPokemonData)
-            embed = discord.Embed(title="**Lista de Notificações de Pokémon**", description=discordMessage, color=color)
-            await message.channel.send(embed=embed)
+            discordMessage = build_filter_message(jsonPokemonData)
+            await message.channel.send(embed=build_embed_object_title_description("**Lista de Notificações de Pokémon**", discordMessage))
 
 globals.CLIENT.run(globals.DISCORD_API_KEY)
