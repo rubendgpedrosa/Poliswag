@@ -1,4 +1,4 @@
-import json, os, requests, random
+import json, os, requests, datetime
 
 import discord
 
@@ -7,6 +7,7 @@ from helpers.notifications import build_quest_location_url
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
+currentDay = datetime.datetime.now().day
 
 def fetch_today_data():
     data = requests.get(globals.BACKEND_ENDPOINT + 'get_quests?fence=None')
@@ -83,6 +84,8 @@ def find_quest(receivedData, leiria):
     return allQuestDataMarinha
 
 def retrieve_sort_quest_data():
+    if datetime.datetime.now().day != currentDay:
+        fetch_today_data()
     with open(globals.QUESTS_FILE) as raw_data:
         quests = json.load(raw_data)
     return sorted(quests, key=lambda k: k['quest_task'], reverse=True)
