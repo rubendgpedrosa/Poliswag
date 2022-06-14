@@ -1,4 +1,4 @@
-import os, json
+import os, datetime
 
 import discord
 
@@ -37,4 +37,7 @@ def init():
     global SAVED_VERSION
     with open(VERSION_FILE) as text:
         SAVED_VERSION = text.read(10) or 0
+    
+    global CURRENT_DAY
+    CURRENT_DAY = datetime.datetime.now().day
         
