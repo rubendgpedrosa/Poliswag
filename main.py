@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import os, random, sys
+import os, random, sys, datetime
 from os.path import exists
 
 import discord
@@ -13,7 +13,7 @@ from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
-from helpers.scanner import rename_voice_channel
+from helpers.scanner import rename_voice_channel, restart_pokestop_scanning
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -26,30 +26,35 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=1)
 async def prepare_daily_quest_message_task():
-    file_exists_scanned = exists(globals.SCANNED_FILE)
+    #file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
     color = random.randint(0, 16777215)
 
-    if file_exists_scanned:
-        try:
-            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-            try:
-                fetch_today_data()
-                await channel.send(embed=build_embed_object_title_description(
-                    "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                    "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                    "Esta informação só é válida até ao final do dia")
-                )
-                await channel.send(embed=embed)
-                os.remove(globals.SCANNED_FILE)
-            except Exception as e:
-                log_error('FETCHING QUESTS ERROR: %s' % str(e))
-                os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
-        except Exception as e:
-            log_error('FETCHING QUESTS ERROR: %s' % str(e))
-            os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
+    # if file_exists_scanned:
+    #     try:
+    #         channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
+    #         try:
+    #             fetch_today_data()
+    #             await channel.send(embed=build_embed_object_title_description(
+    #                 "SCAN DAS NOVAS QUESTS TERMINADO!", 
+    #                 "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+    #                 "Esta informação só é válida até ao final do dia")
+    #             )
+    #             await channel.send(embed=embed)
+    #             os.remove(globals.SCANNED_FILE)
+    #         except Exception as e:
+    #             log_error('FETCHING QUESTS ERROR: %s' % str(e))
+    #             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
+    #     except Exception as e:
+    #         log_error('FETCHING QUESTS ERROR: %s' % str(e))
+    #         os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
+    
+    print(datetime.datetime.now().day != globals.CURRENT_DAY)
+    if datetime.datetime.now().day != globals.CURRENT_DAY:
+        restart_pokestop_scanning()
+        globals.CURRENT_DAY = datetime.datetime.now().day
     
     if new_version_forced:
         try:
