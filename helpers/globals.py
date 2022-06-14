@@ -26,8 +26,9 @@ def init():
     SCANNED_FILE = os.getenv('SCANNED_FILE')
     VERSION_FILE = os.getenv('VERSION_FILE')
 
-    global ADMIN_USERS_IDS
+    global ADMIN_USERS_IDS, POLISWAG_ID
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
+    POLISWAG_ID = int(os.getenv('POLISWAG_ID'))
 
     global CLIENT
     intents = discord.Intents.default()
