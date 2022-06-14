@@ -8,7 +8,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
-from helpers.notifications import load_filter_data, read_json_data, build_filter_message
+from helpers.notifications import load_filter_data, read_json_data
 from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
@@ -102,10 +102,6 @@ async def on_message(message):
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == globals.MOD_CHANNEL_ID:
         if str(message.author.id) in globals.ADMIN_USERS_IDS:
-            if message.content == ("<@" + str(globals.POLISWAG_ID) + ">"):
-                await message.delete()
-                await message.channel.send(embed=load_filter_data(), delete_after=300)
-
             if message.content.startswith('!add') or message.content.startswith('!remove'):
                 await message.delete()
                 if message.content.startswith('!add'):
@@ -165,11 +161,9 @@ async def on_message(message):
             if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
                 await message.delete()
 
-
-    if message.channel.id == globals.CONVIVIO_CHANNEL_ID:
-        if message.content.startswith('!alertas'):
-            jsonPokemonData = read_json_data()
-            discordMessage = build_filter_message(jsonPokemonData)
-            await message.channel.send(embed=build_embed_object_title_description("**Lista de Notificações de Pokémon**", discordMessage))
+    if message.channel.id == globals.CONVIVIO_CHANNEL_ID or message.channel.id == globals.MOD_CHANNEL_ID:
+        if message.content == ("<@" + str(globals.POLISWAG_ID) + ">"):
+            await message.delete()
+            await message.channel.send(embed=load_filter_data(message.channel.id == globals.MOD_CHANNEL_ID), delete_after=300)
 
 globals.CLIENT.run(globals.DISCORD_API_KEY)
