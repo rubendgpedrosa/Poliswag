@@ -6,19 +6,22 @@ async def prepare_view_roles_location(channel):
     buttonMarinha = Button(label="MARINHA GRANDE", style=discord.ButtonStyle.secondary, custom_id="AlertasMarinha")
     buttonPvP = Button(label="PvP", style=discord.ButtonStyle.secondary, custom_id="AlertasPvP")
     buttonRaids = Button(label="RAIDS", style=discord.ButtonStyle.secondary, custom_id="AlertasRaids")
+    buttonRemote = Button(label="REMOTE", style=discord.ButtonStyle.secondary, custom_id="Remote")
 
     await add_button_event(buttonLeiria)
     await add_button_event(buttonMarinha)
     await add_button_event(buttonPvP)
     await add_button_event(buttonRaids)
+    await add_button_event(buttonRemote)
 
     view = View()
     view.add_item(buttonLeiria)
     view.add_item(buttonMarinha)
     view.add_item(buttonPvP)
     view.add_item(buttonRaids)
+    view.add_item(buttonRemote)
 
-    embed = discord.Embed(title="NOTIFICAÇÕES OPCIONAIS DO MAPA", description="Ao clickarem no botão correspondente, poderão ativar/desativar as notificações para as diferentes localidades.")
+    embed = discord.Embed(title="NOTIFICAÇÕES OPCIONAIS", description="Para desativar ou ativar as notificações, basta clicar no botão correspondente.")
     await channel.send(embed=embed, view=view)
 
 async def prepare_view_roles_teams(channel):
@@ -35,7 +38,7 @@ async def prepare_view_roles_teams(channel):
     view.add_item(buttonMystic)
     view.add_item(buttonValor)
 
-    embed = discord.Embed(title="SELEÇÃO DE EQUIPA", description="Ao clickarem no botão correspondente, poderão atribuir/remover a vossa equipa.")
+    embed = discord.Embed(title="SELEÇÃO DE EQUIPA", description="Ao clicarem no botão correspondente, poderão atribuir/remover a vossa equipa.")
     await channel.send(embed=embed, view=view)
 
 async def response_user_role_selection(interaction):
@@ -61,7 +64,7 @@ async def toggle_role(role, user):
             return {'msg': message + " ativadas.", 'color': 0x00ff00}
 
 def build_response_message(role):
-    if role.lower() == "alertasleiria" or role.lower() == "alertasmarinha" or role.lower() == "alertaspvp" or role.lower() == "alertasraids":
+    if role.lower() == "alertasleiria" or role.lower() == "alertasmarinha" or role.lower() == "alertaspvp" or role.lower() == "alertasraids" or role.lower() == "remote":
         return "Notificações de " + role.title()
     elif role.lower() == "mystic" or role.lower() == "valor" or role.lower() == "instinct":
         return "Equipa atribuida"
