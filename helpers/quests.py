@@ -58,7 +58,6 @@ def find_quest(receivedData, leiria):
 
     for quest in quests:
         reward = build_reward_for_quest(quest)
-
         try:
             if receivedData and receivedData.lower() in reward.lower() or receivedData.lower() in quest['quest_task'].lower() or receivedData.lower() in quest["name"].lower():
                 if "-8.9" not in str(quest['longitude']):
@@ -81,7 +80,6 @@ def find_quest(receivedData, leiria):
 
     if leiria:
         return allQuestData
-
     return allQuestDataMarinha
 
 def retrieve_sort_quest_data():
