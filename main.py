@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import json, os, requests, random, sys
+import os, random, sys
 from os.path import exists
 
 import discord
@@ -8,7 +8,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
-from helpers.notifications import load_filter_data, read_json_data
+from helpers.notifications import load_filter_data
 from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
@@ -26,14 +26,10 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-comandoQuestsTitle = "__COMANDOS IMPLEMENTADOS:__"
-comandoQuestsBody = "> !questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido\n`(ex:!questmarinha startdust | !questleiria tribunal)`"
-
 @tasks.loop(minutes=1)
 async def prepare_daily_quest_message_task():
     file_exists_scanned = exists(globals.SCANNED_FILE)
-    file_exists_version = check_current_version()
-    file_exists_clear = exists(globals.CLEAR_QUESTS_FILE)
+    new_version_forced = check_current_version()
     color = random.randint(0, 16777215)
 
     if file_exists_scanned:
@@ -41,8 +37,11 @@ async def prepare_daily_quest_message_task():
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             try:
                 fetch_today_data()
-                embed = discord.Embed(title="Scan de quests finalizado!", description="Todas as informações relacionadas com as quests foram recolhidas", color=color)
-                embed.set_footer(text="Esta informação só é válida até ao final do dia")
+                await channel.send(embed=build_embed_object_title_description(
+                    "SCAN DAS NOVAS QUESTS TERMINADO!", 
+                    "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+                    "Esta informação só é válida até ao final do dia")
+                )
                 await channel.send(embed=embed)
                 os.remove(globals.SCANNED_FILE)
             except Exception as e:
@@ -52,22 +51,13 @@ async def prepare_daily_quest_message_task():
             log_error('FETCHING QUESTS ERROR: %s' % str(e))
             os.system("ps -ef | grep '/poliswag/main.py' | grep -v grep | awk '{print $2}' | xargs -r kill -9")
     
-    if file_exists_version:
+    if new_version_forced:
         try:
             channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
             embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: 0." + globals.SAVED_VERSION, color=color)
             await channel.send(embed=embed)
         except Exception as e:
             log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))
-
-    if file_exists_clear:
-        try:
-            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-            embed = discord.Embed(title="Quests de hoje expiraram!", description="Lista de quests do dia anterior foi eliminada e a recolha das novas quests será feita durante a noite.", color=color)
-            await channel.send(embed=embed)
-            os.remove(globals.CLEAR_QUESTS_FILE)
-        except Exception as e:
-            log_error('\nERROR CLEARING QUESTS: %s\n' % str(e))
 
 @globals.CLIENT.event
 async def on_ready():
@@ -133,7 +123,11 @@ async def on_message(message):
     if message.channel.id == globals.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
             await message.delete()
-            await message.channel.send(embed=build_embed_object_title_description(comandoQuestsTitle, comandoQuestsBody))
+            await message.channel.send(embed=build_embed_object_title_description(
+                "COMANDOS IMPLEMENTADOS", 
+                "!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido",
+                "(ex:!questmarinha startdust | !questleiria tribunal)")
+            )
 
         if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
             await message.delete()
