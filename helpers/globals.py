@@ -18,11 +18,12 @@ def init():
     QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
     VOICE_CHANNEL_ID = int(os.getenv('VOICE_CHANNEL_ID'))
 
-    global FILTER_FILE, LOG_FILE, QUESTS_FILE, SCANNED_FILE, VERSION_FILE
+    global FILTER_FILE, LOG_FILE, QUESTS_FILE, SCANNED_FILE_LEIRIA, SCANNED_FILE_MARINHA, VERSION_FILE
     FILTER_FILE = os.getenv('FILTER_FILE')
     LOG_FILE = os.getenv('LOG_FILE')
     QUESTS_FILE = os.getenv('QUESTS_FILE')
-    SCANNED_FILE = os.getenv('SCANNED_FILE')
+    SCANNED_FILE_LEIRIA = os.getenv('SCANNED_FILE_LEIRIA')
+    SCANNED_FILE_MARINHA = os.getenv('SCANNED_FILE_MARINHA')
     VERSION_FILE = os.getenv('VERSION_FILE')
 
     global ADMIN_USERS_IDS, POLISWAG_ID
@@ -30,7 +31,7 @@ def init():
     POLISWAG_ID = int(os.getenv('POLISWAG_ID'))
 
     global CLIENT
-    intents = discord.Intents.default()
+    intents = discord.Intents.all()
     intents.message_content = True
     CLIENT = discord.Client(intents=intents)
 
