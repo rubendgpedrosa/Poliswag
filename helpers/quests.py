@@ -84,7 +84,6 @@ def find_quest(receivedData, leiria):
     return allQuestDataMarinha
 
 def retrieve_sort_quest_data():
-    fetch_today_data()
     with open(globals.QUESTS_FILE) as raw_data:
         quests = json.load(raw_data)
     return sorted(quests, key=lambda k: k['quest_task'], reverse=True)
