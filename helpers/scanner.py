@@ -8,7 +8,7 @@ async def rename_voice_channel(name):
 
 def restart_pokestop_scanning():
     os.system('docker stop pokemon_mad')
-    os.system('docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest;"')
+    os.system('docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
     os.system('docker restart pokemon_mad')
 
 # def start_pokemon_scanning():
