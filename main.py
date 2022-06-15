@@ -146,13 +146,13 @@ async def on_message(message):
                 return
 
             if len(returnedData) > 0 and len(returnedData) < 30:
-                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + receivedData.title()))
+                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + message.content))
                 for data in returnedData:
                     embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=color)
                     embed.set_thumbnail(url=data["image"])
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:
-                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados: " + receivedData.title()))
+                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados para: " + message.content))
             else:
                 await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL))
         else:
@@ -165,3 +165,5 @@ async def on_message(message):
             await message.channel.send(embed=load_filter_data(message.channel.id == globals.MOD_CHANNEL_ID), delete_after=300)
 
 globals.CLIENT.run(globals.DISCORD_API_KEY)
+
+#quit_pogo?origin=Tx9s1_JMBoy&adb=False&restart=1
