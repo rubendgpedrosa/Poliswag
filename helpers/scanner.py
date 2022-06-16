@@ -3,14 +3,17 @@ import os, json, requests
 import helpers.globals as globals
 from helpers.quests import fetch_today_data
 
+container = "pokemon_mad"
+
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
-    os.system('docker stop pokemon_mad')
+    globals.DOCKER_CLIENT.stop(container)
+    globals.DOCKER_CLIENT.wait(container)
     os.system('docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited; UPDATE settings_device SET walker_id = 6 WHERE walker_id = 2; UPDATE settings_device SET walker_id = 8 WHERE walker_id = 7;"')
-    os.system('docker start pokemon_mad')
+    globals.DOCKER_CLIENT.start(container)
 
 def check_quests_completed():
     fileTotal = get_file_total_quests()
@@ -25,7 +28,7 @@ def check_quests_completed():
 
 def start_pokemon_scan(new_walker_id, old_walker_id):
     os.system(f'docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; UPDATE settings_device SET walker_id = {new_walker_id} WHERE walker_id = {old_walker_id};"')
-    os.system('docker restart pokemon_mad')
+    globals.DOCKER_CLIENT.restart(container)
 
 def get_scanner_total_quests():
     data = requests.get(globals.BACKEND_ENDPOINT + 'get_quests?fence=None')
