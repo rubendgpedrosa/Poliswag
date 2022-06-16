@@ -39,6 +39,8 @@ def init():
     with open(VERSION_FILE) as text:
         SAVED_VERSION = text.read(10) or 0
     
-    global CURRENT_DAY
+    global CURRENT_DAY, LEIRIA_QUESTS_TOTAL, MARINHA_QUESTS_TOTAL
     CURRENT_DAY = datetime.datetime.now().day
+    LEIRIA_QUESTS_TOTAL = 247
+    MARINHA_QUESTS_TOTAL = 107
         
