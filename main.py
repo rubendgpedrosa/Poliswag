@@ -26,7 +26,7 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-@tasks.loop(seconds=1)
+@tasks.loop(seconds=60)
 async def prepare_daily_quest_message_task():
     file_exists_scanned = exists(globals.SCANNED_FILE_LEIRIA)
     file_exists_scannedmarinha = exists(globals.SCANNED_FILE_MARINHA)
@@ -47,8 +47,10 @@ async def prepare_daily_quest_message_task():
         start_pokemon_scan(8, 7)
 
     if file_exists_scanned or file_exists_scannedmarinha:
-        totalQuestsFile = get_file_total_quests()
-        if totalQuestsFile["totalQuestsLeiria"] == 248 and totalQuestsFile["totalQuestsMarinha"] == 107:
+        totalQuestsFile = fetch_today_data()
+        if totalQuestsFile["totalQuestsLeiria"] == 247 and totalQuestsFile["totalQuestsMarinha"] == 107:
+            os.remove(globals.SCANNED_FILE_LEIRIA)
+            os.remove(globals.SCANNED_FILE_MARINHA)
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             await channel.send(embed=build_embed_object_title_description(
                 "SCAN DAS NOVAS QUESTS TERMINADO!", 
