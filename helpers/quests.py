@@ -19,6 +19,8 @@ def fetch_today_data():
     with open(globals.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
 
+    
+
 def write_filter_data(receivedData, add=True):
     if len(receivedData) != 2:
         return False
