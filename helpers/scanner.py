@@ -8,11 +8,8 @@ async def rename_voice_channel(name):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
-    globals.DOCKER_CLIENT.stop(globals.RUN_CONTAINER)
-    globals.DOCKER_CLIENT.wait(globals.RUN_CONTAINER)
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited; UPDATE settings_device SET walker_id = 6 WHERE walker_id = 2; UPDATE settings_device SET walker_id = 8 WHERE walker_id = 7;"')
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
     globals.DOCKER_CLIENT.exec_start(execId)
-    globals.DOCKER_CLIENT.start(globals.RUN_CONTAINER)
 
 def check_quests_completed():
     fileTotal = get_file_total_quests()
@@ -37,6 +34,10 @@ def get_scanner_total_quests():
     data = requests.get(globals.BACKEND_ENDPOINT + 'get_quests?fence=None')
     questText = data.text
     quests = json.loads(questText)
+    os.remove(globals.QUESTS_FILE)
+
+    with open(globals.QUESTS_FILE, 'w') as file:
+        json.dump(quests, file, indent=4)
     return count_total_quests(quests)
 
 def get_file_total_quests():
@@ -53,3 +54,8 @@ def count_total_quests(quests):
         else:
             totalQuestsMarinha += 1
     return {"totalQuestsLeiria": totalQuestsLeiria, "totalQuestsMarinha": totalQuestsMarinha}
+
+def get_scan_status():
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"')
+    questResults = globals.DOCKER_CLIENT.exec_start(execId)
+    return len(str(questResults).split("\\n")) == 1
