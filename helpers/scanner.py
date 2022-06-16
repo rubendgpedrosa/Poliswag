@@ -3,17 +3,16 @@ import os, json, requests
 import helpers.globals as globals
 from helpers.quests import fetch_today_data
 
-container = "pokemon_mad"
-
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
-    globals.DOCKER_CLIENT.stop(container)
-    globals.DOCKER_CLIENT.wait(container)
-    os.system('docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited; UPDATE settings_device SET walker_id = 6 WHERE walker_id = 2; UPDATE settings_device SET walker_id = 8 WHERE walker_id = 7;"')
-    globals.DOCKER_CLIENT.start(container)
+    globals.DOCKER_CLIENT.stop(globals.RUN_CONTAINER)
+    globals.DOCKER_CLIENT.wait(globals.RUN_CONTAINER)
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, "use rocketdb; DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited; UPDATE settings_device SET walker_id = 6 WHERE walker_id = 2; UPDATE settings_device SET walker_id = 8 WHERE walker_id = 7;")
+    globals.DOCKER_CLIENT.exec_start(execId)
+    globals.DOCKER_CLIENT.start(globals.RUN_CONTAINER)
 
 def check_quests_completed():
     fileTotal = get_file_total_quests()
@@ -27,10 +26,11 @@ def check_quests_completed():
     }
 
 def start_pokemon_scan(new_walker_id, old_walker_id):
-    globals.DOCKER_CLIENT.stop(container)
-    globals.DOCKER_CLIENT.wait(container)
-    os.system(f'docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; UPDATE settings_device SET walker_id = {new_walker_id} WHERE walker_id = {old_walker_id};"')
-    globals.DOCKER_CLIENT.start(container)
+    globals.DOCKER_CLIENT.stop(globals.RUN_CONTAINER)
+    globals.DOCKER_CLIENT.wait(globals.RUN_CONTAINER)
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f"use rocketdb; UPDATE settings_device SET walker_id = {new_walker_id} WHERE walker_id = {old_walker_id};")
+    globals.DOCKER_CLIENT.exec_start(execId)
+    globals.DOCKER_CLIENT.start(globals.RUN_CONTAINER)
 
 
 def get_scanner_total_quests():
