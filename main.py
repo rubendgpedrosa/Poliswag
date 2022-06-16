@@ -34,7 +34,6 @@ async def prepare_daily_quest_message_task():
 
     if datetime.datetime.now().day != globals.CURRENT_DAY:
         start_pokestop_scan()
-        open(globals.SCANNED_FILE, 'w').close()
         globals.CURRENT_DAY = datetime.datetime.now().day
 
     if file_exists_scanned and get_scan_status():

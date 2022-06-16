@@ -10,6 +10,7 @@ async def rename_voice_channel(name):
 def start_pokestop_scan():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
     globals.DOCKER_CLIENT.exec_start(execId)
+    open(globals.SCANNED_FILE, 'w').close()
 
 def check_quests_completed():
     fileTotal = get_file_total_quests()
