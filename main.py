@@ -125,7 +125,6 @@ async def on_message(message):
                 start_pokestop_scan()
                 await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de uma hora"), delete_after=5)
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-                await channel.send(embed=embed)
 
     # Quest channel commands in order do display quests
     if message.channel.id == globals.QUEST_CHANNEL_ID:
