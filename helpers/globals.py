@@ -18,6 +18,10 @@ def init():
     QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
     VOICE_CHANNEL_ID = int(os.getenv('VOICE_CHANNEL_ID'))
 
+    global RUN_CONTAINER, DB_CONTAINER
+    RUN_CONTAINER = int(os.getenv('RUN_CONTAINER'))
+    DB_CONTAINER = int(os.getenv('DB_CONTAINER'))
+
     global FILTER_FILE, LOG_FILE, QUESTS_FILE, SCANNED_FILE_LEIRIA, SCANNED_FILE_MARINHA, VERSION_FILE
     FILTER_FILE = os.getenv('FILTER_FILE')
     LOG_FILE = os.getenv('LOG_FILE')
