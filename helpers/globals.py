@@ -1,6 +1,6 @@
 import os, datetime
 
-import discord
+import discord, docker
 
 def init():
     global DISCORD_API_KEY
@@ -43,4 +43,6 @@ def init():
     CURRENT_DAY = datetime.datetime.now().day
     LEIRIA_QUESTS_TOTAL = 247
     MARINHA_QUESTS_TOTAL = 107
-        
+    
+    global DOCKER_CLIENT
+    DOCKER_CLIENT = docker.from_env()
