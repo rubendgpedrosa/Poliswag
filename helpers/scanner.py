@@ -27,8 +27,11 @@ def check_quests_completed():
     }
 
 def start_pokemon_scan(new_walker_id, old_walker_id):
+    globals.DOCKER_CLIENT.stop(container)
+    globals.DOCKER_CLIENT.wait(container)
     os.system(f'docker exec -i pokemon_rocketdb mysql -uroot -pStrongPassword  <<< "use rocketdb; UPDATE settings_device SET walker_id = {new_walker_id} WHERE walker_id = {old_walker_id};"')
-    globals.DOCKER_CLIENT.restart(container)
+    globals.DOCKER_CLIENT.start(container)
+
 
 def get_scanner_total_quests():
     data = requests.get(globals.BACKEND_ENDPOINT + 'get_quests?fence=None')
