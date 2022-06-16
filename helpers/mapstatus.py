@@ -2,10 +2,10 @@ import helpers.globals as globals
 from helpers.utilities import build_embed_object_title_description
 
 boxUsersData = [
-    {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "<@98846248865398784>"},
-    {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "<@308000681271492610>"},
-    {"owner": "Ethix", "boxes": ["Tx9s1_Ethix"], "mention": "<@313738342904627200>"},
-    {"owner": "Anakin", "boxes": ["Tx9s1_Anakin"], "mention": "<@339466204638871552>"}
+    {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
+    {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "308000681271492610"},
+    {"owner": "Ethix", "boxes": ["Tx9s1_Ethix"], "mention": "313738342904627200"},
+    {"owner": "Anakin", "boxes": ["Tx9s1_Anakin"], "mention": "339466204638871552"}
 ]
 
 async def check_boxes_issues():
@@ -20,8 +20,8 @@ async def check_boxes_issues():
                 box = "Tx9s3_JMBoy"
             for boxuser in boxUsersData:
                 if box in boxuser["boxes"]:
-                    user = globals.CLIENT.get_member(boxuser["mention"])
-                    await globals.CLIENT.send_message(user, embed=build_embed_object_title_description("Box " + box + " está com problemas."))
+                    user = await globals.CLIENT.fetch_user(boxuser["mention"])
+                    message = await user.send(embed=build_embed_object_title_description("Box " + box + " está com problemas."))
         await rename_voice_channel(len(listBoxStatusResults))
 
 #await rename_voice_channel(message.content)

@@ -11,9 +11,10 @@ import helpers.globals as globals
 from helpers.notifications import load_filter_data
 from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
-from helpers.quests import fetch_today_data, find_quest, write_filter_data
+from helpers.quests import find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
-from helpers.scanner import rename_voice_channel, start_pokestop_scan, get_scan_status
+from helpers.scanner import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
+from helpers.mapstatus import check_boxes_issues
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -27,13 +28,14 @@ load_dotenv(prepare_environment(sys.argv[1]))
 globals.init()
 
 @tasks.loop(seconds=60)
-async def prepare_daily_quest_message_task():
+async def __init__():
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
     color = random.randint(0, 16777215)
 
     if datetime.datetime.now().day != globals.CURRENT_DAY:
         start_pokestop_scan()
+        clear_old_pokestops_gyms()
         globals.CURRENT_DAY = datetime.datetime.now().day
 
     if file_exists_scanned and get_scan_status():
@@ -55,11 +57,11 @@ async def prepare_daily_quest_message_task():
 
 @globals.CLIENT.event
 async def on_ready():
-    prepare_daily_quest_message_task.start()
+    __init__.start()
+
 @globals.CLIENT.event
 async def on_interaction(interaction):
     await start_event_listeners(interaction)
-
 
 @globals.CLIENT.event
 async def on_message(message):
@@ -154,5 +156,3 @@ async def on_message(message):
             await message.channel.send(embed=load_filter_data(message.channel.id == globals.MOD_CHANNEL_ID), delete_after=300)
 
 globals.CLIENT.run(globals.DISCORD_API_KEY)
-
-#quit_pogo?origin=Tx9s1_JMBoy&adb=False&restart=1
