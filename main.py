@@ -46,8 +46,6 @@ async def prepare_daily_quest_message_task():
         open(globals.SCANNED_FILE_MARINHA, 'w').close()
         start_pokemon_scan(8, 7)
 
-    print(globals.LEIRIA_QUESTS_TOTAL)
-    print(globals.MARINHA_QUESTS_TOTAL)
     if file_exists_scanned or file_exists_scannedmarinha:
         fetch_today_data()
         totalQuestsFile = get_file_total_quests()
@@ -124,10 +122,10 @@ async def on_message(message):
 
             if message.content.startswith('!scan'):
                 await message.delete()
+                start_pokestop_scan()
                 await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de uma hora"), delete_after=5)
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
                 await channel.send(embed=embed)
-                os.system("bash /root/MAD-docker/scan.sh")
 
     # Quest channel commands in order do display quests
     if message.channel.id == globals.QUEST_CHANNEL_ID:
