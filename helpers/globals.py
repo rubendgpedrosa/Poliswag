@@ -45,4 +45,4 @@ def init():
     MARINHA_QUESTS_TOTAL = 107
     
     global DOCKER_CLIENT
-    DOCKER_CLIENT = docker.from_env()
+    DOCKER_CLIENT = docker.from_env().api
