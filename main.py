@@ -13,7 +13,7 @@ from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import fetch_today_data, find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
-from helpers.scanner import rename_voice_channel, start_pokestop_scan, check_quests_completed, start_pokemon_scan, get_file_total_quests
+from helpers.scanner import rename_voice_channel, start_pokestop_scan, get_scan_status
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -28,36 +28,23 @@ globals.init()
 
 @tasks.loop(seconds=60)
 async def prepare_daily_quest_message_task():
-    file_exists_scanned = exists(globals.SCANNED_FILE_LEIRIA)
-    file_exists_scannedmarinha = exists(globals.SCANNED_FILE_MARINHA)
+    file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
     color = random.randint(0, 16777215)
 
     if datetime.datetime.now().day != globals.CURRENT_DAY:
         start_pokestop_scan()
+        open(globals.SCANNED_FILE, 'w').close()
         globals.CURRENT_DAY = datetime.datetime.now().day
-    
-    scanned_quests = check_quests_completed()
-    if scanned_quests["leiria"]:
-        open(globals.SCANNED_FILE_LEIRIA, 'w').close()
-        start_pokemon_scan(6, 2)
 
-    if scanned_quests["marinha"]:
-        open(globals.SCANNED_FILE_MARINHA, 'w').close()
-        start_pokemon_scan(8, 7)
-
-    if file_exists_scanned or file_exists_scannedmarinha:
-        fetch_today_data()
-        totalQuestsFile = get_file_total_quests()
-        if totalQuestsFile["totalQuestsLeiria"] == globals.LEIRIA_QUESTS_TOTAL and totalQuestsFile["totalQuestsMarinha"] == globals.MARINHA_QUESTS_TOTAL:
-            os.remove(globals.SCANNED_FILE_LEIRIA)
-            os.remove(globals.SCANNED_FILE_MARINHA)
-            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-            await channel.send(embed=build_embed_object_title_description(
-                "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                "Esta informação só é válida até ao final do dia")
-            )
+    if file_exists_scanned and get_scan_status():
+        os.remove(globals.SCANNED_FILE)
+        channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
+        await channel.send(embed=build_embed_object_title_description(
+            "SCAN DAS NOVAS QUESTS TERMINADO!", 
+            "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+            "Esta informação só é válida até ao final do dia")
+        )
 
     if new_version_forced:
         try:
