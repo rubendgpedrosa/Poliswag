@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import os, random, sys, datetime
+import os, sys, datetime
 from os.path import exists
 
 import discord
@@ -8,13 +8,13 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
-from helpers.notifications import load_filter_data
+from helpers.notifications import load_filter_data, fetch_new_pvp_data
 from helpers.environment import prepare_environment
 from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
 from helpers.quests import find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
 from helpers.scanner import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
-from helpers.mapstatus import check_boxes_issues
+from helpers.mapstatus import check_boxes_issues, check_map_status
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -26,16 +26,18 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
+fetch_new_pvp_data()
 
 @tasks.loop(seconds=60)
 async def __init__():
+    check_map_status()
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
-    color = random.randint(0, 16777215)
 
     if datetime.datetime.now().day != globals.CURRENT_DAY:
         start_pokestop_scan()
         clear_old_pokestops_gyms()
+        fetch_new_pvp_data()
         globals.CURRENT_DAY = datetime.datetime.now().day
 
     if file_exists_scanned and get_scan_status():
@@ -44,16 +46,19 @@ async def __init__():
         await channel.send(embed=build_embed_object_title_description(
             "SCAN DAS NOVAS QUESTS TERMINADO!", 
             "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-            "Esta informação só é válida até ao final do dia")
+            "Esta informação só é válida até ao final do dia"
+            )
         )
 
     if new_version_forced:
         try:
             channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
-            embed = discord.Embed(title="PAAAAUUUUUUUU!!! FORCE UPDATE!", description="Nova versão: 0." + globals.SAVED_VERSION, color=color)
-            await channel.send(embed=embed)
+            await channel.send(embed=build_embed_object_title_description(
+                "PAAAAUUUUUUUU!!! FORCE UPDATE!",
+                "Nova versão: 0." + globals.SAVED_VERSION
+            ))
         except Exception as e:
-            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))
+            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))        
 
 @globals.CLIENT.event
 async def on_ready():
@@ -67,8 +72,6 @@ async def on_interaction(interaction):
 async def on_message(message):
     if message.author == globals.CLIENT.user:
         return
-
-    color = random.randint(0, 16777215)
 
     if str(message.author.id) in globals.ADMIN_USERS_IDS:
         if message.content.startswith('!location'):
@@ -139,7 +142,7 @@ async def on_message(message):
             if len(returnedData) > 0 and len(returnedData) < 30:
                 await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + message.content))
                 for data in returnedData:
-                    embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=color)
+                    embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=0x7b83b4)
                     embed.set_thumbnail(url=data["image"])
                     await message.channel.send(embed=embed)
             elif len(returnedData) == 0:

@@ -26,7 +26,7 @@ def log_error(errorString):
         file.write(errorString)
 
 def build_embed_object_title_description(title, description = "", footer = None):
-    embed = discord.Embed(title=title, description=description, color=random.randint(0, 16777215))
+    embed = discord.Embed(title=title, description=description, color=0x7b83b4)
     if footer != None:
         embed.set_footer(text=footer)
     return embed
