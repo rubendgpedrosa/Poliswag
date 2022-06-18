@@ -34,7 +34,7 @@ async def rename_voice_channel(totalBoxesFailing):
 async def check_map_status():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT last_scanned FROM trs_spawn WHERE last_scanned > NOW() - INTERVAL 10 MINUTE ORDER BY last_scanned DESC LIMIT 1;"')
     pokemonScanResults = globals.DOCKER_CLIENT.exec_start(execId)
-    if len(str(pokemonScanResults).split("\\n")) != 1:
+    if len(str(pokemonScanResults).split("\\n")) == 1:
         globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
         globals.DOCKER_CLIENT.restart(globals.REDIS_CONTAINER)
         channel = globals.CLIENT.get_channel(globals.MOD_CHANNEL_ID)
