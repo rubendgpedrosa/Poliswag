@@ -12,8 +12,8 @@ def start_pokestop_scan():
     open(globals.SCANNED_FILE, "w").close()
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
     globals.DOCKER_CLIENT.exec_start(execId)
-    globals.DOCKER.restart(globals.RUN_CONTAINER)
-    globals.DOCKER.restart(globals.REDIS_CONTAINER)
+    globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
+    globals.DOCKER_CLIENT.restart(globals.REDIS_CONTAINER)
 
 def get_scan_status():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"')
