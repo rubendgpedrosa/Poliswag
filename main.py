@@ -9,12 +9,11 @@ from dotenv import load_dotenv
 
 import helpers.globals as globals
 from helpers.notifications import load_filter_data, fetch_new_pvp_data
-from helpers.environment import prepare_environment
-from helpers.usermanagement import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
-from helpers.quests import find_quest, write_filter_data
-from helpers.utilities import check_current_version, log_error, build_embed_object_title_description
-from helpers.scanner import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
-from helpers.mapstatus import check_boxes_issues, check_map_status
+from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
+from helpers.data_quests_handler import find_quest, write_filter_data
+from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
+from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
+from helpers.scanner_status import check_boxes_issues, check_map_status
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -26,10 +25,10 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
-fetch_new_pvp_data()
 
 @tasks.loop(seconds=60)
 async def __init__():
+    fetch_new_pvp_data()
     await check_map_status()
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
