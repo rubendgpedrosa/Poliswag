@@ -1,7 +1,7 @@
 import os, json, requests
 
 import helpers.globals as globals
-from helpers.quests import fetch_today_data
+from helpers.utilities import build_query
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
@@ -10,17 +10,17 @@ async def rename_voice_channel(name):
 def start_pokestop_scan():
     open(globals.QUESTS_FILE, "w").close()
     open(globals.SCANNED_FILE, "w").close()
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"))
     globals.DOCKER_CLIENT.exec_start(execId)
     globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
     globals.DOCKER_CLIENT.restart(globals.REDIS_CONTAINER)
 
 def get_scan_status():
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"')
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"))
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
     return len(str(questResults).split("\\n")) == 1
 
 def clear_old_pokestops_gyms():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 
-    'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokestop WHERE last_updated < (UNIX_TIMESTAMP() - 172800); DELETE FROM gym WHERE last_scanned < (UNIX_TIMESTAMP() - 172800);"')
+    build_query("DELETE FROM pokestop WHERE last_updated < (UNIX_TIMESTAMP() - 172800); DELETE FROM gym WHERE last_scanned < (UNIX_TIMESTAMP() - 172800);"))
     globals.DOCKER_CLIENT.exec_start(execId)
