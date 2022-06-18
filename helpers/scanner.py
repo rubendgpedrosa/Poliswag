@@ -8,11 +8,11 @@ async def rename_voice_channel(name):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
+    open(globals.QUESTS_FILE, "w").close()
+    open(globals.SCANNED_FILE, "w").close()
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"')
     globals.DOCKER_CLIENT.exec_start(execId)
     globals.DOCKER.restat(globals.RUN_CONTAINER)
-    fetch_today_data()
-    open(globals.SCANNED_FILE, 'w').close()
 
 def get_scan_status():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"')
