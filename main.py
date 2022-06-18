@@ -30,7 +30,7 @@ fetch_new_pvp_data()
 
 @tasks.loop(seconds=60)
 async def __init__():
-    check_map_status()
+    async check_map_status()
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
 
