@@ -30,3 +30,6 @@ def build_embed_object_title_description(title, description = "", footer = None)
     if footer != None:
         embed.set_footer(text=footer)
     return embed
+
+def build_query(query):
+    return f'mysql -u{globals.DB_USER} -p{globals.DB_PASSWORD} -D {globals.DB_NAME} -e "{query}"'
