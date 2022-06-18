@@ -1,6 +1,8 @@
 import helpers.globals as globals
 from helpers.utilities import build_embed_object_title_description
 
+from helpers.utilities import build_query
+
 boxUsersData = [
     {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
     {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "308000681271492610"},
@@ -9,7 +11,7 @@ boxUsersData = [
 ]
 
 async def check_boxes_issues():
-    # execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 900;"')
+    # execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 900;"))
     # boxStatusResults = globals.DOCKER_CLIENT.exec_start(execId)
     # listBoxStatusResults = str(boxStatusResults).split("\\n").remove("b''")
     listBoxStatusResults = ["Tx9s1", "a95xF1"]
@@ -32,7 +34,7 @@ async def rename_voice_channel(totalBoxesFailing):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=f"{totalBoxesFailing}")
 
 async def check_map_status():
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, f'mysql -uroot -pStrongPassword -D rocketdb -e "SELECT last_scanned FROM trs_spawn WHERE last_scanned > NOW() - INTERVAL 10 MINUTE ORDER BY last_scanned DESC LIMIT 1;"')
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT last_scanned FROM trs_spawn WHERE last_scanned > NOW() - INTERVAL 10 MINUTE ORDER BY last_scanned DESC LIMIT 1;"))
     pokemonScanResults = globals.DOCKER_CLIENT.exec_start(execId)
     if len(str(pokemonScanResults).split("\\n")) == 1:
         globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
