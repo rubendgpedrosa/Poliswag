@@ -28,15 +28,14 @@ globals.init()
 
 @tasks.loop(seconds=60)
 async def __init__():
-    fetch_new_pvp_data()
     await check_map_status()
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
 
     if datetime.datetime.now().day != globals.CURRENT_DAY:
+        fetch_new_pvp_data()
         start_pokestop_scan()
         clear_old_pokestops_gyms()
-        fetch_new_pvp_data()
         globals.CURRENT_DAY = datetime.datetime.now().day
 
     if file_exists_scanned and get_scan_status():
