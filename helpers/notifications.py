@@ -1,5 +1,4 @@
-import json
-from urllib.request import Request, urlopen
+import json, requests
 
 import discord
 
@@ -7,10 +6,6 @@ import helpers.globals as globals
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
-
-# URLS
-great_league_endpoint = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/gobattleleague/overall/rankings-1500.json"
-ultra_league_endpoint = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/gobattleleague/overall/rankings-2500.json"
 
 def load_filter_data(displayCommands = True):
     discordMessage = ""
@@ -51,6 +46,59 @@ def build_quest_location_url(latitude, longitude):
     return coordinatesUrl
 
 def fetch_new_pvp_data():
-    request = Request(great_league_endpoint, headers={'User-Agent': 'Mozilla/5.0'})
-    jsonData = urlopen(request).read()
+    greatLeagueData = fetch_data_from_endpoint(1500)
+    ultraLeagueData = fetch_data_from_endpoint(2500)
 
+    greatLeagueData = prepare_fetched_json_object(greatLeagueData)
+    ultraLeagueData = prepare_fetched_json_object(ultraLeagueData)
+
+    with open(globals.FILTER_FILE) as raw_data:
+        jsonFiltersPokemonData = json.load(raw_data)
+
+    # Clears existing PvP content
+    jsonFiltersPokemonData['monsters']['filters']["pvp_great"]['monsters'] = []
+    jsonFiltersPokemonData['monsters']['filters']["pvp_great_marinha"]['monsters'] = []
+    jsonFiltersPokemonData['monsters']['filters']["pvp_ultra"]['monsters'] = []
+    jsonFiltersPokemonData['monsters']['filters']["pvp_ultra_marinha"]['monsters'] = []
+
+    build_notification_data_for_pvp(greatLeagueData, ultraLeagueData, jsonFiltersPokemonData)
+
+    with open(globals.FILTER_FILE, 'w') as file:
+        json.dump(jsonFiltersPokemonData, file, indent=4)
+    return
+
+def fetch_data_from_endpoint(combat_power):
+    request = requests.get(f"https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/gobattleleague/overall/rankings-{combat_power}.json")
+    # The .json() method automatically parses the response into JSON.
+    return request.json()
+    
+def prepare_fetched_json_object(jsonData):
+    # remove duplicates from list of dictionaries from jsonData
+    jsonDataNoDuplicates = [k for j, k in enumerate(jsonData) if k not in jsonData[j + 1:]]
+    jsonData = sorted(jsonDataNoDuplicates, key=lambda d: d["score"], reverse=True)
+    listPokemonForNotifications = []
+    for data in jsonData:
+        if data["score"] >= 85 and len(data["speciesName"].split("(")) == 1:
+            listPokemonForNotifications.append(data["speciesName"])
+    return listPokemonForNotifications
+
+def build_notification_data_for_pvp(greatLeagueData, ultraLeagueData, jsonFiltersPokemonData):
+    # https://pokemon.gameinfo.io/ json provider
+    # Matrix holding family trees
+    with open(globals.POKEMON_LIST_FILE) as raw_data:
+        jsonPokemonList = json.load(raw_data)
+
+    for jsonPokemonListX in jsonPokemonList:
+        familyList = []
+        for jsonPokemonListY in jsonPokemonListX:
+            # Gets name in the dict by transforming first key in into a list then getting first element (name)
+            pokemonName = list(jsonPokemonListY.values())[0][1]
+            familyList.append(pokemonName)
+            if pokemonName in greatLeagueData and pokemonName not in jsonFiltersPokemonData['monsters']['filters']["pvp_great"]['monsters']:
+                for nameToInsert in familyList:
+                    jsonFiltersPokemonData['monsters']['filters']["pvp_great"]['monsters'].append(nameToInsert)
+                    jsonFiltersPokemonData['monsters']['filters']["pvp_great_marinha"]['monsters'].append(nameToInsert)
+            if pokemonName in ultraLeagueData and pokemonName not in jsonFiltersPokemonData['monsters']['filters']["pvp_ultra"]['monsters']:
+                    for nameToInsert in familyList:
+                        jsonFiltersPokemonData['monsters']['filters']["pvp_ultra"]['monsters'].append(nameToInsert)
+                        jsonFiltersPokemonData['monsters']['filters']["pvp_ultra_marinha"]['monsters'].append(nameToInsert)
