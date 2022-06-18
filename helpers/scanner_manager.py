@@ -14,6 +14,7 @@ def start_pokestop_scan():
     globals.DOCKER_CLIENT.exec_start(execId)
     globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
     globals.DOCKER_CLIENT.restart(globals.REDIS_CONTAINER)
+    globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
 
 def get_scan_status():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT GUID, quest_timestamp FROM trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 600);"))
