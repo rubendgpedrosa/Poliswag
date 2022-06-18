@@ -14,8 +14,6 @@ def fetch_today_data():
     questText = data.text
     quests = json.loads(questText)
 
-    os.remove(globals.QUESTS_FILE)
-
     with open(globals.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
     return quests
@@ -25,7 +23,7 @@ def write_filter_data(receivedData, add=True):
         return False
 
     originalDiscordChannelName = {"raros": ["pokemon", "pokemonmarinha"], "uteis": ["pokemonuteis", "pokemonuteismarinha"]}
-    filterName = {"raros": "spawns-raros", "uteis": "spawns-uteis"}
+    filterName = {"raros": "spawns-raros", "uteis": "spawns-uteis", "pvp": "spawns-pvp"}
 
     with open(globals.FILTER_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
@@ -41,8 +39,6 @@ def write_filter_data(receivedData, add=True):
             jsonPokemonData['monsters']['filters'][name]['monsters'].append(pokemon)
         elif not add and pokemon in jsonPokemonData['monsters']['filters'][name]['monsters']:
             jsonPokemonData['monsters']['filters'][name]['monsters'].remove(pokemon)
-
-    os.remove(globals.FILTER_FILE)
 
     with open(globals.FILTER_FILE, 'w') as file:
         json.dump(jsonPokemonData, file, indent=4)
