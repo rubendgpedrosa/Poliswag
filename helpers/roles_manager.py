@@ -2,12 +2,13 @@ import discord
 from discord.ui import Button, View
 
 async def prepare_view_roles_location(channel):
-    buttonLeiria = Button(label="POKÉ LEIRIA", style=discord.ButtonStyle.secondary, custom_id="AlertasLeiria", row=0)
-    buttonMarinha = Button(label="POKÉ MARINHA", style=discord.ButtonStyle.secondary, custom_id="AlertasMarinha", row=0)
-    buttonRaidsLeiria = Button(label="@LEIRIA", style=discord.ButtonStyle.secondary, custom_id="Leiria", row=1)
-    buttonRaidsMarinha = Button(label="@MARINHA", style=discord.ButtonStyle.secondary, custom_id="Marinha", row=1)
-    buttonRemote = Button(label="@REMOTE", style=discord.ButtonStyle.secondary, custom_id="Remote", row=1)
-    buttonPvP = Button(label="PvP", style=discord.ButtonStyle.secondary, custom_id="AlertasPvP", row=0)
+    buttonLeiria = Button(label="POKÉMON LEIRIA", style=discord.ButtonStyle.secondary, custom_id="AlertasLeiria", row=0)
+    buttonMarinha = Button(label="POKÉMON MARINHA", style=discord.ButtonStyle.secondary, custom_id="AlertasMarinha", row=0)
+    buttonRaidsLeiria = Button(label="@LEIRIA", style=discord.ButtonStyle.secondary, custom_id="Leiria", row=2)
+    buttonRaidsMarinha = Button(label="@MARINHA", style=discord.ButtonStyle.secondary, custom_id="Marinha", row=2)
+    buttonRemote = Button(label="@REMOTE", style=discord.ButtonStyle.secondary, custom_id="Remote", row=2)
+    buttonRaids = Button(label="ALERTAS RAIDS", style=discord.ButtonStyle.secondary, custom_id="AlertasRaids", row=1)
+    buttonPvP = Button(label="ALERTAS PvP", style=discord.ButtonStyle.secondary, custom_id="AlertasPvP", row=1)
 
     await add_button_event(buttonLeiria)
     await add_button_event(buttonMarinha)
@@ -15,6 +16,7 @@ async def prepare_view_roles_location(channel):
     await add_button_event(buttonRaidsMarinha)
     await add_button_event(buttonRemote)
     await add_button_event(buttonPvP)
+    await add_button_event(buttonRaids)
 
     view = View()
     view.add_item(buttonLeiria)
@@ -23,10 +25,12 @@ async def prepare_view_roles_location(channel):
     view.add_item(buttonRaidsMarinha)
     view.add_item(buttonRemote)
     view.add_item(buttonPvP)
+    view.add_item(buttonRaids)
 
     embed = discord.Embed(title="NOTIFICAÇÕES DE POKÉMON/RAIDS", description="Para desativar ou ativar as notificações, basta clicar no botão correspondente.\n", color=0x7b83b4)
-    embed.add_field(name="POKÉ LEIRIA/MARINHA | PvP", value="Receber notificações do aparecimento dos pokémon no centro de Leiria e/ou Marinha Grande, de diferentes IVs e/ou para PvP;", inline=False)
-    embed.add_field(name="@LEIRIA/@MARINHA/@REMOTE", value="Receber menções quando identificam o role Leiria, Marinha Grande ou remote;", inline=False)
+    embed.add_field(name="POKÉMON LEIRIA/MARINHA", value="Receber notificações do aparecimento dos pokémon no centro de Leiria e/ou Marinha Grande de diferentes IVs;", inline=False)
+    embed.add_field(name="ALERTAS RAIDS/PvP", value="Receber notificações de Raids e/ou de pokémon ideais para PvP;", inline=False)
+    embed.add_field(name="@LEIRIA/@MARINHA/@REMOTE", value="Receber menções quando identificam o role Leiria, Marinha ou remote;", inline=False)
     await channel.send(embed=embed, view=view)
 
 async def prepare_view_roles_teams(channel):
@@ -84,7 +88,6 @@ async def remove_team_roles(role, user):
             await user.remove_roles(roleToRemove, atomic=True)
 
 async def build_rules_message(message):
-    await message.delete()
     embed = discord.Embed(
         title="REGRAS DO SERVIDOR",
         description="Qualquer questão relacionada com a gestão do servidor, entrem em contacto com os Moderadores ou Administrador.",
