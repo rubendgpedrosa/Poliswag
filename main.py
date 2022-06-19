@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 import helpers.globals as globals
 from helpers.notifications import load_filter_data, fetch_new_pvp_data
-from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners
+from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
 from helpers.data_quests_handler import find_quest, write_filter_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
 from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
@@ -75,9 +75,9 @@ async def on_message(message):
         if message.content.startswith('!location'):
             await message.delete()
             await prepare_view_roles_location(message.channel)
-        if message.content.startswith('!teams'):
+        if message.content.startswith('!rules'):
             await message.delete()
-            await prepare_view_roles_teams(message.channel)
+            await build_rules_message(message.channel)
 
     # Keeps the map status channel with the most recent message
     if message.channel.id == globals.MAPSTATS_CHANNEL_ID:

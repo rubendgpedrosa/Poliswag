@@ -38,7 +38,7 @@ async def prepare_view_roles_teams(channel):
     view.add_item(buttonMystic)
     view.add_item(buttonValor)
 
-    embed = discord.Embed(title="SELEÇÃO DE EQUIPA", description="Ao clicarem no botão correspondente, poderão atribuir/remover a vossa equipa.")
+    embed = discord.Embed(title="SELEÇÃO DE EQUIPA", description="Mais uma vez, sejam bem vindos ao discord **PoGoLeiria**, para comecares e desbloqueares os restantes canais, pressiona no botão correspondente à tua equipa no jogo.", color=0x7b83b4)
     await channel.send(embed=embed, view=view)
 
 async def response_user_role_selection(interaction):
@@ -53,15 +53,10 @@ async def start_event_listeners(interaction):
 
 async def toggle_role(role, user):
     roleToToggle = discord.utils.get(user.guild.roles, name=role)
-    message = build_response_message(role)
     if roleToToggle:
-        if roleToToggle in user.roles:
-            await user.remove_roles(roleToToggle, atomic=True)
-            return {'msg': message + " desativadas.", 'color': 0xff0000}
-        else:
+        if roleToToggle not in user.roles:
             await remove_team_roles(role, user)
             await user.add_roles(roleToToggle, atomic=True)
-            return {'msg': message + " ativadas.", 'color': 0x00ff00}
 
 def build_response_message(role):
     if role.lower() == "alertasleiria" or role.lower() == "alertasmarinha" or role.lower() == "alertaspvp" or role.lower() == "alertasraids" or role.lower() == "remote":
@@ -79,3 +74,22 @@ async def remove_team_roles(role, user):
         roleToRemove = discord.utils.get(user.guild.roles, name=role_list)
         if roleToRemove in user.roles:
             await user.remove_roles(roleToRemove, atomic=True)
+
+async def build_rules_message(message):
+    await message.delete()
+    embed = discord.Embed(
+        title="REGRAS DO SERVIDOR",
+        description="Qualquer questão relacionada com a gestão do servidor, entrem em contacto com os Moderadores ou Administrador.",
+        color=0x7b83b4
+    )
+    embed.add_field(name="Nada de conteúdo pornográfico, odioso, prejudicial e/ou perigoso", value="Todo conteúdo que encaixe nestes moldes, sofrera de tolerância zero e será alvo de moderação, sendo os avatares também abrangidos por isso;", inline=False)
+    embed.add_field(name="Respeitar a comunidade que nela se encontra", value="O canal de discussão pública, #coronavivio não deve ser usado para qualquer tipo de publicidade, spam/cross channel spam, mensagens ofensivas e/ou comentários desnecessários;", inline=False)
+    embed.add_field(name="Proibida conversa sobre troca e venda de contas", value="De modo a tornar o jogo mais justo, toda e qualquer conversa relacionada com a compra e venda de contas ou troca/partilha de contas é proibida;", inline=False)
+    embed.add_field(name="Proibido spam e cross channel spam", value="Qualquer canal de discussão pública não deve ser usado para qualquer tipo de publicidade, spam/cross channel spam, mensagens ofensivas e/ou comentários desnecessários;", inline=False)
+    embed.add_field(name="Botting e GPS Spoofing;", value="Nada de discussão ou conversas relacionadas com ações que prejudicam outros jogadores;", inline=False)
+    embed.add_field(name="A administração poderá moderar à sua discrição", value="Por vezes as regras não englobam todas as situações e como tal, a equipa de administração poderá moderar determinados assuntos que possam determinar como impróprios. Como tal, bom senso nas interações com os restantes membros da comunidade.", inline=False)
+    await message.channel.send(
+        content='Bem vindos ao Discord _Pokemon Go Leiria_, um projecto disponibilizado por **PoGoLeiria**.\nO objectivo desta comunidade é dinamizar a comunidade local e oferecer notificações **GRATUITAMENTE** sobre o aparecimento de novas _RAIDS_ e _SPAWNS POKÉMON_, a tempo real, nas zonas centro de **Leiria** e da **Marinha Grande**.\nExiste juntamente a estas notificações, um mapa em **https://pogoleiria.pt**, que se atualiza em tempo real e contém toda a informação disponibilizada pelo scanner pokémon.\nPor fim, temos também um bot complementar, que integra com parte das funcionalidades do scanner, de modo a facilicar o sistema de scan de pokémon para os membros da comunidade.\n\n_ _\n',
+        embed=embed
+    )
+    await prepare_view_roles_teams(message.channel)
