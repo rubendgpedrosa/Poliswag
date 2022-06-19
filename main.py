@@ -76,6 +76,7 @@ async def on_message(message):
             await message.delete()
             await prepare_view_roles_location(message.channel)
         if message.content.startswith('!rules'):
+            await message.delete()
             await build_rules_message(message)
 
     # Keeps the map status channel with the most recent message
