@@ -4,6 +4,7 @@ import discord
 
 import helpers.globals as globals
 from helpers.notifications import build_quest_location_url
+from helpers.utilities import log_error
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -73,7 +74,7 @@ def find_quest(receivedData, leiria):
                         "image": quest["url"]
                     })
         except Exception as e:
-            print("find_quest: " + e)
+            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))       
             return "Essa procura não me parece ser válida."
 
     if leiria:

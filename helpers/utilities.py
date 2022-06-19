@@ -31,7 +31,7 @@ def check_current_version():
         return False
 
 def log_error(errorString):
-    with open(globals.LOG_FILE, 'w') as file:
+    with open(globals.LOG_FILE, 'a') as file:
         file.write(errorString)
 
 def build_embed_object_title_description(title, description = "", footer = None):
