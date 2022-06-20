@@ -28,7 +28,6 @@ globals.init()
 
 @tasks.loop(seconds=60)
 async def __init__():
-    await check_map_status()
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
 
@@ -37,6 +36,9 @@ async def __init__():
         start_pokestop_scan()
         clear_old_pokestops_gyms()
         globals.CURRENT_DAY = datetime.datetime.now().day
+
+    if not file_exists_scanned:
+        await check_map_status()
 
     if file_exists_scanned and get_scan_status():
         os.remove(globals.SCANNED_FILE)
