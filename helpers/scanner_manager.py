@@ -10,8 +10,8 @@ async def rename_voice_channel(name):
 def start_pokestop_scan():
     open(globals.QUESTS_FILE, "w").close()
     open(globals.SCANNED_FILE, "w").close()
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"))
-    globals.DOCKER_CLIENT.exec_start(execId)
+    # execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("DELETE FROM pokemon WHERE disappear_time < DATE_SUB(NOW(), INTERVAL 48 HOUR); TRUNCATE TABLE trs_quest; TRUNCATE TABLE trs_visited;"))
+    # globals.DOCKER_CLIENT.exec_start(execId)
     globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
     globals.DOCKER_CLIENT.restart(globals.REDIS_CONTAINER)
     globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
