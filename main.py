@@ -38,8 +38,7 @@ async def __init__():
             clear_old_pokestops_gyms()
             globals.CURRENT_DAY = datetime.datetime.now().day
         await check_map_status()
-
-    if file_exists_scanned and get_scan_status():
+    elif file_exists_scanned and get_scan_status():
         os.remove(globals.SCANNED_FILE)
         channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
         await channel.send(embed=build_embed_object_title_description(
@@ -127,7 +126,6 @@ async def on_message(message):
             )
 
         if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
-            await message.delete()
             leiria = False
             if message.content.startswith('!questleiria'):
                 receivedData = message.content.replace("!questleiria ","")
@@ -138,6 +136,7 @@ async def on_message(message):
             if returnedData == False:
                 return
 
+            await message.delete()
             if len(returnedData) > 0 and len(returnedData) < 30:
                 await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + message.content))
                 for data in returnedData:
