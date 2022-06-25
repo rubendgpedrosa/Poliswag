@@ -8,7 +8,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
-from helpers.notifications import load_filter_data, fetch_new_pvp_data
+from helpers.notifications import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
 from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
@@ -33,14 +33,14 @@ async def __init__():
 
     if not file_exists_scanned:
         if datetime.datetime.now().day > globals.CURRENT_DAY:
-            fetch_new_pvp_data()
             start_pokestop_scan()
-            clear_old_pokestops_gyms()
             globals.CURRENT_DAY = datetime.datetime.now().day
         await check_map_status()
-    elif file_exists_scanned and get_scan_status():
-        os.remove(globals.SCANNED_FILE)
+    
+    file_exists_scanned = exists(globals.SCANNED_FILE)
+    if file_exists_scanned and get_scan_status():
         fetch_today_data()
+        os.remove(globals.SCANNED_FILE)
         channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
         await channel.send(embed=build_embed_object_title_description(
             "SCAN DAS NOVAS QUESTS TERMINADO!", 
@@ -113,7 +113,7 @@ async def on_message(message):
             if message.content.startswith('!scan'):
                 await message.delete()
                 start_pokestop_scan()
-                await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de uma hora"), delete_after=5)
+                await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas"), delete_after=5)
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
 
     # Quest channel commands in order do display quests
