@@ -11,7 +11,7 @@ import helpers.globals as globals
 from helpers.notifications import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
 from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data
-from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
+from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
 from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
 from helpers.scanner_status import check_boxes_issues, check_map_status
 
@@ -31,13 +31,7 @@ async def __init__():
     file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
 
-    if not file_exists_scanned:
-        if datetime.datetime.now().day > globals.CURRENT_DAY:
-            start_pokestop_scan()
-            globals.CURRENT_DAY = datetime.datetime.now().day
-        await check_map_status()
-    
-    file_exists_scanned = exists(globals.SCANNED_FILE)
+    log_actions("IF CONDITION - file_exists_scanned:" + str(file_exists_scanned) + " | get_scan_status():" + str(get_scan_status()))
     if file_exists_scanned and get_scan_status():
         fetch_today_data()
         os.remove(globals.SCANNED_FILE)
@@ -48,6 +42,12 @@ async def __init__():
             "Esta informação só é válida até ao final do dia"
             )
         )
+    elif not file_exists_scanned:
+        if datetime.datetime.now().day > globals.CURRENT_DAY:
+            start_pokestop_scan()
+            globals.CURRENT_DAY = datetime.datetime.now().day
+        await check_map_status()
+
 
     if new_version_forced:
         try:
