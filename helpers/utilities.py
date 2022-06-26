@@ -1,4 +1,5 @@
 import requests, json, random
+from datetime import datetime
 
 import discord
 
@@ -42,3 +43,8 @@ def build_embed_object_title_description(title, description = "", footer = None)
 
 def build_query(query):
     return f'mysql -u{globals.DB_USER} -p{globals.DB_PASSWORD} -D {globals.DB_NAME} -e "{query}"'
+
+def log_actions(message):
+    f = open(globals.LOG_FILE, "a")
+    f.write("{0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), message))
+    f.close()
