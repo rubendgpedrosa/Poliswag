@@ -1,6 +1,6 @@
 #!/usr/bin/python\
 import os, sys, datetime
-from os.path import exists
+from os.path import isfile
 
 import discord
 from bs4 import BeautifulSoup
@@ -28,11 +28,9 @@ globals.init()
 
 @tasks.loop(seconds=60)
 async def __init__():
-    file_exists_scanned = exists(globals.SCANNED_FILE)
     new_version_forced = check_current_version()
 
-    log_actions("IF CONDITION - file_exists_scanned:" + str(file_exists_scanned) + " | get_scan_status():" + str(get_scan_status()))
-    if file_exists_scanned and get_scan_status():
+    if isfile(globals.SCANNED_FILE) and get_scan_status():
         fetch_today_data()
         os.remove(globals.SCANNED_FILE)
         channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
@@ -42,7 +40,7 @@ async def __init__():
             "Esta informação só é válida até ao final do dia"
             )
         )
-    elif not file_exists_scanned:
+    else:
         if datetime.datetime.now().day > globals.CURRENT_DAY:
             start_pokestop_scan()
             globals.CURRENT_DAY = datetime.datetime.now().day
