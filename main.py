@@ -1,6 +1,5 @@
 #!/usr/bin/python\
 import os, sys, datetime
-from os.path import isfile
 
 import discord
 from bs4 import BeautifulSoup
@@ -10,9 +9,9 @@ from dotenv import load_dotenv
 import helpers.globals as globals
 from helpers.notifications import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
-from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data
+from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data, verify_quest_scan_done
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
-from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, get_scan_status, clear_old_pokestops_gyms
+from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, is_quest_scanning, set_quest_scanning_state
 from helpers.scanner_status import check_boxes_issues, check_map_status
 
 # Validates arguments passed to check what env was requested
@@ -30,16 +29,17 @@ globals.init()
 async def __init__():
     new_version_forced = check_current_version()
 
-    if isfile(globals.SCANNED_FILE) and get_scan_status():
+    if is_quest_scanning():
         fetch_today_data()
-        os.remove(globals.SCANNED_FILE)
-        channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-        await channel.send(embed=build_embed_object_title_description(
-            "SCAN DAS NOVAS QUESTS TERMINADO!", 
-            "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-            "Esta informação só é válida até ao final do dia"
+        if verify_quest_scan_done():
+            set_quest_scanning_state()
+            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
+            await channel.send(embed=build_embed_object_title_description(
+                "SCAN DAS NOVAS QUESTS TERMINADO!", 
+                "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+                "Esta informação só é válida até ao final do dia"
+                )
             )
-        )
     else:
         if datetime.datetime.now().day > globals.CURRENT_DAY:
             start_pokestop_scan()
