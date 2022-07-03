@@ -86,13 +86,18 @@ def retrieve_sort_quest_data():
         quests = json.load(raw_data)
     return sorted(quests, key=lambda k: k['quest_task'], reverse=True)
 
-def build_reward_for_quest(quest):
+def build_reward_for_quest(quest): 
     if quest['quest_reward_type'] == 'Pokemon':
         reward = quest['pokemon_name']
     elif quest['quest_reward_type'] == 'Item':
         reward = str(quest['item_amount']) + " " + quest['item_type']
     elif quest['quest_reward_type'] == 'Stardust':
-        reward =  str(quest['item_amount']) + " " + quest['quest_reward_type']
+        reward = str(quest['item_amount']) + " " + quest['quest_reward_type']
     else:
-        reward =  str(quest['item_amount']) + " " + quest['pokemon_name'] + " " + quest['item_type']
+        reward = str(quest['item_amount']) + " " + quest['pokemon_name'] + " " + quest['item_type']
     return reward
+
+def verify_quest_scan_done():
+    with open(globals.QUESTS_FILE) as raw_data:
+        jsonPokemonData = json.load(raw_data)
+    return len(jsonPokemonData) >= 354
