@@ -41,8 +41,8 @@ def build_embed_object_title_description(title, description = "", footer = None)
         embed.set_footer(text=footer)
     return embed
 
-def build_query(query):
-    return f'mysql -u{globals.DB_USER} -p{globals.DB_PASSWORD} -D {globals.DB_NAME} -e "{query}"'
+def build_query(query, db = globals.DB_NAME):
+    return f'mysql -u{globals.DB_USER} -p{globals.DB_PASSWORD} -D {db} -e "{query}"'
 
 def log_actions(message):
     f = open(globals.LOG_FILE, "a")
