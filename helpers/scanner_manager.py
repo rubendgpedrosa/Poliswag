@@ -16,7 +16,7 @@ def start_pokestop_scan():
     globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
 
 def is_quest_scanning():
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;"))
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
     return len(str(questResults).split("\\n")) > 1
 
