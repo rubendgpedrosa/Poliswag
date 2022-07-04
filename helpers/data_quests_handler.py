@@ -100,4 +100,4 @@ def build_reward_for_quest(quest):
 def verify_quest_scan_done():
     with open(globals.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
-    return len(jsonPokemonData) >= 354
+    return len(jsonPokemonData) >= 350
