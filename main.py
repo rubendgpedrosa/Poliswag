@@ -12,7 +12,6 @@ from helpers.roles_manager import prepare_view_roles_location, prepare_view_role
 from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data, verify_quest_scan_done
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
 from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, is_quest_scanning, set_quest_scanning_state
-from helpers.scanner_status import check_boxes_issues, check_map_status
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -25,37 +24,10 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-@tasks.loop(seconds=60)
+@tasks.loop(seconds=300)
 async def __init__():
-    new_version_forced = check_current_version()
-
-    if is_quest_scanning():
-        fetch_today_data()
-        if verify_quest_scan_done():
-            set_quest_scanning_state()
-            channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-            await channel.send(embed=build_embed_object_title_description(
-                "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                "Esta informação só é válida até ao final do dia"
-                )
-            )
-    else:
-        if datetime.datetime.now().day > globals.CURRENT_DAY:
-            start_pokestop_scan()
-            globals.CURRENT_DAY = datetime.datetime.now().day
-        await check_map_status()
-
-
-    if new_version_forced:
-        try:
-            channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
-            await channel.send(embed=build_embed_object_title_description(
-                "PAAAAUUUUUUUU!!! FORCE UPDATE!",
-                "Nova versão: 0." + globals.SAVED_VERSION
-            ))
-        except Exception as e:
-            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))        
+    await check_current_version()
+    await is_quest_scanning()
 
 @globals.CLIENT.event
 async def on_ready():
