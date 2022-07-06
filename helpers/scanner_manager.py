@@ -1,7 +1,7 @@
 import os, json, requests, datetime
 
 import helpers.globals as globals
-from helpers.utilities import build_query, build_embed_object_title_description
+from helpers.utilities import build_query, build_embed_object_title_description, log_actions
 from helpers.notifications import fetch_new_pvp_data
 from helpers.scanner_status import check_map_status
 from helpers.data_quests_handler import fetch_today_data, verify_quest_scan_done
@@ -21,6 +21,7 @@ async def is_quest_scanning():
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
     if len(str(questResults).split("\\n")) > 1:
         fetch_today_data()
+        log_actions("Verifying if quest scan is done... " + verify_quest_scan_done())
         if verify_quest_scan_done():
             set_quest_scanning_state()
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
@@ -34,6 +35,7 @@ async def is_quest_scanning():
         if datetime.datetime.now().day > globals.CURRENT_DAY:
             start_pokestop_scan()
             globals.CURRENT_DAY = datetime.datetime.now().day
+            log_actions("Initializing quest scan...")
         await check_map_status()
 
 def set_quest_scanning_state(disabled = 0):
