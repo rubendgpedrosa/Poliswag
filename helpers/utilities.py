@@ -16,7 +16,7 @@ def prepare_environment(env):
         print("Invalid environment, usage: python3 main.py (dev|prod)")
         quit()
 
-def check_current_version():    
+async def check_current_version():    
     response = requests.get(versionUrl)
 
     if (response.status_code == 200):
@@ -25,11 +25,17 @@ def check_current_version():
             globals.SAVED_VERSION = retrievedVersion
             with open(globals.VERSION_FILE, 'w') as file:
                 file.write(retrievedVersion)
-            return True
-        else:
-            return False
-    else:
-        return False
+            await notify_new_version()
+
+async def notify_new_version():
+    try:
+        channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
+        await channel.send(embed=build_embed_object_title_description(
+            "PAAAAUUUUUUUU!!! FORCE UPDATE!",
+            "Nova versão: 0." + globals.SAVED_VERSION
+        ))
+    except Exception as e:
+        log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))     
 
 def log_error(errorString):
     with open(globals.LOG_FILE, 'a') as file:
