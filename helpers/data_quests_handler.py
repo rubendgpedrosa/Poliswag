@@ -4,7 +4,7 @@ import discord
 
 import helpers.globals as globals
 from helpers.notifications import build_quest_location_url
-from helpers.utilities import log_error
+from helpers.utilities import log_error, log_actions
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -100,4 +100,5 @@ def build_reward_for_quest(quest):
 def verify_quest_scan_done():
     with open(globals.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
+    log_actions("Verifying if quest scan is done... " + str(len(jsonPokemonData) / 354))
     return len(jsonPokemonData) >= 350

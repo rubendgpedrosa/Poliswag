@@ -21,8 +21,8 @@ async def is_quest_scanning():
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
     if len(str(questResults).split("\\n")) > 1:
         fetch_today_data()
-        log_actions("Verifying if quest scan is done... " + str(verify_quest_scan_done()))
         if verify_quest_scan_done():
+            log_actions("Quest scan completed")
             set_quest_scanning_state()
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             await channel.send(embed=build_embed_object_title_description(
