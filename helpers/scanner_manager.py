@@ -19,10 +19,12 @@ def start_pokestop_scan():
 async def is_quest_scanning():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
+    log_actions("Quest is scanning: " + str(len(str(questResults).split("\\n"))))
     if len(str(questResults).split("\\n")) > 1:
         fetch_today_data()
+        log_actions("Updating today's quest data...")
         if verify_quest_scan_done():
-            log_actions("Quest scan completed")
+            log_actions("Quest scan has been completed")
             set_quest_scanning_state()
             channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
             await channel.send(embed=build_embed_object_title_description(
