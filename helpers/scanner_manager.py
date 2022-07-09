@@ -19,7 +19,7 @@ def start_pokestop_scan():
 async def is_quest_scanning():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
     questResults = globals.DOCKER_CLIENT.exec_start(execId)
-    log_actions("Quest is scanning: " + str(len(str(questResults).split("\\n"))))
+    log_actions("Quest is scanning: " + str(len(str(questResults).split("\\n")) > 1))
     if len(str(questResults).split("\\n")) > 1:
         fetch_today_data()
         log_actions("Updating today's quest data...")
