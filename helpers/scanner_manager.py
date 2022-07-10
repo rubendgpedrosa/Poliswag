@@ -43,6 +43,7 @@ async def is_quest_scanning():
 def set_quest_scanning_state(disabled = 0):
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query(f"UPDATE poliswag SET scanned = {disabled};", "poliswag"))
     globals.DOCKER_CLIENT.exec_start(execId)
+    log_actions("Changed state to: " + str(disabled))
 
 def clear_old_pokestops_gyms():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 
