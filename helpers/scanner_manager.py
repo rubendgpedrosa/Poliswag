@@ -11,9 +11,9 @@ async def rename_voice_channel(name):
     await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
+    set_quest_scanning_state(1)
     fetch_new_pvp_data()
     fetch_today_data()
-    set_quest_scanning_state(1)
     globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
 
 async def is_quest_scanning():
@@ -35,9 +35,9 @@ async def is_quest_scanning():
             )
     else:
         if datetime.datetime.now().day > globals.CURRENT_DAY:
-            start_pokestop_scan()
-            globals.CURRENT_DAY = datetime.datetime.now().day
             log_actions("Initializing quest scan...")
+            globals.CURRENT_DAY = datetime.datetime.now().day
+            start_pokestop_scan()
         await check_map_status()
 
 def set_quest_scanning_state(disabled = 0):
