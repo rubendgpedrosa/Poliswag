@@ -26,6 +26,7 @@ globals.init()
 
 @tasks.loop(seconds=300)
 async def __init__():
+    log_actions("Proccess is running...")
     await check_current_version()
     await is_quest_scanning()
 
