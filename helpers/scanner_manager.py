@@ -15,7 +15,7 @@ def start_pokestop_scan():
     fetch_new_pvp_data()
     fetch_today_data()
     globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
-    #exit()
+    exit()
 
 async def is_quest_scanning():
     log_actions("Checking if quest scanning is enabled...")
