@@ -19,7 +19,7 @@ if (len(sys.argv) != 2):
     quit()
 
 # Environment variables are loaded into memory here 
-load_dotenv(prepare_environment(sys.argv[1]))
+load_dotenv('/root/poliswag/' + prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
