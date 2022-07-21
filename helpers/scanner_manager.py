@@ -14,7 +14,9 @@ def start_pokestop_scan():
     set_quest_scanning_state(1)
     fetch_new_pvp_data()
     fetch_today_data()
+    log_actions("Resetting alarm container")
     globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
+    log_actions("Exiting script")
     exit()
 
 async def is_quest_scanning():
