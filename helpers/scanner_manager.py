@@ -15,7 +15,9 @@ def start_pokestop_scan():
     fetch_new_pvp_data()
     fetch_today_data()
     log_actions("Resetting alarm container")
-    globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
+    globals.DOCKER_CLIENT.stop(globals.ALARM_CONTAINER)
+    globals.DOCKER_CLIENT.wait(globals.ALARM_CONTAINER)
+    globals.DOCKER_CLIENT.start(globals.ALARM_CONTAINER)
     log_actions("Exiting script")
     exit()
 
