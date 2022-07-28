@@ -68,7 +68,7 @@ def fetch_new_pvp_data():
     return
 
 def fetch_data_from_endpoint(combat_power):
-    request = requests.get(f"https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/gobattleleague/overall/rankings-{combat_power}.json")
+    request = requests.get(f"https://github.com/pvpoke/pvpoke/blob/master/src/data/rankings/all/overall/rankings-{combat_power}.json")
     # The .json() method automatically parses the response into JSON.
     return request.json()
     
@@ -78,8 +78,10 @@ def prepare_fetched_json_object(jsonData):
     jsonData = sorted(jsonDataNoDuplicates, key=lambda d: d["score"], reverse=True)
     listPokemonForNotifications = []
     for data in jsonData:
-        if data["score"] >= 85 and len(data["speciesName"].split("(")) == 1:
-            listPokemonForNotifications.append(data["speciesName"])
+        print(len(data["speciesName"].split("(")) == 1)
+        print(data["speciesName"])
+        if data["score"] >= 85 and len(data["speciesName"].split(" (", 1)[0]) == 1:
+            listPokemonForNotifications.append(data["speciesName"].split(" (", 1)[0])
     return listPokemonForNotifications
 
 def build_notification_data_for_pvp(greatLeagueData, ultraLeagueData, jsonFiltersPokemonData):
