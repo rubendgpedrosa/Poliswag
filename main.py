@@ -7,7 +7,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.globals as globals
-from helpers.notifications import load_filter_data
+from helpers.notifications import load_filter_data, fetch_new_pvp_data
 from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
 from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data, verify_quest_scan_done
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
@@ -19,10 +19,11 @@ if (len(sys.argv) != 2):
     quit()
 
 # Environment variables are loaded into memory here 
-load_dotenv('/root/poliswag/' + prepare_environment(sys.argv[1]))
+load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
+fetch_new_pvp_data()
 
 @tasks.loop(seconds=300)
 async def __init__():
