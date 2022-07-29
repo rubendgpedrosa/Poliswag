@@ -68,7 +68,7 @@ def fetch_new_pvp_data():
     return
 
 def fetch_data_from_endpoint(combat_power):
-    request = requests.get(f"https://github.com/pvpoke/pvpoke/blob/master/src/data/rankings/all/overall/rankings-{combat_power}.json")
+    request = requests.get(f"https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/rankings/all/overall/rankings-{combat_power}.json")
     # The .json() method automatically parses the response into JSON.
     return request.json()
     
