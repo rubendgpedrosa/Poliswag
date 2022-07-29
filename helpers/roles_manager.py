@@ -62,11 +62,16 @@ async def start_event_listeners(interaction):
 
 async def toggle_role(role, user):
     roles_list = ["Instinct", "Mystic", "Valor"]
+    notif_list = ["AlertasLeiria", "AlertasMarinha", "AlertasRaids", "AlertasPvP", "Remote"]
     roleToToggle = discord.utils.get(user.guild.roles, name=role)
     if roleToToggle:
         if roleToToggle in user.roles and role not in roles_list:
             await user.remove_roles(roleToToggle, atomic=True)
         elif roleToToggle not in user.roles:
+            if roleToToggle in roles_list and not any(item in user.roles for item in roles_list):
+                for notifRolesToAdd in notif_list:
+                    roleListNotif = discord.utils.get(user.guild.roles, name=notifRolesToAdd)
+                    await user.add_roles(roleListNotif, atomic=True)
             await remove_team_roles(role, user)
             await user.add_roles(roleToToggle, atomic=True)
 
