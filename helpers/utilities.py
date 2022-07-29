@@ -9,7 +9,7 @@ versionUrl = "https://pgorelease.nianticlabs.com/plfe/version"
 
 def prepare_environment(env):
     if env == "prod":
-        return ".env"
+        return "/root/poliswag/.env"
     elif env == "dev":
         return "dev.env"
     else:

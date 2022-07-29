@@ -2,7 +2,7 @@ import json, requests
 
 import discord
 
-import globals as globals
+import helpers.globals as globals
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -50,7 +50,6 @@ def fetch_new_pvp_data():
     ultraLeagueData = fetch_data_from_endpoint(2500)
 
     greatLeagueData = prepare_fetched_json_object(greatLeagueData)
-    print(greatLeagueData)
     ultraLeagueData = prepare_fetched_json_object(ultraLeagueData)
 
     with open(globals.FILTER_FILE) as raw_data:
@@ -79,11 +78,8 @@ def prepare_fetched_json_object(jsonData):
     jsonData = sorted(jsonDataNoDuplicates, key=lambda d: d["score"], reverse=True)
     listPokemonForNotifications = []
     for data in jsonData:
-        print(len(data["speciesName"].split("(")) == 1)
-        print(data["speciesName"])
-        if data["score"] >= 85 and len(data["speciesName"].split(" (", 1)[0]) == 1:
+        if data["score"] >= 85 and len(data["speciesName"].split(" (", 1)[0]) > 1:
             listPokemonForNotifications.append(data["speciesName"].split(" (", 1)[0])
-    print(listPokemonForNotifications)
     return listPokemonForNotifications
 
 def build_notification_data_for_pvp(greatLeagueData, ultraLeagueData, jsonFiltersPokemonData):
