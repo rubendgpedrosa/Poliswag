@@ -23,7 +23,6 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
-fetch_new_pvp_data()
 
 @tasks.loop(seconds=300)
 async def __init__():
