@@ -59,6 +59,7 @@ async def on_message(message):
 
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == globals.MOD_CHANNEL_ID:
+        log_error(str(message.author) + " AUTHORIZED? " + str(message.channel.id == globals.MOD_CHANNEL_ID))
         if str(message.author.id) in globals.ADMIN_USERS_IDS:
             if message.content.startswith('!add') or message.content.startswith('!remove'):
                 await message.delete()
@@ -71,19 +72,19 @@ async def on_message(message):
                 receivedData = receivedData.split(" ", 1)
                 returnedData = write_filter_data(receivedData, add)
                 if returnedData == False:
-                    await message.channel.send(embed=build_embed_object_title_description("Woops, parece que te enganaste migo."), delete_after=5)
+                    await message.channel.send(embed=build_embed_object_title_description("Woops, parece que te enganaste migo."), delete_after=30)
                     return
-                await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=5)
+                await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=30)
 
             if message.content.startswith('!reload'):
                 await message.delete()
                 os.system('docker restart pokemon_alarm')
-                await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=5)
+                await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
 
             if message.content.startswith('!scan'):
                 await message.delete()
                 start_pokestop_scan()
-                await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas"), delete_after=5)
+                await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas"), delete_after=30)
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
 
     # Quest channel commands in order do display quests
