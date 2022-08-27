@@ -68,7 +68,7 @@ async def toggle_role(role, user):
         if roleToToggle in user.roles and role not in roles_list:
             await user.remove_roles(roleToToggle, atomic=True)
         elif roleToToggle not in user.roles:
-            if roleToToggle in roles_list and not any(item in user.roles for item in roles_list):
+            if len(user.roles) <= 1:
                 for notifRolesToAdd in notif_list:
                     roleListNotif = discord.utils.get(user.guild.roles, name=notifRolesToAdd)
                     await user.add_roles(roleListNotif, atomic=True)
