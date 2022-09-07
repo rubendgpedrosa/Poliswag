@@ -60,6 +60,7 @@ async def on_message(message):
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == globals.MOD_CHANNEL_ID:
         if str(message.author.id) in globals.ADMIN_USERS_IDS:
+            log_error(str(message.author) + " is allowed access to admin commands")
             if message.content.startswith('!add') or message.content.startswith('!remove'):
                 await message.delete()
                 if message.content.startswith('!add'):
@@ -79,7 +80,7 @@ async def on_message(message):
                 await message.delete()
                 globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
                 await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
-
+            log_error(str(message.author) + "'s new message starts with !scan: " + str(message.content.startswith('!scan')))
             if message.content.startswith('!scan'):
                 log_error(str(message.author) + " logging scan request")
                 try:
