@@ -78,7 +78,7 @@ async def on_message(message):
 
             if message.content.startswith('!reload'):
                 await message.delete()
-                os.system('docker restart pokemon_alarm')
+                globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
                 await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
 
             if message.content.startswith('!scan'):
