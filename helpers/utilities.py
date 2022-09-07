@@ -39,7 +39,7 @@ async def notify_new_version():
 
 def log_error(errorString):
     with open(globals.LOG_FILE, 'a') as file:
-        file.write(errorString)
+        file.write(errorString + "\n")
 
 def build_embed_object_title_description(title, description = "", footer = None):
     embed = discord.Embed(title=title, description=description, color=0x7b83b4)
