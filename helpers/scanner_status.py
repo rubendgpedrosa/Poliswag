@@ -26,6 +26,8 @@ async def check_boxes_issues():
                     #user = globals.CLIENT.fetch_user(boxuser["mention"])
                     #message = user.send(embed=build_embed_object_title_description("Box " + box + " está com problemas."))
         await rename_voice_channel(len(listBoxStatusResults))
+    else:
+        await rename_voice_channel(0)
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(totalBoxesFailing):
