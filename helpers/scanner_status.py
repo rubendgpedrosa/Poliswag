@@ -12,10 +12,9 @@ boxUsersData = [
 
 async def check_boxes_issues():
     # 4500 since it's 900 seconds + 1 hour (vps timezone differences)
-    # execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 4500;"))
-    # boxStatusResults = globals.DOCKER_CLIENT.exec_start(execId)
-    # listBoxStatusResults = str(boxStatusResults).split("\\n").remove("b''")
-    listBoxStatusResults = []
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 4500;"))
+    boxStatusResults = globals.DOCKER_CLIENT.exec_start(execId)
+    listBoxStatusResults = str(boxStatusResults).split("\\n").remove("b''")
     if listBoxStatusResults is not None and len(listBoxStatusResults) > 1:
         for box in listBoxStatusResults:
             # Edge case where we replace this value since it's different in the db
