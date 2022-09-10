@@ -12,6 +12,7 @@ from helpers.roles_manager import prepare_view_roles_location, prepare_view_role
 from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data, verify_quest_scan_done
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
 from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, is_quest_scanning, set_quest_scanning_state
+from helpers.scanner_status import check_boxes_issues
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -24,10 +25,11 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-@tasks.loop(seconds=300)
+@tasks.loop(seconds=600)
 async def __init__():
     await check_current_version()
     await is_quest_scanning()
+    await check_boxes_issues()
 
 @globals.CLIENT.event
 async def on_ready():
