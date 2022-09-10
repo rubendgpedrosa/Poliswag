@@ -25,7 +25,7 @@ load_dotenv(prepare_environment(sys.argv[1]))
 # Initialize global variables
 globals.init()
 
-@tasks.loop(seconds=600)
+@tasks.loop(seconds=300)
 async def __init__():
     await check_current_version()
     await is_quest_scanning()
