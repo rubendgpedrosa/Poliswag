@@ -30,6 +30,7 @@ async def __init__():
     await check_current_version()
     await is_quest_scanning()
     await check_boxes_issues()
+    await fetch_today_data()
 
 @globals.CLIENT.event
 async def on_ready():
