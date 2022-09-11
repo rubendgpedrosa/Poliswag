@@ -40,7 +40,7 @@ async def rename_voice_channel(totalBoxesFailing):
         await voiceChannel.edit(name=message)
 
 async def check_map_status():
-#70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 10mins
+    #70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 10mins
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT last_scanned FROM trs_spawn WHERE last_scanned > NOW() - INTERVAL 70 MINUTE ORDER BY last_scanned DESC LIMIT 1;"))
     pokemonScanResults = globals.DOCKER_CLIENT.exec_start(execId)
     if len(str(pokemonScanResults).split("\\n")) == 1:
