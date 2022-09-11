@@ -4,7 +4,7 @@ import discord
 
 import helpers.globals as globals
 from helpers.notifications import build_quest_location_url
-from helpers.utilities import log_error, log_actions
+from helpers.utilities import log_error, log_actions, build_query
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -100,4 +100,10 @@ def build_reward_for_quest(quest):
 def verify_quest_scan_done():
     with open(globals.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
-    return len(jsonPokemonData) >= 350
+    return len(jsonPokemonData) >= 360
+
+def check_quest_scan_stuck():
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 300);"))
+    questsWhereRecentlyScanned = globals.DOCKER_CLIENT.exec_start(execId)
+    if len(str(questsWhereRecentlyScanned).split("\\n")) == 1:
+        requests.get("http://3frk.l.time4vps.cloud:5000/reload")

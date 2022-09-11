@@ -4,7 +4,7 @@ import helpers.globals as globals
 from helpers.utilities import build_query, build_embed_object_title_description, log_error
 from helpers.notifications import fetch_new_pvp_data
 from helpers.scanner_status import check_map_status
-from helpers.data_quests_handler import fetch_today_data, verify_quest_scan_done
+from helpers.data_quests_handler import fetch_today_data, verify_quest_scan_done, check_quest_scan_stuck
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
@@ -22,7 +22,6 @@ async def is_quest_scanning():
         execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
         questResults = globals.DOCKER_CLIENT.exec_start(execId)
         if len(str(questResults).split("\\n")) > 1:
-            fetch_today_data()
             if verify_quest_scan_done():
                 set_quest_scanning_state()
                 channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
@@ -32,6 +31,7 @@ async def is_quest_scanning():
                     "Esta informação só é válida até ao final do dia"
                     )
                 )
+            check_quest_scan_stuck()
         else:
             if datetime.datetime.now().day > globals.CURRENT_DAY:
                 globals.CURRENT_DAY = datetime.datetime.now().day
