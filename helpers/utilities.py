@@ -38,8 +38,9 @@ async def notify_new_version():
         log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))     
 
 def log_error(errorString):
+    now = datetime.now()
     with open(globals.LOG_FILE, 'a') as file:
-        file.write(errorString + "\n")
+        file.write("[" + now.strftime("%d/%m/%Y %H:%M:%S") + "] " + errorString + "\n")
 
 def build_embed_object_title_description(title, description = "", footer = None):
     embed = discord.Embed(title=title, description=description, color=0x7b83b4)
