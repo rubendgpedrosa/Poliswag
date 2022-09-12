@@ -100,10 +100,13 @@ def build_reward_for_quest(quest):
 def verify_quest_scan_done():
     with open(globals.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
+    log_error("IS QUEST SCANNING DONE? " + str(len(jsonPokemonData) >= 360))
     return len(jsonPokemonData) >= 360
 
 def check_quest_scan_stuck():
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 300);"))
+    # Always add an hour due to timezone
+    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 3900);"))
     questsWhereRecentlyScanned = globals.DOCKER_CLIENT.exec_start(execId)
     if len(str(questsWhereRecentlyScanned).split("\\n")) == 1:
         requests.get("http://3frk.l.time4vps.cloud:5000/reload")
+        log_error("RESETTING QUEST SCANNING")
