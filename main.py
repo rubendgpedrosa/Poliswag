@@ -24,13 +24,13 @@ load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
 globals.init()
-
+  
 @tasks.loop(seconds=300)
 async def __init__():
     await check_current_version()
     await is_quest_scanning()
     await check_boxes_issues()
-    await fetch_today_data()
+    fetch_today_data()
 
 @globals.CLIENT.event
 async def on_ready():
@@ -131,5 +131,15 @@ async def on_message(message):
         if message.content == ("<@" + str(globals.POLISWAG_ID) + ">"):
             await message.delete()
             await message.channel.send(embed=load_filter_data(message.channel.id == globals.MOD_CHANNEL_ID), delete_after=300)
+
+@globals.CLIENT.event
+async def on_message_delete(message):
+    if message.channel.id not in [globals.MOD_CHANNEL_ID, globals.QUEST_CHANNEL_ID, globals.MAPSTATS_CHANNEL_ID]:
+        channel = globals.CLIENT.get_channel(globals.MOD_CHANNEL_ID)
+        await channel.send(embed=build_embed_object_title_description(
+            f"Mensagem removida no canal {message.channel} enviada por {message.author}", 
+            message.content
+            )
+        )
 
 globals.CLIENT.run(globals.DISCORD_API_KEY)
