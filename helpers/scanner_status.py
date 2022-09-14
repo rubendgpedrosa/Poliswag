@@ -48,7 +48,6 @@ async def check_map_status():
     #70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 30mins
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT pokestop_id FROM pokestop WHERE last_updated > NOW() - INTERVAL 90 MINUTE ORDER BY last_updated DESC LIMIT 1;"))
     pokemonScanResults = globals.DOCKER_CLIENT.exec_start(execId)
-    container = globals.DOCKER_CLIENT.containers.get('pokemon_mad')
     if len(str(pokemonScanResults).split("\\n")) == 1:
         log_error("Restarting MAD instance since scanner has no new spawns for 30mins")
         channel = globals.CLIENT.get_channel(globals.MOD_CHANNEL_ID)
