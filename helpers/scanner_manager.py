@@ -35,16 +35,20 @@ async def is_quest_scanning():
         else:
             if datetime.datetime.now().day > globals.CURRENT_DAY:
                 globals.CURRENT_DAY = datetime.datetime.now().day
+                log_error("start_pokestop_scan init at: " + str(datetime.datetime.now()))
                 start_pokestop_scan()
+                clear_old_pokestops_gyms()
             await check_map_status()
     except Exception as e:
-        log_error("Error restarting container: " + str(e))
+        log_error("is_quest_scanning crash: " + str(e))
 
 def set_quest_scanning_state(disabled = 0):
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query(f"UPDATE poliswag SET scanned = {disabled};", "poliswag"))
     globals.DOCKER_CLIENT.exec_start(execId)
+    log_error("set_quest_scanning_state state set to: " + str(disabled))
 
 def clear_old_pokestops_gyms():
     execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 
-    build_query("DELETE FROM pokestop WHERE last_updated < (UNIX_TIMESTAMP() - 172800); DELETE FROM gym WHERE last_scanned < (UNIX_TIMESTAMP() - 172800);"))
+    build_query("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);"))
     globals.DOCKER_CLIENT.exec_start(execId)
+    log_error("Clearing expired pokestops and gyms")
