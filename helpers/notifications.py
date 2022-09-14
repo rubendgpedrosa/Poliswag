@@ -12,11 +12,10 @@ def load_filter_data(displayCommands = True):
 
     jsonPokemonData = read_json_data()
 
-    #discordMessage= embed.add_field(name="Raros", value="asdasdasdasdasdasdasd", inline=False)
     embed=discord.Embed(title="LISTA DE POKÉMON", color=0x7b83b4)
     for name in namesList:
         discordMessage = build_filter_message(jsonPokemonData, name)
-        embed.add_field(name=discordMessageChannels[name], value=discordMessage, inline=True)
+        embed.add_field(name=discordMessageChannels[name], value=discordMessage, inline=False)
     if displayCommands:
         embed.set_footer(text="COMANDOS IMPLEMENTADOS:  !add POKEMON CANAL, !remove POKEMON CANAL, !reload")
 
@@ -33,7 +32,7 @@ def build_filter_message(jsonPokemonData, name):
     for pokemonFilter in jsonPokemonData['monsters']['filters'][name]['monsters']:
         pokemonNames.append(pokemonFilter)
     pokemonNames = sorted(pokemonNames, key=str.lower)
-    pokemonNames = "> " + ', '.join(pokemonNames)
+    pokemonNames = ', '.join(pokemonNames)
     
     return pokemonNames
 

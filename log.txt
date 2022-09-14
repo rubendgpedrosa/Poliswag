@@ -1,44 +1,17 @@
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
-Error restarting container: 404 Client Error for http+docker://localhost/v1.41/containers/db/exec: Not Found ("No such container: db")
+[14/09/2022 18:11:05] check_map_status Verify if map has nothing scanned for 10mins: False
+[14/09/2022 18:16:04] check_map_status Verify if map has nothing scanned for 10mins: False
+[14/09/2022 18:21:04] check_map_status Verify if map has nothing scanned for 10mins: False
+[14/09/2022 18:26:04] check_map_status Verify if map has nothing scanned for 10mins: False
+[14/09/2022 18:31:04] check_map_status Verify if map has nothing scanned for 10mins: False
+[14/09/2022 18:36:04] check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:39 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:40 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:40 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:41 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:43 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:48 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:53 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 18:58 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 19:03 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 19:08 -- check_map_status Verify if map has nothing scanned for 10mins: False
+2022-09-14 19:13 -- check_map_status Verify if map has nothing scanned for 10mins: False
