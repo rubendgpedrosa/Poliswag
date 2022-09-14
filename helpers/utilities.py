@@ -35,12 +35,12 @@ async def notify_new_version():
             "Nova versão: 0." + globals.SAVED_VERSION
         ))
     except Exception as e:
-        log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))     
+        log_error('\nFailed fetching force update: %s\n' % str(e))     
 
 def log_error(errorString):
     now = datetime.now()
     with open(globals.LOG_FILE, 'a') as file:
-        file.write("[" + now.strftime("%d/%m/%Y %H:%M:%S") + "] " + errorString + "\n")
+        file.write("{0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), errorString))
 
 def build_embed_object_title_description(title, description = "", footer = None):
     embed = discord.Embed(title=title, description=description, color=0x7b83b4)
