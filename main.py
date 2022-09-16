@@ -1,18 +1,16 @@
 #!/usr/bin/python\
-import os, sys, datetime
-
-import discord
-from bs4 import BeautifulSoup
+import discord, sys
 from discord.ext import tasks
 from dotenv import load_dotenv
 
-import helpers.globals as globals
-from helpers.notifications import load_filter_data, fetch_new_pvp_data
-from helpers.roles_manager import prepare_view_roles_location, prepare_view_roles_teams, start_event_listeners, build_rules_message
-from helpers.data_quests_handler import find_quest, write_filter_data, fetch_today_data, verify_quest_scan_done
-from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, log_actions
-from helpers.scanner_manager import rename_voice_channel, start_pokestop_scan, is_quest_scanning, set_quest_scanning_state
-from helpers.scanner_status import check_boxes_issues
+import helpers.constants as constants
+
+from helpers.poliswag import load_filter_data
+from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
+from helpers.quests import find_quest, write_filter_data, fetch_today_data
+from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
+from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state
+from helpers.scanner_status import check_boxes_issues, is_quest_scanning
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -23,8 +21,8 @@ if (len(sys.argv) != 2):
 load_dotenv(prepare_environment(sys.argv[1]))
 
 # Initialize global variables
-globals.init()
-  
+constants.init()
+
 @tasks.loop(seconds=300)
 async def __init__():
     await check_current_version()
@@ -32,20 +30,20 @@ async def __init__():
     await check_boxes_issues()
     fetch_today_data()
 
-@globals.CLIENT.event
+@constants.CLIENT.event
 async def on_ready():
     __init__.start()
 
-@globals.CLIENT.event
+@constants.CLIENT.event
 async def on_interaction(interaction):
     await start_event_listeners(interaction)
 
-@globals.CLIENT.event
+@constants.CLIENT.event
 async def on_message(message):
-    if message.author == globals.CLIENT.user:
+    if message.author == constants.CLIENT.user:
         return
 
-    if str(message.author.id) in globals.ADMIN_USERS_IDS:
+    if str(message.author.id) in constants.ADMIN_USERS_IDS:
         if message.content.startswith('!location'):
             await message.delete()
             await prepare_view_roles_location(message.channel)
@@ -54,17 +52,18 @@ async def on_message(message):
             await build_rules_message(message)
 
     # Keeps the map status channel with the most recent message
-    if message.channel.id == globals.MAPSTATS_CHANNEL_ID:
-        channel = globals.CLIENT.get_channel(globals.MAPSTATS_CHANNEL_ID)
+    if message.channel.id == constants.MAPSTATS_CHANNEL_ID:
+        channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
             if message != msg:
                 await msg.delete()
 
     # Moderation commands to manage the pokemon scanner
-    if message.channel.id == globals.MOD_CHANNEL_ID:
-        if str(message.author.id) in globals.ADMIN_USERS_IDS:
+    if message.channel.id == constants.MOD_CHANNEL_ID:
+        if str(message.author.id) in constants.ADMIN_USERS_IDS:
+            await message.delete()
+            # TODO: Change message
             if message.content.startswith('!add') or message.content.startswith('!remove'):
-                await message.delete()
                 if message.content.startswith('!add'):
                     receivedData = message.content.replace("!add ","")
                     add = True
@@ -79,20 +78,22 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=30)
 
             if message.content.startswith('!reload'):
-                await message.delete()
-                globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
+                constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
                 await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
+
+            if message.content.startswith('!quest'):
+                set_quest_scanning_state(1)
+
             if message.content.startswith('!scan'):
                 try:
-                    await message.delete()
                     start_pokestop_scan()
                     await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas"), delete_after=30)
-                    channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
+                    channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
                 except Exception as e:
                     log_error('Quest scanning log failed: %s' % str(e))       
                     
     # Quest channel commands in order do display quests
-    if message.channel.id == globals.QUEST_CHANNEL_ID:
+    if message.channel.id == constants.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
             await message.delete()
             await message.channel.send(embed=build_embed_object_title_description(
@@ -122,24 +123,24 @@ async def on_message(message):
             elif len(returnedData) == 0:
                 await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados para: " + message.content))
             else:
-                await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + globals.WEBSITE_URL))
+                await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + constants.WEBSITE_URL))
         else:
-            if message.author != globals.CLIENT.user and str(message.author.id) not in globals.ADMIN_USERS_IDS:
+            if message.author != constants.CLIENT.user and str(message.author.id) not in constants.ADMIN_USERS_IDS:
                 await message.delete()
 
-    if message.channel.id == globals.CONVIVIO_CHANNEL_ID or message.channel.id == globals.MOD_CHANNEL_ID:
-        if message.content == ("<@" + str(globals.POLISWAG_ID) + ">"):
+    if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
+        if message.content == ("<@" + str(constants.POLISWAG_ID) + ">"):
             await message.delete()
-            await message.channel.send(embed=load_filter_data(message.channel.id == globals.MOD_CHANNEL_ID), delete_after=300)
+            await message.channel.send(embed=load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID), delete_after=300)
 
-@globals.CLIENT.event
+@constants.CLIENT.event
 async def on_message_delete(message):
-    if message.channel.id not in [globals.MOD_CHANNEL_ID, globals.QUEST_CHANNEL_ID, globals.MAPSTATS_CHANNEL_ID]:
-        channel = globals.CLIENT.get_channel(globals.MOD_CHANNEL_ID)
+    if message.channel.id not in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.MAPSTATS_CHANNEL_ID]:
+        channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         await channel.send(embed=build_embed_object_title_description(
             f"Mensagem removida no canal {message.channel} enviada por {message.author}", 
             message.content
             )
         )
 
-globals.CLIENT.run(globals.DISCORD_API_KEY)
+constants.CLIENT.run(constants.DISCORD_API_KEY)
