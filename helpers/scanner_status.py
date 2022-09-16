@@ -2,7 +2,7 @@ import helpers.constants as constants
 import datetime, json
 
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms, restart_run_docker_containers, run_database_query
-from helpers.utilities import  build_embed_object_title_description, log_error, build_embed_object_title_description
+from helpers.utilities import  build_embed_object_title_description, log_error, build_embed_object_title_description, did_day_change
 
 boxUsersData = [
     {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
@@ -24,13 +24,13 @@ async def check_boxes_issues():
             # Edge case where we replace this value since it's different in the db
             if box == "PoGoLeiria":
                 box = "Tx9s3_JMBoy"
-            # for boxuser in boxUsersData:
-            #     if box in boxuser["boxes"]:
-            #         user = globals.CLIENT.fetch_user(boxuser["mention"])
+            # for boxUser in boxUsersData:
+            #     if box in boxUser["boxes"]:
+            #         user = globals.CLIENT.fetch_user(boxUser["mention"])
             #         await globals.CLIENT.send(user, "Box " + box + " precisa ser reiniciada.")
         await rename_voice_channel(len(listBoxStatusResults))
-        return
-    await rename_voice_channel(0)
+    else:
+        await rename_voice_channel(0)
 
 async def check_map_status():
     #70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 30mins
@@ -62,8 +62,7 @@ async def is_quest_scanning():
                 )
             check_quest_scan_stuck()
         else:
-            if datetime.datetime.now().day > constants.CURRENT_DAY:
-                constants.CURRENT_DAY = datetime.datetime.now().day
+            if did_day_change():
                 log_error("Pokestop scanning initialized")
                 start_pokestop_scan()
                 clear_old_pokestops_gyms()
