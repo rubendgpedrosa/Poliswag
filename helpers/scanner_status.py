@@ -2,7 +2,7 @@ import helpers.constants as constants
 import datetime, json
 
 from helpers.utilities import build_query, build_embed_object_title_description, build_query, log_error, build_embed_object_title_description
-from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms
+from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms, restart_run_docker_containers, run_database_query
 
 boxUsersData = [
     {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
@@ -13,9 +13,9 @@ boxUsersData = [
 
 async def check_boxes_issues():
     # 4500 since it's 900 seconds + 1 hour (vps timezone differences)
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 4500;"))
-    boxStatusResults = constants.DOCKER_CLIENT.exec_start(execId)
+    boxStatusResults = run_database_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 4500;")
     listBoxStatusResults = str(boxStatusResults).split("\\n")
+    # Remove first and last element
     del listBoxStatusResults[0]
     if len(listBoxStatusResults) > 0:
         del listBoxStatusResults[len(listBoxStatusResults) - 1]
@@ -34,8 +34,7 @@ async def check_boxes_issues():
 
 async def check_map_status():
     #70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 30mins
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query("SELECT pokestop_id FROM pokestop WHERE last_updated > NOW() - INTERVAL 90 MINUTE ORDER BY last_updated DESC LIMIT 1;"))
-    pokemonScanResults = constants.DOCKER_CLIENT.exec_start(execId)
+    pokemonScanResults = run_database_query("SELECT pokestop_id FROM pokestop WHERE last_updated > NOW() - INTERVAL 90 MINUTE ORDER BY last_updated DESC LIMIT 1;")
     if len(str(pokemonScanResults).split("\\n")) == 1:
         log_error("Restarting MAD instance since scanner has no new spawns for 30mins")
         channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
@@ -45,14 +44,12 @@ async def check_map_status():
             ),
             delete_after=30
         )
-        execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(f"UPDATE pokestop SET last_updated = date_add(last_updated, INTERVAL 30 MINUTE);"))
-        constants.DOCKER_CLIENT.exec_start(execId)
-        constants.DOCKER_CLIENT.restart(constants.RUN_CONTAINER)
+        run_database_query("UPDATE pokestop SET last_updated = date_add(last_updated, INTERVAL 30 MINUTE);")
+        restart_run_docker_containers()
 
 async def is_quest_scanning():
     try:
-        execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
-        questResults = constants.DOCKER_CLIENT.exec_start(execId)
+        questResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
         if len(str(questResults).split("\\n")) > 1:
             if verify_quest_scan_done():
                 set_quest_scanning_state()
@@ -82,9 +79,7 @@ def verify_quest_scan_done():
 
 def check_quest_scan_stuck():
     # Always add an hour due to timezone
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 3900);"))
-    questsWhereRecentlyScanned = constants.DOCKER_CLIENT.exec_start(execId)
-    log_error("check_quest_scan_stuck No new quests scanned in 10m: " + str(len(str(questsWhereRecentlyScanned).split("\\n")) == 1))
+    questsWhereRecentlyScanned = run_database_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 3900);")
     if len(str(questsWhereRecentlyScanned).split("\\n")) == 1:
-        constants.DOCKER_CLIENT.restart(constants.RUN_CONTAINER)
-        log_error("Reloading quest scanner")
+        restart_run_docker_containers()
+        log_error("Restarting container since quest scanning not progressing")
