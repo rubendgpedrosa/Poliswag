@@ -1,54 +1,45 @@
-import os, json, requests, datetime
+import helpers.constants as constants
 
-import helpers.globals as globals
-from helpers.utilities import build_query, build_embed_object_title_description, log_error
-from helpers.notifications import fetch_new_pvp_data
-from helpers.scanner_status import check_map_status
-from helpers.data_quests_handler import fetch_today_data, verify_quest_scan_done, check_quest_scan_stuck
+from helpers.quests import fetch_today_data
+from helpers.poliswag import fetch_new_pvp_data
+from helpers.utilities import build_query, log_error
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
-    await globals.CLIENT.get_channel(globals.VOICE_CHANNEL_ID).edit(name=name)
+    await constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
+    truncate_quests_table()
     set_quest_scanning_state(1)
     fetch_new_pvp_data()
     fetch_today_data()
-    globals.DOCKER_CLIENT.restart(globals.ALARM_CONTAINER)
-    globals.DOCKER_CLIENT.restart(globals.RUN_CONTAINER)
-
-async def is_quest_scanning():
-    try:
-        execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag"))
-        questResults = globals.DOCKER_CLIENT.exec_start(execId)
-        if len(str(questResults).split("\\n")) > 1:
-            if verify_quest_scan_done():
-                set_quest_scanning_state()
-                channel = globals.CLIENT.get_channel(globals.QUEST_CHANNEL_ID)
-                await channel.send(embed=build_embed_object_title_description(
-                    "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                    "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                    "Esta informação só é válida até ao final do dia"
-                    )
-                )
-            check_quest_scan_stuck()
-        else:
-            if datetime.datetime.now().day > globals.CURRENT_DAY:
-                globals.CURRENT_DAY = datetime.datetime.now().day
-                log_error("start_pokestop_scan init at: " + str(datetime.datetime.now()))
-                start_pokestop_scan()
-                clear_old_pokestops_gyms()
-            await check_map_status()
-    except Exception as e:
-        log_error("is_quest_scanning crash: " + str(e))
+    constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
+    constants.DOCKER_CLIENT.restart(constants.RUN_CONTAINER)
 
 def set_quest_scanning_state(disabled = 0):
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, build_query(f"UPDATE poliswag SET scanned = {disabled};", "poliswag"))
-    globals.DOCKER_CLIENT.exec_start(execId)
+    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(f"UPDATE poliswag SET scanned = {disabled};", "poliswag"))
+    constants.DOCKER_CLIENT.exec_start(execId)
     log_error("set_quest_scanning_state state set to: " + str(disabled))
 
+def truncate_quests_table():
+    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(f"TRUNCATE TABLE trs_quest;"))
+    constants.DOCKER_CLIENT.exec_start(execId)
+    log_error("Truncated trs_quest table")
+
 def clear_old_pokestops_gyms():
-    execId = globals.DOCKER_CLIENT.exec_create(globals.DB_CONTAINER, 
+    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, 
     build_query("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);"))
-    globals.DOCKER_CLIENT.exec_start(execId)
+    constants.DOCKER_CLIENT.exec_start(execId)
     log_error("Clearing expired pokestops and gyms")
+
+async def rename_voice_channel(totalBoxesFailing):
+    message = "SCANNER: 🟢"
+    if totalBoxesFailing > 0 and totalBoxesFailing < 3:
+        message = "SCANNER: 🟡"
+    if totalBoxesFailing > 2 and totalBoxesFailing < 7:
+        message = "SCANNER: 🟠"
+    if totalBoxesFailing == 7:
+        message = "SCANNER: 🔴"
+    voiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
+    if voiceChannel.name != message:
+        await voiceChannel.edit(name=message)
