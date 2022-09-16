@@ -3,7 +3,7 @@ from datetime import datetime
 
 import discord
 
-import helpers.globals as globals
+import helpers.constants as constants
 
 versionUrl = "https://pgorelease.nianticlabs.com/plfe/version"
 
@@ -21,25 +21,25 @@ async def check_current_version():
 
     if (response.status_code == 200):
         retrievedVersion = response.text.strip().split(".",1)[1]
-        if (globals.SAVED_VERSION != retrievedVersion):
-            globals.SAVED_VERSION = retrievedVersion
-            with open(globals.VERSION_FILE, 'w') as file:
+        if (constants.SAVED_VERSION != retrievedVersion):
+            constants.SAVED_VERSION = retrievedVersion
+            with open(constants.VERSION_FILE, 'w') as file:
                 file.write(retrievedVersion)
             await notify_new_version()
 
 async def notify_new_version():
     try:
-        channel = globals.CLIENT.get_channel(globals.CONVIVIO_CHANNEL_ID)
+        channel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
         await channel.send(embed=build_embed_object_title_description(
             "PAAAAUUUUUUUU!!! FORCE UPDATE!",
-            "Nova versão: 0." + globals.SAVED_VERSION
+            "Nova versão: 0." + constants.SAVED_VERSION
         ))
     except Exception as e:
         log_error('\nFailed fetching force update: %s\n' % str(e))     
 
 def log_error(errorString):
     now = datetime.now()
-    with open(globals.LOG_FILE, 'a') as file:
+    with open(constants.LOG_FILE, 'a') as file:
         file.write("{0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), errorString))
 
 def build_embed_object_title_description(title, description = "", footer = None):
@@ -50,10 +50,10 @@ def build_embed_object_title_description(title, description = "", footer = None)
 
 def build_query(query, db = None):
     if db is None:
-        db = globals.DB_NAME
-    return f'mysql -u{globals.DB_USER} -p{globals.DB_PASSWORD} -D {db} -e "{query}"'
+        db = constants.DB_NAME
+    return f'mysql -u{constants.DB_USER} -p{constants.DB_PASSWORD} -D {db} -e "{query}"'
 
 def log_actions(message):
-    f = open(globals.LOG_FILE, "a")
+    f = open(constants.LOG_FILE, "a")
     f.write("{0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), message))
     f.close()
