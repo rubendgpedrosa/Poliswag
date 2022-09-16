@@ -68,3 +68,9 @@ def validate_message_for_deletion(message, channel, author = None):
             return True
         return False
     return False
+
+def did_day_change():
+    dayChange = datetime.datetime.now().day > constants.CURRENT_DAY
+    if dayChange:
+        constants.CURRENT_DAY = datetime.datetime.now().day
+    return dayChange
