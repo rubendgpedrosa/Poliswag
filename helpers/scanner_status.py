@@ -1,8 +1,8 @@
 import helpers.constants as constants
 import datetime, json
 
-from helpers.utilities import build_query, build_embed_object_title_description, build_query, log_error, build_embed_object_title_description
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms, restart_run_docker_containers, run_database_query
+from helpers.utilities import  build_embed_object_title_description, log_error, build_embed_object_title_description
 
 boxUsersData = [
     {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
