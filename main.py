@@ -70,13 +70,13 @@ async def on_message(message):
                 receivedData = receivedData.split(" ", 1)
                 returnedData = write_filter_data(receivedData, add)
                 if returnedData == False:
-                    await message.channel.send(embed=build_embed_object_title_description("Woops, parece que te enganaste migo."), delete_after=30)
-                    return
-                await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=30)
+                    messageToSend = build_embed_object_title_description("Woops, parece que te enganaste migo.")
+                else:
+                    messageToSend = build_embed_object_title_description(returnedData)
 
             if message.content.startswith('!reload'):
                 restart_alarm_docker_container()
-                await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
+                messageToSend = build_embed_object_title_description("Alterações nas Notificações efetuadas", "Menciona @Poliswag Para ver a lista em vigor")
 
             if message.content.startswith('!quest'):
                 set_quest_scanning_state(1)
@@ -84,7 +84,7 @@ async def on_message(message):
             if message.content.startswith('!scan'):
                 try:
                     start_pokestop_scan()
-                    await message.channel.send(embed=build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas"), delete_after=30)
+                    messageToSend = build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas")
                     channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
                 except Exception as e:
                     log_error('Quest scanning log failed: %s' % str(e))       
@@ -122,10 +122,13 @@ async def on_message(message):
 
     if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
         if message.content == ("<@" + str(constants.POLISWAG_ID) + ">"):
-            await message.channel.send(embed=load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID), delete_after=300)
+            messageToSend = load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID)
     
     if validate_message_for_deletion(message.content, message.channel.id, message.author):
         await message.delete()
+
+    if messageToSend is not None:
+        await message.channel.send(embed=messageToSend, delete_after=300)
 
 @constants.CLIENT.event
 async def on_message_delete(message):
