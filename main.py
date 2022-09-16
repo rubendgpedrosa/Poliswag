@@ -8,7 +8,7 @@ import helpers.constants as constants
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data, fetch_today_data
-from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
+from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
 
@@ -45,10 +45,8 @@ async def on_message(message):
 
     if str(message.author.id) in constants.ADMIN_USERS_IDS:
         if message.content.startswith('!location'):
-            await message.delete()
             await prepare_view_roles_location(message.channel)
         if message.content.startswith('!rules'):
-            await message.delete()
             await build_rules_message(message)
 
     # Keeps the map status channel with the most recent message
@@ -61,7 +59,6 @@ async def on_message(message):
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == constants.MOD_CHANNEL_ID:
         if str(message.author.id) in constants.ADMIN_USERS_IDS:
-            await message.delete()
             # TODO: Change message
             if message.content.startswith('!add') or message.content.startswith('!remove'):
                 if message.content.startswith('!add'):
@@ -95,7 +92,6 @@ async def on_message(message):
     # Quest channel commands in order do display quests
     if message.channel.id == constants.QUEST_CHANNEL_ID:
         if message.content.startswith('!comandos'):
-            await message.delete()
             await message.channel.send(embed=build_embed_object_title_description(
                 "COMANDOS IMPLEMENTADOS", 
                 "!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido",
@@ -113,7 +109,6 @@ async def on_message(message):
             if returnedData == False:
                 return
 
-            await message.delete()
             if len(returnedData) > 0 and len(returnedData) < 30:
                 await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + message.content))
                 for data in returnedData:
@@ -124,14 +119,13 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados para: " + message.content))
             else:
                 await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + constants.WEBSITE_URL))
-        else:
-            if message.author != constants.CLIENT.user and str(message.author.id) not in constants.ADMIN_USERS_IDS:
-                await message.delete()
 
     if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
         if message.content == ("<@" + str(constants.POLISWAG_ID) + ">"):
-            await message.delete()
             await message.channel.send(embed=load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID), delete_after=300)
+    
+    if validate_message_for_deletion(message.content, message.channel.id, message.author):
+        await message.delete()
 
 @constants.CLIENT.event
 async def on_message_delete(message):
