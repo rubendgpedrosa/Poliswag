@@ -9,7 +9,7 @@ from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data, fetch_today_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment
-from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state
+from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
 
 # Validates arguments passed to check what env was requested
@@ -78,7 +78,7 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=30)
 
             if message.content.startswith('!reload'):
-                constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
+                restart_alarm_docker_contaienr()
                 await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
 
             if message.content.startswith('!quest'):
