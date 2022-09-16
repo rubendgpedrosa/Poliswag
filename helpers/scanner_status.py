@@ -79,7 +79,8 @@ def verify_quest_scan_done():
 
 def check_quest_scan_stuck():
     # Always add an hour due to timezone
-    questsWhereRecentlyScanned = run_database_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 3900);")
+    questsWhereRecentlyScanned = run_database_query("select GUID, quest_timestamp from trs_quest WHERE quest_timestamp > (UNIX_TIMESTAMP() - 3300);")
     if len(str(questsWhereRecentlyScanned).split("\\n")) == 1:
+        run_database_query("UPDATE trs_quest SET quest_timestamp = date_add(quest_timestamp, INTERVAL 5 MINUTE);")
         restart_run_docker_containers()
         log_error("Restarting container since quest scanning not progressing")
