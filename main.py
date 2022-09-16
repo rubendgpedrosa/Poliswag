@@ -78,7 +78,7 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description(returnedData), delete_after=30)
 
             if message.content.startswith('!reload'):
-                restart_alarm_docker_contaienr()
+                restart_alarm_docker_container()
                 await message.channel.send(embed=build_embed_object_title_description("Alterações nas Notificações efetuadas", "Faz @Poliswag Para ver a lista em vigor"), delete_after=30)
 
             if message.content.startswith('!quest'):
