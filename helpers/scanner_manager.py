@@ -17,7 +17,7 @@ def start_pokestop_scan():
     fetch_today_data()
 
 def set_quest_scanning_state(disabled = 0):
-    run_database_query("UPDATE poliswag SET scanned = {disabled};")
+    run_database_query("UPDATE poliswag SET scanned = {disabled};", "poliswag")
     log_error("set_quest_scanning_state state set to: " + str(disabled))
 
 def truncate_quests_table():
