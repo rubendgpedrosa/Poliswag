@@ -48,6 +48,10 @@ def build_embed_object_title_description(title, description = "", footer = None)
         embed.set_footer(text=footer)
     return embed
 
+def run_database_query(query, database = None):
+    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database))
+    return constants.DOCKER_CLIENT.exec_start(execId)
+
 def build_query(query, db = None):
     if db is None:
         db = constants.DB_NAME
@@ -74,3 +78,9 @@ def did_day_change():
     if dayChange:
         constants.CURRENT_DAY = datetime.now().day
     return dayChange
+
+def to_bool(s):
+    return 1 if s == 'True' else 0
+
+async def add_button_event(button, callback):
+    button.callback = callback
