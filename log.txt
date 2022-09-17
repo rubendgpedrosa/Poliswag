@@ -1,1 +1,0 @@
-2022-09-16 23:12 -- is_quest_scanning: type object 'datetime.datetime' has no attribute 'datetime'
