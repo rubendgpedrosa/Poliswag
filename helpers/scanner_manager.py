@@ -2,7 +2,7 @@ import helpers.constants as constants
 
 from helpers.quests import fetch_today_data
 from helpers.poliswag import fetch_new_pvp_data
-from helpers.utilities import build_query, log_error
+from helpers.utilities import log_error, run_database_query
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
@@ -45,7 +45,3 @@ def restart_run_docker_containers():
 
 def restart_alarm_docker_container():
     constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
-
-def run_database_query(query, database = None):
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database))
-    return constants.DOCKER_CLIENT.exec_start(execId)

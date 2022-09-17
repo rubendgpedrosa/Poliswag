@@ -11,6 +11,7 @@ from helpers.quests import find_quest, write_filter_data, fetch_today_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
+from helpers.events import fetch_events, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -28,7 +29,10 @@ async def __init__():
     await check_current_version()
     await is_quest_scanning()
     await check_boxes_issues()
+    await validate_event_needs_automatic_scan()
+    get_event_to_schedule_rescan()
     fetch_today_data()
+    fetch_events()
 
 @constants.CLIENT.event
 async def on_ready():
@@ -76,7 +80,7 @@ async def on_message(message):
 
             if message.content.startswith('!reload'):
                 restart_alarm_docker_container()
-                messageToSend = build_embed_object_title_description("Alterações nas Notificações efetuadas", "Menciona @Poliswag Para ver a lista em vigor")
+                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas", "Menciona @Poliswag Para ver a lista em vigor")
 
             if message.content.startswith('!quest'):
                 set_quest_scanning_state(1)
@@ -134,10 +138,8 @@ async def on_message(message):
 async def on_message_delete(message):
     if message.channel.id not in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.MAPSTATS_CHANNEL_ID]:
         channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
-        await channel.send(embed=build_embed_object_title_description(
-            f"Mensagem removida no canal {message.channel} enviada por {message.author}", 
-            message.content
-            )
-        )
+        embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
+        embed.add_field(name=message.author, value=message.content, inline=False)
+        await channel.send(embed=embed)
 
 constants.CLIENT.run(constants.DISCORD_API_KEY)
