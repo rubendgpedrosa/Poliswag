@@ -11,7 +11,8 @@ from helpers.quests import find_quest, write_filter_data, fetch_today_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
-from helpers.events import order_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
+from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
+
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -30,9 +31,9 @@ async def __init__():
     await is_quest_scanning()
     await check_boxes_issues()
     await validate_event_needs_automatic_scan()
+    get_events_by_date()
     get_event_to_schedule_rescan()
     fetch_today_data()
-    order_events_by_date()
 
 @constants.CLIENT.event
 async def on_ready():
@@ -47,6 +48,7 @@ async def on_message(message):
     if message.author == constants.CLIENT.user:
         return
 
+    messageToSend = ""
     if str(message.author.id) in constants.ADMIN_USERS_IDS:
         if message.content.startswith('!location'):
             await prepare_view_roles_location(message.channel)
@@ -86,12 +88,9 @@ async def on_message(message):
                 set_quest_scanning_state(1)
 
             if message.content.startswith('!scan'):
-                try:
-                    start_pokestop_scan()
-                    messageToSend = build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas")
-                    channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
-                except Exception as e:
-                    log_error('Quest scanning log failed: %s' % str(e))       
+                start_pokestop_scan()
+                messageToSend = build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas")
+                channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
                     
     # Quest channel commands in order do display quests
     if message.channel.id == constants.QUEST_CHANNEL_ID:
@@ -131,7 +130,7 @@ async def on_message(message):
     if validate_message_for_deletion(message.content, message.channel.id, message.author):
         await message.delete()
 
-    if messageToSend is not None:
+    if messageToSend is not None and len(messageToSend) > 0:
         await message.channel.send(embed=messageToSend, delete_after=300)
 
 @constants.CLIENT.event
@@ -141,5 +140,7 @@ async def on_message_delete(message):
         embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
         embed.add_field(name=message.author, value=message.content, inline=False)
         await channel.send(embed=embed)
-
-constants.CLIENT.run(constants.DISCORD_API_KEY)
+try:
+    constants.CLIENT.run(constants.DISCORD_API_KEY)
+except Exception as e:
+    log_error('%s' % str(e)) 
