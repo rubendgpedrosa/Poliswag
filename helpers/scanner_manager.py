@@ -2,7 +2,7 @@ import helpers.constants as constants
 
 from helpers.quests import fetch_today_data
 from helpers.poliswag import fetch_new_pvp_data
-from helpers.utilities import log_error, run_database_query
+from helpers.utilities import log_to_file, run_database_query
 
 #await rename_voice_channel(message.content)
 async def rename_voice_channel(name):
@@ -18,15 +18,15 @@ def start_pokestop_scan():
 
 def set_quest_scanning_state(disabled = 0):
     run_database_query("UPDATE poliswag SET scanned = {disabled};", "poliswag")
-    log_error("set_quest_scanning_state state set to: " + str(disabled))
+    log_to_file("set_quest_scanning_state state set to: " + str(disabled))
 
 def truncate_quests_table():
     run_database_query("TRUNCATE TABLE trs_quest;")
-    log_error("Truncated trs_quest table")
+    log_to_file("Truncated trs_quest table")
 
 def clear_old_pokestops_gyms():
     run_database_query("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);")
-    log_error("Clearing expired pokestops and gyms")
+    log_to_file("Clearing expired pokestops and gyms")
 
 async def rename_voice_channel(totalBoxesFailing):
     message = "SCANNER: 🟢"

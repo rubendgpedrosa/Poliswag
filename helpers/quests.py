@@ -1,7 +1,7 @@
 import json, os, requests, datetime
 
 import helpers.constants as constants
-from helpers.utilities import log_error
+from helpers.utilities import log_to_file
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -71,7 +71,7 @@ def find_quest(receivedData, leiria):
                         "image": quest["url"]
                     })
         except Exception as e:
-            log_error('\nFORCE UPDATE ERROR: %s\n' % str(e))       
+            log_to_file('\nFORCE UPDATE ERROR: %s\n' % str(e))       
             return "Essa procura não me parece ser válida."
 
     if leiria:
