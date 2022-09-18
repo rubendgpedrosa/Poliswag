@@ -1,4 +1,5 @@
 import discord, requests
+from datetime import datetime
 from discord.ui import Button, View
 
 from helpers.utilities import run_database_query, log_error, add_button_event
@@ -19,6 +20,7 @@ import helpers.constants as constants
 #   has_spawnpoints BOOLEAN DEFAULT 0,
 #   rescan BOOLEAN DEFAULT 0,
 #   updateddate DATETIME,
+#   notifiieddate DATETIME,
 #   PRIMARY KEY (name, start)
 # )
 
@@ -37,7 +39,7 @@ def fetch_events():
     request = requests.get('https://raw.githubusercontent.com/ccev/pogoinfo/v2/active/events.json')
     return request.json()
     
-def order_events_by_date():
+def get_events_by_date():
     events = fetch_events()
     for event in events:
         if datetime.now() < event["start"] and event["has_quests"] and not event["name"].startswith("GO"):
@@ -50,7 +52,7 @@ async def set_automatic_rescan_on_event_change(name, rescan = 0):
 
 def get_automatic_rescan_on_event_change():
     listEvents = []
-    events = run_database_query("SELECT name, start, end, rescan, updateddate FROM event WHERE updateddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 12 HOUR);", "poliswag");
+    events = run_database_query("SELECT name, start, end, rescan, updateddate FROM event WHERE updateddate IS NULL AND notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 12 HOUR);", "poliswag");
     events = str(events).split("\\n")
     # Remove first and last element
     del events[0]
@@ -78,6 +80,7 @@ async def validate_event_needs_automatic_scan():
             embed.add_field(name=f"{event['name']}", value=f"Horário: {event['start']}", inline=False)
 
             await modChannel.send(embed=embed, view=view)
+            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE name = {event['name']};", "poliswag");
     
 
 async def confirm_scheduled_rescan(interaction):
