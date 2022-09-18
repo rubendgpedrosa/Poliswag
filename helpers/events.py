@@ -40,10 +40,9 @@ def fetch_events():
 def order_events_by_date():
     events = fetch_events()
     for event in events:
-        if event["type"] == "event" and event["has_quests"] and not event["name"].startswith("GO"):
+        if event["has_quests"] and not event["name"].startswith("GO"):
             run_database_query(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints) VALUES{event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
     # events = sorted(events, key=lambda d: d["start"], reverse=True)
-    # print(events)
     return events
 
 async def set_automatic_rescan_on_event_change(name, rescan = 0):
@@ -75,7 +74,7 @@ async def validate_event_needs_automatic_scan():
             view = View()
             view.add_item(buttonScheduleRescan)
 
-            embed=discord.Embed(title=f"RESCAN REQUER CONFIRMAÇÃO", color=0x7b83b4)
+            embed=discord.Embed(title=f"RESCAN AGENDADO REQUER CONFIRMAÇÃO", color=0x7b83b4)
             embed.add_field(name=f"{event['name']}", value=f"Horário: {event['start']}", inline=False)
 
             await modChannel.send(embed=embed, view=view)
@@ -83,7 +82,7 @@ async def validate_event_needs_automatic_scan():
 
 async def confirm_scheduled_rescan(interaction):
     await set_automatic_rescan_on_event_change(interaction.data["custom_id"], 1)
-    embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático para o evento: {interaction.data['custom_id']}!", color=0x7b83b4)
+    embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático para {interaction.data['custom_id']}!", color=0x7b83b4)
     await interaction.channel.send(embed=embed)
     await interaction.message.delete()
     log_error(f"Automatic rescan for {interaction.data['custom_id']} has been enabled by {interaction.user}")
