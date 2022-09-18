@@ -11,15 +11,8 @@ from helpers.quests import find_quest, write_filter_data, fetch_today_data
 from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
-<<<<<<< Updated upstream
-from helpers.events import order_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
-=======
-<<<<<<< HEAD
 from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
-=======
-from helpers.events import order_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
->>>>>>> 63f4a3fbfce48e814827601a3aedd269d89fb294
->>>>>>> Stashed changes
+
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
