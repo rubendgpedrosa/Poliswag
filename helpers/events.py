@@ -2,7 +2,7 @@ import discord, requests
 from datetime import datetime
 from discord.ui import Button, View
 
-from helpers.utilities import run_database_query, log_error, add_button_event
+from helpers.utilities import run_database_query, log_to_file, add_button_event
 from helpers.scanner_manager import start_pokestop_scan
 import helpers.constants as constants
 
@@ -42,7 +42,7 @@ def fetch_events():
 def get_events_by_date():
     events = fetch_events()
     for event in events:
-        if datetime.now() < event["start"] and event["has_quests"] and not event["name"].startswith("GO"):
+        if datetime.now() < datetime.strptime(event["start"], '%Y-%m-%d %H:%M:%S') and event["has_quests"] and not event["name"].startswith("GO"):
             run_database_query(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints) VALUES{event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
     # events = sorted(events, key=lambda d: d["start"], reverse=True)
     return events
@@ -80,7 +80,7 @@ async def validate_event_needs_automatic_scan():
             embed.add_field(name=f"{event['name']}", value=f"Horário: {event['start']}", inline=False)
 
             await modChannel.send(embed=embed, view=view)
-            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE name = {event['name']};", "poliswag");
+            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE name = '{event['name']}';", "poliswag");
     
 
 async def confirm_scheduled_rescan(interaction):
@@ -88,11 +88,11 @@ async def confirm_scheduled_rescan(interaction):
     embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático para {interaction.data['custom_id']}!", color=0x7b83b4)
     await interaction.channel.send(embed=embed)
     await interaction.message.delete()
-    log_error(f"Automatic rescan for {interaction.data['custom_id']} has been enabled by {interaction.user}")
+    log_to_file(f"Automatic rescan for {interaction.data['custom_id']} has been enabled by {interaction.user}")
 
 def get_event_to_schedule_rescan():
     scheduledRescanIsEnabled = run_database_query("SELECT name FROM event WHERE updateddate IS NOT NULL AND rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 30 MINUTE));", "poliswag")
     if len(str(scheduledRescanIsEnabled).split("\\n")) > 1:
         run_database_query("UPDATE event SET rescan = 0 WHERE updateddate IS NOT NULL AND rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 30 MINUTE));", "poliswag")
         start_pokestop_scan()
-        log_error(f"Rescanning initialized from scheduled event")
+        log_to_file(f"Rescanning initialized from scheduled event")
