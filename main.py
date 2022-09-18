@@ -8,7 +8,7 @@ import helpers.constants as constants
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data, fetch_today_data
-from helpers.utilities import check_current_version, log_error, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
+from helpers.utilities import check_current_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
 from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
@@ -27,13 +27,17 @@ constants.init()
 
 @tasks.loop(seconds=300)
 async def __init__():
-    await check_current_version()
-    await is_quest_scanning()
-    await check_boxes_issues()
-    await validate_event_needs_automatic_scan()
-    get_events_by_date()
-    get_event_to_schedule_rescan()
-    fetch_today_data()
+    try:
+        await check_current_version()
+        await is_quest_scanning()
+        await check_boxes_issues()
+        await validate_event_needs_automatic_scan()
+        get_events_by_date()
+        get_event_to_schedule_rescan()
+        fetch_today_data()
+    except Exception as e:
+        log_to_file('%s' % str(e), "ERROR") 
+
 
 @constants.CLIENT.event
 async def on_ready():
@@ -140,7 +144,6 @@ async def on_message_delete(message):
         embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
         embed.add_field(name=message.author, value=message.content, inline=False)
         await channel.send(embed=embed)
-try:
-    constants.CLIENT.run(constants.DISCORD_API_KEY)
-except Exception as e:
-    log_error('%s' % str(e)) 
+
+constants.CLIENT.run(constants.DISCORD_API_KEY)
+
