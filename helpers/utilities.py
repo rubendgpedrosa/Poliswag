@@ -28,19 +28,16 @@ async def check_current_version():
             await notify_new_version()
 
 async def notify_new_version():
-    try:
-        channel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
-        await channel.send(embed=build_embed_object_title_description(
-            "PAAAAUUUUUUUU!!! FORCE UPDATE!",
-            "Nova versão: 0." + constants.SAVED_VERSION
-        ))
-    except Exception as e:
-        log_error('\nFailed fetching force update: %s\n' % str(e))     
+    channel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
+    await channel.send(embed=build_embed_object_title_description(
+        "PAAAAUUUUUUUU!!! FORCE UPDATE!",
+        "Nova versão: 0." + constants.SAVED_VERSION
+    ))
 
-def log_error(errorString):
+def log_to_file(string, logType = "INFO"):
     now = datetime.now()
     with open(constants.LOG_FILE, 'a') as file:
-        file.write("{0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), errorString))
+        file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
 
 def build_embed_object_title_description(title, description = "", footer = None):
     embed = discord.Embed(title=title, description=description, color=0x7b83b4)

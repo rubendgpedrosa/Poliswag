@@ -2,7 +2,7 @@ import helpers.constants as constants
 import datetime, json
 
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms, restart_run_docker_containers
-from helpers.utilities import  build_embed_object_title_description, log_error, build_embed_object_title_description, did_day_change, run_database_query
+from helpers.utilities import  build_embed_object_title_description, log_to_file, build_embed_object_title_description, did_day_change, run_database_query
 
 boxUsersData = [
     {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
@@ -36,7 +36,7 @@ async def check_map_status():
     #70mins since the mysql timezone and vps timezone have an hour differente. 60mins + 30mins
     pokemonScanResults = run_database_query("SELECT pokestop_id FROM pokestop WHERE last_updated > NOW() - INTERVAL 90 MINUTE ORDER BY last_updated DESC LIMIT 1;")
     if len(str(pokemonScanResults).split("\\n")) == 1:
-        log_error("Restarting MAD instance since scanner has no new spawns for 30mins")
+        log_to_file("Restarting MAD instance since scanner has no new spawns for 30mins")
         channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         await channel.send(embed=build_embed_object_title_description(
             "ANOMALIA DETECTADA!", 
@@ -48,32 +48,29 @@ async def check_map_status():
         restart_run_docker_containers()
 
 async def is_quest_scanning():
-    try:
-        questResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
-        if len(str(questResults).split("\\n")) > 1:
-            if verify_quest_scan_done():
-                set_quest_scanning_state()
-                channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
-                await channel.send(embed=build_embed_object_title_description(
-                    "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                    "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                    "Esta informação só é válida até ao final do dia"
-                    )
+    questResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
+    if len(str(questResults).split("\\n")) > 1:
+        if verify_quest_scan_done():
+            set_quest_scanning_state()
+            channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
+            await channel.send(embed=build_embed_object_title_description(
+                "SCAN DAS NOVAS QUESTS TERMINADO!", 
+                "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+                "Esta informação só é válida até ao final do dia"
                 )
-            check_quest_scan_stuck()
-        else:
-            if did_day_change():
-                log_error("Pokestop scanning initialized")
-                start_pokestop_scan()
-                clear_old_pokestops_gyms()
-            await check_map_status()
-    except Exception as e:
-        log_error("is_quest_scanning: " + str(e))
+            )
+        check_quest_scan_stuck()
+    else:
+        if did_day_change():
+            log_to_file("Pokestop scanning initialized")
+            start_pokestop_scan()
+            clear_old_pokestops_gyms()
+        await check_map_status()
 
 def verify_quest_scan_done():
     with open(constants.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
-    log_error("verify_quest_scan_done: " + str(len(jsonPokemonData) >= 360))
+    log_to_file("verify_quest_scan_done: " + str(len(jsonPokemonData) >= 360))
     return len(jsonPokemonData) >= 360
 
 def check_quest_scan_stuck():
@@ -82,4 +79,4 @@ def check_quest_scan_stuck():
     if len(str(questsWhereRecentlyScanned).split("\\n")) == 1:
         run_database_query("UPDATE trs_quest SET quest_timestamp = date_add(quest_timestamp, INTERVAL 5 MINUTE);")
         restart_run_docker_containers()
-        log_error("Restarting container since quest scanning not progressing")
+        log_to_file("Restarting container since quest scanning not progressing")
