@@ -40,7 +40,7 @@ def fetch_events():
 def order_events_by_date():
     events = fetch_events()
     for event in events:
-        if event["has_quests"] and not event["name"].startswith("GO"):
+        if datetime.now() < event["start"] and event["has_quests"] and not event["name"].startswith("GO"):
             run_database_query(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints) VALUES{event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
     # events = sorted(events, key=lambda d: d["start"], reverse=True)
     return events
