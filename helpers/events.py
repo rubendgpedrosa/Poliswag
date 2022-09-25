@@ -2,7 +2,7 @@ import discord, requests
 from datetime import datetime
 from discord.ui import Button, View
 
-from helpers.utilities import run_database_query, log_to_file, add_button_event
+from helpers.utilities import run_database_query, log_to_file, add_button_event, clear_quest_file
 from helpers.scanner_manager import start_pokestop_scan
 import helpers.constants as constants
 
@@ -72,6 +72,7 @@ async def validate_event_needs_automatic_scan():
     if len(events) > 0:
         modChannel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         for event in events:
+            log_to_file(f"Event {event['name']} needs rescan validation")
             buttonScheduleRescan = Button(label="CONFIRMAR RESCAN", style=discord.ButtonStyle.primary, custom_id=event["name"], row=1)
             await add_button_event(buttonScheduleRescan, confirm_scheduled_rescan)
             view = View()
@@ -89,11 +90,12 @@ async def confirm_scheduled_rescan(interaction):
     embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático para {interaction.data['custom_id']}!", color=0x7b83b4)
     await interaction.channel.send(embed=embed)
     await interaction.message.delete()
-    log_to_file(f"Automatic rescan for {interaction.data['custom_id']} has been enabled by {interaction.user}")
+    log_to_file(f"Automatic rescan for {interaction.data['custom_id']} enabled by {interaction.user}")
 
 def get_event_to_schedule_rescan():
     scheduledRescanIsEnabled = run_database_query("SELECT name FROM event WHERE updateddate IS NOT NULL AND rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 30 MINUTE));", "poliswag")
     if len(str(scheduledRescanIsEnabled).split("\\n")) > 1:
         run_database_query("UPDATE event SET rescan = 0 WHERE updateddate IS NOT NULL AND rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 30 MINUTE));", "poliswag")
+        clear_quest_file()
         start_pokestop_scan()
         log_to_file(f"Rescanning initialized from scheduled event")

@@ -1,24 +1,16 @@
 import helpers.constants as constants
 
-from helpers.quests import fetch_today_data
-from helpers.poliswag import fetch_new_pvp_data
 from helpers.utilities import log_to_file, run_database_query
-
-#await rename_voice_channel(message.content)
-async def rename_voice_channel(name):
-    await constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID).edit(name=name)
 
 def start_pokestop_scan():
     truncate_quests_table()
     set_quest_scanning_state(1)
     restart_alarm_docker_container()
     restart_run_docker_containers()
-    fetch_new_pvp_data()
-    fetch_today_data()
 
-def set_quest_scanning_state(disabled = 0):
-    run_database_query("UPDATE poliswag SET scanned = {disabled};", "poliswag")
-    log_to_file("set_quest_scanning_state state set to: " + str(disabled))
+def set_quest_scanning_state(state = 0):
+    run_database_query(f"UPDATE poliswag SET scanned = {state};", "poliswag")
+    log_to_file("set_quest_scanning_state scanned set to: " + str(state))
 
 def truncate_quests_table():
     run_database_query("TRUNCATE TABLE trs_quest;")
@@ -38,6 +30,7 @@ async def rename_voice_channel(totalBoxesFailing):
         message = "SCANNER: 🔴"
     voiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
     if voiceChannel.name != message:
+        log_to_file(f"Number of devices encountering issues: {totalBoxesFailing}")
         await voiceChannel.edit(name=message)
 
 def restart_run_docker_containers():
