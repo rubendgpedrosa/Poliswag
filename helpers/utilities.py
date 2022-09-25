@@ -29,13 +29,18 @@ async def check_current_version():
 
 async def notify_new_version():
     channel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
+    log_to_file(f"Updated to new version {constants.SAVED_VERSION}")
     await channel.send(embed=build_embed_object_title_description(
         "PAAAAUUUUUUUU!!! FORCE UPDATE!",
         "Nova versão: 0." + constants.SAVED_VERSION
     ))
+    # TODO update devices
 
 def log_to_file(string, logType = "INFO"):
-    now = datetime.now()
+    with open(constants.LOG_FILE, 'r') as fileToRead:
+        last_line = fileToRead.readlines()[-1]
+        if string in last_line:
+            return
     with open(constants.LOG_FILE, 'a') as file:
         file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
 
@@ -62,7 +67,7 @@ def log_actions(message):
 def validate_message_for_deletion(message, channel, author = None):
     # Checks if any of these strings are in the command list and in the channels affected
     if channel in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.CONVIVIO_CHANNEL_ID]:
-        if message.lower().startswith(("!rules", "!location", "!add", "!remove", "!reload", "!quest", "!scan", "!comandos", "!questleiria", "!questmarinha", "<@" + str(constants.POLISWAG_ID) + ">")):
+        if message.lower().startswith(("!logs", "!rules", "!location", "!add", "!remove", "!reload", "!quest", "!scan", "!comandos", "!questleiria", "!questmarinha", "<@" + str(constants.POLISWAG_ID) + ">")):
             return True
         # In case it's a random message for quest channel. We only accept the admins one
         if channel == constants.QUEST_CHANNEL_ID and author != constants.CLIENT.user and str(author.id) not in constants.ADMIN_USERS_IDS:
@@ -73,6 +78,7 @@ def validate_message_for_deletion(message, channel, author = None):
 def did_day_change():
     dayChange = datetime.now().day > constants.CURRENT_DAY
     if dayChange:
+        log_to_file(f"Day change, starting quest process")
         constants.CURRENT_DAY = datetime.now().day
     return dayChange
 
@@ -81,3 +87,21 @@ def to_bool(s):
 
 async def add_button_event(button, callback):
     button.callback = callback
+
+async def private_message_user_by_id(userId, message):
+    user = await constants.CLIENT.fetch_user(userId)
+    await user.send(embed=message)
+
+def clear_quest_file():
+    with open(constants.QUESTS_FILE, 'w') as filetowrite:
+        filetowrite.write("{}")
+    log_to_file('Cleared previous quest data')
+
+def read_last_lines_from_log():
+    with open(constants.LOG_FILE, 'r') as fileToRead:
+        logs = ""
+        lines = fileToRead.readlines()
+        last_lines = lines[-25:]
+        for line in last_lines:
+            logs = logs + line.rstrip() + "\n"
+    return logs
