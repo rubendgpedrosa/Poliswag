@@ -11,7 +11,6 @@ def fetch_today_data():
     data = requests.get(constants.BACKEND_ENDPOINT + 'get_quests?fence=None')
     questText = data.text
     quests = json.loads(questText)
-
     with open(constants.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
     return quests
