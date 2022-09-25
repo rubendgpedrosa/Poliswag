@@ -31,8 +31,9 @@ def init():
     POKEMON_LIST_FILE = os.getenv('POKEMON_LIST_FILE')
     VERSION_FILE = os.getenv('VERSION_FILE')
 
-    global ADMIN_USERS_IDS, POLISWAG_ID
+    global ADMIN_USERS_IDS, POLISWAG_ID, MY_ID
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
+    MY_ID = int(os.getenv('MY_ID'))
     POLISWAG_ID = int(os.getenv('POLISWAG_ID'))
 
     global CLIENT
@@ -56,3 +57,6 @@ def init():
     DB_NAME = os.getenv('DB_NAME')
     DB_USER = os.getenv('DB_USER')
     DB_PASSWORD = os.getenv('DB_PASSWORD')
+
+    global TIME_MULTIPLIER
+    TIME_MULTIPLIER = 1
