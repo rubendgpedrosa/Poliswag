@@ -3,6 +3,7 @@ import json, requests
 import discord
 
 import helpers.constants as constants
+from helpers.utilities import log_to_file
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -56,6 +57,7 @@ def fetch_new_pvp_data():
 
     with open(constants.FILTER_FILE, 'w') as file:
         json.dump(jsonFiltersPokemonData, file, indent=4)
+    log_to_file("New PvP data generated")
     return
 
 def fetch_data_from_endpoint(combat_power):
