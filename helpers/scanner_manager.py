@@ -10,7 +10,7 @@ def start_pokestop_scan():
 
 def set_quest_scanning_state(state = 0):
     run_database_query(f"UPDATE poliswag SET scanned = {state};", "poliswag")
-    log_to_file("set_quest_scanning_state scanned set to: " + str(state))
+    log_to_file(f"{'Disabled' if state == 0 else 'Enabled'} quest scanning mode")
 
 def truncate_quests_table():
     run_database_query("TRUNCATE TABLE trs_quest;")
