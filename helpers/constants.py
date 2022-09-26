@@ -31,10 +31,11 @@ def init():
     POKEMON_LIST_FILE = os.getenv('POKEMON_LIST_FILE')
     VERSION_FILE = os.getenv('VERSION_FILE')
 
-    global ADMIN_USERS_IDS, POLISWAG_ID, MY_ID
+    global ADMIN_USERS_IDS, POLISWAG_ID, MY_ID, POLISWAG_ROLE_ID
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
     MY_ID = int(os.getenv('MY_ID'))
     POLISWAG_ID = int(os.getenv('POLISWAG_ID'))
+    POLISWAG_ROLE_ID = os.getenv('POLISWAG_ROLE_ID')
 
     global CLIENT
     intents = discord.Intents.all()
