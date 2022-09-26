@@ -52,6 +52,7 @@ async def is_quest_scanning():
     questResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
     if len(str(questResults).split("\\n")) > 1:
         if verify_quest_scan_done():
+            log_to_file(f"Pokestop scan completed")
             set_quest_scanning_state()
             channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
             await channel.send(embed=build_embed_object_title_description(
@@ -60,7 +61,6 @@ async def is_quest_scanning():
                 "Esta informação só é válida até ao final do dia"
                 )
             )
-            log_to_file(f"Pokestop scan completed")
         else:
             fetch_today_data()
         check_quest_scan_stuck()
@@ -78,7 +78,7 @@ async def is_quest_scanning():
 def verify_quest_scan_done():
     with open(constants.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
-    return len(jsonPokemonData) >= 360
+    return len(jsonPokemonData) >= 365
 
 # Multiplier exists, because updating the column related top quest_timestamp makes scanning reset. So instead, we add and substract a TIME_MULTIPLIER in order to "reset" the time
 def check_quest_scan_stuck():
