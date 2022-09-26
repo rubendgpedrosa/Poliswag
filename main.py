@@ -133,7 +133,7 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + constants.WEBSITE_URL))
 
     if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
-        if message.content == ("<@" + str(constants.POLISWAG_ID) + ">"):
+        if message.content.startswith("<@" + str(constants.POLISWAG_ID) + ">") or message.content.startswith(constants.POLISWAG_ROLE_ID):
             messageToSend = load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID)
     
     if validate_message_for_deletion(message.content, message.channel.id, message.author):
