@@ -50,8 +50,8 @@ def build_embed_object_title_description(title, description = "", footer = None)
         embed.set_footer(text=footer)
     return embed
 
-def run_database_query(query, database = None):
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database))
+def run_database_query(query, database = None, enviornment = None):
+    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database), environment=enviornment)
     return constants.DOCKER_CLIENT.exec_start(execId)
 
 def build_query(query, db = None):
