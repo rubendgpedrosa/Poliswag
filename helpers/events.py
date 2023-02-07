@@ -1,8 +1,9 @@
 import discord, requests
 from datetime import datetime
 from discord.ui import Button, View
+import hashlib
 
-from helpers.utilities import run_database_query, log_to_file, add_button_event, clear_quest_file
+from helpers.utilities import run_database_query, log_to_file, clear_quest_file
 from helpers.scanner_manager import start_pokestop_scan
 import helpers.constants as constants
 
@@ -44,26 +45,29 @@ def get_events_by_date():
     for event in events:
         if event["start"] is not None:
             if datetime.now().strftime("%Y-%m-%d %H:%M") < event["start"] and event["has_quests"] and not event["name"].startswith("GO"):
-                run_database_query(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints) VALUES{event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
+                hashString = hashlib.sha1((event['start'] + event['end'] + event['name']).encode("UTF-8")).hexdigest()
+                run_database_query(f"INSERT IGNORE INTO event(id, name, start, end, has_quests, has_spawnpoints) VALUES{hashString[:50], event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
     # events = sorted(events, key=lambda d: d["start"], reverse=True)
     return events
 
-async def set_automatic_rescan_on_event_change(name, rescan = 0):
-    run_database_query(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE name = '{name}';", "poliswag")
+async def set_automatic_rescan_on_event_change(id, rescan = 0):
+    run_database_query(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE id = '{id}';", "poliswag")
 
 def get_automatic_rescan_on_event_change():
     listEvents = []
-    events = run_database_query("SELECT name, start, end, rescan, updateddate FROM event WHERE updateddate IS NULL AND notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 12 HOUR);", "poliswag");
+    events = run_database_query("SELECT id, name, start, end, rescan, updateddate FROM event WHERE updateddate IS NULL AND notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag");
     events = str(events).split("\\n")
     # Remove first and last element
     del events[0]
     if len(events) > 1:
         del events[len(events) - 1]
-        keyValues = ["name", "start", "end", "rescan", "updateddate"]
+        keyValues = ["id", "name", "start", "end", "rescan", "updateddate"]
         for event in events:
             event = event.split("\\t")
             # Convers de list of values into a dict by using keyValues as keys
             listEvents.append(dict(zip(keyValues, event)))
+        #for eventToDecode in listEvents:
+        #    eventToDecode["name"] = eventToDecode["name"].decode(encoding='UTF-8',errors='strict')
         return listEvents
     return []
 
@@ -72,9 +76,10 @@ async def validate_event_needs_automatic_scan():
     if len(events) > 0:
         modChannel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         for event in events:
+            event["name"] = event["name"].replace("\\/", "/").encode().decode('unicode_escape')
             log_to_file(f"Event {event['name']} needs rescan validation")
-            buttonScheduleRescan = Button(label="CONFIRMAR RESCAN", style=discord.ButtonStyle.primary, custom_id=event["name"], row=1)
-            await add_button_event(buttonScheduleRescan, confirm_scheduled_rescan)
+            buttonScheduleRescan = Button(label="CONFIRMAR RESCAN", style=discord.ButtonStyle.primary, custom_id=event["id"], row=1)
+            await add_button_event(buttonScheduleRescan)
             view = View()
             view.add_item(buttonScheduleRescan)
 
@@ -82,14 +87,17 @@ async def validate_event_needs_automatic_scan():
             embed.add_field(name=f"{event['name']}", value=f"Horário: {event['start']}", inline=False)
 
             await modChannel.send(embed=embed, view=view)
-            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE name = '{event['name']}';", "poliswag");
+            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE id = '{event['id']}';", "poliswag");
     
+async def add_button_event(button):
+    button.callback = confirm_scheduled_rescan
 
 async def confirm_scheduled_rescan(interaction):
+    #https://discordpy.readthedocs.io/en/stable/interactions/api.html
+    #await edit_message(*, content=..., embed=..., embeds=..., attachments=..., view=..., allowed_mentions=...)
     await set_automatic_rescan_on_event_change(interaction.data["custom_id"], 1)
-    embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático para {interaction.data['custom_id']}!", color=0x7b83b4)
+    embed=discord.Embed(title=f"CONFIRMAÇÃO PARA RESCAN AGENDADO", description=f"{interaction.user} confirmou o rescan automático!", color=0x7b83b4)
     await interaction.channel.send(embed=embed)
-    await interaction.message.delete()
     log_to_file(f"Automatic rescan for {interaction.data['custom_id']} enabled by {interaction.user}")
 
 def get_event_to_schedule_rescan():
