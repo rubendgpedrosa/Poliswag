@@ -8,11 +8,10 @@ import helpers.constants as constants
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data
-from helpers.utilities import check_current_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, clear_quest_file, private_message_user_by_id, read_last_lines_from_log
+from helpers.utilities import check_current_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, clear_quest_file, read_last_lines_from_log
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
 from helpers.scanner_status import check_boxes_issues, is_quest_scanning
 from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
-
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -62,7 +61,7 @@ async def on_message(message):
     if message.channel.id == constants.MAPSTATS_CHANNEL_ID:
         channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
         async for msg in channel.history(limit=200):
-            if message != msg:
+            if message != msg and str(message.author.id) not in constants.ADMIN_USERS_IDS:
                 await msg.delete()
 
     # Moderation commands to manage the pokemon scanner
@@ -95,8 +94,6 @@ async def on_message(message):
                 log_to_file(f"Scan quest reset by {message.author}")
                 clear_quest_file()
                 start_pokestop_scan()
-                messageToSend = build_embed_object_title_description("Rescan de pokestops inicializado", "Este processo demora cerca de duas horas")
-                channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
 
             if message.content.startswith('!logs') and message.author.id == constants.MY_ID:
                 messageToSend = build_embed_object_title_description("MOST RECENT LOGS", read_last_lines_from_log())

@@ -13,6 +13,7 @@ def fetch_today_data():
     quests = json.loads(questText)
     with open(constants.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
+    categorize_quests(quests)
     return quests
 
 def write_filter_data(receivedData, add=True):
@@ -100,3 +101,54 @@ def build_quest_location_url(latitude, longitude):
     coordinatesUrl = "https://www.google.com/maps/search/?api=1&query=" + str(latitude) + "," + str(longitude)
 
     return coordinatesUrl
+
+def categorize_quests(quests, path='/root/PoGoLeiria/'):
+    classifications = {
+        'catching': [],
+        'throwing': [],
+        'battling': [],
+        'buddy': [],
+        'others': []
+    }
+    
+    for quest in quests:
+        quest_task = quest['quest_task'].lower()
+        if 'catch' in quest_task:
+            classifications['catching'].append(quest)
+        elif 'make' in quest_task or 'throw' in quest_task:
+            classifications['throwing'].append(quest)
+        elif 'raid' in quest_task or 'battle' in quest_task or 'shadow' in quest_task:
+            classifications['battling'].append(quest)
+        elif 'gift' in quest_task or 'buddy' in quest_task:
+            classifications['buddy'].append(quest)
+        else:
+            classifications['others'].append(quest)
+    
+    for key, quests in classifications.items():
+        classified_quests = []
+        for quest in quests:
+            quest_task = quest['quest_task']
+            quest_reward = build_reward_for_quest(quest)
+            quest_reward_type = quest['quest_reward_type']
+            quest_reward_amount = quest['item_amount']
+            quest_reward_item_name = quest['item_type']
+            quest_reward_pokemon_name = quest['pokemon_name']
+            found = False
+            for cq in classified_quests:
+                if cq["quest_description"] == quest_task and cq["quest_reward"] == quest_reward:
+                    cq["pokestops"].append(quest)
+                    found = True
+                    break
+            if not found:
+                classified_quest = {
+                    "quest_description": quest_task,
+                    "quest_reward": quest_reward,
+                    "quest_reward_type": quest_reward_type,
+                    "quest_reward_amount": quest_reward_amount,
+                    "quest_reward_item_name": quest_reward_item_name,
+                    "quest_reward_pokemon_name": quest_reward_pokemon_name,
+                    "pokestops": [quest]
+                }
+                classified_quests.append(classified_quest)
+        with open(f'{path}{key}.json', 'w') as f:
+            f.write(json.dumps(classified_quests, indent=4))
