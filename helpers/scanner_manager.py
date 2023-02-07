@@ -21,13 +21,13 @@ def clear_old_pokestops_gyms():
     log_to_file("Clearing expired pokestops and gyms")
 
 async def rename_voice_channel(totalBoxesFailing):
-    message = "SCANNER: 🟢"
+    message = "STATUS: 🟢"
     if totalBoxesFailing > 0 and totalBoxesFailing < 3:
-        message = "SCANNER: 🟡"
+        message = "STATUS: 🟡"
     if totalBoxesFailing > 2 and totalBoxesFailing < 7:
-        message = "SCANNER: 🟠"
+        message = "STATUS: 🟠"
     if totalBoxesFailing == 7:
-        message = "SCANNER: 🔴"
+        message = "STATUS: 🔴"
     voiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
     if voiceChannel.name != message:
         log_to_file(f"Number of devices encountering issues: {totalBoxesFailing}")
