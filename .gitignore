@@ -3,5 +3,4 @@ dev.env
 
 savedVersion.txt
 filters.json
-quest_data.json
 **/__pycache__/
