@@ -132,11 +132,21 @@ def categorize_quests(quests, path='/root/PoGoLeiria/'):
             quest_reward_type = quest['quest_reward_type']
             quest_reward_amount = quest['item_amount']
             quest_reward_item_name = quest['item_type']
+            quest_reward_item_id = quest['item_id']
             quest_reward_pokemon_name = quest['pokemon_name']
+            quest_reward_pokemon_id = quest['pokemon_id']
             found = False
+            
+            quest_stripped_down = {
+                "pokestop_id": quest["pokestop_id"],
+                "name": quest["name"],
+                "latitude": quest["latitude"],
+                "longitude": quest["longitude"],
+            }
+            
             for cq in classified_quests:
                 if cq["quest_description"] == quest_task and cq["quest_reward"] == quest_reward:
-                    cq["pokestops"].append(quest)
+                    cq["pokestops"].append(quest_stripped_down)
                     found = True
                     break
             if not found:
@@ -147,7 +157,9 @@ def categorize_quests(quests, path='/root/PoGoLeiria/'):
                     "quest_reward_amount": quest_reward_amount,
                     "quest_reward_item_name": quest_reward_item_name,
                     "quest_reward_pokemon_name": quest_reward_pokemon_name,
-                    "pokestops": [quest]
+                    "quest_reward_pokemon_id": quest_reward_pokemon_id,
+                    "quest_reward_item_id": quest_reward_item_id,
+                    "pokestops": [quest_stripped_down]
                 }
                 classified_quests.append(classified_quest)
         with open(f'{path}{key}.json', 'w') as f:
