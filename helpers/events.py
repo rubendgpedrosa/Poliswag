@@ -31,7 +31,7 @@ def get_events_by_date():
 async def set_automatic_rescan_on_event_change(id, rescan = 0):
     run_database_query(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE id = '{id}';", "poliswag")
 
-def get_automatic_rescan_on_event_change():
+def get_events_to_rescan():
     listEvents = []
     events = run_database_query("SELECT id, name, start, end, rescan, updateddate FROM event WHERE updateddate IS NULL AND notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag")
     events = str(events).split("\\n")
@@ -47,7 +47,7 @@ def get_automatic_rescan_on_event_change():
     return listEvents
 
 async def validate_event_needs_automatic_scan():
-    events = get_automatic_rescan_on_event_change()
+    events = get_events_to_rescan()
     if len(events) > 0:
         modChannel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         for event in events:
