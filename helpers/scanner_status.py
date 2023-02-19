@@ -1,5 +1,5 @@
 import helpers.constants as constants
-import datetime, json
+import json
 
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, start_pokestop_scan, clear_old_pokestops_gyms, restart_run_docker_containers
 from helpers.utilities import  clear_quest_file, build_embed_object_title_description, log_to_file, build_embed_object_title_description, did_day_change, private_message_user_by_id, run_database_query
@@ -25,6 +25,8 @@ async def check_boxes_issues():
         for box in listBoxStatusResults:
             # Edge case where we replace this value since it's different in the db
             if box.lower() == "pogoleiria":
+                box = "Tx9s2_JMBoy"
+            if box.lower() == "tx9s2_jmboy":
                 box = "Tx9s3_JMBoy"
             # for boxUser in boxUsersData:
             #     if box in boxUser["boxes"]:
