@@ -95,7 +95,7 @@ async def on_message(message):
                 clear_quest_file()
                 start_pokestop_scan()
 
-            if message.content.startswith('!logs') and message.author.id == constants.MY_ID:
+            if message.content.startswith('!logs'):
                 messageToSend = build_embed_object_title_description("MOST RECENT LOGS", read_last_lines_from_log())
 
     # Quest channel commands in order do display quests
@@ -148,4 +148,3 @@ async def on_message_delete(message):
         await channel.send(embed=embed)
 
 constants.CLIENT.run(constants.DISCORD_API_KEY)
-
