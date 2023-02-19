@@ -78,7 +78,7 @@ async def is_quest_scanning():
 def verify_quest_scan_done():
     with open(constants.QUESTS_FILE) as raw_data:
         jsonPokemonData = json.load(raw_data)
-    return len(jsonPokemonData) >= 365
+    return len(jsonPokemonData) >= 383
 
 # Multiplier exists, because updating the column related top quest_timestamp makes scanning reset. So instead, we add and substract a TIME_MULTIPLIER in order to "reset" the time
 def check_quest_scan_stuck():
