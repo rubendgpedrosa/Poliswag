@@ -61,7 +61,7 @@ async def is_quest_scanning():
         fetch_new_pvp_data()
         set_new_last_scanned_date(lastScannedDate)
 
-    questScanResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
+    questResults = run_database_query("SELECT scanned FROM poliswag WHERE scanned = 1;", "poliswag")
     if len(str(questResults).split("\\n")) > 1:
         if verify_quest_scan_done():
             log_to_file(f"Pokestop scan completed")
