@@ -24,7 +24,7 @@ def get_events_by_date():
         if event["start"] is not None:
             if datetime.now().strftime("%Y-%m-%d %H:%M") < event["start"] and event["has_quests"] and not event["name"].startswith("GO"):
                 hashString = hashlib.sha1((event['start'] + event['end'] + event['name']).encode("UTF-8")).hexdigest()
-                run_database_query(f"INSERT IGNORE INTO event(id, name, start, end, has_quests, has_spawnpoints) VALUES{hashString[:50], event['name'], event['start'], event['end'], +(event['has_quests']), +(event['has_spawnpoints'])};", "poliswag")
+                run_database_query(f"INSERT IGNORE INTO event(id, name, start, end, has_quests, has_spawnpoints) VALUES ({hashString[:50]}, '{event['name']}', '{event['start']}', '{event['end']}', {int(event['has_quests'])}, {int(event['has_spawnpoints'])});", "poliswag")
     # events = sorted(events, key=lambda d: d["start"], reverse=True)
     return events
 
