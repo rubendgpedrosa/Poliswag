@@ -110,7 +110,6 @@ def categorize_quests(quests, path='/root/PoGoLeiria/'):
         'buddy': [],
         'others': []
     }
-    
     for quest in quests:
         quest_task = quest['quest_task'].lower()
         if 'catch' in quest_task:
