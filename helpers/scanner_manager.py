@@ -19,6 +19,10 @@ def truncate_quests_table():
 def clear_old_pokestops_gyms():
     run_database_query("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);")
     log_to_file("Clearing expired pokestops and gyms")
+    
+def set_new_last_scanned_date(lastScannedDate):
+    run_database_query(f"UPDATE poliswag SET last_scanned_date = {lastScannedDate}", "poliswag")
+    log_to_file(f"New last_scanned_date set to {set_new_last_scanned_date}")
 
 async def rename_voice_channel(totalBoxesFailing):
     message = "STATUS: 🟢"
