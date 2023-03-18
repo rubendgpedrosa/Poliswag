@@ -1,5 +1,5 @@
 import requests, json, random
-from datetime import datetime
+from datetime import datetime, time
 
 import discord
 
@@ -105,3 +105,9 @@ def read_last_lines_from_log():
         for line in last_lines:
             logs = logs + line.rstrip() + "\n"
     return logs
+
+def time_now():
+    date = datetime.now().date()  # get the current date
+    timeHour = time(hour=0, minute=0, second=0)  # create a time object with 00:00:00
+    dt = datetime.combine(date, timeHour)  # combine the date and time objects
+    return dt
