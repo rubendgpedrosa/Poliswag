@@ -97,7 +97,7 @@ async def on_message(message):
 
             if message.content.startswith('!scan'):
                 log_to_file(f"New quest scan requested by {message.author}")
-                messageToSend = build_embed_object_title_description(f"New quest scan requested by {message.author}")
+                await message.channel.send(embed=build_embed_object_title_description(f"New quest scan requested by {message.author}"), delete_after=300)
                 start_pokestop_scan()
                 messageToSend = build_embed_object_title_description(f"Scan quest has successfully started")
 
