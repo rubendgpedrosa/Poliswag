@@ -1,11 +1,19 @@
 import requests, json, random
 from datetime import datetime, time
 
+from discord.ui import Button, View
 import discord
 
 import helpers.constants as constants
 
 versionUrl = "https://pgorelease.nianticlabs.com/plfe/version"
+
+boxUsersData = [
+    {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
+    {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "308000681271492610"},
+    {"owner": "Ethix", "boxes": ["Tx9s1_Ethix"], "mention": "313738342904627200"},
+    {"owner": "Anakin", "boxes": ["Tx9s1_Anakin"], "mention": "339466204638871552"}
+]
 
 def prepare_environment(env):
     if env == "prod":
@@ -115,3 +123,9 @@ def time_now():
     timeHour = time(hour=0, minute=0, second=0)  # create a time object with 00:00:00
     dt = datetime.combine(date, timeHour)  # combine the date and time objects
     return str(dt)
+
+def build_notification_mention_string(notificationMentionString, box):
+    for user in boxUsersData:
+        if box in user['boxes'] and user['mention'] not in notificationMentionString:
+            return notificationMentionString + f"<@{user['mention']}> "
+    return notificationMentionString
