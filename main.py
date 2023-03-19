@@ -52,6 +52,13 @@ async def on_interaction(interaction):
 
 @constants.CLIENT.event
 async def on_message(message):
+    # Keeps the map status channel with the most recent message
+    if message.channel.id == constants.MAPSTATS_CHANNEL_ID:
+        channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+        async for msg in channel.history(limit=200):
+            if message != msg and str(message.author.id) not in constants.ADMIN_USERS_IDS:
+                await msg.delete()
+    
     if message.author == constants.CLIENT.user:
         return
 
@@ -61,13 +68,6 @@ async def on_message(message):
             await prepare_view_roles_location(message.channel)
         if message.content.startswith('!rules'):
             await build_rules_message(message)
-
-    # Keeps the map status channel with the most recent message
-    if message.channel.id == constants.MAPSTATS_CHANNEL_ID:
-        channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
-        async for msg in channel.history(limit=200):
-            if message != msg and str(message.author.id) not in constants.ADMIN_USERS_IDS:
-                await msg.delete()
 
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == constants.MOD_CHANNEL_ID:
