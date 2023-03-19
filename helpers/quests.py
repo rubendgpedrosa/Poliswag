@@ -7,12 +7,13 @@ namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
 currentDay = datetime.datetime.now().day
 
-def fetch_today_data():
+def get_current_quest_data():
     data = requests.get(constants.BACKEND_ENDPOINT + 'get_quests?fence=None')
     questText = data.text
     quests = json.loads(questText)
     with open(constants.QUESTS_FILE, 'w') as file:
         json.dump(quests, file, indent=4)
+    # Done for the mobile app
     categorize_quests(quests)
     return quests
 
