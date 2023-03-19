@@ -16,7 +16,7 @@ def prepare_environment(env):
         print("Invalid environment, usage: python3 main.py (dev|prod)")
         quit()
 
-async def check_current_version():    
+async def check_current_pokemongo_version():    
     response = requests.get(versionUrl)
 
     if (response.status_code == 200):
@@ -53,6 +53,10 @@ def build_embed_object_title_description(title, description = "", footer = None)
 def run_database_query(query, database = None, enviornment = None):
     execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database), environment=enviornment)
     return constants.DOCKER_CLIENT.exec_start(execId)
+
+def get_data_from_database(query, database = None, enviornment = None):
+    queriedData = run_database_query(query, database, enviornment)
+    return str(queriedData).split("\\n")[1] if 1 < len(queriedData) else ""
 
 def build_query(query, db = None):
     if db is None:
@@ -110,4 +114,4 @@ def time_now():
     date = datetime.now().date()  # get the current date
     timeHour = time(hour=0, minute=0, second=0)  # create a time object with 00:00:00
     dt = datetime.combine(date, timeHour)  # combine the date and time objects
-    return dt
+    return str(dt)

@@ -8,9 +8,9 @@ import helpers.constants as constants
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data
-from helpers.utilities import check_current_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, clear_quest_file, read_last_lines_from_log
-from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container
-from helpers.scanner_status import check_boxes_issues, is_quest_scanning
+from helpers.utilities import check_current_pokemongo_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
+from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change
+from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
 from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
 
 # Validates arguments passed to check what env was requested
@@ -27,12 +27,17 @@ constants.init()
 @tasks.loop(seconds=300)
 async def __init__():
     try:
-        await check_current_version()
-        await is_quest_scanning()
-        await check_boxes_issues()
-        await validate_event_needs_automatic_scan()
-        get_events_by_date()
-        get_event_to_schedule_rescan()
+        await check_current_pokemongo_version()
+        await check_boxes_with_issues()
+        
+        scanningStuck = await restart_map_container_if_scanning_stuck()
+        if not scanningStuck:
+            get_events_by_date()
+            get_event_to_schedule_rescan()
+            await validate_event_needs_automatic_scan()
+            
+            start_quest_scanner_if_day_change()
+            await is_quest_scanning_complete()
     except Exception as e:
         log_to_file('%s' % str(e), "ERROR") 
 
@@ -91,9 +96,10 @@ async def on_message(message):
                 set_quest_scanning_state(1)
 
             if message.content.startswith('!scan'):
-                log_to_file(f"Scan quest reset by {message.author}")
-                clear_quest_file()
+                log_to_file(f"New quest scan requested by {message.author}")
+                await message.channel.send(embed=build_embed_object_title_description(f"New quest scan requested by {message.author}"), delete_after=300)
                 start_pokestop_scan()
+                messageToSend = build_embed_object_title_description(f"Scan quest has successfully started")
 
             if message.content.startswith('!logs'):
                 messageToSend = build_embed_object_title_description("MOST RECENT LOGS", read_last_lines_from_log())
