@@ -1,3 +1,4 @@
-INFO | 2023-03-19 11:40 -- New last_scanned_date set to 2023-03-19 00:00:00
-INFO | 2023-03-19 12:16 -- Pokestop scan completed
-INFO | 2023-03-19 12:16 -- Disabled quest scanning mode
+
+INFO | 2023-03-19 15:33 -- Number of devices encountering issues: 0
+INFO | 2023-03-19 15:51 -- Number of devices encountering issues: 2
+ERROR | 2023-03-19 19:54 -- 'async_generator' object has no attribute 'flatten'
