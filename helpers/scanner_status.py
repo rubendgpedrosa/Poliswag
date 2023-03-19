@@ -1,33 +1,22 @@
 import helpers.constants as constants
 
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, restart_run_docker_containers
-from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, run_database_query, get_data_from_database
+from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, run_database_query, get_data_from_database, build_notification_mention_string, build_and_send_embed_object_notify_box_status
 from helpers.quests import get_current_quest_data
 
-boxUsersData = [
-    {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
-    {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "98846248865398784"},
-    {"owner": "Ethix", "boxes": ["Tx9s1_Ethix"], "mention": "98846248865398784"},
-    {"owner": "Anakin", "boxes": ["Tx9s1_Anakin"], "mention": "98846248865398784"}
-]
-
 async def check_boxes_with_issues():
-    boxStatusResults = run_database_query("SELECT settings_device.name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 900;")
-    listBoxStatusResults = str(boxStatusResults).split("\\n")
-    # Remove first and last element
-    del listBoxStatusResults[0]
+    boxStatusResults = get_data_from_database("SELECT GROUP_CONCAT(settings_device.name SEPARATOR '#') AS names FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 1200 OR trs_status.lastProtoDateTime IS NULL);")
+    listBoxStatusResults = []
+    if boxStatusResults != "NULL":
+        listBoxStatusResults = boxStatusResults.split('#')
+
     if len(listBoxStatusResults) > 0:
-        del listBoxStatusResults[len(listBoxStatusResults) - 1]
-    if listBoxStatusResults is not None and len(listBoxStatusResults) > 0:
         for box in listBoxStatusResults:
-            # Edge case where we replace this value since it's different in the db
+            # Edge case where we replace these values since they are different in the DB
             if box.lower() == "pogoleiria":
                 box = "Tx9s2_JMBoy"
             if box.lower() == "tx9s2_jmboy":
                 box = "Tx9s3_JMBoy"
-            # for boxUser in boxUsersData:
-            #     if box in boxUser["boxes"]:
-            #         await private_message_user_by_id(boxUser["mention"], build_embed_object_title_description("Box " + boxToRestart + " precisa ser reiniciada."))
         await rename_voice_channel(len(listBoxStatusResults))
     else:
         await rename_voice_channel(0)
@@ -75,3 +64,7 @@ def has_total_quests_scanned_been_reached():
     totalPreviousScannedStops = int(get_data_from_database(f"SELECT pokestop_total_leiria + pokestop_total_marinha AS total_sum FROM poliswag;", "poliswag"))
     totalScannedStops = int(get_data_from_database(f"SELECT COUNT(GUID) AS totalPokestops FROM trs_quest;"))
     return totalScannedStops >= totalPreviousScannedStops
+
+async def notify_users_devices_need_restart(notificationMentionString, listBoxStatusResults):
+    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    await build_and_send_embed_object_notify_box_status(channel, notificationMentionString, listBoxStatusResults)
