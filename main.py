@@ -11,7 +11,7 @@ from helpers.quests import find_quest, write_filter_data
 from helpers.utilities import check_current_pokemongo_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change
 from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
-from helpers.events import get_events_by_date, validate_event_needs_automatic_scan, get_event_to_schedule_rescan
+from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -32,9 +32,9 @@ async def __init__():
         
         scanningStuck = await restart_map_container_if_scanning_stuck()
         if not scanningStuck:
-            get_events_by_date()
-            get_event_to_schedule_rescan()
-            await validate_event_needs_automatic_scan()
+            generate_database_entries_upcoming_events()
+            initialize_scheduled_rescanning_of_quests()
+            await ask_if_automatic_rescan_is_to_cancel()
             
             start_quest_scanner_if_day_change()
             await is_quest_scanning_complete()

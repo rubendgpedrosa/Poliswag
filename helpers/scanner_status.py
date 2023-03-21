@@ -1,7 +1,7 @@
 import helpers.constants as constants
 
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, restart_run_docker_containers
-from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, run_database_query, get_data_from_database, build_notification_mention_string, build_and_send_embed_object_notify_box_status
+from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, run_database_query, get_data_from_database
 from helpers.quests import get_current_quest_data
 
 async def check_boxes_with_issues():
@@ -59,12 +59,9 @@ async def is_quest_scanning_complete():
                 "Esta informação só é válida até ao final do dia"
                 )
             )
+            
 
 def has_total_quests_scanned_been_reached():
-    totalPreviousScannedStops = int(get_data_from_database(f"SELECT pokestop_total_leiria + pokestop_total_marinha AS total_sum FROM poliswag;", "poliswag"))
-    totalScannedStops = int(get_data_from_database(f"SELECT COUNT(GUID) AS totalPokestops FROM trs_quest;"))
+    totalPreviousScannedStops = int(get_data_from_database(f"SELECT pokestop_total_leiria AS total_sum FROM poliswag;", "poliswag"))
+    totalScannedStops = int(get_data_from_database(f"SELECT COUNT(GUID) FROM trs_quest LEFT JOIN pokestop ON pokestop.pokestop_id = trs_quest.GUID WHERE pokestop.longitude NOT LIKE '%-8.9%';"))
     return totalScannedStops >= totalPreviousScannedStops
-
-async def notify_users_devices_need_restart(notificationMentionString, listBoxStatusResults):
-    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
-    await build_and_send_embed_object_notify_box_status(channel, notificationMentionString, listBoxStatusResults)
