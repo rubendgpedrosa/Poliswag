@@ -82,7 +82,7 @@ async def cancel_rescan_callback(interaction: discord.Interaction):
         log_to_file(f"Rescan cancelled by {interaction.user}")
 
 def initialize_scheduled_rescanning_of_quests():
-    isQuestScanningScheduled = get_data_from_database("SELECT name FROM event WHERE rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL  15 MINUTE));", "poliswag")
+    isQuestScanningScheduled = get_data_from_database("SELECT name FROM event WHERE rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL  15 MINUTE) OR NOW() BETWEEN end AND DATE_ADD(end, INTERVAL  15 MINUTE));", "poliswag")
     if isQuestScanningScheduled != "":
         questScannerRunning = get_data_from_database("SELECT scanned FROM poliswag;", "poliswag")
         if questScannerRunning == 0:
