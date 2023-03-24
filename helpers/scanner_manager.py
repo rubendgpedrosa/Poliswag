@@ -1,6 +1,7 @@
 import helpers.constants as constants
 
-from helpers.utilities import log_to_file, run_database_query, time_now, clear_quest_file, get_data_from_database
+from helpers.utilities import log_to_file, run_database_query, time_now, clear_quest_file
+from helpers.database_connector import get_data_from_database
 from helpers.poliswag import fetch_new_pvp_data
 
 def start_pokestop_scan():
@@ -53,7 +54,7 @@ def restart_alarm_docker_container():
 
 def start_quest_scanner_if_day_change():
     didDayChangeFromStoredDb = get_data_from_database(f"SELECT last_scanned_date FROM poliswag WHERE last_scanned_date < '{time_now()}' OR last_scanned_date IS NULL;", "poliswag")
-    if didDayChangeFromStoredDb != "":
+    if len(didDayChangeFromStoredDb) > 0:
         log_to_file("Day change encountered, pokestop scanning initialized")
         start_pokestop_scan()
         log_to_file("Pokestop quest scanning started")

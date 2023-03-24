@@ -54,7 +54,8 @@ def init():
     global DOCKER_CLIENT
     DOCKER_CLIENT = docker.from_env().api
 
-    global DB_NAME, DB_USER, DB_PASSWORD
+    global DB_IP, DB_NAME, DB_USER, DB_PASSWORD
+    DB_IP = os.getenv('DB_IP')
     DB_NAME = os.getenv('DB_NAME')
     DB_USER = os.getenv('DB_USER')
     DB_PASSWORD = os.getenv('DB_PASSWORD')
