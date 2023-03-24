@@ -2,8 +2,10 @@ import discord, requests
 from datetime import datetime
 from discord.ui import Button, View
 
-from helpers.utilities import run_database_query, log_to_file, clear_quest_file, get_data_from_database
+from helpers.database_connector import execute_query_to_database, get_data_from_database
 from helpers.scanner_manager import start_pokestop_scan
+from helpers.utilities import log_to_file
+
 import helpers.constants as constants
 
 def handle_event_roles(message):
@@ -28,8 +30,9 @@ def generate_database_entries_upcoming_events():
             isNotCommunityDay = "community day" not in event["name"].lower()
             isNotGoEvent = not event["name"].startswith("GO")
 
-            if hasQuests and isNotCommunityDay and isNotGoEvent:
-                run_database_query(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints, rescan) VALUES ('{event['name']}', '{event['start']}', '{event['end']}', {int(hasQuests)}, {int(hasSpawnpoins)}, 1);", "poliswag")
+            if isBeforeStartDate and hasQuests and isNotCommunityDay and isNotGoEvent:
+                eventNameEscaped = event["name"].replace("'", "\\'")
+                execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints, rescan) VALUES ('{eventNameEscaped}', '{event['start']}', '{event['end']}', {int(hasQuests)}, {int(hasSpawnpoins)}, 1);", "poliswag")
 
 async def ask_if_automatic_rescan_is_to_cancel():
     eventsByStartTime = get_events_stored_in_database_to_rescan()
@@ -46,26 +49,20 @@ async def ask_if_automatic_rescan_is_to_cancel():
             await add_button_event(buttonCancelRescan)
             view = View()
             view.add_item(buttonCancelRescan)
-            print(body)
             
             await modChannel.send(embed=embed, view=view)
-            run_database_query(f"UPDATE event SET notifieddate = NOW() WHERE start = {start_time};", "poliswag")
+            execute_query_to_database(f"UPDATE event SET notifieddate = NOW() WHERE start = {start_time};", "poliswag")
 
 def get_events_stored_in_database_to_rescan():
-    storedEvents = run_database_query("SELECT name, start FROM event WHERE notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag")
-    storedEvents = str(storedEvents).split("\\n")
+    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE  NOW() < DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag")
     eventsDict = {}
-    del storedEvents[0]
-    if len(storedEvents) > 1:
-        del storedEvents[len(storedEvents) - 1]
+    if len(storedEvents) > 0:
         for event in storedEvents:
-            fields = event.split("\\t")
-            eventDict = {"name": fields[0], "start": fields[1]}
-            if fields[1] in eventsDict:
-                eventsDict[fields[1]]['events'].append(eventDict)
+            eventDict = {"name": event["data"][0], "start": event["data"][1]}
+            if event["data"][1] in eventsDict:
+                eventsDict[event["data"][1]]['events'].append(eventDict)
             else:
-                eventsDict[fields[1]] = {'events': [eventDict]}
-    
+                eventsDict[event["data"][1]] = {'events': [eventDict]}
     return eventsDict
 
 async def cancel_rescan_callback(interaction: discord.Interaction):
@@ -83,17 +80,17 @@ async def cancel_rescan_callback(interaction: discord.Interaction):
 
 def initialize_scheduled_rescanning_of_quests():
     isQuestScanningScheduled = get_data_from_database("SELECT name FROM event WHERE rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL  15 MINUTE) OR NOW() BETWEEN end AND DATE_ADD(end, INTERVAL  15 MINUTE));", "poliswag")
-    if isQuestScanningScheduled != "":
-        questScannerRunning = get_data_from_database("SELECT scanned FROM poliswag;", "poliswag")
-        if questScannerRunning == 0:
+    if len(isQuestScanningScheduled) > 0:
+        questScannerRunning = get_data_from_database("SELECT scanned FROM poliswag WHERE scanned = 0;", "poliswag")
+        if len(questScannerRunning) > 0:
             log_to_file(f"Rescan scheduled starting")
             start_pokestop_scan()
-            run_database_query("UPDATE event SET rescan  notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag")
+            execute_query_to_database("UPDATE event SET rescan  notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 24 HOUR);", "poliswag")
             log_to_file(f"Scheduled rescan started successfully")
     return
 
 async def set_if_to_rescan_on_event_start(date, rescan = 0):
-    run_database_query(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE start = '{date}';", "poliswag")
+    execute_query_to_database(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE start = '{date}';", "poliswag")
     
 async def add_button_event(button):
     button.callback = cancel_rescan_callback
