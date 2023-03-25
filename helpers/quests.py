@@ -50,6 +50,8 @@ def find_quest(receivedData, leiria):
 
     quests = retrieve_sort_quest_data()
 
+    quests = list(filter(lambda q: q["name"] not in [d["name"] for d in quests[:quests.index(q)]], quests))
+
     allQuestData = []
     allQuestDataMarinha = []
 
