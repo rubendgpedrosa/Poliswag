@@ -4,6 +4,7 @@ from discord.ext import tasks
 from dotenv import load_dotenv
 
 import helpers.constants as constants
+import traceback
 
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
@@ -39,7 +40,8 @@ async def __init__():
             start_quest_scanner_if_day_change()
             await is_quest_scanning_complete()
     except Exception as e:
-        log_to_file('%s' % str(e), "ERROR") 
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        log_to_file(error_msg, "ERROR")
 
 
 @constants.CLIENT.event
