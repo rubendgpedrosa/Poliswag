@@ -6,7 +6,7 @@ from helpers.database_connector import execute_query_to_database, get_data_from_
 from helpers.quests import get_current_quest_data
 
 async def check_boxes_with_issues():
-    listBoxStatusResults = get_data_from_database("SELECT settings_device.name AS name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 1200 OR trs_status.lastProtoDateTime IS NULL);")
+    listBoxStatusResults = get_data_from_database("SELECT settings_device.name AS name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > 1200 OR trs_status.lastProtoDateTime IS NULL);", "rocketdb")
     if len(listBoxStatusResults) > 0:
         for box in listBoxStatusResults:
             # Edge case where we replace these values since they are different in the DB
@@ -59,13 +59,12 @@ async def is_quest_scanning_complete():
                     "Esta informação só é válida até ao final do dia"
                     )
                 )
-                
 
 def has_total_quests_scanned_been_reached():
-    totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag;", "poliswag")
+    totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag WHERE layer = 1;", "poliswag")
     for totalPreviousScannedStopsResult in totalPreviousScannedStops:
-        totalPreviousScannedStops = totalPreviousScannedStopsResult["data"][0]
-    totalScannedStops = get_data_from_database(f"SELECT COUNT(GUID) FROM trs_quest LEFT JOIN pokestop ON pokestop.pokestop_id = trs_quest.GUID WHERE pokestop.longitude NOT LIKE '%-8.9%';")
+        totalPreviousScannedStops = int(totalPreviousScannedStopsResult["data"][0])
+    totalScannedStops = get_data_from_database(f"SELECT COUNT(GUID) FROM trs_quest LEFT JOIN pokestop ON pokestop.pokestop_id = trs_quest.GUID WHERE pokestop.longitude NOT LIKE '%-8.9%' AND layer = 1;")
     for totalScannedStopsResult in totalScannedStops:
-        totalScannedStops = totalScannedStopsResult["data"][0]
+        totalScannedStops = int(totalScannedStopsResult["data"][0])
     return totalScannedStops >= totalPreviousScannedStops
