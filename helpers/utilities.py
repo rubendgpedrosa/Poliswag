@@ -1,5 +1,6 @@
 import requests, json, random
 from datetime import datetime, time
+from helpers.database_connector import get_data_from_database, execute_query_to_database
 
 from discord.ui import Button, View
 import discord
@@ -26,23 +27,20 @@ def prepare_environment(env):
 
 async def check_current_pokemongo_version():    
     response = requests.get(versionUrl)
-
     if (response.status_code == 200):
-        retrievedVersion = response.text.strip().split(".",1)[1]
-        if (constants.SAVED_VERSION != retrievedVersion):
-            constants.SAVED_VERSION = retrievedVersion
-            with open(constants.VERSION_FILE, 'w') as file:
-                file.write(retrievedVersion)
-            await notify_new_version()
+        retrievedVersion = response.text.strip()
+        storedVersion = get_data_from_database(f"SELECT version FROM poliswag WHERE version = '{retrievedVersion}'", "poliswag")
+        if len(storedVersion) == 0:
+            execute_query_to_database(f"UPDATE poliswag SET version = '{retrievedVersion}'", "poliswag")
+            await notify_new_version(retrievedVersion)
 
-async def notify_new_version():
+async def notify_new_version(retrievedVersion):
     channel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
-    log_to_file(f"Updated to new version {constants.SAVED_VERSION}")
+    log_to_file(f"Updated to new version {retrievedVersion}")
     await channel.send(embed=build_embed_object_title_description(
-        "PAAAAUUUUUUUU!!! FORCE UPDATE!",
-        "Nova versão: 0." + constants.SAVED_VERSION
+        "PAAAAAAAAAUUUUUUUUUU!!! FORCE UPDATE!",
+        f"Nova versão: {retrievedVersion}"
     ))
-    # TODO update devices
 
 def log_to_file(string, logType = "INFO"):
     with open(constants.LOG_FILE, 'r') as fileToRead:
@@ -62,14 +60,6 @@ def build_embed_object_title_description(title, description = "", footer = None)
     if footer != None:
         embed.set_footer(text=footer)
     return embed
-
-def run_database_query(query, database = None, enviornment = None):
-    execId = constants.DOCKER_CLIENT.exec_create(constants.DB_CONTAINER, build_query(query, database), environment=enviornment)
-    return constants.DOCKER_CLIENT.exec_start(execId)
-
-def get_data_from_database(query, database = None, enviornment = None):
-    queriedData = run_database_query(query, database, enviornment)
-    return str(queriedData).split("\\n")[1] if 1 < len(queriedData) else ""
 
 def build_query(query, db = None):
     if db is None:

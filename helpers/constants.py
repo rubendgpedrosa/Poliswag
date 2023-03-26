@@ -18,19 +18,21 @@ def init():
     QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
     VOICE_CHANNEL_ID = int(os.getenv('VOICE_CHANNEL_ID'))
 
+    global DOCKER_CLIENT
+    DOCKER_CLIENT = docker.from_env().api
+    
     global RUN_CONTAINER, DB_CONTAINER, REDIS_CONTAINER, ALARM_CONTAINER
     RUN_CONTAINER = os.getenv('RUN_CONTAINER')
     DB_CONTAINER = os.getenv('DB_CONTAINER')
     REDIS_CONTAINER = os.getenv('REDIS_CONTAINER')
     ALARM_CONTAINER = os.getenv('ALARM_CONTAINER')
 
-    global FILTER_FILE, LOG_FILE, QUESTS_FILE, VERSION_FILE, POKEMON_LIST_FILE, ERROR_LOG_FILE
+    global FILTER_FILE, LOG_FILE, QUESTS_FILE, POKEMON_LIST_FILE, ERROR_LOG_FILE
     FILTER_FILE = os.getenv('FILTER_FILE')
     LOG_FILE = os.getenv('LOG_FILE')
     ERROR_LOG_FILE = os.getenv('ERROR_LOG_FILE')
     QUESTS_FILE = os.getenv('QUESTS_FILE')
     POKEMON_LIST_FILE = os.getenv('POKEMON_LIST_FILE')
-    VERSION_FILE = os.getenv('VERSION_FILE')
 
     global ADMIN_USERS_IDS, POLISWAG_ID, MY_ID, POLISWAG_ROLE_ID
     ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(','))
@@ -42,13 +44,6 @@ def init():
     intents = discord.Intents.all()
     intents.message_content = True
     CLIENT = discord.Client(intents=intents)
-
-    global SAVED_VERSION
-    with open(VERSION_FILE) as text:
-        SAVED_VERSION = text.read(10) or 0
-    
-    global DOCKER_CLIENT
-    DOCKER_CLIENT = docker.from_env().api
 
     global DB_IP, DB_NAME, DB_USER, DB_PASSWORD
     DB_IP = os.getenv('DB_IP')

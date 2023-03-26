@@ -1,7 +1,7 @@
 import helpers.constants as constants
 
-from helpers.utilities import log_to_file, run_database_query, time_now, clear_quest_file,build_embed_object_title_description
-from helpers.database_connector import get_data_from_database
+from helpers.utilities import log_to_file, time_now, clear_quest_file, build_embed_object_title_description
+from helpers.database_connector import execute_query_to_database, get_data_from_database
 from helpers.poliswag import fetch_new_pvp_data
 
 def start_pokestop_scan():
@@ -18,19 +18,19 @@ def start_pokestop_scan():
     restart_run_docker_containers()
 
 def set_quest_scanning_state(state = 0):
-    run_database_query(f"UPDATE poliswag SET scanned = {state};", "poliswag")
+    execute_query_to_database(f"UPDATE poliswag SET scanned = {state};", "poliswag")
     log_to_file(f"{'Disabled' if state == 0 else 'Enabled'} quest scanning mode")
 
 def clear_quests_table():
-    run_database_query("TRUNCATE TABLE trs_quest;")
+    execute_query_to_database("TRUNCATE TABLE trs_quest;")
     log_to_file("Truncated quests table sucessfully!")
 
 def clear_old_pokestops_gyms():
-    run_database_query("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);")
+    execute_query_to_database("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);")
     log_to_file("Expired pokestops and gyms cleared sucessfully!")
     
 def set_last_scanned_date(lastScannedDate):
-    run_database_query(f"UPDATE poliswag SET last_scanned_date = '{lastScannedDate}'", "poliswag")
+    execute_query_to_database(f"UPDATE poliswag SET last_scanned_date = '{lastScannedDate}'", "poliswag")
     log_to_file(f"New last_scanned_date set to {lastScannedDate}")
 
 async def rename_voice_channel(totalBoxesFailing):
