@@ -111,7 +111,7 @@ def read_last_lines_from_log():
     with open(constants.LOG_FILE, 'r') as fileToRead:
         logs = ""
         lines = fileToRead.readlines()
-        last_lines = lines[-25:]
+        last_lines = lines[-10:]
         for line in last_lines:
             logs = logs + line.rstrip() + "\n"
     return logs
