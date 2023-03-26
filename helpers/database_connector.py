@@ -24,7 +24,7 @@ def get_data_from_database(query, database = "rocketdb"):
 
     return [{'columns': columns, 'data': row} for row in results]
 
-def execute_query_to_database(query, database = "poliswag"):
+def execute_query_to_database(query, database = "rocketdb"):
     connection = pymysql.connect(host=constants.DB_IP,
         user=constants.DB_USER,
         password=constants.DB_PASSWORD,
