@@ -4,7 +4,7 @@ import time
 from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, restart_run_docker_containers
 from helpers.database_connector import execute_query_to_database, get_data_from_database
-from helpers.quests import get_current_quest_data, retrieve_sort_quest_data, build_quest_summary_embed_objects
+from helpers.quests import get_current_quest_data
 
 async def check_boxes_with_issues():
     dstTimeChanges = 0
@@ -61,9 +61,9 @@ async def is_quest_scanning_complete():
                 #await channel.send(content=f"**RESUMO QUESTS LEIRIA**\n{embedObjects['Leiria']}")
                 #await channel.send(content=f"**RESUMO QUESTS MARINHA GRANDE**\n{embedObjects['MarinhaGrande']}")
                 await channel.send(embed=build_embed_object_title_description(
-                    "SCAN DAS NOVAS QUESTS TERMINADO!", 
-                    "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                    "Esta informação só é válida até ao final do dia"
+                    "SCAN DE QUESTS TERMINADO!", 
+                    "Todas as quests do dia foram recolhidas e podem ser visualizadas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+                    "Esta informação expira ao final do dia"
                     )
                 )
 
