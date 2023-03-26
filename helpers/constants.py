@@ -24,15 +24,16 @@ def init():
     REDIS_CONTAINER = os.getenv('REDIS_CONTAINER')
     ALARM_CONTAINER = os.getenv('ALARM_CONTAINER')
 
-    global FILTER_FILE, LOG_FILE, QUESTS_FILE, VERSION_FILE, POKEMON_LIST_FILE
+    global FILTER_FILE, LOG_FILE, QUESTS_FILE, VERSION_FILE, POKEMON_LIST_FILE, ERROR_LOG_FILE
     FILTER_FILE = os.getenv('FILTER_FILE')
     LOG_FILE = os.getenv('LOG_FILE')
+    ERROR_LOG_FILE = os.getenv('ERROR_LOG_FILE')
     QUESTS_FILE = os.getenv('QUESTS_FILE')
     POKEMON_LIST_FILE = os.getenv('POKEMON_LIST_FILE')
     VERSION_FILE = os.getenv('VERSION_FILE')
 
     global ADMIN_USERS_IDS, POLISWAG_ID, MY_ID, POLISWAG_ROLE_ID
-    ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(","))
+    ADMIN_USERS_IDS = list(os.getenv('ADMIN_USERS_IDS').split(','))
     MY_ID = int(os.getenv('MY_ID'))
     POLISWAG_ID = int(os.getenv('POLISWAG_ID'))
     POLISWAG_ROLE_ID = os.getenv('POLISWAG_ROLE_ID')
@@ -45,11 +46,6 @@ def init():
     global SAVED_VERSION
     with open(VERSION_FILE) as text:
         SAVED_VERSION = text.read(10) or 0
-    
-    global CURRENT_DAY, LEIRIA_QUESTS_TOTAL, MARINHA_QUESTS_TOTAL
-    CURRENT_DAY = datetime.datetime.now().day
-    LEIRIA_QUESTS_TOTAL = 247
-    MARINHA_QUESTS_TOTAL = 107
     
     global DOCKER_CLIENT
     DOCKER_CLIENT = docker.from_env().api
