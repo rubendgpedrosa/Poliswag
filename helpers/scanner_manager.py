@@ -1,6 +1,6 @@
 import helpers.constants as constants
 
-from helpers.utilities import log_to_file, run_database_query, time_now, clear_quest_file
+from helpers.utilities import log_to_file, run_database_query, time_now, clear_quest_file,build_embed_object_title_description
 from helpers.database_connector import get_data_from_database
 from helpers.poliswag import fetch_new_pvp_data
 
@@ -52,9 +52,11 @@ def restart_run_docker_containers():
 def restart_alarm_docker_container():
     constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
 
-def start_quest_scanner_if_day_change():
+async def start_quest_scanner_if_day_change():
     didDayChangeFromStoredDb = get_data_from_database(f"SELECT last_scanned_date FROM poliswag WHERE last_scanned_date < '{time_now()}' OR last_scanned_date IS NULL;", "poliswag")
     if len(didDayChangeFromStoredDb) > 0:
         log_to_file("Day change encountered, pokestop scanning initialized")
         start_pokestop_scan()
+        questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
+        await questChannel.send(embed=build_embed_object_title_description("Mudança de dia detetada", "Scan das novas quests inicializado!"))
         log_to_file("Pokestop quest scanning started")

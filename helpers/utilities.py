@@ -49,8 +49,13 @@ def log_to_file(string, logType = "INFO"):
         last_line = fileToRead.readlines()[-1]
         if string in last_line:
             return
-    with open(constants.LOG_FILE, 'a') as file:
-        file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
+        
+    if logType == "ERROR":
+        with open(constants.ERROR_LOG_FILE, 'a') as file:
+            file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
+    else:
+        with open(constants.LOG_FILE, 'a') as file:
+            file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
 
 def build_embed_object_title_description(title, description = "", footer = None):
     embed = discord.Embed(title=title, description=description, color=0x7b83b4)
@@ -87,13 +92,6 @@ def validate_message_for_deletion(message, channel, author = None):
         return False
     return False
 
-def did_day_change():
-    dayChange = datetime.now().day > constants.CURRENT_DAY
-    if dayChange:
-        log_to_file(f"Day change, starting quest process")
-        constants.CURRENT_DAY = datetime.now().day
-    return dayChange
-
 def to_bool(s):
     return 1 if s == 'True' else 0
 
@@ -113,7 +111,7 @@ def read_last_lines_from_log():
     with open(constants.LOG_FILE, 'r') as fileToRead:
         logs = ""
         lines = fileToRead.readlines()
-        last_lines = lines[-25:]
+        last_lines = lines[-10:]
         for line in last_lines:
             logs = logs + line.rstrip() + "\n"
     return logs
