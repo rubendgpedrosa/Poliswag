@@ -37,7 +37,7 @@ async def __init__():
             initialize_scheduled_rescanning_of_quests()
             await ask_if_automatic_rescan_is_to_cancel()
             
-            start_quest_scanner_if_day_change()
+            await start_quest_scanner_if_day_change()
             await is_quest_scanning_complete()
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"

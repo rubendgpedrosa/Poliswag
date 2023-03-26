@@ -1,7 +1,6 @@
-import json, os, requests, datetime
-
+import json, requests, datetime
+import discord
 import helpers.constants as constants
-from helpers.utilities import log_to_file
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -50,32 +49,26 @@ def find_quest(receivedData, leiria):
 
     quests = retrieve_sort_quest_data()
 
-    quests = list(filter(lambda q: q["name"] not in [d["name"] for d in quests[:quests.index(q)]], quests))
-
     allQuestData = []
     allQuestDataMarinha = []
 
     for quest in quests:
         reward = build_reward_for_quest(quest)
-        try:
-            if receivedData and receivedData.lower() in reward.lower() or receivedData.lower() in quest['quest_task'].lower() or receivedData.lower() in quest["name"].lower():
-                if "-8.9" not in str(quest['longitude']):
-                    allQuestData.append({
-                        "name": "[Leiria] " + quest["name"],
-                        "map": build_quest_location_url(quest["latitude"], quest["longitude"]),
-                        "quest": quest['quest_task'] + " - " + reward,
-                        "image": quest["url"]
-                    })
-                else:
-                    allQuestDataMarinha.append({
-                        "name": "[Marinha Grande] " + quest["name"],
-                        "map": build_quest_location_url(quest["latitude"], quest["longitude"]),
-                        "quest": quest['quest_task'] + " - " + reward,
-                        "image": quest["url"]
-                    })
-        except Exception as e:
-            log_to_file('\nFORCE UPDATE ERROR: %s\n' % str(e))       
-            return "Essa procura não me parece ser válida."
+        if receivedData and receivedData.lower() in reward.lower() or receivedData.lower() in quest['quest_task'].lower() or receivedData.lower() in quest["name"].lower():
+            if "-8.9" not in str(quest['longitude']):
+                allQuestData.append({
+                    "name": "[Leiria] " + quest["name"],
+                    "map": build_quest_location_url(quest["latitude"], quest["longitude"]),
+                    "quest": quest['quest_task'] + " - " + reward,
+                    "image": quest["url"]
+                })
+            else:
+                allQuestDataMarinha.append({
+                    "name": "[Marinha Grande] " + quest["name"],
+                    "map": build_quest_location_url(quest["latitude"], quest["longitude"]),
+                    "quest": quest['quest_task'] + " - " + reward,
+                    "image": quest["url"]
+                })
 
     if leiria:
         return allQuestData
@@ -84,7 +77,8 @@ def find_quest(receivedData, leiria):
 def retrieve_sort_quest_data():
     with open(constants.QUESTS_FILE) as raw_data:
         quests = json.load(raw_data)
-    return sorted(quests, key=lambda k: k['quest_task'], reverse=True)
+    sortedQuests = sorted(quests, key=lambda k: k['quest_task'], reverse=True)
+    return list(filter(lambda q: q["name"] not in [d["name"] for d in sortedQuests[:sortedQuests.index(q)]], sortedQuests))
 
 def build_reward_for_quest(quest): 
     if quest['quest_reward_type'] == 'Pokemon':
@@ -166,3 +160,71 @@ def categorize_quests(quests, path='/root/PoGoLeiria/'):
                 classified_quests.append(classified_quest)
         with open(f'{path}{key}.json', 'w') as f:
             f.write(json.dumps(classified_quests, indent=4))
+
+def build_quest_summary_embed_objects(quests):
+    questGroupsLeiria = {}
+    questGroupsMarinhaGrande = {}
+
+    for quest in quests:
+        longitude = str(quest['longitude'])
+        if "-8.9" not in longitude:
+            questGroupsLeiria = update_quest_groups(quest, questGroupsLeiria)
+        else:
+            questGroupsMarinhaGrande = update_quest_groups(quest, questGroupsMarinhaGrande)
+
+    #embedLeiria = discord.Embed(title="Resumo de algumas quests de hoje - Leiria", color=0x7b83b4)
+    #embedMarinhaGrande = discord.Embed(title="Resumo de algumas quests de hoje - Marinha Grande", color=0x7b83b4)
+    #lessPopularQuestsLeiria = get_least_popular_quests(questGroupsLeiria)
+    #lessPopularQuestsMarinhaGrande = get_least_popular_quests(questGroupsMarinhaGrande)
+    # embedLeiria.add_field(name="Quests Leiria", value=questSummaryListStringLeiria)
+    # embedMarinhaGrande.add_field(name="Quests Marinha Grande", value=questSummaryListStringMarinhaGrande)
+    # embedLeiria.set_footer(text="Esta informação expira ao final do dia")
+    # embedMarinhaGrande.set_footer(text="Esta informação expira ao final do dia")
+
+    questSummaryListStringLeiria = build_quest_summary_list_string(questGroupsLeiria)
+    questSummaryListStringMarinhaGrande = build_quest_summary_list_string(questGroupsMarinhaGrande)
+
+    return {'Leiria': questSummaryListStringLeiria, 'MarinhaGrande': questSummaryListStringMarinhaGrande}
+
+def update_quest_groups(quest, questGroups):
+    if quest['quest_reward_type'] == "Pokemon":
+        questTask = quest['quest_task']
+        reward = build_reward_for_quest(quest)
+        if questTask in questGroups:
+            if reward in questGroups[questTask]["rewards"]:
+                questGroups[questTask]["count"] += 1
+            else:
+                questGroups[questTask]["count"] += 1
+                questGroups[questTask]["rewards"].append(reward)
+        else:
+            questGroups[questTask] = {"count": 1, "rewards": [reward]}
+    return questGroups
+
+def build_quest_summary_list_string(questGroups):
+    questSummaryListString = ""
+    for questKey, questInfo in questGroups.items():
+        count = questInfo["count"]
+        rewards = ", ".join(questInfo["rewards"])
+        questSummaryListString += f"⦁ ({count}x) {questKey} - {rewards}\n"
+    return questSummaryListString
+
+def get_least_popular_quests(questGroups):
+    questCount = {k: v["count"] for k, v in questGroups.items()}
+    sortedQuests = sorted(questCount.items(), key=lambda x: x[1])
+
+    leastPopularQuests = []
+    leastPopularCount = sortedQuests[0][1]
+    for quest, count in sortedQuests:
+        if count <= leastPopularCount:
+            leastPopularQuests.append((quest, count))
+        else:
+            break
+
+    # Check if there are more quests with the same count as the 10th least popular quest
+    for quest, count in sortedQuests[len(leastPopularQuests):]:
+        if count == leastPopularCount:
+            leastPopularQuests.append((quest, count))
+        else:
+            break
+
+    return leastPopularQuests
