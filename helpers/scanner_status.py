@@ -4,7 +4,7 @@ import time
 from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description
 from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, restart_run_docker_containers
 from helpers.database_connector import execute_query_to_database, get_data_from_database
-from helpers.quests import get_current_quest_data
+from helpers.quests import get_current_quest_data, retrieve_sort_quest_data, build_quest_summary_embed_objects
 
 async def check_boxes_with_issues():
     dstTimeChanges = 0
@@ -52,10 +52,14 @@ async def is_quest_scanning_complete():
     for questScannerRunningResult in questScannerRunning:
         questScannerRunning = questScannerRunningResult["data"][0]
         if questScannerRunning > 0:
-            if has_total_quests_scanned_been_reached():
-                log_to_file(f"Pokestop quest scan completed")
+            scanningCompletionStates = has_total_quests_scanned_been_reached()
+            if scanningCompletionStates["Leiria"] and scanningCompletionStates["Marinha"]:
                 set_quest_scanning_state()
+                log_to_file(f"Pokestop quest scan completed")
                 channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
+                #embedObjects = build_quest_summary_embed_objects(retrieve_sort_quest_data())
+                #await channel.send(content=f"**RESUMO QUESTS LEIRIA**\n{embedObjects['Leiria']}")
+                #await channel.send(content=f"**RESUMO QUESTS MARINHA GRANDE**\n{embedObjects['MarinhaGrande']}")
                 await channel.send(embed=build_embed_object_title_description(
                     "SCAN DAS NOVAS QUESTS TERMINADO!", 
                     "Todas as informações relacionadas com as quests foram recolhidas e podem ser acedidas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
@@ -63,11 +67,13 @@ async def is_quest_scanning_complete():
                     )
                 )
 
-def has_total_quests_scanned_been_reached(targetColumn = "pokestop_total_leiria", longitudeLeiria = "NOT "):
-    totalPreviousScannedStops = get_data_from_database(f"SELECT {targetColumn} FROM poliswag;", "poliswag")
-    for totalPreviousScannedStopsResult in totalPreviousScannedStops:
-        totalPreviousScannedStops = int(totalPreviousScannedStopsResult["data"][0])
-    totalScannedStops = get_data_from_database(f"SELECT COUNT(GUID) FROM trs_quest LEFT JOIN pokestop ON pokestop.pokestop_id = trs_quest.GUID WHERE pokestop.longitude {longitudeLeiria} LIKE '%-8.9%' AND layer = 1;")
-    for totalScannedStopsResult in totalScannedStops:
-        totalScannedStops = int(totalScannedStopsResult["data"][0])
-    return totalScannedStops >= totalPreviousScannedStops
+def has_total_quests_scanned_been_reached():
+    totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag;", "poliswag")
+    totalPreviousScannedStopsLeiria = int(totalPreviousScannedStops[0]["data"][0])
+    totalPreviousScannedStopsMarinhaGrande = int(totalPreviousScannedStops[0]["data"][1])
+
+    totalScannedStops = get_data_from_database(f"SELECT COUNT(pokestop.pokestop_id) AS num_pokestops FROM trs_quest LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id WHERE trs_quest.layer = 1 GROUP BY IF(pokestop.longitude NOT LIKE '%-8.9%', 'Longitude not like %-8.9%', 'Longitude like %-8.9%');")
+    totalScannedStopsLeiria = int(totalScannedStops[1]["data"][0])
+    totalScannedStopsMarinhaGrande = int(totalScannedStops[0]["data"][0])
+
+    return {'Leiria': totalScannedStopsLeiria >= totalPreviousScannedStopsLeiria, 'Marinha': totalScannedStopsMarinhaGrande >= totalPreviousScannedStopsMarinhaGrande}
