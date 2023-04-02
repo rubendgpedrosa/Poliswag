@@ -18,7 +18,7 @@ def start_pokestop_scan():
     restart_run_docker_containers()
 
 def set_quest_scanning_state(state = 0):
-    execute_query_to_database(f"UPDATE poliswag SET scanned = {state};", "poliswag")
+    execute_query_to_database(f"UPDATE poliswag SET scanned = '{state}';", "poliswag")
     log_to_file(f"{'Disabled' if state == 0 else 'Enabled'} quest scanning mode")
 
 def clear_quests_table():
@@ -26,7 +26,7 @@ def clear_quests_table():
     log_to_file("Truncated quests table sucessfully!")
 
 def clear_old_pokestops_gyms():
-    execute_query_to_database("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY); DELETE FROM gym WHERE last_scanned < (NOW()-INTERVAL 3 DAY);")
+    execute_query_to_database("DELETE FROM pokestop WHERE last_updated < (NOW()-INTERVAL 3 DAY);")
     log_to_file("Expired pokestops and gyms cleared sucessfully!")
     
 def set_last_scanned_date(lastScannedDate):
