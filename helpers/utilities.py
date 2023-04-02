@@ -1,8 +1,7 @@
-import requests, json, random
+import requests
 from datetime import datetime, time
 from helpers.database_connector import get_data_from_database, execute_query_to_database
 
-from discord.ui import Button, View
 import discord
 
 import helpers.constants as constants

@@ -4,7 +4,7 @@ from discord.ui import Button, View
 
 from helpers.database_connector import execute_query_to_database, get_data_from_database
 from helpers.scanner_manager import start_pokestop_scan
-from helpers.utilities import log_to_file
+from helpers.utilities import log_to_file, build_embed_object_title_description
 
 import helpers.constants as constants
 
@@ -15,12 +15,24 @@ def handle_event_roles(message):
         elif message.content.lower() == 'silver':
             event_role = discord.utils.get(message.guild.roles, name="Silver")
 
-def make_request_events():
-    request = requests.get('https://raw.githubusercontent.com/ccev/pogoinfo/v2/active/events.json')
-    return request.json()
+import json
+
+def read_local_events():
+    with open(constants.EVENT_FILE, 'r') as file:
+        data = json.load(file)
+    return data
+
+def read_active_events_data():
+    try:
+        events = read_local_events()
+    except:
+        # if there's an error reading the local file, fallback to making a request
+        request = requests.get('https://raw.githubusercontent.com/ccev/pogoinfo/v2/active/events.json')
+        events = request.json()
+    return events
     
 def generate_database_entries_upcoming_events():
-    events = make_request_events()
+    events = read_active_events_data()
     for event in events:
         if event["start"] is not None:
             currentTime = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -45,16 +57,16 @@ async def ask_if_automatic_rescan_is_to_cancel():
             body = "\n".join(event_names)
             embed = discord.Embed(title=f"PROXIMO RESCAN AGENDADO", color=0x7b83b4)
             embed.add_field(name=f"Horário: {start_time}", value=body, inline=False)
-            buttonCancelRescan = Button(label="CANCELAR", style=discord.ButtonStyle.danger, custom_id=start_time, row=1)
+            buttonCancelRescan = Button(label="CANCELAR", style=discord.ButtonStyle.danger, custom_id=str(start_time), row=1)
             await add_button_event(buttonCancelRescan)
             view = View()
             view.add_item(buttonCancelRescan)
             
             await modChannel.send(embed=embed, view=view)
-            execute_query_to_database(f"UPDATE event SET notifieddate = NOW() WHERE start = {start_time};", "poliswag")
+            execute_query_to_database(f"UPDATE event SET notifieddate = NOW() WHERE start = '{start_time}';", "poliswag")
 
 def get_events_stored_in_database_to_rescan():
-    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE  NOW() < DATE_SUB(start, INTERVAL 1 DAY);", "poliswag")
+    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE start BETWEEN NOW() + INTERVAL 24 HOUR AND NOW() + INTERVAL 25 HOUR AND notifieddate IS NULL;", "poliswag")
     eventsDict = {}
     if len(storedEvents) > 0:
         for event in storedEvents:
@@ -78,19 +90,21 @@ async def cancel_rescan_callback(interaction: discord.Interaction):
         await interaction.followup.send(embed=embed)
         log_to_file(f"Rescan cancelled by {interaction.user}")
 
-def initialize_scheduled_rescanning_of_quests():
-    isQuestScanningScheduled = get_data_from_database("SELECT name FROM event WHERE rescan = 1 AND (NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 15 MINUTE) OR NOW() BETWEEN end AND DATE_ADD(end, INTERVAL 15 MINUTE));", "poliswag")
+async def initialize_scheduled_rescanning_of_quests():
+    isQuestScanningScheduled = get_data_from_database("SELECT name FROM event WHERE rescan = 1 AND ((NOW() BETWEEN start AND DATE_ADD(start, INTERVAL 15 MINUTE) AND TIME(start) != '00:00:00') OR (NOW() BETWEEN end AND DATE_ADD(end, INTERVAL 15 MINUTE) AND TIME(end) != '00:00:00'));", "poliswag")
     if len(isQuestScanningScheduled) > 0:
         questScannerRunning = get_data_from_database("SELECT scanned FROM poliswag WHERE scanned = 0;", "poliswag")
         if len(questScannerRunning) > 0:
             log_to_file(f"Rescan scheduled starting")
             start_pokestop_scan()
-            execute_query_to_database("UPDATE event SET rescan  notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 1 DAY);", "poliswag")
+            execute_query_to_database("UPDATE event SET rescan = 0 WHERE notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 1 DAY);", "poliswag")
             log_to_file(f"Scheduled rescan started successfully")
+            questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
+            await questChannel.send(embed=build_embed_object_title_description("Atualização de evento detectada", "Scan das novas quests inicializado!"))
     return
 
 async def set_if_to_rescan_on_event_start(date, rescan = 0):
-    execute_query_to_database(f"UPDATE event SET rescan = {rescan}, updateddate = NOW() WHERE start = '{date}';", "poliswag")
+    execute_query_to_database(f"UPDATE event SET rescan = '{rescan}', updateddate = NOW() WHERE start = '{date}';", "poliswag")
     
 async def add_button_event(button):
     button.callback = cancel_rescan_callback
