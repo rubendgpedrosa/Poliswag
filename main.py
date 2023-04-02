@@ -13,6 +13,7 @@ from helpers.utilities import check_current_pokemongo_version, log_to_file, buil
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change
 from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
 from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests
+from helpers.poligpt import get_response
 
 # Validates arguments passed to check what env was requested
 if (len(sys.argv) != 2):
@@ -34,7 +35,7 @@ async def __init__():
         scanningStuck = await restart_map_container_if_scanning_stuck()
         if not scanningStuck:
             generate_database_entries_upcoming_events()
-            initialize_scheduled_rescanning_of_quests()
+            await initialize_scheduled_rescanning_of_quests()
             await ask_if_automatic_rescan_is_to_cancel()
             
             await start_quest_scanner_if_day_change()
@@ -105,6 +106,10 @@ async def on_message(message):
 
             if message.content.startswith('!logs'):
                 messageToSend = build_embed_object_title_description("MOST RECENT LOGS", read_last_lines_from_log())
+            
+            # BETA FEATURE -> Too expensive to run in prod
+            if message.content.startswith("!q") and constants.ENABLE_POLISWAGGPT:
+                await message.channel.send(content=await get_response(message.content))
 
     # Quest channel commands in order do display quests
     if message.channel.id == constants.QUEST_CHANNEL_ID:
