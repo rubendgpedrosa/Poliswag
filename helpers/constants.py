@@ -1,10 +1,13 @@
-import os, datetime
+import os
 
 import discord, docker
 
 def init():
-    global DISCORD_API_KEY
+    global DISCORD_API_KEY, OPENAI_API_KEY, ENABLE_POLISWAGGPT
     DISCORD_API_KEY = os.getenv('DISCORD_API_KEY')
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    ENABLE_POLISWAGGPT = False
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
     global BACKEND_ENDPOINT, WEBSITE_URL
     BACKEND_ENDPOINT = os.getenv('BACKEND_ENDPOINT')
@@ -27,7 +30,8 @@ def init():
     REDIS_CONTAINER = os.getenv('REDIS_CONTAINER')
     ALARM_CONTAINER = os.getenv('ALARM_CONTAINER')
 
-    global FILTER_FILE, LOG_FILE, QUESTS_FILE, POKEMON_LIST_FILE, ERROR_LOG_FILE
+    global EVENT_FILE, FILTER_FILE, LOG_FILE, QUESTS_FILE, POKEMON_LIST_FILE, ERROR_LOG_FILE
+    EVENT_FILE = os.getenv('EVENT_FILE')
     FILTER_FILE = os.getenv('FILTER_FILE')
     LOG_FILE = os.getenv('LOG_FILE')
     ERROR_LOG_FILE = os.getenv('ERROR_LOG_FILE')
