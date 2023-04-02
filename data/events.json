@@ -1,0 +1,761 @@
+[
+    {
+        "name": "April Fowl’s Day: Pidgey Pandemonium",
+        "type": "event",
+        "start": "2023-04-01 13:00",
+        "end": "2023-04-01 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [
+            {
+                "text": "Increased chance of finding XXS and XXL Pidgey during this event!"
+            }
+        ],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Exeggcute Spotlight Hour",
+        "type": "spotlight-hour",
+        "start": "2023-04-04 18:00",
+        "end": "2023-04-04 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Lugia Raid Hour",
+        "type": "raid-hour",
+        "start": "2023-04-05 18:00",
+        "end": "2023-04-05 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Spring into Spring 2023",
+        "type": "event",
+        "start": "2023-04-04 10:00",
+        "end": "2023-04-10 20:00",
+        "spawns": [
+            {
+                "id": 113,
+                "template": "CHANSEY",
+                "costume": 7
+            },
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            }
+        ],
+        "eggs": [
+            {
+                "id": 133,
+                "template": "EEVEE"
+            },
+            {
+                "id": 172,
+                "template": "PICHU"
+            },
+            {
+                "id": 175,
+                "template": "TOGEPI",
+                "costume": 12
+            },
+            {
+                "id": 298,
+                "template": "AZURILL"
+            },
+            {
+                "id": 440,
+                "template": "HAPPINY",
+                "costume": 7
+            },
+            {
+                "id": 446,
+                "template": "MUNCHLAX"
+            },
+            {
+                "id": 447,
+                "template": "RIOLU"
+            },
+            {
+                "id": 742,
+                "template": "CUTIEFLY"
+            }
+        ],
+        "raids": [
+            {
+                "id": 39,
+                "template": "JIGGLYPUFF"
+            },
+            {
+                "id": 133,
+                "template": "EEVEE"
+            },
+            {
+                "id": 742,
+                "template": "CUTIEFLY"
+            },
+            {
+                "id": 103,
+                "template": "EXEGGUTOR"
+            },
+            {
+                "id": 103,
+                "template": "EXEGGUTOR_ALOLA",
+                "form": 78
+            },
+            {
+                "id": 113,
+                "template": "CHANSEY",
+                "costume": 7
+            },
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            },
+            {
+                "id": 249,
+                "template": "LUGIA"
+            },
+            {
+                "id": 428,
+                "template": "LOPUNNY",
+                "temp_evolution_id": 1
+            }
+        ],
+        "shinies": [],
+        "bonuses": [
+            {
+                "text": "2x Hatch Candy",
+                "template": "increased-candy",
+                "value": 2
+            },
+            {
+                "text": "1/2 Egg Hatch Distance",
+                "template": "reduced-hatch-distance",
+                "value": 12
+            },
+            {
+                "text": "1-Hour Lucky Eggs",
+                "template": "longer-lucky-egg",
+                "value": 1
+            }
+        ],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Shellder Spotlight Hour",
+        "type": "spotlight-hour",
+        "start": "2023-04-11 18:00",
+        "end": "2023-04-11 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Landorus Raid Hour",
+        "type": "raid-hour",
+        "start": "2023-04-12 18:00",
+        "end": "2023-04-12 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Togetic Community Day",
+        "type": "community-day",
+        "start": "2023-04-15 14:00",
+        "end": "2023-04-15 17:00",
+        "spawns": [
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            }
+        ],
+        "eggs": [
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            }
+        ],
+        "raids": [
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            }
+        ],
+        "shinies": [],
+        "bonuses": [
+            {
+                "text": "Increased Spawns"
+            },
+            {
+                "text": "1/4 Hatch Distance",
+                "template": "reduced-hatch-distance",
+                "value": 14
+            },
+            {
+                "text": "3-hour Incense**",
+                "template": "longer-incense",
+                "value": 3
+            },
+            {
+                "text": "3-hour Lures***",
+                "template": "longer-lure",
+                "value": 3
+            },
+            {
+                "text": "2x Catch Candy",
+                "template": "increased-candy",
+                "value": 2
+            },
+            {
+                "text": "2x Chance to receive Candy XL from catching Pokémon",
+                "value": 2
+            },
+            {
+                "text": "One additional Special Trade can be made for a maximum of two for the day*"
+            },
+            {
+                "text": "Trades made will require 50% less Stardust*",
+                "template": "increased-stardust",
+                "value": 50
+            }
+        ],
+        "features": [
+            "Trainer Battles: 100 power",
+            "Gyms and raids: 90 power"
+        ],
+        "has_quests": true,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "A Mystic Hero",
+        "type": "event",
+        "start": "2023-04-13 10:00",
+        "end": "2023-04-17 20:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Trapinch Spotlight Hour",
+        "type": "spotlight-hour",
+        "start": "2023-04-18 18:00",
+        "end": "2023-04-18 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Tapu Bulu Raid Hour",
+        "type": "raid-hour",
+        "start": "2023-04-26 18:00",
+        "end": "2023-04-26 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Unannounced Limited Research Event",
+        "type": "event",
+        "start": "2023-04-23 14:00",
+        "end": "2023-04-23 17:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Pokémon Spotlight Hour",
+        "type": "spotlight-hour",
+        "start": "2023-04-25 18:00",
+        "end": "2023-04-25 19:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Sustainability Week",
+        "type": "event",
+        "start": "2023-04-20 10:00",
+        "end": "2023-04-26 20:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "April Community Day Classic",
+        "type": "community-day",
+        "start": "2023-04-29 14:00",
+        "end": "2023-04-29 17:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Unannounced Event - May 6",
+        "type": "event",
+        "start": "2023-05-06 00:00",
+        "end": "2023-05-06 00:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "GO Battle Day: Stardust",
+        "type": "event",
+        "start": "2023-05-14 00:00",
+        "end": "2023-05-14 23:59",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "May Community Day",
+        "type": "community-day",
+        "start": "2023-05-21 14:00",
+        "end": "2023-05-21 17:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": true
+    },
+    {
+        "name": "Unannounced Event - May 27",
+        "type": "event",
+        "start": "2023-05-27 00:00",
+        "end": "2023-05-28 00:00",
+        "spawns": [],
+        "eggs": [],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [],
+        "features": [],
+        "has_quests": false,
+        "has_spawnpoints": false
+    },
+    {
+        "name": "Season 10: Rising Heroes",
+        "type": "season",
+        "start": null,
+        "end": "2023-06-01 10:00",
+        "spawns": [
+            {
+                "id": 100,
+                "template": "VOLTORB"
+            },
+            {
+                "id": 137,
+                "template": "PORYGON"
+            },
+            {
+                "id": 176,
+                "template": "TOGETIC"
+            },
+            {
+                "id": 282,
+                "template": "GARDEVOIR"
+            },
+            {
+                "id": 509,
+                "template": "PURRLOIN"
+            },
+            {
+                "id": 568,
+                "template": "TRUBBISH"
+            },
+            {
+                "id": 605,
+                "template": "ELGYEM"
+            },
+            {
+                "id": 56,
+                "template": "MANKEY"
+            },
+            {
+                "id": 103,
+                "template": "EXEGGUTOR"
+            },
+            {
+                "id": 213,
+                "template": "SHUCKLE"
+            },
+            {
+                "id": 570,
+                "template": "ZORUA"
+            },
+            {
+                "id": 618,
+                "template": "STUNFISK"
+            },
+            {
+                "id": 753,
+                "template": "FOMANTIS"
+            },
+            {
+                "id": 755,
+                "template": "MORELULL"
+            },
+            {
+                "id": 142,
+                "template": "AERODACTYL"
+            },
+            {
+                "id": 143,
+                "template": "SNORLAX"
+            },
+            {
+                "id": 293,
+                "template": "WHISMUR"
+            },
+            {
+                "id": 303,
+                "template": "MAWILE"
+            },
+            {
+                "id": 304,
+                "template": "ARON"
+            },
+            {
+                "id": 308,
+                "template": "MEDICHAM"
+            },
+            {
+                "id": 527,
+                "template": "WOOBAT"
+            },
+            {
+                "id": 54,
+                "template": "PSYDUCK"
+            },
+            {
+                "id": 79,
+                "template": "SLOWPOKE"
+            },
+            {
+                "id": 211,
+                "template": "QWILFISH"
+            },
+            {
+                "id": 226,
+                "template": "MANTINE"
+            },
+            {
+                "id": 457,
+                "template": "LUMINEON"
+            },
+            {
+                "id": 592,
+                "template": "FRILLISH"
+            },
+            {
+                "id": 704,
+                "template": "GOOMY"
+            }
+        ],
+        "eggs": [
+            {
+                "id": 69,
+                "template": "BELLSPROUT"
+            },
+            {
+                "id": 129,
+                "template": "MAGIKARP"
+            },
+            {
+                "id": 172,
+                "template": "PICHU"
+            },
+            {
+                "id": 174,
+                "template": "IGGLYBUFF"
+            },
+            {
+                "id": 328,
+                "template": "TRAPINCH"
+            },
+            {
+                "id": 546,
+                "template": "COTTONEE"
+            },
+            {
+                "id": 731,
+                "template": "PIKIPEK"
+            },
+            {
+                "id": 734,
+                "template": "YUNGOOS"
+            },
+            {
+                "id": 753,
+                "template": "FOMANTIS"
+            },
+            {
+                "id": 767,
+                "template": "WIMPOD"
+            },
+            {
+                "id": 66,
+                "template": "MACHOP"
+            },
+            {
+                "id": 207,
+                "template": "GLIGAR"
+            },
+            {
+                "id": 236,
+                "template": "TYROGUE"
+            },
+            {
+                "id": 433,
+                "template": "CHINGLING"
+            },
+            {
+                "id": 438,
+                "template": "BONSLY"
+            },
+            {
+                "id": 722,
+                "template": "ROWLET"
+            },
+            {
+                "id": 725,
+                "template": "LITTEN"
+            },
+            {
+                "id": 728,
+                "template": "POPPLIO"
+            },
+            {
+                "id": 747,
+                "template": "MAREANIE"
+            },
+            {
+                "id": 37,
+                "template": "VULPIX_ALOLA",
+                "form": 56
+            },
+            {
+                "id": 52,
+                "template": "MEOWTH_ALOLA",
+                "form": 64
+            },
+            {
+                "id": 52,
+                "template": "MEOWTH_GALARIAN",
+                "form": 2335
+            },
+            {
+                "id": 77,
+                "template": "PONYTA_GALARIAN",
+                "form": 2336
+            },
+            {
+                "id": 79,
+                "template": "SLOWPOKE_GALARIAN",
+                "form": 2582
+            },
+            {
+                "id": 83,
+                "template": "FARFETCHD_GALARIAN",
+                "form": 2338
+            },
+            {
+                "id": 100,
+                "template": "VOLTORB"
+            },
+            {
+                "id": 211,
+                "template": "QWILFISH"
+            },
+            {
+                "id": 215,
+                "template": "SNEASEL"
+            },
+            {
+                "id": 263,
+                "template": "ZIGZAGOON_GALARIAN",
+                "form": 946
+            },
+            {
+                "id": 554,
+                "template": "DARUMAKA_GALARIAN",
+                "form": 2341
+            },
+            {
+                "id": 618,
+                "template": "STUNFISK_GALARIAN",
+                "form": 2345
+            },
+            {
+                "id": 447,
+                "template": "RIOLU"
+            },
+            {
+                "id": 564,
+                "template": "TIRTOUGA"
+            },
+            {
+                "id": 566,
+                "template": "ARCHEN"
+            },
+            {
+                "id": 610,
+                "template": "AXEW"
+            },
+            {
+                "id": 696,
+                "template": "TYRUNT"
+            },
+            {
+                "id": 698,
+                "template": "AMAURA"
+            },
+            {
+                "id": 704,
+                "template": "GOOMY"
+            },
+            {
+                "id": 744,
+                "template": "ROCKRUFF"
+            },
+            {
+                "id": 777,
+                "template": "TOGEDEMARU"
+            },
+            {
+                "id": 782,
+                "template": "JANGMO_O"
+            },
+            {
+                "id": 403,
+                "template": "SHINX"
+            },
+            {
+                "id": 408,
+                "template": "CRANIDOS"
+            },
+            {
+                "id": 410,
+                "template": "SHIELDON"
+            },
+            {
+                "id": 440,
+                "template": "HAPPINY"
+            },
+            {
+                "id": 446,
+                "template": "MUNCHLAX"
+            },
+            {
+                "id": 592,
+                "template": "FRILLISH"
+            },
+            {
+                "id": 147,
+                "template": "DRATINI"
+            },
+            {
+                "id": 374,
+                "template": "BELDUM"
+            },
+            {
+                "id": 443,
+                "template": "GIBLE"
+            }
+        ],
+        "raids": [],
+        "shinies": [],
+        "bonuses": [
+            {
+                "text": "Increased damage for Pokémon participating in raids remotely"
+            },
+            {
+                "text": "Team GO Rocket will appear more frequently at PokéStops"
+            },
+            {
+                "text": "Extra Stardust earned from Team GO Rocket encounters",
+                "template": "increased-stardust"
+            }
+        ],
+        "features": [],
+        "has_quests": true,
+        "has_spawnpoints": false
+    }
+]
