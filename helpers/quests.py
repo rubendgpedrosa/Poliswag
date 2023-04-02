@@ -1,5 +1,4 @@
 import json, requests, datetime
-import discord
 import helpers.constants as constants
 
 namesList = ["pokemon", "pokemonuteis"]
@@ -7,14 +6,19 @@ discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Ute
 currentDay = datetime.datetime.now().day
 
 def get_current_quest_data():
-    data = requests.get(constants.BACKEND_ENDPOINT + 'get_quests?fence=None')
-    questText = data.text
-    quests = json.loads(questText)
-    with open(constants.QUESTS_FILE, 'w') as file:
-        json.dump(quests, file, indent=4)
-    # Done for the mobile app
-    categorize_quests(quests)
-    return quests
+    try:
+        data = requests.get(constants.BACKEND_ENDPOINT + 'get_quests?fence=None', timeout=5)
+        data.raise_for_status() # Raise an exception if there is an HTTP error status code (4xx or 5xx)
+        questText = data.text
+        quests = json.loads(questText)
+        with open(constants.QUESTS_FILE, 'w') as file:
+            json.dump(quests, file, indent=4)
+        # Done for the mobile app
+        categorize_quests(quests)
+        return quests
+    except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+        print(f"Error: {e}")
+        return None
 
 def write_filter_data(receivedData, add=True):
     if len(receivedData) != 2:
