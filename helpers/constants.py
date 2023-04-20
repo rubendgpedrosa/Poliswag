@@ -21,8 +21,9 @@ def init():
     QUEST_CHANNEL_ID = int(os.getenv('QUEST_CHANNEL_ID'))
     VOICE_CHANNEL_ID = int(os.getenv('VOICE_CHANNEL_ID'))
 
-    global DOCKER_CLIENT
-    DOCKER_CLIENT = docker.from_env().api
+    global DOCKER_CLIENT_API, DOCKER_CLIENT
+    DOCKER_CLIENT_API = docker.from_env().api
+    DOCKER_CLIENT = docker.from_env()
     
     global RUN_CONTAINER, DB_CONTAINER, REDIS_CONTAINER, ALARM_CONTAINER
     RUN_CONTAINER = os.getenv('RUN_CONTAINER')
