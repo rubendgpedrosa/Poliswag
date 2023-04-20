@@ -47,10 +47,10 @@ async def rename_voice_channel(totalBoxesFailing):
         await voiceChannel.edit(name=message)
 
 def restart_run_docker_containers():
-    constants.DOCKER_CLIENT.restart(constants.RUN_CONTAINER)
+    constants.DOCKER_CLIENT_API.restart(constants.RUN_CONTAINER)
 
 def restart_alarm_docker_container():
-    constants.DOCKER_CLIENT.restart(constants.ALARM_CONTAINER)
+    constants.DOCKER_CLIENT_API.restart(constants.ALARM_CONTAINER)
 
 async def start_quest_scanner_if_day_change():
     didDayChangeFromStoredDb = get_data_from_database(f"SELECT last_scanned_date FROM poliswag WHERE last_scanned_date < '{time_now()}' OR last_scanned_date IS NULL;", "poliswag")

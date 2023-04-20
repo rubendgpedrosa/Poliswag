@@ -106,3 +106,265 @@ INFO | 2023-04-02 00:03 -- Enabled quest scanning mode
 INFO | 2023-04-02 00:03 -- Scheduled rescan started successfully
 INFO | 2023-04-02 00:43 -- Disabled quest scanning mode
 INFO | 2023-04-02 00:43 -- Pokestop quest scan completed
+INFO | 2023-04-03 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-03 00:02 -- Cleared previous quest data
+INFO | 2023-04-03 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-03 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-03 00:02 -- New PvP data generated
+INFO | 2023-04-03 00:02 -- New last_scanned_date set to 2023-04-03 00:00:00
+INFO | 2023-04-03 00:02 -- Enabled quest scanning mode
+INFO | 2023-04-03 00:02 -- Pokestop quest scanning started
+INFO | 2023-04-03 00:32 -- Disabled quest scanning mode
+INFO | 2023-04-03 00:32 -- Pokestop quest scan completed
+INFO | 2023-04-03 00:37 -- Number of devices encountering issues: 0
+INFO | 2023-04-03 08:52 -- Number of devices encountering issues: 1
+INFO | 2023-04-03 13:02 -- Number of devices encountering issues: 0
+INFO | 2023-04-04 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-04 00:00 -- Cleared previous quest data
+INFO | 2023-04-04 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-04 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-04-04 00:00 -- New PvP data generated
+INFO | 2023-04-04 00:00 -- New last_scanned_date set to 2023-04-04 00:00:00
+INFO | 2023-04-04 00:00 -- Enabled quest scanning mode
+INFO | 2023-04-04 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-04 00:26 -- Disabled quest scanning mode
+INFO | 2023-04-04 00:26 -- Pokestop quest scan completed
+INFO | 2023-04-04 10:01 -- Rescan scheduled starting
+INFO | 2023-04-04 10:01 -- Cleared previous quest data
+INFO | 2023-04-04 10:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-04 10:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-04 10:01 -- New PvP data generated
+INFO | 2023-04-04 10:01 -- New last_scanned_date set to 2023-04-04 00:00:00
+INFO | 2023-04-04 10:01 -- Enabled quest scanning mode
+INFO | 2023-04-04 10:01 -- Scheduled rescan started successfully
+INFO | 2023-04-04 10:31 -- Disabled quest scanning mode
+INFO | 2023-04-04 10:31 -- Pokestop quest scan completed
+INFO | 2023-04-05 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-05 00:01 -- Cleared previous quest data
+INFO | 2023-04-05 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-05 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-05 00:01 -- New PvP data generated
+INFO | 2023-04-05 00:01 -- New last_scanned_date set to 2023-04-05 00:00:00
+INFO | 2023-04-05 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-05 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-05 00:31 -- Disabled quest scanning mode
+INFO | 2023-04-05 00:31 -- Pokestop quest scan completed
+INFO | 2023-04-06 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-06 00:01 -- Cleared previous quest data
+INFO | 2023-04-06 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-06 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-06 00:01 -- New PvP data generated
+INFO | 2023-04-06 00:01 -- New last_scanned_date set to 2023-04-06 00:00:00
+INFO | 2023-04-06 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-06 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-06 00:31 -- Disabled quest scanning mode
+INFO | 2023-04-06 00:31 -- Pokestop quest scan completed
+INFO | 2023-04-07 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-07 00:01 -- Cleared previous quest data
+INFO | 2023-04-07 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-07 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-07 00:01 -- New PvP data generated
+INFO | 2023-04-07 00:01 -- New last_scanned_date set to 2023-04-07 00:00:00
+INFO | 2023-04-07 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-07 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-07 00:26 -- Disabled quest scanning mode
+INFO | 2023-04-07 00:26 -- Pokestop quest scan completed
+INFO | 2023-04-07 19:37 -- Notification filters reloaded by JMBoy#1403
+INFO | 2023-04-08 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-08 00:01 -- Cleared previous quest data
+INFO | 2023-04-08 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-08 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-08 00:01 -- New PvP data generated
+INFO | 2023-04-08 00:01 -- New last_scanned_date set to 2023-04-08 00:00:00
+INFO | 2023-04-08 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-08 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-08 00:26 -- Disabled quest scanning mode
+INFO | 2023-04-08 00:26 -- Pokestop quest scan completed
+INFO | 2023-04-09 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-09 00:02 -- Cleared previous quest data
+INFO | 2023-04-09 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-09 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-09 00:02 -- New PvP data generated
+INFO | 2023-04-09 00:02 -- New last_scanned_date set to 2023-04-09 00:00:00
+INFO | 2023-04-09 00:02 -- Enabled quest scanning mode
+INFO | 2023-04-09 00:03 -- Pokestop quest scanning started
+INFO | 2023-04-09 00:32 -- Disabled quest scanning mode
+INFO | 2023-04-09 00:32 -- Pokestop quest scan completed
+INFO | 2023-04-09 03:32 -- Number of devices encountering issues: 1
+INFO | 2023-04-09 04:37 -- Number of devices encountering issues: 0
+INFO | 2023-04-09 09:57 -- Number of devices encountering issues: 1
+INFO | 2023-04-09 16:12 -- Number of devices encountering issues: 0
+INFO | 2023-04-10 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-10 00:02 -- Cleared previous quest data
+INFO | 2023-04-10 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-10 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-10 00:02 -- New PvP data generated
+INFO | 2023-04-10 00:02 -- New last_scanned_date set to 2023-04-10 00:00:00
+INFO | 2023-04-10 00:02 -- Enabled quest scanning mode
+INFO | 2023-04-10 00:03 -- Pokestop quest scanning started
+INFO | 2023-04-10 00:32 -- Disabled quest scanning mode
+INFO | 2023-04-10 00:32 -- Pokestop quest scan completed
+INFO | 2023-04-10 05:42 -- Number of devices encountering issues: 1
+INFO | 2023-04-10 19:42 -- Number of devices encountering issues: 0
+INFO | 2023-04-10 20:02 -- Rescan scheduled starting
+INFO | 2023-04-10 20:02 -- Cleared previous quest data
+INFO | 2023-04-10 20:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-10 20:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-10 20:02 -- New PvP data generated
+INFO | 2023-04-10 20:02 -- New last_scanned_date set to 2023-04-10 00:00:00
+INFO | 2023-04-10 20:02 -- Enabled quest scanning mode
+INFO | 2023-04-10 20:03 -- Scheduled rescan started successfully
+INFO | 2023-04-10 20:37 -- Disabled quest scanning mode
+INFO | 2023-04-10 20:37 -- Pokestop quest scan completed
+INFO | 2023-04-11 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-11 00:02 -- Cleared previous quest data
+INFO | 2023-04-11 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-11 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-11 00:02 -- New PvP data generated
+INFO | 2023-04-11 00:02 -- New last_scanned_date set to 2023-04-11 00:00:00
+INFO | 2023-04-11 00:02 -- Enabled quest scanning mode
+INFO | 2023-04-11 00:03 -- Pokestop quest scanning started
+INFO | 2023-04-11 00:32 -- Disabled quest scanning mode
+INFO | 2023-04-11 00:32 -- Pokestop quest scan completed
+INFO | 2023-04-11 03:12 -- Number of devices encountering issues: 1
+INFO | 2023-04-11 03:22 -- Number of devices encountering issues: 0
+INFO | 2023-04-11 04:37 -- Number of devices encountering issues: 1
+INFO | 2023-04-11 10:12 -- Number of devices encountering issues: 0
+INFO | 2023-04-11 11:02 -- Number of devices encountering issues: 1
+INFO | 2023-04-11 11:07 -- Number of devices encountering issues: 0
+INFO | 2023-04-11 17:05 -- Rescan cancelled by JMBoy#1403
+INFO | 2023-04-11 18:02 -- Rescan scheduled starting
+INFO | 2023-04-11 18:02 -- Cleared previous quest data
+INFO | 2023-04-11 18:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-11 18:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-11 18:02 -- New PvP data generated
+INFO | 2023-04-11 18:02 -- New last_scanned_date set to 2023-04-11 00:00:00
+INFO | 2023-04-11 18:02 -- Enabled quest scanning mode
+INFO | 2023-04-11 18:03 -- Scheduled rescan started successfully
+INFO | 2023-04-11 18:32 -- Disabled quest scanning mode
+INFO | 2023-04-11 18:32 -- Pokestop quest scan completed
+INFO | 2023-04-11 19:02 -- Rescan scheduled starting
+INFO | 2023-04-11 19:02 -- Cleared previous quest data
+INFO | 2023-04-11 19:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-11 19:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-11 19:02 -- New PvP data generated
+INFO | 2023-04-11 19:02 -- New last_scanned_date set to 2023-04-11 00:00:00
+INFO | 2023-04-11 19:02 -- Enabled quest scanning mode
+INFO | 2023-04-11 19:03 -- Scheduled rescan started successfully
+INFO | 2023-04-11 19:32 -- Disabled quest scanning mode
+INFO | 2023-04-11 19:32 -- Pokestop quest scan completed
+INFO | 2023-04-12 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-12 00:02 -- Cleared previous quest data
+INFO | 2023-04-12 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-12 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-04-12 00:02 -- New PvP data generated
+INFO | 2023-04-12 00:02 -- New last_scanned_date set to 2023-04-12 00:00:00
+INFO | 2023-04-12 00:02 -- Enabled quest scanning mode
+INFO | 2023-04-12 00:03 -- Pokestop quest scanning started
+INFO | 2023-04-12 00:32 -- Disabled quest scanning mode
+INFO | 2023-04-12 00:32 -- Pokestop quest scan completed
+INFO | 2023-04-12 02:47 -- Number of devices encountering issues: 1
+INFO | 2023-04-12 03:52 -- Number of devices encountering issues: 0
+INFO | 2023-04-12 07:02 -- Number of devices encountering issues: 1
+INFO | 2023-04-12 10:37 -- Number of devices encountering issues: 0
+INFO | 2023-04-12 21:16 -- Number of devices encountering issues: 7
+INFO | 2023-04-12 21:16 -- Pokemon scanning not progressing - Restarting
+INFO | 2023-04-12 21:26 -- Number of devices encountering issues: 6
+INFO | 2023-04-12 21:31 -- Number of devices encountering issues: 0
+INFO | 2023-04-13 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-13 00:01 -- Cleared previous quest data
+INFO | 2023-04-13 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-13 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-13 00:01 -- New PvP data generated
+INFO | 2023-04-13 00:01 -- New last_scanned_date set to 2023-04-13 00:00:00
+INFO | 2023-04-13 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-13 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-13 00:31 -- Disabled quest scanning mode
+INFO | 2023-04-13 00:31 -- Pokestop quest scan completed
+INFO | 2023-04-13 10:01 -- Rescan scheduled starting
+INFO | 2023-04-13 10:01 -- Cleared previous quest data
+INFO | 2023-04-13 10:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-13 10:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-13 10:01 -- New PvP data generated
+INFO | 2023-04-13 10:01 -- New last_scanned_date set to 2023-04-13 00:00:00
+INFO | 2023-04-13 10:01 -- Enabled quest scanning mode
+INFO | 2023-04-13 10:01 -- Scheduled rescan started successfully
+INFO | 2023-04-13 10:31 -- Disabled quest scanning mode
+INFO | 2023-04-13 10:31 -- Pokestop quest scan completed
+INFO | 2023-04-14 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-14 00:01 -- Cleared previous quest data
+INFO | 2023-04-14 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-14 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-14 00:01 -- New PvP data generated
+INFO | 2023-04-14 00:01 -- New last_scanned_date set to 2023-04-14 00:00:00
+INFO | 2023-04-14 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-14 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-14 00:31 -- Disabled quest scanning mode
+INFO | 2023-04-14 00:31 -- Pokestop quest scan completed
+INFO | 2023-04-15 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-15 00:01 -- Cleared previous quest data
+INFO | 2023-04-15 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-15 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-15 00:01 -- New PvP data generated
+INFO | 2023-04-15 00:01 -- New last_scanned_date set to 2023-04-15 00:00:00
+INFO | 2023-04-15 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-15 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-15 00:26 -- Disabled quest scanning mode
+INFO | 2023-04-15 00:26 -- Pokestop quest scan completed
+INFO | 2023-04-15 00:46 -- Number of devices encountering issues: 1
+INFO | 2023-04-15 02:21 -- Number of devices encountering issues: 0
+INFO | 2023-04-15 05:41 -- Number of devices encountering issues: 2
+INFO | 2023-04-15 06:21 -- Number of devices encountering issues: 0
+INFO | 2023-04-15 09:36 -- Number of devices encountering issues: 1
+INFO | 2023-04-15 17:31 -- Number of devices encountering issues: 0
+INFO | 2023-04-16 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-16 00:01 -- Cleared previous quest data
+INFO | 2023-04-16 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-16 00:01 -- Truncated quests table sucessfully!
+INFO | 2023-04-16 00:01 -- New PvP data generated
+INFO | 2023-04-16 00:01 -- New last_scanned_date set to 2023-04-16 00:00:00
+INFO | 2023-04-16 00:01 -- Enabled quest scanning mode
+INFO | 2023-04-16 00:01 -- Pokestop quest scanning started
+INFO | 2023-04-16 00:11 -- Number of devices encountering issues: 1
+INFO | 2023-04-16 00:26 -- Disabled quest scanning mode
+INFO | 2023-04-16 00:26 -- Pokestop quest scan completed
+INFO | 2023-04-16 01:01 -- Number of devices encountering issues: 0
+INFO | 2023-04-16 09:51 -- Number of devices encountering issues: 1
+INFO | 2023-04-16 15:52 -- Pokemon scanning not progressing - Restarting
+INFO | 2023-04-16 17:17 -- Number of devices encountering issues: 0
+INFO | 2023-04-16 18:17 -- Number of devices encountering issues: 1
+INFO | 2023-04-16 20:02 -- Number of devices encountering issues: 0
+INFO | 2023-04-19 10:53 -- Updated to new version 0.267.1
+INFO | 2023-04-19 10:53 -- Number of devices encountering issues: 1
+INFO | 2023-04-19 10:53 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-19 10:53 -- Cleared previous quest data
+INFO | 2023-04-19 10:53 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-19 10:53 -- Truncated quests table sucessfully!
+INFO | 2023-04-19 10:53 -- New PvP data generated
+INFO | 2023-04-19 10:53 -- New last_scanned_date set to 2023-04-19 00:00:00
+INFO | 2023-04-19 10:53 -- Enabled quest scanning mode
+INFO | 2023-04-19 10:53 -- Pokestop quest scanning started
+INFO | 2023-04-19 11:23 -- Disabled quest scanning mode
+INFO | 2023-04-19 11:23 -- Pokestop quest scan completed
+INFO | 2023-04-19 12:18 -- Number of devices encountering issues: 0
+INFO | 2023-04-20 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-04-20 00:00 -- Cleared previous quest data
+INFO | 2023-04-20 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-20 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-04-20 00:00 -- New PvP data generated
+INFO | 2023-04-20 00:00 -- New last_scanned_date set to 2023-04-20 00:00:00
+INFO | 2023-04-20 00:00 -- Enabled quest scanning mode
+INFO | 2023-04-20 00:00 -- Pokestop quest scanning started
+INFO | 2023-04-20 00:25 -- Disabled quest scanning mode
+INFO | 2023-04-20 00:25 -- Pokestop quest scan completed
+INFO | 2023-04-20 00:30 -- Number of devices encountering issues: 1
+INFO | 2023-04-20 00:40 -- Number of devices encountering issues: 0
+INFO | 2023-04-20 10:00 -- Rescan scheduled starting
+INFO | 2023-04-20 10:00 -- Cleared previous quest data
+INFO | 2023-04-20 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-04-20 10:00 -- Truncated quests table sucessfully!
+INFO | 2023-04-20 10:00 -- New PvP data generated
+INFO | 2023-04-20 10:00 -- New last_scanned_date set to 2023-04-20 00:00:00
+INFO | 2023-04-20 10:00 -- Enabled quest scanning mode
+INFO | 2023-04-20 10:25 -- Disabled quest scanning mode
+INFO | 2023-04-20 10:25 -- Pokestop quest scan completed

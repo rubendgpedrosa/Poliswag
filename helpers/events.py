@@ -41,8 +41,11 @@ def generate_database_entries_upcoming_events():
             hasSpawnpoins = event["has_spawnpoints"]
             isNotCommunityDay = "community day" not in event["name"].lower()
             isNotGoEvent = not event["name"].startswith("GO")
+            isNotUnannounced = "unannounced" not in event["name"].lower()
+            isNotSpotlightHour = "spotlight hour" not in event["name"].lower()
+            isNotRaidHour = "raid hour" not in event["name"].lower()
 
-            if isBeforeStartDate and hasQuests and isNotCommunityDay and isNotGoEvent:
+            if isBeforeStartDate and hasQuests and isNotCommunityDay and isNotGoEvent and isNotUnannounced and isNotSpotlightHour and isNotRaidHour:
                 eventNameEscaped = event["name"].replace("'", "\\'")
                 execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints, rescan) VALUES ('{eventNameEscaped}', '{event['start']}', '{event['end']}', {int(hasQuests)}, {int(hasSpawnpoins)}, 1);", "poliswag")
 
@@ -66,7 +69,7 @@ async def ask_if_automatic_rescan_is_to_cancel():
             execute_query_to_database(f"UPDATE event SET notifieddate = NOW() WHERE start = '{start_time}';", "poliswag")
 
 def get_events_stored_in_database_to_rescan():
-    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE start BETWEEN NOW() + INTERVAL 24 HOUR AND NOW() + INTERVAL 25 HOUR AND notifieddate IS NULL;", "poliswag")
+    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE start > NOW() AND start < NOW() + INTERVAL 72 HOUR AND notifieddate IS NULL;", "poliswag")
     eventsDict = {}
     if len(storedEvents) > 0:
         for event in storedEvents:
@@ -97,10 +100,9 @@ async def initialize_scheduled_rescanning_of_quests():
         if len(questScannerRunning) > 0:
             log_to_file(f"Rescan scheduled starting")
             start_pokestop_scan()
+            await notify_event_start()
             execute_query_to_database("UPDATE event SET rescan = 0 WHERE notifieddate IS NULL AND NOW() > DATE_SUB(start, INTERVAL 1 DAY);", "poliswag")
             log_to_file(f"Scheduled rescan started successfully")
-            questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
-            await questChannel.send(embed=build_embed_object_title_description("Atualização de evento detectada", "Scan das novas quests inicializado!"))
     return
 
 async def set_if_to_rescan_on_event_start(date, rescan = 0):
@@ -108,3 +110,38 @@ async def set_if_to_rescan_on_event_start(date, rescan = 0):
     
 async def add_button_event(button):
     button.callback = cancel_rescan_callback
+    
+async def notify_event_start():
+    await notify_quest_channel_scan_start()
+    await notify_event_bonus_activated()
+
+async def notify_quest_channel_scan_start():
+    questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
+    await questChannel.send(embed=build_embed_object_title_description("Atualização de evento detectada", "Scan das novas quests inicializado!"))
+
+async def notify_event_bonus_activated():
+    convivioChannel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
+    with open(constants.EVENT_FILE, 'r') as f:
+        events = json.load(f)
+    
+    neverNotified = True
+    now = datetime.now()
+    for event in events:
+        activeEvents = []
+        if event["start"] is None or event["end"] is None:
+            continue
+        start = datetime.strptime(event["start"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
+        end = datetime.strptime(event["end"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
+        if start <= now <= end and event["has_quests"]:
+            for key, value in event.items():
+                if key not in ["has_quests", "has_spawnpoints", "start", "end", "name", "type"] and value:
+                    if key == "bonuses":
+                        for bonus in value.split("#"):
+                            activeEvents.append(f"• {bonus}")
+                    else:
+                        activeEvents.append(f"• {key.capitalize()}: {value}")
+            content = ""
+            if not neverNotified:
+                content = "**Atuais eventos ativos:**".upper()
+                neverNotified = False
+            await convivioChannel.send(content=content, embed=build_embed_object_title_description(event["name"].upper(), "\n".join(activeEvents)))
