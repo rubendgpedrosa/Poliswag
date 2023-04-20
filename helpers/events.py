@@ -120,22 +120,28 @@ async def notify_quest_channel_scan_start():
     await questChannel.send(embed=build_embed_object_title_description("Atualização de evento detectada", "Scan das novas quests inicializado!"))
 
 async def notify_event_bonus_activated():
+    convivioChannel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
     with open(constants.EVENT_FILE, 'r') as f:
         events = json.load(f)
     
-    activeEvents = []
+    neverNotified = True
     now = datetime.now()
     for event in events:
-        start = datetime.fromisoformat(event['start']).replace(second=0, microsecond=0)
-        end = datetime.fromisoformat(event['end']).replace(second=0, microsecond=0)
-        if start <= now <= end:
-            activeEvents.append(event)
-        
-    eventBonus = []
-    for key, value in activeEvents.items():
-        eventBonus.append(f"{key.capitalize()}: {value}")
-    
-    convivioChannel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
-    
-    if (len(eventBonus) > 0):
-        await convivioChannel.send(embed=build_embed_object_title_description("Atuais bonus de eventos activos", "\n".join(eventBonus)))
+        activeEvents = []
+        if event["start"] is None or event["end"] is None:
+            continue
+        start = datetime.strptime(event["start"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
+        end = datetime.strptime(event["end"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
+        if start <= now <= end and event["has_quests"]:
+            for key, value in event.items():
+                if key not in ["has_quests", "has_spawnpoints", "start", "end", "name", "type"] and value:
+                    if key == "bonuses":
+                        for bonus in value.split("#"):
+                            activeEvents.append(f"• {bonus}")
+                    else:
+                        activeEvents.append(f"• {key.capitalize()}: {value}")
+            content = ""
+            if not neverNotified:
+                content = "**Atuais eventos ativos:**".upper()
+                neverNotified = False
+            await convivioChannel.send(content=content, embed=build_embed_object_title_description(event["name"].upper(), "\n".join(activeEvents)))
