@@ -73,6 +73,10 @@ def has_total_quests_scanned_been_reached():
     totalPreviousScannedStopsMarinhaGrande = int(totalPreviousScannedStops[0]["data"][1])
 
     totalScannedStops = get_data_from_database(f"SELECT COUNT(pokestop.pokestop_id) AS num_pokestops FROM trs_quest LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id WHERE trs_quest.layer = 1 GROUP BY IF(pokestop.longitude NOT LIKE '%-8.9%', 'Longitude not like %-8.9%', 'Longitude like %-8.9%');")
+
+    if not totalScannedStops: # added check for empty list
+        return {'Leiria': False, 'Marinha': False}
+    
     totalScannedStopsLeiria = int(totalScannedStops[1]["data"][0])
     totalScannedStopsMarinhaGrande = int(totalScannedStops[0]["data"][0])
 
