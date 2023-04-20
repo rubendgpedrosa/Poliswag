@@ -71,7 +71,7 @@ def prepare_fetched_json_object(jsonData):
     jsonData = sorted(jsonDataNoDuplicates, key=lambda d: d["score"], reverse=True)
     listPokemonForNotifications = []
     for data in jsonData:
-        if data["score"] >= 85 and len(data["speciesName"].split(" (", 1)[0]) > 1:
+        if data["score"] >= 80 and len(data["speciesName"].split(" (", 1)[0]) > 1:
             listPokemonForNotifications.append(data["speciesName"].split(" (", 1)[0])
     return listPokemonForNotifications
 
