@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import discord, sys
+import discord, sys, os
 from discord.ext import tasks
 from dotenv import load_dotenv
 
@@ -43,6 +43,8 @@ async def __init__():
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         log_to_file(error_msg, "ERROR")
+        # run bash script
+        os.system('/root/updater.sh')
 
 
 @constants.CLIENT.event
