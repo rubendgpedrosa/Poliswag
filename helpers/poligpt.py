@@ -14,6 +14,6 @@ async def load_index():
 async def get_response(question):
     index = await load_index()
     current_time = datetime.now().strftime("%H:%M:%S")
-    response = index.query(f"Data: {current_time}| Pergunta: {question}. Responde em Portugues mas nao traduzas linguagem de jogo como lures, incense e raids.")
+    response = index.query(f"Data: {current_time}| Pergunta: {question}. Responde em Portugues, em bullet points. Nao traduzas items de jogo tais como lure, incense , raids, lucky egg e afins.")
     print(response)
     return response
