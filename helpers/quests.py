@@ -176,10 +176,10 @@ def build_quest_summary_embed_objects(quests):
         else:
             questGroupsMarinhaGrande = update_quest_groups(quest, questGroupsMarinhaGrande)
 
-    #embedLeiria = discord.Embed(title="Resumo de algumas quests de hoje - Leiria", color=0x7b83b4)
-    #embedMarinhaGrande = discord.Embed(title="Resumo de algumas quests de hoje - Marinha Grande", color=0x7b83b4)
-    #lessPopularQuestsLeiria = get_least_popular_quests(questGroupsLeiria)
-    #lessPopularQuestsMarinhaGrande = get_least_popular_quests(questGroupsMarinhaGrande)
+    # embedLeiria = discord.Embed(title="Resumo de algumas quests de hoje - Leiria", color=0x7b83b4)
+    # embedMarinhaGrande = discord.Embed(title="Resumo de algumas quests de hoje - Marinha Grande", color=0x7b83b4)
+    # lessPopularQuestsLeiria = get_least_popular_quests(questGroupsLeiria)
+    # lessPopularQuestsMarinhaGrande = get_least_popular_quests(questGroupsMarinhaGrande)
     # embedLeiria.add_field(name="Quests Leiria", value=questSummaryListStringLeiria)
     # embedMarinhaGrande.add_field(name="Quests Marinha Grande", value=questSummaryListStringMarinhaGrande)
     # embedLeiria.set_footer(text="Esta informação expira ao final do dia")
