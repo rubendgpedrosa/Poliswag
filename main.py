@@ -9,8 +9,8 @@ import traceback
 from helpers.poliswag import load_filter_data
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data
-from helpers.utilities import check_current_pokemongo_version, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
-from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change
+from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
+from helpers.scanner_manager import check_force_expire_accounts_required, start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change, clear_quests_table
 from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
 from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests, notify_event_bonus_activated
 from helpers.poligpt import get_response
@@ -34,12 +34,13 @@ async def __init__():
         
         scanningStuck = await restart_map_container_if_scanning_stuck()
         if not scanningStuck:
-            generate_database_entries_upcoming_events()
+            await generate_database_entries_upcoming_events()
             await initialize_scheduled_rescanning_of_quests()
             await ask_if_automatic_rescan_is_to_cancel()
             
-            await start_quest_scanner_if_day_change()
             await is_quest_scanning_complete()
+            await start_quest_scanner_if_day_change()
+            await check_force_expire_accounts_required()
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         log_to_file(error_msg, "ERROR")
@@ -115,6 +116,11 @@ async def on_message(message):
             
             if (message.content.startswith('!event')):
                 await notify_event_bonus_activated()
+                
+            if (message.content.startswith('!questclear')):
+                clear_quests_table()
+                clear_quest_file()
+                messageToSend = build_embed_object_title_description("Quest data cleared!", "Quest table and file have been cleared")
 
     # Quest channel commands in order do display quests
     if message.channel.id == constants.QUEST_CHANNEL_ID:
