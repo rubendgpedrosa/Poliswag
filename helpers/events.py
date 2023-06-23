@@ -31,7 +31,7 @@ def read_active_events_data():
         events = request.json()
     return events
     
-def generate_database_entries_upcoming_events():
+async def generate_database_entries_upcoming_events():
     events = read_active_events_data()
     for event in events:
         if event["start"] is not None:
@@ -47,7 +47,9 @@ def generate_database_entries_upcoming_events():
 
             if isBeforeStartDate and hasQuests and isNotCommunityDay and isNotGoEvent and isNotUnannounced and isNotSpotlightHour and isNotRaidHour:
                 eventNameEscaped = event["name"].replace("'", "\\'")
-                execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints, rescan) VALUES ('{eventNameEscaped}', '{event['start']}', '{event['end']}', {int(hasQuests)}, {int(hasSpawnpoins)}, 1);", "poliswag")
+                insertedRows = execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end, has_quests, has_spawnpoints, rescan) VALUES ('{eventNameEscaped}', '{event['start']}', '{event['end']}', {int(hasQuests)}, {int(hasSpawnpoins)}, 1);", "poliswag")
+                if insertedRows < 0:
+                    await add_scheduled_event_discord_sidebar(event["name"], event["start"], event["end"])
 
 async def ask_if_automatic_rescan_is_to_cancel():
     eventsByStartTime = get_events_stored_in_database_to_rescan()
@@ -141,7 +143,16 @@ async def notify_event_bonus_activated():
                     else:
                         activeEvents.append(f"• {key.capitalize()}: {value}")
             content = ""
-            if not neverNotified:
+            if neverNotified:
                 content = "**Atuais eventos ativos:**".upper()
                 neverNotified = False
             await convivioChannel.send(content=content, embed=build_embed_object_title_description(event["name"].upper(), "\n".join(activeEvents)))
+    if neverNotified:
+        await convivioChannel.send(embed=build_embed_object_title_description("Paaaaauuuuuuuu...??", "Oh... Afinal já não há mais eventos ativos de momento..."))
+
+async def add_scheduled_event_discord_sidebar(eventName, startDate, endDate):
+    await constants.CLIENT.create_scheduled_event(
+        name=eventName,
+        start_time=startDate,
+        end_time=endDate
+    )
