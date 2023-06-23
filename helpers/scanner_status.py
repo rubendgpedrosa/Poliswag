@@ -18,6 +18,7 @@ async def check_boxes_with_issues():
         await rename_voice_channel(0)
 
 async def restart_map_container_if_scanning_stuck():
+    return
     dstTimeChanges = 0
     # Check if summer time is active
     if time.daylight == 1:
@@ -74,7 +75,7 @@ def has_total_quests_scanned_been_reached():
 
     totalScannedStops = get_data_from_database(f"SELECT COUNT(pokestop.pokestop_id) AS num_pokestops FROM trs_quest LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id WHERE trs_quest.layer = 1 GROUP BY IF(pokestop.longitude NOT LIKE '%-8.9%', 'Longitude not like %-8.9%', 'Longitude like %-8.9%');")
 
-    if not totalScannedStops: # added check for empty list
+    if not totalScannedStops or len(totalScannedStops) < 2:
         return {'Leiria': False, 'Marinha': False}
     
     totalScannedStopsLeiria = int(totalScannedStops[1]["data"][0])

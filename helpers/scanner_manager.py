@@ -1,4 +1,5 @@
 import helpers.constants as constants
+import requests
 
 from helpers.utilities import log_to_file, time_now, clear_quest_file, build_embed_object_title_description
 from helpers.database_connector import execute_query_to_database, get_data_from_database
@@ -60,3 +61,33 @@ async def start_quest_scanner_if_day_change():
         questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
         await questChannel.send(embed=build_embed_object_title_description("Mudança de dia detetada", "Scan das novas quests inicializado!"))
         log_to_file("Pokestop quest scanning started")
+
+async def check_force_expire_accounts_required():
+    forceAccountRequired = get_data_from_database("SELECT last_swap_date FROM poliswag WHERE NOW() > DATE_ADD(last_swap_date, INTERVAL 8 HOUR);", "poliswag")
+    if len(forceAccountRequired) > 0:
+        log_to_file("Force expire accounts required")
+        reset_game_data_for_devices()
+
+def reset_game_data_for_devices():
+    deviceNames = ["PoGoLeiria", "a95xF1", "Tx9s1_JMBoy", "Tx9s", "Tx9s1_Ethix", "Tx9s2_JMBoy", "Tx9s1_Anakin"]
+    for deviceName in deviceNames:
+        clear_game_data_for_device(deviceName)
+
+def clear_game_data_for_device(deviceName, tries = 0):
+    if (tries > 3):
+        log_to_file(f"Failed to clear game data for {deviceName} after 3 tries")
+        return
+    
+    data = requests.get(constants.BACKEND_ENDPOINT + f'clear_game_data?origin={deviceName}&adb=False', timeout=5)
+    if data.status_code != 200:
+        log_to_file(f"Failed to clear game data for {deviceName}. Retrying...")
+        clear_game_data_for_device(deviceName, tries + 1)
+
+    log_to_file(f"Game data cleared for {deviceName}")
+    force_expire_current_active_accounts(deviceName)
+
+def force_expire_current_active_accounts():
+    execute_query_to_database("UPDATE settings_pogoauth SET device_id = NULL, last_burn = NOW() WHERE device_id IS NOT NULL;")
+    log_to_file(f"Current active accounts expired for all devices")
+    execute_query_to_database("UPDATE poliswag SET last_swap_date = NOW();")
+    log_to_file(f"Last swap date updated for all devices")
