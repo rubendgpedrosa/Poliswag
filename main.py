@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import helpers.constants as constants
 import traceback
 
-from helpers.poliswag import load_filter_data
+from helpers.poliswag import load_filter_data, build_commands_message, notify_accounts_available_message, decrement_and_notify_lure_count_by_username
 from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
 from helpers.quests import find_quest, write_filter_data
 from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
@@ -40,7 +40,7 @@ async def __init__():
             
             await is_quest_scanning_complete()
             await start_quest_scanner_if_day_change()
-            await check_force_expire_accounts_required()
+            #await check_force_expire_accounts_required()
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         log_to_file(error_msg, "ERROR")
@@ -96,14 +96,14 @@ async def on_message(message):
             if message.content.startswith('!reload'):
                 log_to_file(f"Notification filters reloaded by {message.author}")
                 restart_alarm_docker_container()
-                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas", "Menciona @Poliswag Para ver a lista em vigor")
+                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas", "Faz !alertas para ver a lista em vigor")
 
             if message.content.startswith('!quest'):
                 set_quest_scanning_state(1)
 
             if message.content.startswith('!scan'):
                 log_to_file(f"New quest scan requested by {message.author}")
-                await message.channel.send(embed=build_embed_object_title_description(f"New quest scan requested by {message.author}"), delete_after=300)
+                await message.channel.send(embed=build_embed_object_title_description(f"New quest scan requested by {message.author}"))
                 start_pokestop_scan()
                 messageToSend = build_embed_object_title_description(f"Scan quest has successfully started")
 
@@ -117,20 +117,22 @@ async def on_message(message):
             if (message.content.startswith('!event')):
                 await notify_event_bonus_activated()
                 
+            if (message.content.startswith('!lures')):
+                await notify_accounts_available_message(message)
+                
+            if (message.content.startswith('!uselure')):
+                await decrement_and_notify_lure_count_by_username(message)
+                
             if (message.content.startswith('!questclear')):
                 clear_quests_table()
                 clear_quest_file()
                 messageToSend = build_embed_object_title_description("Quest data cleared!", "Quest table and file have been cleared")
+            
+            if message.content.startswith("<@" + str(constants.POLISWAG_ID) + ">") or message.content.startswith(constants.POLISWAG_ROLE_ID):
+                await build_commands_message(message)
 
     # Quest channel commands in order do display quests
     if message.channel.id == constants.QUEST_CHANNEL_ID:
-        if message.content.startswith('!comandos'):
-            await message.channel.send(embed=build_embed_object_title_description(
-                "COMANDOS IMPLEMENTADOS", 
-                "!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA\nDevolve uma lista de resultados onde a pokéstop, quest ou recompensa correspondam ao texto inserido",
-                "(ex:!questmarinha startdust | !questleiria tribunal)")
-            )
-
         if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
             leiria = False
             if message.content.startswith('!questleiria'):
@@ -154,8 +156,8 @@ async def on_message(message):
                 await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + constants.WEBSITE_URL))
 
     if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
-        if message.content.startswith("<@" + str(constants.POLISWAG_ID) + ">") or message.content.startswith(constants.POLISWAG_ROLE_ID):
-            messageToSend = load_filter_data(message.channel.id == constants.MOD_CHANNEL_ID)
+        if message.content.startswith("!alertas"):
+            messageToSend = load_filter_data()
     
     if validate_message_for_deletion(message.content, message.channel.id, message.author):
         await message.delete()
