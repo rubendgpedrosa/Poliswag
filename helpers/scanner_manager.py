@@ -73,21 +73,13 @@ def reset_game_data_for_devices():
     for deviceName in deviceNames:
         clear_game_data_for_device(deviceName)
 
-def clear_game_data_for_device(deviceName, tries = 0):
-    if (tries > 3):
-        log_to_file(f"Failed to clear game data for {deviceName} after 3 tries")
-        return
-    
-    data = requests.get(constants.BACKEND_ENDPOINT + f'clear_game_data?origin={deviceName}&adb=False', timeout=5)
-    if data.status_code != 200:
-        log_to_file(f"Failed to clear game data for {deviceName}. Retrying...")
-        clear_game_data_for_device(deviceName, tries + 1)
-
+def clear_game_data_for_device(deviceName):
+    requests.get(f'http://localhost:5000/clear_game_data?origin={deviceName}&adb=False', timeout=15)
     log_to_file(f"Game data cleared for {deviceName}")
-    force_expire_current_active_accounts(deviceName)
+    force_expire_current_active_accounts()
 
 def force_expire_current_active_accounts():
     execute_query_to_database("UPDATE settings_pogoauth SET device_id = NULL, last_burn = NOW() WHERE device_id IS NOT NULL;")
     log_to_file(f"Current active accounts expired for all devices")
-    execute_query_to_database("UPDATE poliswag SET last_swap_date = NOW();")
+    execute_query_to_database("UPDATE poliswag SET last_swap_date = NOW();", "poliswag")
     log_to_file(f"Last swap date updated for all devices")

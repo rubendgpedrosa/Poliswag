@@ -18,7 +18,6 @@ async def check_boxes_with_issues():
         await rename_voice_channel(0)
 
 async def restart_map_container_if_scanning_stuck():
-    return
     dstTimeChanges = 0
     # Check if summer time is active
     if time.daylight == 1:
