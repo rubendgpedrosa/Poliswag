@@ -71,7 +71,7 @@ async def ask_if_automatic_rescan_is_to_cancel():
             execute_query_to_database(f"UPDATE event SET notifieddate = NOW() WHERE start = '{start_time}';", "poliswag")
 
 def get_events_stored_in_database_to_rescan():
-    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE start > NOW() AND start < NOW() + INTERVAL 72 HOUR AND notifieddate IS NULL;", "poliswag")
+    storedEvents = get_data_from_database("SELECT name, start FROM event WHERE start > NOW() AND start < NOW() + INTERVAL 36 HOUR AND notifieddate IS NULL;", "poliswag")
     eventsDict = {}
     if len(storedEvents) > 0:
         for event in storedEvents:
@@ -119,7 +119,7 @@ async def notify_event_start():
 
 async def notify_quest_channel_scan_start():
     questChannel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
-    await questChannel.send(embed=build_embed_object_title_description("Atualização de evento detectada", "Scan das novas quests inicializado!"))
+    await questChannel.send(embed=build_embed_object_title_description("Alteração nas quests detetada", "Novo scan inicializado!"))
 
 async def notify_event_bonus_activated():
     convivioChannel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
@@ -134,7 +134,7 @@ async def notify_event_bonus_activated():
             continue
         start = datetime.strptime(event["start"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
         end = datetime.strptime(event["end"], "%Y-%m-%d %H:%M").replace(second=0, microsecond=0)
-        if start <= now <= end and event["has_quests"]:
+        if start <= now <= end: #and event["has_quests"]
             for key, value in event.items():
                 if key not in ["has_quests", "has_spawnpoints", "start", "end", "name", "type"] and value:
                     if key == "bonuses":
@@ -146,9 +146,12 @@ async def notify_event_bonus_activated():
             if neverNotified:
                 content = "**Atuais eventos ativos:**".upper()
                 neverNotified = False
-            await convivioChannel.send(content=content, embed=build_embed_object_title_description(event["name"].upper(), "\n".join(activeEvents)))
+            await convivioChannel.send(
+                content=content,
+                embed=build_embed_object_title_description(event["name"].upper(), "\n".join(activeEvents), f"Entre {start} e {end}"),
+            )
     if neverNotified:
-        await convivioChannel.send(embed=build_embed_object_title_description("Paaaaauuuuuuuu...??", "Oh... Afinal já não há mais eventos ativos de momento..."))
+        await convivioChannel.send(embed=build_embed_object_title_description("Paaaaauuuuuuuu...??", "Acabaram-se os eventos :("))
 
 async def add_scheduled_event_discord_sidebar(eventName, startDate, endDate):
     await constants.CLIENT.create_scheduled_event(

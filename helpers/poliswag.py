@@ -3,12 +3,13 @@ import json, requests
 import discord
 
 import helpers.constants as constants
-from helpers.utilities import log_to_file
+from helpers.utilities import log_to_file, build_embed_object_title_description
+from helpers.database_connector import get_data_from_database, execute_query_to_database
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
 
-def load_filter_data(displayCommands = True):
+def load_filter_data():
     discordMessage = ""
 
     jsonPokemonData = read_json_data()
@@ -17,8 +18,6 @@ def load_filter_data(displayCommands = True):
     for name in namesList:
         discordMessage = build_filter_message(jsonPokemonData, name)
         embed.add_field(name=discordMessageChannels[name], value=discordMessage, inline=False)
-    if displayCommands:
-        embed.set_footer(text="COMANDOS IMPLEMENTADOS:  !add POKEMON CANAL, !remove POKEMON CANAL, !reload")
 
     return embed
 
@@ -95,3 +94,104 @@ def build_notification_data_for_pvp(greatLeagueData, ultraLeagueData, jsonFilter
                     for nameToInsert in familyList:
                         jsonFiltersPokemonData['monsters']['filters']["pvp_ultra"]['monsters'].append(nameToInsert)
                         jsonFiltersPokemonData['monsters']['filters']["pvp_ultra_marinha"]['monsters'].append(nameToInsert)
+
+async def build_commands_message(message):
+    embed = discord.Embed(
+        title="COMANDOS IMPLEMENTADOS",
+        color=0x7b83b4
+    )
+    
+    embed.add_field(name="!alertas", value="Mostra a lista de Pokémon e os canais de notificações correspondentes", inline=False)
+    embed.add_field(name="!add POKEMON CANAL", value="Adiciona notificações do Pokémon ao canal indicado", inline=False)
+    embed.add_field(name="!remove POKEMON CANAL", value="Remove notificações do Pokémon do canal indicado", inline=False)
+    embed.add_field(name="!reload", value="Efetua e reinicia o sistema de notificações implementando as alterações", inline=False)
+    embed.add_field(name="!questclear", value="Limpa a lista de Quests do dia", inline=False)
+    embed.add_field(name="!scan", value="Força um novo scan de Quests", inline=False)
+    embed.add_field(name="!lures", value="Lista as contas com lures disponíveis", inline=False)
+    embed.add_field(name="!uselure USERNAME NUMBER", value="Se NUMBER é negativo, remove NUMBER lures na conta. Se NUMBER é positivo, adiciona NUMBER lures na conta.", inline=False)
+    embed.add_field(name="!logs", value="Já viste os logs?", inline=False)
+    
+    await message.channel.send(embed=embed)
+
+def build_message_accounts_available():
+    availableAccounts = get_available_pogo_accounts()
+    return append_extra_data_to_accounts(availableAccounts)
+    
+def get_available_pogo_accounts():
+    #storedAvailableAccounts = get_data_from_database(f"SELECT username FROM settings_pogoauth WHERE device_id IS NULL AND last_burn < DATE_ADD(NOW(), INTERVAL 3 DAY) AND last_burn > ( SELECT MIN(last_burn) FROM settings_pogoauth) + INTERVAL 2 DAY;")
+    storedAvailableAccounts = get_data_from_database(f"SELECT username FROM settings_pogoauth WHERE device_id IS NULL AND account_id < 43;")
+
+    availableAccounts = []
+    for storedAvailableAccount in storedAvailableAccounts:
+        availableAccounts.append(storedAvailableAccount["data"][0])
+
+    return availableAccounts
+
+
+def build_database_variable_from_accounts_list(availableAccounts):
+    return ', '.join(['"{}"'.format(s) for s in availableAccounts])
+
+def append_extra_data_to_accounts(availableAccounts):
+    queryVariablePreparedUsernames = build_database_variable_from_accounts_list(availableAccounts)
+    
+    storedAvailableAccounts = get_data_from_database(f"SELECT username, nb_lures FROM account_lure WHERE username IN ({queryVariablePreparedUsernames}) ORDER BY nb_lures ASC;", "poliswag")
+    existingUsernames = [account["data"][0] for account in storedAvailableAccounts]  # Extract usernames
+
+    availableAccountsList = []
+    if len(availableAccounts) > 0:
+        for account_data in storedAvailableAccounts:
+            # stop iteration once availableAccountsList >= 5
+            if len(availableAccountsList) >= 5:
+                break
+            username = account_data["data"][0]
+            nb_lures = account_data["data"][1]
+            if nb_lures > 0:
+                availableAccountsList.append({"username": username, "nb_lures": nb_lures})
+
+        for username in availableAccounts:
+            if username not in existingUsernames:
+                print(f"Account {username} not found in database")
+                execute_query_to_database(f"INSERT INTO account_lure (username) VALUES ('{username}');", "poliswag")
+                availableAccountsList.append({"username": username, "nb_lures": 12})
+
+    return availableAccountsList
+
+async def notify_accounts_available_message(message):
+    availableAccounts = build_message_accounts_available()
+    
+    if (len(availableAccounts) == 0):
+        return
+
+    tempString = ""
+    for account in availableAccounts:
+        tempString = tempString + f"{account['username']} - {account['nb_lures']} lures\n"
+
+    await message.channel.send(embed=build_embed_object_title_description(
+            "LISTA DE CONTAS DISPONÍVEIS", 
+            tempString
+        )
+    )
+
+async def decrement_and_notify_lure_count_by_username(message):
+    receivedData = message.content.replace("!uselure ","")
+    receivedData = receivedData.split(" ")
+    
+    username = receivedData[0]
+    nb_lures = int(receivedData[1])
+    
+
+    action = "removida" if nb_lures < 0 else "adicionada"
+    plural = "" if abs(nb_lures) == 1 else "s"
+    
+    execute_query_to_database(
+        f"UPDATE account_lure SET nb_lures = GREATEST(nb_lures + {nb_lures}, 0) WHERE username = '{username}';",
+        "poliswag"
+    )
+    
+    log_message = f"{abs(nb_lures)} {'lure' if abs(nb_lures) == 1 else 'lures'} {action}{plural} à conta {username} por {message.author.name}"
+    log_to_file(log_message)
+    
+    await message.channel.send(embed=build_embed_object_title_description(
+            f"{abs(nb_lures)} lure{plural} {action}{plural} da conta {username} por {message.author.name}"
+        )
+    )
