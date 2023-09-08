@@ -101,15 +101,16 @@ async def build_commands_message(message):
         color=0x7b83b4
     )
     
-    embed.add_field(name="!alertas", value="Mostra a lista de Pokémon e os canais de notificações correspondentes", inline=False)
-    embed.add_field(name="!add POKEMON CANAL", value="Adiciona notificações do Pokémon ao canal indicado", inline=False)
-    embed.add_field(name="!remove POKEMON CANAL", value="Remove notificações do Pokémon do canal indicado", inline=False)
-    embed.add_field(name="!reload", value="Efetua e reinicia o sistema de notificações implementando as alterações", inline=False)
-    embed.add_field(name="!questclear", value="Limpa a lista de Quests do dia", inline=False)
-    embed.add_field(name="!scan", value="Força um novo scan de Quests", inline=False)
+    embed.add_field(name="!alertas", value="Lista de Pokémon nas Notificações", inline=False)
+    embed.add_field(name="!add POKEMON CANAL", value="Adicionar pokémon a canal de notificações", inline=False)
+    embed.add_field(name="!remove POKEMON CANAL", value="Remover pokémon de canal de notificações", inline=False)
+    embed.add_field(name="!reload", value="Submeter alterações nas notificações", inline=False)
+    embed.add_field(name="!questclear", value="Limpa lista de quests", inline=False)
+    embed.add_field(name="!scan", value="Força novo scan de quests", inline=False)
     embed.add_field(name="!lures", value="Lista as contas com lures disponíveis", inline=False)
-    embed.add_field(name="!uselure USERNAME NUMBER", value="Se NUMBER é negativo, remove NUMBER lures na conta. Se NUMBER é positivo, adiciona NUMBER lures na conta.", inline=False)
-    embed.add_field(name="!logs", value="Já viste os logs?", inline=False)
+    embed.add_field(name="!uselure USERNAME NUMBER", value="NUMBER negativo -> remove NUMBER lures.\nNUMBER positivo -> adiciona NUMBER lures.", inline=False)
+    embed.add_field(name="!upcoming", value="Lista rescan de quests agendados", inline=False)
+    embed.add_field(name="!logs", value="JÁ VISTE OS LOGS????", inline=False)
     
     await message.channel.send(embed=embed)
 

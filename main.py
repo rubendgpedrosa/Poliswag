@@ -7,12 +7,12 @@ import helpers.constants as constants
 import traceback
 
 from helpers.poliswag import load_filter_data, build_commands_message, notify_accounts_available_message, decrement_and_notify_lure_count_by_username
-from helpers.roles_manager import prepare_view_roles_location, start_event_listeners, build_rules_message
+from helpers.roles_manager import prepare_view_roles_location, restart_response_user_role_selection, build_rules_message
 from helpers.quests import find_quest, write_filter_data
 from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log
 from helpers.scanner_manager import check_force_expire_accounts_required, start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change, clear_quests_table
 from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
-from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests, notify_event_bonus_activated
+from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests, notify_event_bonus_activated, restart_cancel_rescan_callback, retrieve_database_upcoming_events
 from helpers.poligpt import get_response
 
 # Validates arguments passed to check what env was requested
@@ -54,7 +54,12 @@ async def on_ready():
 
 @constants.CLIENT.event
 async def on_interaction(interaction):
-    await start_event_listeners(interaction)
+    custom_id = interaction.data["custom_id"]
+    
+    if custom_id.startswith("Alertas") or custom_id in ["Leiria", "Marinha", "Remote", "Mystic", "Valor", "Instinct"]:
+        await restart_response_user_role_selection(interaction)
+    else:
+        await restart_cancel_rescan_callback(interaction)
 
 @constants.CLIENT.event
 async def on_message(message):
@@ -127,7 +132,10 @@ async def on_message(message):
                 clear_quests_table()
                 clear_quest_file()
                 messageToSend = build_embed_object_title_description("Quest data cleared!", "Quest table and file have been cleared")
-            
+
+            if (message.content.startswith('!upcoming')):
+                await retrieve_database_upcoming_events(message)
+
             if message.content.startswith("<@" + str(constants.POLISWAG_ID) + ">") or message.content.startswith(constants.POLISWAG_ROLE_ID):
                 await build_commands_message(message)
 
