@@ -57,7 +57,7 @@ async def response_user_role_selection(interaction):
 async def add_button_event(button):
     button.callback = response_user_role_selection
 
-async def start_event_listeners(interaction):
+async def restart_response_user_role_selection(interaction):
     await response_user_role_selection(interaction)
 
 async def toggle_role(role, user):
