@@ -159,3 +159,17 @@ async def add_scheduled_event_discord_sidebar(eventName, startDate, endDate):
         start_time=startDate,
         end_time=endDate
     )
+
+async def restart_cancel_rescan_callback(interaction):
+    await cancel_rescan_callback(interaction)
+
+async def retrieve_database_upcoming_events(message):
+    upcomingEvents = get_data_from_database("SELECT name, start, end FROM event WHERE rescan = 1 AND start > NOW() ORDER BY start ASC;", "poliswag")
+    if len(upcomingEvents) > 0:
+        messageToSend = build_embed_object_title_description("Próximos Quest rescan agendados")
+        for event in upcomingEvents:
+            messageToSend.add_field(name=event["data"][0], value=f"De {event['data'][1]} até {event['data'][2]}", inline=False)
+    else:
+        messageToSend = build_embed_object_title_description("Não há rescan agendados")
+    print(messageToSend)
+    await message.channel.send(embed=messageToSend)
