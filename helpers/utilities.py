@@ -116,3 +116,11 @@ def build_notification_mention_string(notificationMentionString, box):
         if box in user['boxes'] and user['mention'] not in notificationMentionString:
             return notificationMentionString + f"<@{user['mention']}> "
     return notificationMentionString
+
+async def clean_map_stats_channel(message):
+    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    async for msg in channel.history(limit=200):
+        if message is not None and msg.author is not None and str(msg.author.id) not in constants.ADMIN_USERS_IDS and msg.author.id != constants.POLISWAG_ID:
+            await msg.delete()
+        elif message == "clear":
+            await msg.delete()
