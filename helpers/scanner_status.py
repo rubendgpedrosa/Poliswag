@@ -1,8 +1,9 @@
 import helpers.constants as constants
 import time
+import discord
 
-from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description
-from helpers.scanner_manager import set_quest_scanning_state, rename_voice_channel, restart_run_docker_containers
+from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, clean_map_stats_channel
+from helpers.scanner_manager import set_quest_scanning_state, restart_run_docker_containers
 from helpers.database_connector import execute_query_to_database, get_data_from_database
 from helpers.quests import get_current_quest_data
 
@@ -13,9 +14,111 @@ async def check_boxes_with_issues():
         dstTimeChanges = 3600
     listBoxStatusResults = get_data_from_database(f"SELECT settings_device.name AS name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > {dstTimeChanges + 1200} OR trs_status.lastProtoDateTime IS NULL);")
     if len(listBoxStatusResults) > 0:
-        await rename_voice_channel(len(listBoxStatusResults))
+        await notify_devices_down(listBoxStatusResults)
+        await rename_voice_channels(listBoxStatusResults)
     else:
-        await rename_voice_channel(0)
+        await clean_map_stats_channel("clear")
+        await rename_voice_channels([])
+
+    
+async def notify_devices_down(totalBoxesFailing):
+    boxUsersMapping = {
+        "Tx9s": "<@98846248865398784>",
+        "a95xF1": "<@98846248865398784>",
+        "PoGoLeiria": "<@308000681271492610>",
+        "Tx9s2_JMBoy": "<@308000681271492610>",
+        "Tx9s3_JMBoy": "<@308000681271492610>",
+        "Tx9s1_Ethix": "<@313738342904627200>",
+        "Tx9s1_Anakin": "<@339466204638871552>"
+    }
+
+    usersToNotify = []
+    boxNamesToNotify = []
+    for boxName in totalBoxesFailing:
+        boxName = boxName["data"][0]
+        userMention = boxUsersMapping.get(boxName)
+        renamedBoxName = rename_box(boxName)
+        if userMention:
+            usersToNotify.append(userMention)
+            boxNamesToNotify.append(renamedBoxName)
+
+    usersToNotifyString = " ".join(usersToNotify)
+    boxesToNotifyString = ", ".join(boxNamesToNotify) + f" precisa{'' if len(boxNamesToNotify) == 1 else 'm'} de um reboot"
+
+    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    messages = [message async for message in channel.history(limit=10)]
+    for msg in messages:
+        for embed in msg.embeds:
+            if boxesToNotifyString in embed.footer.text:
+                return
+        
+    await clean_map_stats_channel("clear")
+
+    embed = discord.Embed(
+        title=":warning: ANOMALIA DETETADA :warning:",
+        color=0x7b83b4
+    )
+    
+    embed.add_field(name="Ativadas", value=f":green_circle: {constants.TOTAL_BOXES - len(totalBoxesFailing)}/{constants.TOTAL_BOXES}", inline=False)
+    embed.add_field(name="Desativadas", value=f":red_circle: {len(totalBoxesFailing)}/{constants.TOTAL_BOXES}", inline=False)
+
+    embed.set_footer(text=boxesToNotifyString)
+
+    await channel.send(
+        content=usersToNotifyString,
+        embed=embed
+    )
+
+async def rename_voice_channels(totalBoxesFailing):
+    leiriaVoiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
+    marinhaVoiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_MARINHA_ID)
+
+    leiriaDownCounter = sum(1 for boxName in totalBoxesFailing if split_list_by_region(boxName["data"][0]) == "Leiria")
+    marinhaDownCounter = sum(1 for boxName in totalBoxesFailing if split_list_by_region(boxName["data"][0]) == "MarinhaGrande")
+
+    leiriaStatus = get_status_message(leiriaDownCounter, "LEIRIA")
+    marinhaStatus = get_status_message(marinhaDownCounter, "MARINHA")
+
+    if leiriaVoiceChannel.name != leiriaStatus:
+        await leiriaVoiceChannel.edit(name=leiriaStatus)
+
+    if marinhaVoiceChannel.name != marinhaStatus:
+        await marinhaVoiceChannel.edit(name=marinhaStatus)
+
+def get_status_message(downCounter, region):
+    statusMessages = {
+        "LEIRIA": {
+            "🟢": 0,
+            "🟡": 2,
+            "🟠": 4,
+            "🔴": 5,
+        },
+        "MARINHA": {
+            "🟢": 0,
+            "🟠": 1,
+            "🔴": 2,
+        },
+    }
+
+    if downCounter in statusMessages.get(region, {}):
+        return f"{region}: {statusMessages[region][downCounter]}"
+    else:
+        return f"{region}: 🟢"
+
+
+def rename_box(boxName):
+    if boxName == "PoGoLeiria":
+        return "Tx9s2_JMBoy"
+    elif boxName == "Tx9s2_JMBoy":
+        return "Tx9s3_JMBoy"
+    else:
+        return boxName
+
+def split_list_by_region(boxName):
+    if boxName == "Tx9s1_Ethix" or boxName == "Tx9s1_Anakin":
+        return "MarinhaGrande"
+    else:
+        return "Leiria"
 
 async def restart_map_container_if_scanning_stuck():
     dstTimeChanges = 0
