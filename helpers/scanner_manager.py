@@ -34,19 +34,6 @@ def set_last_scanned_date(lastScannedDate):
     execute_query_to_database(f"UPDATE poliswag SET last_scanned_date = '{lastScannedDate}'", "poliswag")
     log_to_file(f"New last_scanned_date set to {lastScannedDate}")
 
-async def rename_voice_channel(totalBoxesFailing):
-    message = "STATUS: 🟢"
-    if totalBoxesFailing > 0 and totalBoxesFailing < 3:
-        message = "STATUS: 🟡"
-    if totalBoxesFailing > 2 and totalBoxesFailing < 7:
-        message = "STATUS: 🟠"
-    if totalBoxesFailing == 7:
-        message = "STATUS: 🔴"
-    voiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
-    if voiceChannel.name != message:
-        log_to_file(f"Number of devices encountering issues: {totalBoxesFailing}")
-        await voiceChannel.edit(name=message)
-
 def restart_run_docker_containers():
     constants.DOCKER_CLIENT_API.restart(constants.RUN_CONTAINER)
 
