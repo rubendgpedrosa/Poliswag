@@ -44,9 +44,6 @@ async def __init__():
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         log_to_file(error_msg, "ERROR")
-        # run bash script
-        # os.system('/root/updater.sh')
-
 
 @constants.CLIENT.event
 async def on_ready():
@@ -98,7 +95,7 @@ async def on_message(message):
             if message.content.startswith('!reload'):
                 log_to_file(f"Notification filters reloaded by {message.author}")
                 restart_alarm_docker_container()
-                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas", "Faz !alertas para ver a lista em vigor")
+                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas")
 
             if message.content.startswith('!quest'):
                 set_quest_scanning_state(1)
@@ -168,7 +165,7 @@ async def on_message(message):
         await message.delete()
 
     if messageToSend is not None and len(messageToSend) > 0:
-        await message.channel.send(embed=messageToSend, delete_after=300)
+        await message.channel.send(embed=messageToSend)
 
 @constants.CLIENT.event
 async def on_message_delete(message):
