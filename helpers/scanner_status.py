@@ -26,8 +26,8 @@ async def notify_devices_down(totalBoxesFailing):
         "Tx9s": "<@98846248865398784>",
         "a95xF1": "<@98846248865398784>",
         "PoGoLeiria": "<@308000681271492610>",
+        "Tx9s1_JMBoy": "<@308000681271492610>",
         "Tx9s2_JMBoy": "<@308000681271492610>",
-        "Tx9s3_JMBoy": "<@308000681271492610>",
         "Tx9s1_Ethix": "<@313738342904627200>",
         "Tx9s1_Anakin": "<@339466204638871552>"
     }
@@ -86,25 +86,23 @@ async def rename_voice_channels(totalBoxesFailing):
         await marinhaVoiceChannel.edit(name=marinhaStatus)
 
 def get_status_message(downCounter, region):
-    statusMessages = {
-        "LEIRIA": {
-            "🟢": 0,
-            "🟡": 2,
-            "🟠": 4,
-            "🔴": 5,
-        },
-        "MARINHA": {
-            "🟢": 0,
-            "🟠": 1,
-            "🔴": 2,
-        },
-    }
-
-    if downCounter in statusMessages.get(region, {}):
-        return f"{region}: {statusMessages[region][downCounter]}"
-    else:
-        return f"{region}: 🟢"
-
+    if region == "LEIRIA":
+        if downCounter == 0:
+            return f"{region}: 🟢"
+        elif downCounter in [1, 2]:
+            return f"{region}: 🟡"
+        elif downCounter in [3, 4]:
+            return f"{region}: 🟠"
+        elif downCounter >= 5:
+            return f"{region}: 🔴"
+    elif region == "MARINHA":
+        if downCounter == 0:
+            return f"{region}: 🟢"
+        elif downCounter == 1:
+            return f"{region}: 🟡"
+        elif downCounter >= 2:
+            return f"{region}: 🔴"
+    return f"{region}: 🟢"
 
 def rename_box(boxName):
     if boxName == "PoGoLeiria":
