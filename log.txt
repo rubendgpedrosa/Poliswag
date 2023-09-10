@@ -10,3 +10,37 @@ INFO | 2023-09-09 09:38 -- Number of devices encountering issues: 1
 INFO | 2023-09-09 09:49 -- Disabled quest scanning mode
 INFO | 2023-09-09 09:49 -- Pokestop quest scan completed
 INFO | 2023-09-09 10:34 -- Number of devices encountering issues: 0
+INFO | 2023-09-09 12:10 -- Notification filters reloaded by faynn#0
+INFO | 2023-09-09 16:42 -- 4 lures removidas à conta pogoleiria703 por jmboy
+INFO | 2023-09-10 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-09-10 00:00 -- Cleared previous quest data
+INFO | 2023-09-10 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-09-10 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-09-10 00:00 -- New PvP data generated
+INFO | 2023-09-10 00:00 -- New last_scanned_date set to 2023-09-10 00:00:00
+INFO | 2023-09-10 00:00 -- Enabled quest scanning mode
+INFO | 2023-09-10 00:00 -- Pokestop quest scanning started
+INFO | 2023-09-10 00:25 -- Disabled quest scanning mode
+INFO | 2023-09-10 00:25 -- Pokestop quest scan completed
+INFO | 2023-09-10 10:00 -- Rescan scheduled starting
+INFO | 2023-09-10 10:00 -- Cleared previous quest data
+INFO | 2023-09-10 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-09-10 10:00 -- Truncated quests table sucessfully!
+INFO | 2023-09-10 10:00 -- New PvP data generated
+INFO | 2023-09-10 10:00 -- New last_scanned_date set to 2023-09-10 00:00:00
+INFO | 2023-09-10 10:00 -- Enabled quest scanning mode
+INFO | 2023-09-10 10:00 -- Scheduled rescan started successfully
+INFO | 2023-09-10 10:55 -- Disabled quest scanning mode
+INFO | 2023-09-10 10:55 -- Pokestop quest scan completed
+INFO | 2023-09-10 16:57 -- Notification filters reloaded by faynn#0
+INFO | 2023-09-10 18:09 -- Notification filters reloaded by jmboy#0
+INFO | 2023-09-10 20:04 -- Rescan scheduled starting
+INFO | 2023-09-10 20:04 -- Cleared previous quest data
+INFO | 2023-09-10 20:04 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-09-10 20:04 -- Truncated quests table sucessfully!
+INFO | 2023-09-10 20:04 -- New PvP data generated
+INFO | 2023-09-10 20:04 -- New last_scanned_date set to 2023-09-10 00:00:00
+INFO | 2023-09-10 20:04 -- Enabled quest scanning mode
+INFO | 2023-09-10 20:04 -- Scheduled rescan started successfully
+INFO | 2023-09-10 20:29 -- Disabled quest scanning mode
+INFO | 2023-09-10 20:29 -- Pokestop quest scan completed
