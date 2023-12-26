@@ -5,14 +5,14 @@ import discord
 from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, clean_map_stats_channel
 from helpers.scanner_manager import set_quest_scanning_state, restart_run_docker_containers
 from helpers.database_connector import execute_query_to_database, get_data_from_database
-from helpers.quests import get_current_quest_data
+from helpers.quests import get_current_quest_data, retrieve_quest_summary
 
 async def check_boxes_with_issues():
     dstTimeChanges = 0
     # Check if summer time is active
     if time.daylight == 1:
         dstTimeChanges = 3600
-    listBoxStatusResults = get_data_from_database(f"SELECT settings_device.name AS name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE trs_status.device_id < 14 AND (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > {dstTimeChanges + 1200} OR trs_status.lastProtoDateTime IS NULL);")
+    listBoxStatusResults = get_data_from_database(f"SELECT settings_device.name AS name FROM trs_status LEFT JOIN settings_device ON trs_status.device_id = settings_device.device_id WHERE (TIMESTAMPDIFF(SECOND, trs_status.lastProtoDateTime, NOW()) > {dstTimeChanges + 1200} OR trs_status.lastProtoDateTime IS NULL);")
     if len(listBoxStatusResults) > 0:
         await notify_devices_down(listBoxStatusResults)
         await rename_voice_channels(listBoxStatusResults)
@@ -25,11 +25,11 @@ async def notify_devices_down(totalBoxesFailing):
     boxUsersMapping = {
         "Tx9s": "<@98846248865398784>",
         "a95xF1": "<@98846248865398784>",
-        "PoGoLeiria": "<@308000681271492610>",
         "Tx9s1_JMBoy": "<@308000681271492610>",
         "Tx9s2_JMBoy": "<@308000681271492610>",
-        "Tx9s1_Ethix": "<@313738342904627200>",
-        "Tx9s1_Anakin": "<@339466204638871552>"
+        "Tx9s3_JMBoy": "<@308000681271492610>",
+        "Tx9s_Ethix": "<@313738342904627200>",
+        "Tx9s_Anakin": "<@339466204638871552>"
     }
 
     usersToNotify = []
@@ -37,10 +37,10 @@ async def notify_devices_down(totalBoxesFailing):
     for boxName in totalBoxesFailing:
         boxName = boxName["data"][0]
         userMention = boxUsersMapping.get(boxName)
-        renamedBoxName = rename_box(boxName)
         if userMention:
-            usersToNotify.append(userMention)
-            boxNamesToNotify.append(renamedBoxName)
+            if userMention not in usersToNotify:
+                usersToNotify.append(userMention)
+            boxNamesToNotify.append(boxName)
 
     usersToNotifyString = " ".join(usersToNotify)
     boxesToNotifyString = ", ".join(boxNamesToNotify) + f" precisa{'' if len(boxNamesToNotify) == 1 else 'm'} de um reboot"
@@ -158,15 +158,14 @@ async def is_quest_scanning_complete():
                 set_quest_scanning_state()
                 log_to_file(f"Pokestop quest scan completed")
                 channel = constants.CLIENT.get_channel(constants.QUEST_CHANNEL_ID)
-                #embedObjects = build_quest_summary_embed_objects(retrieve_sort_quest_data())
-                #await channel.send(content=f"**RESUMO QUESTS LEIRIA**\n{embedObjects['Leiria']}")
-                #await channel.send(content=f"**RESUMO QUESTS MARINHA GRANDE**\n{embedObjects['MarinhaGrande']}")
                 await channel.send(embed=build_embed_object_title_description(
                     "SCAN DE QUESTS TERMINADO!", 
                     "Todas as quests do dia foram recolhidas e podem ser visualizadas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
                     "Esta informação expira ao final do dia"
                     )
                 )
+                convivioChannel = constants.CLIENT.get_channel(constants.CONVIVIO_CHANNEL_ID)
+                await retrieve_quest_summary(convivioChannel)
 
 def has_total_quests_scanned_been_reached():
     totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag;", "poliswag")
