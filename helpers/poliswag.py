@@ -102,14 +102,18 @@ async def build_commands_message(message):
     )
     
     embed.add_field(name="!alertas", value="Lista de Pokémon nas Notificações", inline=False)
-    embed.add_field(name="!add POKEMON CANAL", value="Adicionar pokémon a canal de notificações", inline=False)
-    embed.add_field(name="!remove POKEMON CANAL", value="Remover pokémon de canal de notificações", inline=False)
+    embed.add_field(name="!add <pokemon> <canal>", value="Adicionar pokémon a canal de notificações", inline=False)
+    embed.add_field(name="!remove <pokemon> <canal>", value="Remover pokémon de canal de notificações", inline=False)
     embed.add_field(name="!reload", value="Submeter alterações nas notificações", inline=False)
     embed.add_field(name="!questclear", value="Limpa lista de quests", inline=False)
     embed.add_field(name="!scan", value="Força novo scan de quests", inline=False)
     embed.add_field(name="!lures", value="Lista as contas com lures disponíveis", inline=False)
-    embed.add_field(name="!uselure USERNAME NUMBER", value="NUMBER negativo -> remove NUMBER lures.\nNUMBER positivo -> adiciona NUMBER lures.", inline=False)
+    embed.add_field(name="!uselure <uername> <number>", value="<number> negativo -> remove <number> lures.\n<number> positivo -> adiciona <number> lures.", inline=False)
     embed.add_field(name="!upcoming", value="Lista rescan de quests agendados", inline=False)
+    embed.add_field(name="!track <reward>", value="Adiciona reward a sumário de quests", inline=False)
+    embed.add_field(name="!untrack <reward>", value="Remove reward de sumário de quests", inline=False)
+    embed.add_field(name="!tracklist", value="Lista rewards flagged como importantes", inline=False)
+    embed.add_field(name="!untrackall", value="Limpa toda a lista de rewards", inline=False)
     embed.add_field(name="!logs", value="JÁ VISTE OS LOGS????", inline=False)
     
     await message.channel.send(embed=embed)
@@ -196,3 +200,38 @@ async def decrement_and_notify_lure_count_by_username(message):
             f"{abs(nb_lures)} lure{plural} {action}{plural} da conta {username} por {message.author.name}"
         )
     )
+
+async def update_playintegrity_job(message):
+    playIntegrityUrl = message.content.replace("!playintegrity ","")
+
+    playIntegrityCommand = (
+        "{"
+        '"Magisk Modules - Update PlayIntegrityFix": ['
+        '{'
+        '"TYPE": "jobType.PASSTHROUGH",'
+        f'"SYNTAX": "curl -s -L -k {playIntegrityUrl} -o /sdcard/Download/pif.zip && magisk --install-module /sdcard/Download/pif.zip && sleep 15",'
+        '"WAITTIME": 0'
+        '},'
+        '{'
+        '"TYPE": "jobType.REBOOT",'
+        '"SYNTAX": "Step 2 of 2 - REBOOT DEVICE",'
+        '"WAITTIME": 0'
+        '}'
+        ']'
+        '}'
+    )
+
+    with open(constants.PLAYINTEGRITY_UPDATER_FILE, "w") as file:
+        file.write(playIntegrityCommand)
+        
+    log_to_file("PlayIntegrityFix command updated")
+    
+    #send message back to message.channel with the playintegrity command
+    await message.channel.send(embed=build_embed_object_title_description(
+            "PlayIntegrityFix command updated",
+            playIntegrityCommand
+        )
+    )
+    
+    constants.DOCKER_CLIENT_API.restart(constants.RUN_CONTAINER)
+        
