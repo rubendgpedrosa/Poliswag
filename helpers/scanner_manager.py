@@ -20,6 +20,13 @@ def start_pokestop_scan():
 
 def set_quest_scanning_state(state = 0):
     execute_query_to_database(f"UPDATE poliswag SET scanned = '{state}';", "poliswag")
+    
+    if state == 1:
+        temp_set_device_scanning_marinha()
+    else:
+        revert_device_scanning_marinha()
+        restart_run_docker_containers()
+
     log_to_file(f"{'Disabled' if state == 0 else 'Enabled'} quest scanning mode")
 
 def clear_quests_table():
@@ -39,6 +46,14 @@ def restart_run_docker_containers():
 
 def restart_alarm_docker_container():
     constants.DOCKER_CLIENT_API.restart(constants.ALARM_CONTAINER)
+    
+def temp_set_device_scanning_marinha():
+    execute_query_to_database("UPDATE settings_device SET walker_id = 7 WHERE device_id = 16;")
+    log_to_file(f"a95xF1 set to scan Marinha Grande")
+    
+def revert_device_scanning_marinha():
+    execute_query_to_database("UPDATE settings_device SET walker_id = 2 WHERE device_id = 16;")
+    log_to_file(f"a95xF1 reverted to scan Leiria")
 
 async def start_quest_scanner_if_day_change():
     didDayChangeFromStoredDb = get_data_from_database(f"SELECT last_scanned_date FROM poliswag WHERE last_scanned_date < '{time_now()}' OR last_scanned_date IS NULL;", "poliswag")
@@ -70,3 +85,22 @@ def force_expire_current_active_accounts():
     log_to_file(f"Current active accounts expired for all devices")
     execute_query_to_database("UPDATE poliswag SET last_swap_date = NOW();", "poliswag")
     log_to_file(f"Last swap date updated for all devices")
+
+def optimize_database():
+    execute_query_to_database("""
+    DELETE FROM raid;
+    DELETE FROM trs_stats_detect;
+    DELETE FROM trs_stats_detect_fort_raw;
+    DELETE FROM trs_stats_detect_mon_raw;
+    DELETE FROM trs_stats_detect_raw;
+    DELETE FROM trs_stats_detect_seen_type;
+    DELETE FROM trs_stats_location;
+    DELETE FROM trs_stats_location_raw;
+    DELETE FROM pokestop_incident;
+    DELETE FROM pokemon;
+
+    optimize table pokestop_incident;
+    optimize table pokemon;
+    """)
+    log_to_file(f"Database optimized sucessfully!")
+    constants.DOCKER_CLIENT_API.start(constants.RUN_CONTAINER)
