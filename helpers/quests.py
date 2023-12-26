@@ -1,5 +1,7 @@
-import json, requests, datetime
+import json, requests, datetime, discord
 import helpers.constants as constants
+from helpers.utilities import build_embed_object_title_description
+from helpers.database_connector import get_data_from_database, execute_query_to_database
 
 namesList = ["pokemon", "pokemonuteis"]
 discordMessageChannels = {"pokemon": "Spawns Raros", "pokemonuteis": "Spawns Uteis"}
@@ -165,16 +167,16 @@ def categorize_quests(quests, path='/root/PoGoLeiria/'):
         with open(f'{path}{key}.json', 'w') as f:
             f.write(json.dumps(classified_quests, indent=4))
 
-def build_quest_summary_embed_objects(quests):
+def build_quest_summary_embed_objects(quests, storedTrackedRewards):
     questGroupsLeiria = {}
     questGroupsMarinhaGrande = {}
 
     for quest in quests:
         longitude = str(quest['longitude'])
         if "-8.9" not in longitude:
-            questGroupsLeiria = update_quest_groups(quest, questGroupsLeiria)
+            questGroupsLeiria = update_quest_groups(quest, questGroupsLeiria, storedTrackedRewards)
         else:
-            questGroupsMarinhaGrande = update_quest_groups(quest, questGroupsMarinhaGrande)
+            questGroupsMarinhaGrande = update_quest_groups(quest, questGroupsMarinhaGrande, storedTrackedRewards)
 
     # embedLeiria = discord.Embed(title="Resumo de algumas quests de hoje - Leiria", color=0x7b83b4)
     # embedMarinhaGrande = discord.Embed(title="Resumo de algumas quests de hoje - Marinha Grande", color=0x7b83b4)
@@ -185,32 +187,47 @@ def build_quest_summary_embed_objects(quests):
     # embedLeiria.set_footer(text="Esta informação expira ao final do dia")
     # embedMarinhaGrande.set_footer(text="Esta informação expira ao final do dia")
 
-    questSummaryListStringLeiria = build_quest_summary_list_string(questGroupsLeiria)
-    questSummaryListStringMarinhaGrande = build_quest_summary_list_string(questGroupsMarinhaGrande)
+    questSummaryListLeiria = build_quest_summary_list_embed(questGroupsLeiria, "SUMÁRIO DE QUESTS - LEIRIA")
+    questSummaryListMarinhaGrande = build_quest_summary_list_embed(questGroupsMarinhaGrande, "SUMÁRIO DE QUESTS - MARINHA GRANDE")
 
-    return {'Leiria': questSummaryListStringLeiria, 'MarinhaGrande': questSummaryListStringMarinhaGrande}
+    return {'Leiria': questSummaryListLeiria, 'MarinhaGrande': questSummaryListMarinhaGrande}
 
-def update_quest_groups(quest, questGroups):
-    if quest['quest_reward_type'] == "Pokemon":
-        questTask = quest['quest_task']
-        reward = build_reward_for_quest(quest)
-        if questTask in questGroups:
-            if reward in questGroups[questTask]["rewards"]:
-                questGroups[questTask]["count"] += 1
+def update_quest_groups(quest, questGroups, storedTrackedRewards):
+    questTask = quest['quest_task']
+    reward = build_reward_for_quest(quest)
+    
+    rewardLower = reward.lower()
+    storedTrackedRewardsLower = [keyword.lower() for keyword in storedTrackedRewards]
+    if any(keyword in rewardLower for keyword in storedTrackedRewardsLower):
+        if reward in questGroups:
+            if questTask in questGroups[reward]["rewards"]:
+                questGroups[reward]["count"] += 1
             else:
-                questGroups[questTask]["count"] += 1
-                questGroups[questTask]["rewards"].append(reward)
+                questGroups[reward]["count"] += 1
+                questGroups[reward]["rewards"].append(questTask)
         else:
-            questGroups[questTask] = {"count": 1, "rewards": [reward]}
+            questGroups[reward] = {"count": 1, "rewards": [questTask]}
+    
     return questGroups
 
-def build_quest_summary_list_string(questGroups):
-    questSummaryListString = ""
-    for questKey, questInfo in questGroups.items():
+def build_quest_summary_list_embed(questGroups, title):
+    if len(questGroups) == 0:
+        return None
+    
+    embed = discord.Embed(
+        title=title,
+        description="Lista de atuais quests ativas consideradas relevantes.",
+        color=0x7b83b4
+    )
+    
+    sortedQuestGroups = dict(sorted(questGroups.items()))
+    
+    for questKey, questInfo in sortedQuestGroups.items():
         count = questInfo["count"]
-        rewards = ", ".join(questInfo["rewards"])
-        questSummaryListString += f"⦁ ({count}x) {questKey} - {rewards}\n"
-    return questSummaryListString
+        rewards = "\n⦁ ".join(questInfo["rewards"])
+        embed.add_field(name=f"({count}x) {questKey.upper()}", value=f"⦁ {rewards}", inline=False)
+    
+    return embed
 
 def get_least_popular_quests(questGroups):
     questCount = {k: v["count"] for k, v in questGroups.items()}
@@ -232,3 +249,46 @@ def get_least_popular_quests(questGroups):
             break
 
     return leastPopularQuests
+
+def update_tracking_entries(rewardToTrack, message):
+    if message.content.startswith("!untrackall"):
+        execute_query_to_database(f"TRUNCATE TABLE track_reward;", "poliswag")
+    elif message.content.startswith("!track"):
+        execute_query_to_database(f"INSERT INTO track_reward (reward, creator) VALUES ('{rewardToTrack}', '{message.author}');", "poliswag")
+    elif message.content.startswith("!untrack"):
+        execute_query_to_database(f"DELETE FROM track_reward WHERE reward = '{rewardToTrack}';", "poliswag")
+
+
+def get_tracked_rewards():
+    storedTrackedRewards = get_data_from_database(f"SELECT reward FROM track_reward;", "poliswag")
+
+    storedRewards = []
+    if len(storedTrackedRewards) > 0:
+        for storedTrackedReward in storedTrackedRewards:
+            storedRewards.append(storedTrackedReward["data"][0])
+        return build_quest_summary_embed_objects(retrieve_sort_quest_data(), storedRewards)
+    
+    return {'Leiria': None, 'MarinhaGrande': None} 
+
+async def retrieve_quest_summary(channel, notify=False):
+    trackedRewards = get_tracked_rewards()
+    
+    if trackedRewards['Leiria'] is not None:
+        await channel.send(embed=trackedRewards['Leiria'])
+        
+    if trackedRewards['MarinhaGrande'] is not None:
+        await channel.send(embed=trackedRewards['MarinhaGrande'])
+        
+    if trackedRewards['Leiria'] is None and trackedRewards['MarinhaGrande'] is None and notify:
+        await channel.send(embed=build_embed_object_title_description("No rewards are currently being tracked"))
+
+async def list_track_quest(channel):
+    storedTrackedRewards = get_data_from_database(f"SELECT reward, createddate FROM track_reward;", "poliswag")
+
+    storedRewards = []
+    if len(storedTrackedRewards) > 0:
+        for storedTrackedReward in storedTrackedRewards:
+            storedRewards.append(f"{storedTrackedReward['data'][0].capitalize()} => created date: {storedTrackedReward['data'][1]}")
+        await channel.send(embed=build_embed_object_title_description("Rewards being tracked", "\n".join(storedRewards)))
+    else:
+        await channel.send(embed=build_embed_object_title_description("No rewards are currently being tracked"))
