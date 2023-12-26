@@ -1,46 +1,154 @@
-INFO | 2023-09-09 09:19 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-09-09 09:19 -- Cleared previous quest data
-INFO | 2023-09-09 09:19 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-09-09 09:19 -- Truncated quests table sucessfully!
-INFO | 2023-09-09 09:19 -- New PvP data generated
-INFO | 2023-09-09 09:19 -- New last_scanned_date set to 2023-09-09 00:00:00
-INFO | 2023-09-09 09:19 -- Enabled quest scanning mode
-INFO | 2023-09-09 09:19 -- Pokestop quest scanning started
-INFO | 2023-09-09 09:38 -- Number of devices encountering issues: 1
-INFO | 2023-09-09 09:49 -- Disabled quest scanning mode
-INFO | 2023-09-09 09:49 -- Pokestop quest scan completed
-INFO | 2023-09-09 10:34 -- Number of devices encountering issues: 0
-INFO | 2023-09-09 12:10 -- Notification filters reloaded by faynn#0
-INFO | 2023-09-09 16:42 -- 4 lures removidas à conta pogoleiria703 por jmboy
-INFO | 2023-09-10 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-09-10 00:00 -- Cleared previous quest data
-INFO | 2023-09-10 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-09-10 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-09-10 00:00 -- New PvP data generated
-INFO | 2023-09-10 00:00 -- New last_scanned_date set to 2023-09-10 00:00:00
-INFO | 2023-09-10 00:00 -- Enabled quest scanning mode
-INFO | 2023-09-10 00:00 -- Pokestop quest scanning started
-INFO | 2023-09-10 00:25 -- Disabled quest scanning mode
-INFO | 2023-09-10 00:25 -- Pokestop quest scan completed
-INFO | 2023-09-10 10:00 -- Rescan scheduled starting
-INFO | 2023-09-10 10:00 -- Cleared previous quest data
-INFO | 2023-09-10 10:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-09-10 10:00 -- Truncated quests table sucessfully!
-INFO | 2023-09-10 10:00 -- New PvP data generated
-INFO | 2023-09-10 10:00 -- New last_scanned_date set to 2023-09-10 00:00:00
-INFO | 2023-09-10 10:00 -- Enabled quest scanning mode
-INFO | 2023-09-10 10:00 -- Scheduled rescan started successfully
-INFO | 2023-09-10 10:55 -- Disabled quest scanning mode
-INFO | 2023-09-10 10:55 -- Pokestop quest scan completed
-INFO | 2023-09-10 16:57 -- Notification filters reloaded by faynn#0
-INFO | 2023-09-10 18:09 -- Notification filters reloaded by jmboy#0
-INFO | 2023-09-10 20:04 -- Rescan scheduled starting
-INFO | 2023-09-10 20:04 -- Cleared previous quest data
-INFO | 2023-09-10 20:04 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-09-10 20:04 -- Truncated quests table sucessfully!
-INFO | 2023-09-10 20:04 -- New PvP data generated
-INFO | 2023-09-10 20:04 -- New last_scanned_date set to 2023-09-10 00:00:00
-INFO | 2023-09-10 20:04 -- Enabled quest scanning mode
-INFO | 2023-09-10 20:04 -- Scheduled rescan started successfully
-INFO | 2023-09-10 20:29 -- Disabled quest scanning mode
-INFO | 2023-09-10 20:29 -- Pokestop quest scan completed
+INFO | 2023-12-18 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-18 00:00 -- Cleared previous quest data
+INFO | 2023-12-18 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-18 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-18 00:00 -- New PvP data generated
+INFO | 2023-12-18 00:00 -- New last_scanned_date set to 2023-12-18 00:00:00
+INFO | 2023-12-18 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-18 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-18 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-18 11:38 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-18 11:39 -- Disabled quest scanning mode
+INFO | 2023-12-18 11:39 -- Pokestop quest scan completed
+INFO | 2023-12-18 11:43 -- PlayIntegrityFix command updated
+INFO | 2023-12-18 12:54 -- Notification filters reloaded by jmboy#0
+INFO | 2023-12-18 12:55 -- New quest scan requested by jmboy#0
+INFO | 2023-12-18 12:55 -- Cleared previous quest data
+INFO | 2023-12-18 12:55 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-18 12:55 -- Truncated quests table sucessfully!
+INFO | 2023-12-18 12:55 -- New PvP data generated
+INFO | 2023-12-18 12:55 -- New last_scanned_date set to 2023-12-18 00:00:00
+INFO | 2023-12-18 12:55 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-18 12:55 -- Enabled quest scanning mode
+INFO | 2023-12-18 14:54 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-18 14:54 -- Disabled quest scanning mode
+INFO | 2023-12-18 14:54 -- Pokestop quest scan completed
+INFO | 2023-12-19 00:04 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-19 00:04 -- Cleared previous quest data
+INFO | 2023-12-19 00:04 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-19 00:04 -- Truncated quests table sucessfully!
+INFO | 2023-12-19 00:04 -- New PvP data generated
+INFO | 2023-12-19 00:04 -- New last_scanned_date set to 2023-12-19 00:00:00
+INFO | 2023-12-19 00:04 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-19 00:04 -- Enabled quest scanning mode
+INFO | 2023-12-19 00:04 -- Pokestop quest scanning started
+INFO | 2023-12-19 03:44 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-19 03:44 -- Disabled quest scanning mode
+INFO | 2023-12-19 03:44 -- Pokestop quest scan completed
+INFO | 2023-12-20 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-20 00:00 -- Cleared previous quest data
+INFO | 2023-12-20 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-20 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-20 00:00 -- New PvP data generated
+INFO | 2023-12-20 00:00 -- New last_scanned_date set to 2023-12-20 00:00:00
+INFO | 2023-12-20 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-20 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-20 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-20 01:25 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-20 01:25 -- Disabled quest scanning mode
+INFO | 2023-12-20 01:25 -- Pokestop quest scan completed
+INFO | 2023-12-20 12:28 -- PlayIntegrityFix command updated
+INFO | 2023-12-20 21:37 -- Updated to new version 0.293.1
+INFO | 2023-12-21 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-21 00:02 -- Cleared previous quest data
+INFO | 2023-12-21 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-21 00:02 -- Truncated quests table sucessfully!
+INFO | 2023-12-21 00:02 -- New PvP data generated
+INFO | 2023-12-21 00:02 -- New last_scanned_date set to 2023-12-21 00:00:00
+INFO | 2023-12-21 00:02 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-21 00:02 -- Enabled quest scanning mode
+INFO | 2023-12-21 00:02 -- Pokestop quest scanning started
+INFO | 2023-12-21 16:45 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-21 16:45 -- Disabled quest scanning mode
+INFO | 2023-12-21 16:45 -- Pokestop quest scan completed
+INFO | 2023-12-22 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-22 00:00 -- Cleared previous quest data
+INFO | 2023-12-22 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-22 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-22 00:00 -- New PvP data generated
+INFO | 2023-12-22 00:00 -- New last_scanned_date set to 2023-12-22 00:00:00
+INFO | 2023-12-22 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-22 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-22 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-22 01:10 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-22 01:10 -- Disabled quest scanning mode
+INFO | 2023-12-22 01:10 -- Pokestop quest scan completed
+INFO | 2023-12-23 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-23 00:00 -- Cleared previous quest data
+INFO | 2023-12-23 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-23 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-23 00:00 -- New PvP data generated
+INFO | 2023-12-23 00:00 -- New last_scanned_date set to 2023-12-23 00:00:00
+INFO | 2023-12-23 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-23 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-23 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-23 01:05 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-23 01:05 -- Disabled quest scanning mode
+INFO | 2023-12-23 01:05 -- Pokestop quest scan completed
+INFO | 2023-12-23 10:00 -- Rescan scheduled starting
+INFO | 2023-12-23 10:00 -- Cleared previous quest data
+INFO | 2023-12-23 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-23 10:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-23 10:00 -- New PvP data generated
+INFO | 2023-12-23 10:00 -- New last_scanned_date set to 2023-12-23 00:00:00
+INFO | 2023-12-23 10:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-23 10:00 -- Enabled quest scanning mode
+INFO | 2023-12-23 10:00 -- Scheduled rescan started successfully
+INFO | 2023-12-23 18:20 -- 12 lures removidas à conta pogoleiria617 por jmboy
+INFO | 2023-12-23 19:05 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-23 19:05 -- Disabled quest scanning mode
+INFO | 2023-12-23 19:05 -- Pokestop quest scan completed
+INFO | 2023-12-24 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-24 00:00 -- Cleared previous quest data
+INFO | 2023-12-24 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-24 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-24 00:00 -- New PvP data generated
+INFO | 2023-12-24 00:00 -- New last_scanned_date set to 2023-12-24 00:00:00
+INFO | 2023-12-24 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-24 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-24 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-24 01:15 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-24 01:15 -- Disabled quest scanning mode
+INFO | 2023-12-24 01:15 -- Pokestop quest scan completed
+INFO | 2023-12-24 20:00 -- Rescan scheduled starting
+INFO | 2023-12-24 20:00 -- Cleared previous quest data
+INFO | 2023-12-24 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-24 20:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-24 20:00 -- New PvP data generated
+INFO | 2023-12-24 20:00 -- New last_scanned_date set to 2023-12-24 00:00:00
+INFO | 2023-12-24 20:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-24 20:00 -- Enabled quest scanning mode
+INFO | 2023-12-24 20:00 -- Scheduled rescan started successfully
+INFO | 2023-12-25 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-25 00:00 -- Cleared previous quest data
+INFO | 2023-12-25 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-25 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-25 00:00 -- New PvP data generated
+INFO | 2023-12-25 00:00 -- New last_scanned_date set to 2023-12-25 00:00:00
+INFO | 2023-12-25 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-25 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-25 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-25 07:55 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-25 07:55 -- Disabled quest scanning mode
+INFO | 2023-12-25 07:55 -- Pokestop quest scan completed
+INFO | 2023-12-25 10:00 -- Rescan scheduled starting
+INFO | 2023-12-25 10:00 -- Cleared previous quest data
+INFO | 2023-12-25 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-25 10:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-25 10:00 -- New PvP data generated
+INFO | 2023-12-25 10:00 -- New last_scanned_date set to 2023-12-25 00:00:00
+INFO | 2023-12-25 10:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-25 10:00 -- Enabled quest scanning mode
+INFO | 2023-12-25 10:00 -- Scheduled rescan started successfully
+INFO | 2023-12-25 12:40 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-25 12:40 -- Disabled quest scanning mode
+INFO | 2023-12-25 12:40 -- Pokestop quest scan completed
+INFO | 2023-12-26 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-26 00:00 -- Cleared previous quest data
+INFO | 2023-12-26 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-26 00:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-26 00:00 -- New PvP data generated
+INFO | 2023-12-26 00:00 -- New last_scanned_date set to 2023-12-26 00:00:00
+INFO | 2023-12-26 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-26 00:00 -- Enabled quest scanning mode
+INFO | 2023-12-26 00:00 -- Pokestop quest scanning started
