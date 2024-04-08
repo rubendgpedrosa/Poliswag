@@ -108,3 +108,15 @@ async def build_rules_message(message):
         embed=embed
     )
     await prepare_view_roles_teams(message.channel)
+
+async def strip_user_roles(user):
+    if isinstance(user, discord.Member):
+        for role in user.roles:
+            try:
+                await user.remove_roles(role)
+            except discord.NotFound:
+                print(f"Role {role} not found when removing roles from {user}")
+            except discord.Forbidden:
+                print(f"Bot doesn't have permission to manage roles when removing roles from {user}")
+    else:
+        print(f"User {user} is not a member of the server.")

@@ -48,6 +48,9 @@ def log_to_file(string, logType = "INFO"):
             return
         
     if logType == "ERROR":
+        with open(constants.LOG_FILE, 'a') as file:
+            file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
+    elif logType == "CRASH":
         with open(constants.ERROR_LOG_FILE, 'a') as file:
             file.write(logType + " | {0} -- {1}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"), string))
     else:
@@ -124,3 +127,34 @@ async def clean_map_stats_channel(message):
             await msg.delete()
         elif message == "clear":
             await msg.delete()
+
+async def is_message_spam_message(message):
+    if message.author.id == constants.POLISWAG_ID or message.author.id in constants.ADMIN_USERS_IDS:
+        return False
+    if message.channel.id == constants.MOD_CHANNEL_ID:
+        return False
+    if message.channel.id == constants.QUEST_CHANNEL_ID:
+        return False
+
+    cached_messages = constants.CACHED_MESSAGES_BY_USER.get(message.author.id, [])
+    cached_messages.append(message.content)
+    
+    if len(cached_messages) > 3:
+        cached_messages = cached_messages[-3:]
+
+    constants.CACHED_MESSAGES_BY_USER[message.author.id] = cached_messages
+    
+    if len(set(cached_messages)) == 1:
+        log_to_file("User {0} is spamming: {1}".format(message.author.id, message.content))
+        return True
+    
+    return False
+
+async def remove_all_cached_messages_by_user(message):
+    if message.author.id in constants.CACHED_MESSAGES_BY_USER:
+        del constants.CACHED_MESSAGES_BY_USER[message.author.id]
+
+    time_threshold = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+
+    async for message in message.author.history(limit=None, after=time_threshold):
+        await message.delete()

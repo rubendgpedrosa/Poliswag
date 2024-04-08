@@ -21,11 +21,11 @@ def start_pokestop_scan():
 def set_quest_scanning_state(state = 0):
     execute_query_to_database(f"UPDATE poliswag SET scanned = '{state}';", "poliswag")
     
-    if state == 1:
-        temp_set_device_scanning_marinha()
-    else:
-        revert_device_scanning_marinha()
-        restart_run_docker_containers()
+    #if state == 1:
+    #    temp_set_device_scanning_marinha()
+    #else:
+    #    revert_device_scanning_marinha()
+    restart_run_docker_containers()
 
     log_to_file(f"{'Disabled' if state == 0 else 'Enabled'} quest scanning mode")
 
@@ -71,7 +71,7 @@ async def check_force_expire_accounts_required():
         reset_game_data_for_devices()
 
 def reset_game_data_for_devices():
-    deviceNames = ["PoGoLeiria", "a95xF1", "Tx9s1_JMBoy", "Tx9s", "Tx9s1_Ethix", "Tx9s2_JMBoy", "Tx9s1_Anakin"]
+    deviceNames = ["Tx9s", "a95xF1", "Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy", "Tx9s1_Ethix", "Tx9s1_Anakin"]
     for deviceName in deviceNames:
         clear_game_data_for_device(deviceName)
 
