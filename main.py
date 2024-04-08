@@ -7,9 +7,9 @@ import helpers.constants as constants
 import traceback
 
 from helpers.poliswag import load_filter_data, build_commands_message, notify_accounts_available_message, decrement_and_notify_lure_count_by_username, update_playintegrity_job
-from helpers.roles_manager import prepare_view_roles_location, restart_response_user_role_selection, build_rules_message
+from helpers.roles_manager import prepare_view_roles_location, restart_response_user_role_selection, build_rules_message, strip_user_roles
 from helpers.quests import find_quest, write_filter_data, update_tracking_entries, list_track_quest
-from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log, clean_map_stats_channel
+from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log, clean_map_stats_channel, is_message_spam_message, remove_all_cached_messages_by_user
 from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change, clear_quests_table
 from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete, restart_map_container_if_scanning_stuck
 from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests, notify_event_bonus_activated, restart_cancel_rescan_callback, retrieve_database_upcoming_events
@@ -43,7 +43,7 @@ async def __init__():
             #await check_force_expire_accounts_required()
     except Exception as e:
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        log_to_file(error_msg, "ERROR")
+        log_to_file(error_msg, "CRASH")
 
 @constants.CLIENT.event
 async def on_ready():
@@ -76,6 +76,10 @@ async def on_message(message):
             await prepare_view_roles_location(message.channel)
         if message.content.startswith('!rules'):
             await build_rules_message(message)
+            
+    #if message.channel.id == 946803671881089095 and await is_message_spam_message(message):
+    #    await strip_user_roles(message.author)
+    #    await remove_all_cached_messages_by_user(message)
 
     # Moderation commands to manage the pokemon scanner
     if message.channel.id == constants.MOD_CHANNEL_ID:
