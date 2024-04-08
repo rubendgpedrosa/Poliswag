@@ -1,154 +1,2876 @@
-INFO | 2023-12-18 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-18 00:00 -- Cleared previous quest data
-INFO | 2023-12-18 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-18 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-18 00:00 -- New PvP data generated
-INFO | 2023-12-18 00:00 -- New last_scanned_date set to 2023-12-18 00:00:00
-INFO | 2023-12-18 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-18 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-18 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-18 11:38 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-18 11:39 -- Disabled quest scanning mode
-INFO | 2023-12-18 11:39 -- Pokestop quest scan completed
-INFO | 2023-12-18 11:43 -- PlayIntegrityFix command updated
-INFO | 2023-12-18 12:54 -- Notification filters reloaded by jmboy#0
-INFO | 2023-12-18 12:55 -- New quest scan requested by jmboy#0
-INFO | 2023-12-18 12:55 -- Cleared previous quest data
-INFO | 2023-12-18 12:55 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-18 12:55 -- Truncated quests table sucessfully!
-INFO | 2023-12-18 12:55 -- New PvP data generated
-INFO | 2023-12-18 12:55 -- New last_scanned_date set to 2023-12-18 00:00:00
-INFO | 2023-12-18 12:55 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-18 12:55 -- Enabled quest scanning mode
-INFO | 2023-12-18 14:54 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-18 14:54 -- Disabled quest scanning mode
-INFO | 2023-12-18 14:54 -- Pokestop quest scan completed
-INFO | 2023-12-19 00:04 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-19 00:04 -- Cleared previous quest data
-INFO | 2023-12-19 00:04 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-19 00:04 -- Truncated quests table sucessfully!
-INFO | 2023-12-19 00:04 -- New PvP data generated
-INFO | 2023-12-19 00:04 -- New last_scanned_date set to 2023-12-19 00:00:00
-INFO | 2023-12-19 00:04 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-19 00:04 -- Enabled quest scanning mode
-INFO | 2023-12-19 00:04 -- Pokestop quest scanning started
-INFO | 2023-12-19 03:44 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-19 03:44 -- Disabled quest scanning mode
-INFO | 2023-12-19 03:44 -- Pokestop quest scan completed
-INFO | 2023-12-20 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-20 00:00 -- Cleared previous quest data
-INFO | 2023-12-20 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-20 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-20 00:00 -- New PvP data generated
-INFO | 2023-12-20 00:00 -- New last_scanned_date set to 2023-12-20 00:00:00
-INFO | 2023-12-20 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-20 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-20 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-20 01:25 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-20 01:25 -- Disabled quest scanning mode
-INFO | 2023-12-20 01:25 -- Pokestop quest scan completed
-INFO | 2023-12-20 12:28 -- PlayIntegrityFix command updated
-INFO | 2023-12-20 21:37 -- Updated to new version 0.293.1
-INFO | 2023-12-21 00:02 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-21 00:02 -- Cleared previous quest data
-INFO | 2023-12-21 00:02 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-21 00:02 -- Truncated quests table sucessfully!
-INFO | 2023-12-21 00:02 -- New PvP data generated
-INFO | 2023-12-21 00:02 -- New last_scanned_date set to 2023-12-21 00:00:00
-INFO | 2023-12-21 00:02 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-21 00:02 -- Enabled quest scanning mode
-INFO | 2023-12-21 00:02 -- Pokestop quest scanning started
-INFO | 2023-12-21 16:45 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-21 16:45 -- Disabled quest scanning mode
-INFO | 2023-12-21 16:45 -- Pokestop quest scan completed
-INFO | 2023-12-22 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-22 00:00 -- Cleared previous quest data
-INFO | 2023-12-22 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-22 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-22 00:00 -- New PvP data generated
-INFO | 2023-12-22 00:00 -- New last_scanned_date set to 2023-12-22 00:00:00
-INFO | 2023-12-22 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-22 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-22 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-22 01:10 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-22 01:10 -- Disabled quest scanning mode
-INFO | 2023-12-22 01:10 -- Pokestop quest scan completed
-INFO | 2023-12-23 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-23 00:00 -- Cleared previous quest data
-INFO | 2023-12-23 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-23 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-23 00:00 -- New PvP data generated
-INFO | 2023-12-23 00:00 -- New last_scanned_date set to 2023-12-23 00:00:00
-INFO | 2023-12-23 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-23 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-23 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-23 01:05 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-23 01:05 -- Disabled quest scanning mode
-INFO | 2023-12-23 01:05 -- Pokestop quest scan completed
-INFO | 2023-12-23 10:00 -- Rescan scheduled starting
-INFO | 2023-12-23 10:00 -- Cleared previous quest data
-INFO | 2023-12-23 10:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-23 10:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-23 10:00 -- New PvP data generated
-INFO | 2023-12-23 10:00 -- New last_scanned_date set to 2023-12-23 00:00:00
-INFO | 2023-12-23 10:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-23 10:00 -- Enabled quest scanning mode
-INFO | 2023-12-23 10:00 -- Scheduled rescan started successfully
-INFO | 2023-12-23 18:20 -- 12 lures removidas à conta pogoleiria617 por jmboy
-INFO | 2023-12-23 19:05 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-23 19:05 -- Disabled quest scanning mode
-INFO | 2023-12-23 19:05 -- Pokestop quest scan completed
-INFO | 2023-12-24 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-24 00:00 -- Cleared previous quest data
-INFO | 2023-12-24 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-24 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-24 00:00 -- New PvP data generated
-INFO | 2023-12-24 00:00 -- New last_scanned_date set to 2023-12-24 00:00:00
-INFO | 2023-12-24 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-24 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-24 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-24 01:15 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-24 01:15 -- Disabled quest scanning mode
-INFO | 2023-12-24 01:15 -- Pokestop quest scan completed
-INFO | 2023-12-24 20:00 -- Rescan scheduled starting
-INFO | 2023-12-24 20:00 -- Cleared previous quest data
-INFO | 2023-12-24 20:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-24 20:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-24 20:00 -- New PvP data generated
-INFO | 2023-12-24 20:00 -- New last_scanned_date set to 2023-12-24 00:00:00
-INFO | 2023-12-24 20:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-24 20:00 -- Enabled quest scanning mode
-INFO | 2023-12-24 20:00 -- Scheduled rescan started successfully
-INFO | 2023-12-25 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-25 00:00 -- Cleared previous quest data
-INFO | 2023-12-25 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-25 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-25 00:00 -- New PvP data generated
-INFO | 2023-12-25 00:00 -- New last_scanned_date set to 2023-12-25 00:00:00
-INFO | 2023-12-25 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-25 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-25 00:00 -- Pokestop quest scanning started
-INFO | 2023-12-25 07:55 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-25 07:55 -- Disabled quest scanning mode
-INFO | 2023-12-25 07:55 -- Pokestop quest scan completed
-INFO | 2023-12-25 10:00 -- Rescan scheduled starting
-INFO | 2023-12-25 10:00 -- Cleared previous quest data
-INFO | 2023-12-25 10:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-25 10:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-25 10:00 -- New PvP data generated
-INFO | 2023-12-25 10:00 -- New last_scanned_date set to 2023-12-25 00:00:00
-INFO | 2023-12-25 10:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-25 10:00 -- Enabled quest scanning mode
-INFO | 2023-12-25 10:00 -- Scheduled rescan started successfully
-INFO | 2023-12-25 12:40 -- a95xF1 reverted to scan Leiria
-INFO | 2023-12-25 12:40 -- Disabled quest scanning mode
-INFO | 2023-12-25 12:40 -- Pokestop quest scan completed
-INFO | 2023-12-26 00:00 -- Day change encountered, pokestop scanning initialized
-INFO | 2023-12-26 00:00 -- Cleared previous quest data
-INFO | 2023-12-26 00:00 -- Expired pokestops and gyms cleared sucessfully!
-INFO | 2023-12-26 00:00 -- Truncated quests table sucessfully!
-INFO | 2023-12-26 00:00 -- New PvP data generated
-INFO | 2023-12-26 00:00 -- New last_scanned_date set to 2023-12-26 00:00:00
-INFO | 2023-12-26 00:00 -- a95xF1 set to scan Marinha Grande
-INFO | 2023-12-26 00:00 -- Enabled quest scanning mode
-INFO | 2023-12-26 00:00 -- Pokestop quest scanning started
+INFO | 2023-12-31 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2023-12-31 04:00 -- Cleared previous quest data
+INFO | 2023-12-31 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-31 04:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-31 04:00 -- New PvP data generated
+INFO | 2023-12-31 04:00 -- New last_scanned_date set to 2023-12-31 00:00:00
+INFO | 2023-12-31 04:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-31 04:00 -- Enabled quest scanning mode
+INFO | 2023-12-31 04:00 -- Pokestop quest scanning started
+INFO | 2023-12-31 04:40 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-31 04:50 -- Disabled quest scanning mode
+INFO | 2023-12-31 04:50 -- Pokestop quest scan completed
+ERROR | 2023-12-31 05:20 -- Devices down: Tx9s, Tx9s2_JMBoy
+ERROR | 2023-12-31 05:40 -- Devices down: a95xF1
+ERROR | 2023-12-31 06:15 -- Devices down: Tx9s
+ERROR | 2023-12-31 07:55 -- Devices down: a95xF1
+ERROR | 2023-12-31 12:30 -- Devices down: Tx9s
+ERROR | 2023-12-31 13:30 -- Devices down: Tx9s2_JMBoy
+ERROR | 2023-12-31 14:55 -- Devices down: Tx9s3_JMBoy
+ERROR | 2023-12-31 15:30 -- Devices down: Tx9s1_JMBoy
+INFO | 2023-12-31 20:00 -- Rescan scheduled starting
+INFO | 2023-12-31 20:00 -- Cleared previous quest data
+INFO | 2023-12-31 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2023-12-31 20:00 -- Truncated quests table sucessfully!
+INFO | 2023-12-31 20:00 -- New PvP data generated
+INFO | 2023-12-31 20:00 -- New last_scanned_date set to 2023-12-31 00:00:00
+INFO | 2023-12-31 20:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2023-12-31 20:00 -- Enabled quest scanning mode
+INFO | 2023-12-31 20:00 -- Scheduled rescan started successfully
+INFO | 2023-12-31 20:35 -- a95xF1 reverted to scan Leiria
+INFO | 2023-12-31 20:40 -- Disabled quest scanning mode
+INFO | 2023-12-31 20:40 -- Pokestop quest scan completed
+ERROR | 2023-12-31 20:55 -- Devices down: Tx9s
+INFO | 2024-01-01 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-01 00:00 -- Cleared previous quest data
+INFO | 2024-01-01 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-01 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-01 00:00 -- New PvP data generated
+INFO | 2024-01-01 00:00 -- New last_scanned_date set to 2024-01-01 00:00:00
+INFO | 2024-01-01 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-01 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-01 00:00 -- Pokestop quest scanning started
+INFO | 2024-01-01 00:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-01 00:45 -- Disabled quest scanning mode
+INFO | 2024-01-01 00:45 -- Pokestop quest scan completed
+ERROR | 2024-01-01 06:00 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 06:45 -- Devices down: a95xF1, Tx9s1_JMBoy
+ERROR | 2024-01-01 07:15 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 07:55 -- Devices down: a95xF1, Tx9s1_JMBoy
+ERROR | 2024-01-01 08:00 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 09:15 -- Devices down: a95xF1, Tx9s1_JMBoy
+ERROR | 2024-01-01 09:20 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 10:00 -- Devices down: a95xF1, Tx9s1_JMBoy
+INFO | 2024-01-01 10:00 -- Rescan scheduled starting
+INFO | 2024-01-01 10:00 -- Cleared previous quest data
+INFO | 2024-01-01 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-01 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-01 10:00 -- New PvP data generated
+INFO | 2024-01-01 10:00 -- New last_scanned_date set to 2024-01-01 00:00:00
+INFO | 2024-01-01 10:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-01 10:00 -- Enabled quest scanning mode
+INFO | 2024-01-01 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-01-01 10:45 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 11:35 -- Quest scanning not progressing - Restarting
+INFO | 2024-01-01 12:00 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-01 12:00 -- Disabled quest scanning mode
+INFO | 2024-01-01 12:00 -- Pokestop quest scan completed
+ERROR | 2024-01-01 14:55 -- Devices down: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-01 16:35 -- Devices down: a95xF1, Tx9s1_JMBoy
+ERROR | 2024-01-01 16:40 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 18:05 -- Devices down: a95xF1, Tx9s1_JMBoy
+ERROR | 2024-01-01 18:40 -- Devices down: Tx9s1_JMBoy
+ERROR | 2024-01-01 23:00 -- Devices down: Tx9s, Tx9s1_JMBoy
+ERROR | 2024-01-01 23:05 -- Devices down: Tx9s1_JMBoy
+INFO | 2024-01-02 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-02 00:00 -- Cleared previous quest data
+INFO | 2024-01-02 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-02 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-02 00:00 -- New PvP data generated
+INFO | 2024-01-02 00:00 -- New last_scanned_date set to 2024-01-02 00:00:00
+INFO | 2024-01-02 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-02 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-02 00:00 -- Pokestop quest scanning started
+INFO | 2024-01-02 00:40 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-02 01:00 -- Disabled quest scanning mode
+INFO | 2024-01-02 01:00 -- Pokestop quest scan completed
+INFO | 2024-01-03 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-03 00:00 -- Cleared previous quest data
+INFO | 2024-01-03 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-03 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-03 00:00 -- New PvP data generated
+INFO | 2024-01-03 00:00 -- New last_scanned_date set to 2024-01-03 00:00:00
+INFO | 2024-01-03 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-03 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-03 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-03 00:05 -- Devices down: a95xF1
+ERROR | 2024-01-03 01:15 -- Quest scanning not progressing - Restarting
+ERROR | 2024-01-03 01:45 -- Devices down: a95xF1
+ERROR | 2024-01-03 02:30 -- Quest scanning not progressing - Restarting
+INFO | 2024-01-03 02:45 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-03 02:45 -- Disabled quest scanning mode
+INFO | 2024-01-03 02:45 -- Pokestop quest scan completed
+INFO | 2024-01-03 20:06 -- Rescan scheduled starting
+INFO | 2024-01-03 20:06 -- Cleared previous quest data
+INFO | 2024-01-03 20:06 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-03 20:06 -- Truncated quests table sucessfully!
+INFO | 2024-01-03 20:06 -- New PvP data generated
+INFO | 2024-01-03 20:06 -- New last_scanned_date set to 2024-01-03 00:00:00
+INFO | 2024-01-03 20:06 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-03 20:06 -- Enabled quest scanning mode
+ERROR | 2024-01-03 20:26 -- Devices not scanning: a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-03 20:37 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-03 20:42 -- Devices not scanning: a95xF1
+INFO | 2024-01-03 20:42 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-03 20:42 -- Disabled quest scanning mode
+INFO | 2024-01-03 20:42 -- Pokestop quest scan completed
+INFO | 2024-01-04 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-04 00:00 -- Cleared previous quest data
+INFO | 2024-01-04 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-04 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-04 00:00 -- New PvP data generated
+INFO | 2024-01-04 00:00 -- New last_scanned_date set to 2024-01-04 00:00:00
+INFO | 2024-01-04 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-04 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-04 00:00 -- Pokestop quest scanning started
+INFO | 2024-01-04 00:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-04 00:40 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-04 00:40 -- Disabled quest scanning mode
+INFO | 2024-01-04 00:40 -- Pokestop quest scan completed
+INFO | 2024-01-05 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-05 00:00 -- Cleared previous quest data
+INFO | 2024-01-05 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-05 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-05 00:00 -- New PvP data generated
+INFO | 2024-01-05 00:00 -- New last_scanned_date set to 2024-01-05 00:00:00
+INFO | 2024-01-05 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-05 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-05 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-05 00:05 -- Devices not found: a95xF1
+ERROR | 2024-01-05 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-05 00:15 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-01-05 00:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-01-05 00:25 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-05 00:30 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+INFO | 2024-01-05 00:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-05 00:35 -- Devices not found: a95xF1
+INFO | 2024-01-05 00:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-05 00:35 -- Disabled quest scanning mode
+INFO | 2024-01-05 00:35 -- Pokestop quest scan completed
+ERROR | 2024-01-05 05:05 -- Devices not found: Tx9s
+ERROR | 2024-01-05 06:25 -- Devices not found: a95xF1
+INFO | 2024-01-06 00:03 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-06 00:03 -- Cleared previous quest data
+INFO | 2024-01-06 00:03 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-06 00:03 -- Truncated quests table sucessfully!
+INFO | 2024-01-06 00:03 -- New PvP data generated
+INFO | 2024-01-06 00:03 -- New last_scanned_date set to 2024-01-06 00:00:00
+INFO | 2024-01-06 00:03 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-06 00:03 -- Enabled quest scanning mode
+INFO | 2024-01-06 00:03 -- Pokestop quest scanning started
+INFO | 2024-01-06 00:38 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-06 00:43 -- Devices not found: a95xF1
+INFO | 2024-01-06 00:43 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-06 00:43 -- Disabled quest scanning mode
+INFO | 2024-01-06 00:43 -- Pokestop quest scan completed
+INFO | 2024-01-06 10:02 -- Rescan scheduled starting
+INFO | 2024-01-06 10:02 -- Cleared previous quest data
+INFO | 2024-01-06 10:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-06 10:02 -- Truncated quests table sucessfully!
+INFO | 2024-01-06 10:02 -- New PvP data generated
+INFO | 2024-01-06 10:02 -- New last_scanned_date set to 2024-01-06 00:00:00
+INFO | 2024-01-06 10:02 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-06 10:02 -- Enabled quest scanning mode
+INFO | 2024-01-06 10:02 -- Scheduled rescan started successfully
+INFO | 2024-01-06 10:37 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-06 10:37 -- Disabled quest scanning mode
+INFO | 2024-01-06 10:37 -- Pokestop quest scan completed
+ERROR | 2024-01-06 12:22 -- Devices not scanning: Tx9s3_JMBoy
+ERROR | 2024-01-06 17:27 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-07 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-07 00:02 -- Cleared previous quest data
+INFO | 2024-01-07 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-07 00:02 -- Truncated quests table sucessfully!
+INFO | 2024-01-07 00:02 -- New PvP data generated
+INFO | 2024-01-07 00:02 -- New last_scanned_date set to 2024-01-07 00:00:00
+INFO | 2024-01-07 00:02 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-07 00:02 -- Enabled quest scanning mode
+INFO | 2024-01-07 00:02 -- Pokestop quest scanning started
+ERROR | 2024-01-07 00:27 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-01-07 00:27 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-07 00:32 -- Devices not found: a95xF1
+INFO | 2024-01-07 00:32 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-07 00:37 -- Disabled quest scanning mode
+INFO | 2024-01-07 00:37 -- Pokestop quest scan completed
+INFO | 2024-01-08 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-08 00:01 -- Cleared previous quest data
+INFO | 2024-01-08 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-08 00:01 -- Truncated quests table sucessfully!
+INFO | 2024-01-08 00:01 -- New PvP data generated
+INFO | 2024-01-08 00:01 -- New last_scanned_date set to 2024-01-08 00:00:00
+INFO | 2024-01-08 00:01 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-08 00:01 -- Enabled quest scanning mode
+INFO | 2024-01-08 00:01 -- Pokestop quest scanning started
+ERROR | 2024-01-08 00:06 -- Devices not found: Tx9s
+INFO | 2024-01-08 00:31 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-08 00:36 -- Devices not found: a95xF1
+INFO | 2024-01-08 00:36 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-08 00:41 -- Disabled quest scanning mode
+INFO | 2024-01-08 00:41 -- Pokestop quest scan completed
+ERROR | 2024-01-08 01:46 -- Devices not found: Tx9s
+ERROR | 2024-01-08 02:26 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-08 19:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-08 20:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-08 20:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-08 20:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-08 21:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-01-08 21:10 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-09 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-09 00:00 -- Cleared previous quest data
+INFO | 2024-01-09 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-09 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-09 00:00 -- New PvP data generated
+INFO | 2024-01-09 00:00 -- New last_scanned_date set to 2024-01-09 00:00:00
+INFO | 2024-01-09 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-09 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-09 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-09 00:10 -- Devices not found: Tx9s
+ERROR | 2024-01-09 00:30 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-09 01:20 -- Devices not found: a95xF1
+INFO | 2024-01-09 01:25 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-09 01:30 -- Devices not found: a95xF1
+INFO | 2024-01-09 01:30 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-09 01:30 -- Disabled quest scanning mode
+INFO | 2024-01-09 01:30 -- Pokestop quest scan completed
+ERROR | 2024-01-09 04:00 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-09 06:15 -- Devices not found: a95xF1
+ERROR | 2024-01-09 07:00 -- Devices not scanning: a95xF1
+ERROR | 2024-01-09 08:15 -- Devices not scanning: Tx9s
+ERROR | 2024-01-09 13:25 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-01-10 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-10 00:00 -- Cleared previous quest data
+INFO | 2024-01-10 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-10 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-10 00:00 -- New PvP data generated
+INFO | 2024-01-10 00:00 -- New last_scanned_date set to 2024-01-10 00:00:00
+INFO | 2024-01-10 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-10 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-10 00:01 -- Pokestop quest scanning started
+INFO | 2024-01-10 00:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-10 00:41 -- Disabled quest scanning mode
+INFO | 2024-01-10 00:41 -- Pokestop quest scan completed
+ERROR | 2024-01-10 04:00 -- Devices not found: a95xF1, Tx9s3_JMBoy
+INFO | 2024-01-10 20:00 -- Rescan scheduled starting
+INFO | 2024-01-10 20:00 -- Cleared previous quest data
+INFO | 2024-01-10 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-10 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-10 20:00 -- New PvP data generated
+INFO | 2024-01-10 20:00 -- New last_scanned_date set to 2024-01-10 00:00:00
+INFO | 2024-01-10 20:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-10 20:00 -- Enabled quest scanning mode
+INFO | 2024-01-10 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-01-10 20:05 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-10 20:10 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-10 20:30 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-10 20:30 -- Disabled quest scanning mode
+INFO | 2024-01-10 20:30 -- Pokestop quest scan completed
+ERROR | 2024-01-10 23:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-10 23:30 -- Devices not scanning: Tx9s
+ERROR | 2024-01-10 23:35 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-10 23:50 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-11 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-11 00:00 -- Cleared previous quest data
+INFO | 2024-01-11 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-11 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-11 00:00 -- New PvP data generated
+INFO | 2024-01-11 00:00 -- New last_scanned_date set to 2024-01-11 00:00:00
+INFO | 2024-01-11 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-11 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-11 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-11 00:05 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-11 00:35 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-11 00:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-11 00:40 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-11 00:40 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-11 00:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-11 00:45 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-11 00:45 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-11 00:45 -- Disabled quest scanning mode
+INFO | 2024-01-11 00:45 -- Pokestop quest scan completed
+ERROR | 2024-01-11 00:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-11 09:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-11 09:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-11 20:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-11 21:05 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-12 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-12 00:00 -- Cleared previous quest data
+INFO | 2024-01-12 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-12 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-12 00:00 -- New PvP data generated
+INFO | 2024-01-12 00:00 -- New last_scanned_date set to 2024-01-12 00:00:00
+INFO | 2024-01-12 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-12 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-12 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-12 00:05 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-01-12 00:35 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-12 00:40 -- Devices not found: a95xF1
+INFO | 2024-01-12 00:40 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-12 02:30 -- Disabled quest scanning mode
+INFO | 2024-01-12 02:30 -- Pokestop quest scan completed
+ERROR | 2024-01-12 04:00 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-12 10:20 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-12 15:10 -- Devices not scanning: Tx9s
+ERROR | 2024-01-12 15:25 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-12 16:15 -- Devices not found: Tx9s
+ERROR | 2024-01-12 16:15 -- Devices not scanning: Tx9s
+ERROR | 2024-01-12 17:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 18:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 18:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 18:30 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:35 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 19:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 20:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 20:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 20:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 20:55 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:35 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-12 21:55 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-13 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-13 00:00 -- Cleared previous quest data
+INFO | 2024-01-13 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-13 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-13 00:00 -- New PvP data generated
+INFO | 2024-01-13 00:00 -- New last_scanned_date set to 2024-01-13 00:00:00
+INFO | 2024-01-13 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-13 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-13 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-13 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-13 00:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-13 00:35 -- Devices not found: a95xF1
+INFO | 2024-01-13 00:35 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-13 00:40 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-01-13 00:40 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-13 00:45 -- Disabled quest scanning mode
+INFO | 2024-01-13 00:45 -- Pokestop quest scan completed
+INFO | 2024-01-13 10:00 -- Rescan scheduled starting
+INFO | 2024-01-13 10:00 -- Cleared previous quest data
+INFO | 2024-01-13 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-13 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-13 10:00 -- New PvP data generated
+INFO | 2024-01-13 10:00 -- New last_scanned_date set to 2024-01-13 00:00:00
+INFO | 2024-01-13 10:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-13 10:00 -- Enabled quest scanning mode
+INFO | 2024-01-13 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-01-13 10:15 -- Devices not found: Tx9s
+ERROR | 2024-01-13 10:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-13 10:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-13 10:35 -- Devices not found: a95xF1
+INFO | 2024-01-13 10:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-13 10:55 -- Disabled quest scanning mode
+INFO | 2024-01-13 10:55 -- Pokestop quest scan completed
+ERROR | 2024-01-13 11:20 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-13 16:04 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 16:04 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 17:34 -- Devices not found: Tx9s
+ERROR | 2024-01-13 18:39 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 19:24 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 20:04 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 20:04 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 20:14 -- Devices not found: Tx9s
+ERROR | 2024-01-13 20:14 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 20:44 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 20:44 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 21:14 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-13 21:14 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 21:49 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 21:49 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 22:09 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-13 22:19 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-13 23:09 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-13 23:09 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:04 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-14 00:04 -- Cleared previous quest data
+INFO | 2024-01-14 00:04 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-14 00:04 -- Truncated quests table sucessfully!
+INFO | 2024-01-14 00:04 -- New PvP data generated
+INFO | 2024-01-14 00:04 -- New last_scanned_date set to 2024-01-14 00:00:00
+INFO | 2024-01-14 00:04 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-14 00:04 -- Enabled quest scanning mode
+INFO | 2024-01-14 00:04 -- Pokestop quest scanning started
+ERROR | 2024-01-14 00:09 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:34 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 00:39 -- Devices not found: a95xF1
+ERROR | 2024-01-14 00:39 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:39 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 00:44 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 00:44 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:44 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 00:49 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:49 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 00:54 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:54 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 00:59 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 00:59 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-14 00:59 -- Disabled quest scanning mode
+INFO | 2024-01-14 00:59 -- Pokestop quest scan completed
+INFO | 2024-01-14 01:00 -- New quest scan requested by jmboy#0
+INFO | 2024-01-14 01:00 -- Cleared previous quest data
+INFO | 2024-01-14 01:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-14 01:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-14 01:00 -- New PvP data generated
+INFO | 2024-01-14 01:00 -- New last_scanned_date set to 2024-01-14 00:00:00
+INFO | 2024-01-14 01:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-14 01:00 -- Enabled quest scanning mode
+ERROR | 2024-01-14 01:04 -- Devices not found: a95xF1
+ERROR | 2024-01-14 01:04 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 01:24 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 01:24 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 01:39 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 01:44 -- Devices not found: a95xF1
+ERROR | 2024-01-14 01:44 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 01:44 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 01:49 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 01:49 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-14 01:54 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 01:54 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-14 01:54 -- Disabled quest scanning mode
+INFO | 2024-01-14 01:54 -- Pokestop quest scan completed
+ERROR | 2024-01-14 01:59 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 01:59 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 06:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 06:10 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 10:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 10:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 16:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 16:30 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 17:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 17:25 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 17:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 17:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 18:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 18:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 18:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 18:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 19:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 19:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 20:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 20:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:30 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-14 21:39 -- PlayIntegrityFix command updated
+ERROR | 2024-01-14 21:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 21:55 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 23:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-14 23:25 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-14 23:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-14 23:45 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-15 00:00 -- Cleared previous quest data
+INFO | 2024-01-15 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-15 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-15 00:00 -- New PvP data generated
+INFO | 2024-01-15 00:00 -- New last_scanned_date set to 2024-01-15 00:00:00
+INFO | 2024-01-15 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-15 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-15 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-15 00:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 00:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 00:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-01-15 00:20 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-15 00:35 -- Devices not found: a95xF1
+ERROR | 2024-01-15 00:35 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:35 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-15 00:40 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:40 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-15 00:45 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:45 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-15 00:50 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-15 00:50 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-15 00:50 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-15 00:50 -- Disabled quest scanning mode
+INFO | 2024-01-15 00:50 -- Pokestop quest scan completed
+ERROR | 2024-01-15 00:55 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 03:00 -- Devices not found: Tx9s
+ERROR | 2024-01-15 03:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 05:00 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-15 06:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 06:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 06:15 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 08:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 08:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 09:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 09:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 10:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 10:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 12:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 12:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 15:05 -- Devices not found: Tx9s
+ERROR | 2024-01-15 15:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 15:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-15 15:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 15:25 -- Devices not found: Tx9s
+ERROR | 2024-01-15 15:25 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 15:45 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-15 16:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 16:05 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-15 16:10 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 17:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 17:15 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 17:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 17:50 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:10 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 18:30 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 19:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 19:15 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 19:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 19:25 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 20:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-15 20:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 23:05 -- Devices not found: Tx9s
+ERROR | 2024-01-15 23:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 23:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-15 23:15 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 23:20 -- Devices not found: Tx9s
+ERROR | 2024-01-15 23:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 23:40 -- Devices not found: Tx9s
+ERROR | 2024-01-15 23:40 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-15 23:55 -- Devices not found: Tx9s
+ERROR | 2024-01-15 23:55 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-16 00:00 -- Cleared previous quest data
+INFO | 2024-01-16 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-16 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-16 00:00 -- New PvP data generated
+INFO | 2024-01-16 00:00 -- New last_scanned_date set to 2024-01-16 00:00:00
+INFO | 2024-01-16 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-16 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-16 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-16 00:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 00:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-01-16 00:10 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:15 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:20 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-01-16 00:20 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:20 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:25 -- Devices not found: Tx9s
+ERROR | 2024-01-16 00:25 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:25 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:30 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-01-16 00:30 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:35 -- Devices not found: Tx9s
+ERROR | 2024-01-16 00:35 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:35 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:40 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:40 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:45 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:45 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-16 00:50 -- Devices not found: Tx9s
+ERROR | 2024-01-16 00:50 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-16 00:50 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-16 00:50 -- Disabled quest scanning mode
+INFO | 2024-01-16 00:50 -- Pokestop quest scan completed
+ERROR | 2024-01-16 00:55 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 01:00 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 01:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 01:05 -- Devices not found: Tx9s
+ERROR | 2024-01-16 01:05 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 01:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 01:15 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 01:20 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-01-16 01:20 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 01:25 -- Devices not found: Tx9s
+ERROR | 2024-01-16 01:25 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 02:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 02:25 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 02:30 -- Devices not found: Tx9s
+ERROR | 2024-01-16 02:30 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 02:40 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 02:40 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 02:45 -- Devices not found: Tx9s
+ERROR | 2024-01-16 02:45 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 04:00 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 04:00 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 04:02 -- Devices not found: Tx9s
+ERROR | 2024-01-16 04:12 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-16 05:02 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 05:12 -- Devices not found: Tx9s
+ERROR | 2024-01-16 05:12 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 05:22 -- Devices not found: Tx9s
+ERROR | 2024-01-16 05:22 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-16 05:57 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 07:12 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 07:12 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 08:32 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 08:32 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 08:57 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 08:57 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 09:42 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 09:42 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 11:37 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 11:37 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 11:47 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 11:47 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 12:42 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 12:42 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 12:52 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-16 12:52 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-16 13:18 -- Devices not found: Tx9s
+ERROR | 2024-01-16 14:08 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-17 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-17 04:00 -- Cleared previous quest data
+INFO | 2024-01-17 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-17 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-17 04:00 -- New PvP data generated
+INFO | 2024-01-17 04:00 -- New last_scanned_date set to 2024-01-17 00:00:00
+INFO | 2024-01-17 04:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-17 04:00 -- Enabled quest scanning mode
+INFO | 2024-01-17 04:00 -- Pokestop quest scanning started
+INFO | 2024-01-17 04:20 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-17 04:50 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-01-17 04:50 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-17 04:50 -- Disabled quest scanning mode
+INFO | 2024-01-17 04:50 -- Pokestop quest scan completed
+ERROR | 2024-01-17 04:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-17 05:00 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-17 06:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-17 07:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-17 12:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-17 12:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-17 14:55 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-17 15:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-18 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-18 00:00 -- Cleared previous quest data
+INFO | 2024-01-18 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-18 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-18 00:00 -- New PvP data generated
+INFO | 2024-01-18 00:00 -- New last_scanned_date set to 2024-01-18 00:00:00
+INFO | 2024-01-18 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-18 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-18 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-18 00:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-18 00:30 -- Devices not found: Tx9s1_JMBoy
+INFO | 2024-01-18 00:40 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-18 01:00 -- Disabled quest scanning mode
+INFO | 2024-01-18 01:00 -- Pokestop quest scan completed
+ERROR | 2024-01-18 01:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-18 05:45 -- Devices not scanning: Tx9s
+ERROR | 2024-01-18 05:50 -- Devices not found: Tx9s
+ERROR | 2024-01-18 08:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-18 08:55 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-18 10:30 -- Devices not found: Tx9s
+ERROR | 2024-01-18 11:10 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-01-18 13:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-18 16:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-18 21:40 -- Devices not found: a95xF1
+ERROR | 2024-01-18 21:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-19 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-19 00:00 -- Cleared previous quest data
+INFO | 2024-01-19 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-19 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-19 00:00 -- New PvP data generated
+INFO | 2024-01-19 00:00 -- New last_scanned_date set to 2024-01-19 00:00:00
+INFO | 2024-01-19 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-19 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-19 00:00 -- Pokestop quest scanning started
+INFO | 2024-01-19 00:25 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-19 00:45 -- Devices not found: Tx9s
+INFO | 2024-01-19 00:45 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-19 00:45 -- Disabled quest scanning mode
+INFO | 2024-01-19 00:45 -- Pokestop quest scan completed
+ERROR | 2024-01-19 01:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-19 05:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-19 08:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-19 10:00 -- Rescan scheduled starting
+INFO | 2024-01-19 10:00 -- Cleared previous quest data
+INFO | 2024-01-19 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-19 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-19 10:00 -- New PvP data generated
+INFO | 2024-01-19 10:00 -- New last_scanned_date set to 2024-01-19 00:00:00
+INFO | 2024-01-19 10:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-19 10:00 -- Enabled quest scanning mode
+INFO | 2024-01-19 10:00 -- Scheduled rescan started successfully
+INFO | 2024-01-19 10:15 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-19 10:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-19 10:40 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-19 10:45 -- Devices not found: Tx9s, Tx9s2_JMBoy
+INFO | 2024-01-19 10:45 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-19 10:50 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-19 10:50 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-19 10:50 -- Disabled quest scanning mode
+INFO | 2024-01-19 10:50 -- Pokestop quest scan completed
+INFO | 2024-01-20 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-20 00:00 -- Cleared previous quest data
+INFO | 2024-01-20 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-20 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-20 00:00 -- New PvP data generated
+INFO | 2024-01-20 00:00 -- New last_scanned_date set to 2024-01-20 00:00:00
+INFO | 2024-01-20 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-20 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-20 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-20 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-20 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-20 00:25 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-20 00:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-20 00:30 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-20 00:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-20 00:35 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-20 00:50 -- Disabled quest scanning mode
+INFO | 2024-01-20 00:50 -- Pokestop quest scan completed
+ERROR | 2024-01-20 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-21 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-21 00:00 -- Cleared previous quest data
+INFO | 2024-01-21 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-21 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-21 00:00 -- New PvP data generated
+INFO | 2024-01-21 00:00 -- New last_scanned_date set to 2024-01-21 00:00:00
+INFO | 2024-01-21 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-21 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-21 00:00 -- Pokestop quest scanning started
+INFO | 2024-01-21 00:20 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-21 00:35 -- Disabled quest scanning mode
+INFO | 2024-01-21 00:35 -- Pokestop quest scan completed
+ERROR | 2024-01-21 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-21 11:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-21 11:30 -- Devices not scanning: a95xF1
+ERROR | 2024-01-21 11:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-21 12:15 -- Devices not scanning: Tx9s
+INFO | 2024-01-22 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-22 00:00 -- Cleared previous quest data
+INFO | 2024-01-22 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-22 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-22 00:00 -- New PvP data generated
+INFO | 2024-01-22 00:00 -- New last_scanned_date set to 2024-01-22 00:00:00
+INFO | 2024-01-22 00:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-22 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-22 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-22 00:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-22 00:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-22 00:15 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-22 00:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-22 00:20 -- a95xF1 reverted to scan Leiria
+ERROR | 2024-01-22 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-22 00:25 -- a95xF1 reverted to scan Leiria
+INFO | 2024-01-22 00:45 -- Disabled quest scanning mode
+INFO | 2024-01-22 00:45 -- Pokestop quest scan completed
+ERROR | 2024-01-22 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-22 18:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-22 19:16 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-01-22 20:02 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-22 20:27 -- Devices not scanning: Tx9s2_JMBoy Tx9s_Ethix
+ERROR | 2024-01-23 02:27 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-23 02:32 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-23 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-23 04:00 -- Cleared previous quest data
+INFO | 2024-01-23 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-23 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-23 04:00 -- New PvP data generated
+INFO | 2024-01-23 04:00 -- New last_scanned_date set to 2024-01-23 00:00:00
+INFO | 2024-01-23 04:00 -- a95xF1 set to scan Marinha Grande
+INFO | 2024-01-23 04:00 -- Enabled quest scanning mode
+INFO | 2024-01-23 04:00 -- Pokestop quest scanning started
+ERROR | 2024-01-23 04:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-23 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-23 05:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+INFO | 2024-01-23 05:05 -- Disabled quest scanning mode
+INFO | 2024-01-23 05:05 -- Pokestop quest scan completed
+ERROR | 2024-01-23 06:00 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-23 06:00 -- Devices not scanning: Tx9s
+ERROR | 2024-01-23 06:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-23 08:35 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-01-23 11:02 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-01-23 11:07 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-01-23 19:02 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-01-23 19:07 -- Devices not found: Tx9s, Tx9s2_JMBoy
+INFO | 2024-01-24 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-24 04:00 -- Cleared previous quest data
+INFO | 2024-01-24 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-24 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-24 04:00 -- New PvP data generated
+INFO | 2024-01-24 04:00 -- New last_scanned_date set to 2024-01-24 00:00:00
+INFO | 2024-01-24 04:00 -- Enabled quest scanning mode
+INFO | 2024-01-24 04:00 -- Pokestop quest scanning started
+ERROR | 2024-01-24 04:15 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-24 04:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-24 05:00 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-24 05:30 -- Quest scanning not progressing - Restarting
+INFO | 2024-01-24 05:35 -- Disabled quest scanning mode
+INFO | 2024-01-24 05:35 -- Pokestop quest scan completed
+ERROR | 2024-01-24 06:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-24 06:35 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-24 11:55 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-24 12:10 -- Devices not scanning: a95xF1
+ERROR | 2024-01-24 16:35 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-01-24 19:35 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-24 20:00 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-24 20:00 -- Rescan scheduled starting
+INFO | 2024-01-24 20:00 -- Cleared previous quest data
+INFO | 2024-01-24 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-24 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-24 20:00 -- New PvP data generated
+INFO | 2024-01-24 20:00 -- New last_scanned_date set to 2024-01-24 00:00:00
+INFO | 2024-01-24 20:00 -- Enabled quest scanning mode
+INFO | 2024-01-24 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-01-24 20:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-24 20:15 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-24 20:55 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-24 21:05 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-24 21:05 -- Disabled quest scanning mode
+INFO | 2024-01-24 21:05 -- Pokestop quest scan completed
+ERROR | 2024-01-24 21:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+INFO | 2024-01-25 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-25 00:00 -- Cleared previous quest data
+INFO | 2024-01-25 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-25 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-25 00:00 -- New PvP data generated
+INFO | 2024-01-25 00:00 -- New last_scanned_date set to 2024-01-25 00:00:00
+INFO | 2024-01-25 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-25 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-25 01:15 -- Quest scanning not progressing - Restarting
+INFO | 2024-01-25 01:20 -- Disabled quest scanning mode
+INFO | 2024-01-25 01:20 -- Pokestop quest scan completed
+ERROR | 2024-01-25 05:00 -- Devices not scanning: Tx9s Tx9s2_JMBoy
+ERROR | 2024-01-25 06:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 06:55 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-25 07:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 07:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-25 09:10 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-25 10:00 -- Devices not scanning: a95xF1
+ERROR | 2024-01-25 11:00 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-25 16:25 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-25 18:05 -- Updated to new version 0.297.0
+ERROR | 2024-01-25 18:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-25 18:50 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-25 18:55 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-25 19:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 19:05 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-25 19:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 19:14 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-25 21:59 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-25 22:14 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 22:49 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-01-25 22:54 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-25 22:59 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-25 23:04 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-01-25 23:09 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-25 23:14 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-01-25 23:19 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-25 23:49 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-26 00:04 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-26 00:04 -- Cleared previous quest data
+INFO | 2024-01-26 00:04 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-26 00:04 -- Truncated quests table sucessfully!
+INFO | 2024-01-26 00:04 -- New PvP data generated
+INFO | 2024-01-26 00:04 -- New last_scanned_date set to 2024-01-26 00:00:00
+INFO | 2024-01-26 00:05 -- Enabled quest scanning mode
+INFO | 2024-01-26 00:05 -- Pokestop quest scanning started
+ERROR | 2024-01-26 00:09 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-01-26 00:40 -- Disabled quest scanning mode
+INFO | 2024-01-26 00:40 -- Pokestop quest scan completed
+ERROR | 2024-01-26 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-26 12:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-26 13:20 -- Devices not found: a95xF1
+ERROR | 2024-01-26 13:45 -- Devices not scanning: a95xF1
+ERROR | 2024-01-26 20:10 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-27 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-27 00:00 -- Cleared previous quest data
+INFO | 2024-01-27 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-27 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-27 00:00 -- New PvP data generated
+INFO | 2024-01-27 00:00 -- New last_scanned_date set to 2024-01-27 00:00:00
+INFO | 2024-01-27 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-27 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-27 00:10 -- Devices not found: Tx9s
+ERROR | 2024-01-27 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-27 00:30 -- Disabled quest scanning mode
+INFO | 2024-01-27 00:30 -- Pokestop quest scan completed
+ERROR | 2024-01-27 03:05 -- Devices not found: a95xF1
+ERROR | 2024-01-27 05:00 -- Devices not scanning: a95xF1
+ERROR | 2024-01-27 08:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-27 11:50 -- Devices not found: Tx9s1_JMBoy
+ERROR | 2024-01-27 12:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-27 17:45 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-28 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-28 00:00 -- Cleared previous quest data
+INFO | 2024-01-28 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-28 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-28 00:00 -- New PvP data generated
+INFO | 2024-01-28 00:00 -- New last_scanned_date set to 2024-01-28 00:00:00
+INFO | 2024-01-28 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-28 00:01 -- Pokestop quest scanning started
+INFO | 2024-01-28 00:35 -- Disabled quest scanning mode
+INFO | 2024-01-28 00:35 -- Pokestop quest scan completed
+ERROR | 2024-01-28 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-28 19:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-01-29 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-29 00:00 -- Cleared previous quest data
+INFO | 2024-01-29 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-29 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-29 00:00 -- New PvP data generated
+INFO | 2024-01-29 00:00 -- New last_scanned_date set to 2024-01-29 00:00:00
+INFO | 2024-01-29 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-29 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-29 01:15 -- Quest scanning not progressing - Restarting
+INFO | 2024-01-29 01:20 -- Disabled quest scanning mode
+INFO | 2024-01-29 01:20 -- Pokestop quest scan completed
+ERROR | 2024-01-29 05:30 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-01-29 06:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-29 07:25 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-01-30 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-30 00:00 -- Cleared previous quest data
+INFO | 2024-01-30 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-30 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-30 00:00 -- New PvP data generated
+INFO | 2024-01-30 00:00 -- New last_scanned_date set to 2024-01-30 00:00:00
+INFO | 2024-01-30 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-30 00:00 -- Pokestop quest scanning started
+ERROR | 2024-01-30 00:05 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-30 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-01-30 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-01-30 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-01-30 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-30 00:30 -- Disabled quest scanning mode
+INFO | 2024-01-30 00:30 -- Pokestop quest scan completed
+ERROR | 2024-01-30 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-30 09:30 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-01-30 12:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-01-31 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-01-31 00:00 -- Cleared previous quest data
+INFO | 2024-01-31 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-31 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-31 00:00 -- New PvP data generated
+INFO | 2024-01-31 00:00 -- New last_scanned_date set to 2024-01-31 00:00:00
+INFO | 2024-01-31 00:00 -- Enabled quest scanning mode
+INFO | 2024-01-31 00:01 -- Pokestop quest scanning started
+ERROR | 2024-01-31 00:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-01-31 00:35 -- Disabled quest scanning mode
+INFO | 2024-01-31 00:35 -- Pokestop quest scan completed
+ERROR | 2024-01-31 00:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-01-31 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-01-31 08:20 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-01-31 20:00 -- Rescan scheduled starting
+INFO | 2024-01-31 20:00 -- Cleared previous quest data
+INFO | 2024-01-31 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-01-31 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-01-31 20:00 -- New PvP data generated
+INFO | 2024-01-31 20:00 -- New last_scanned_date set to 2024-01-31 00:00:00
+INFO | 2024-01-31 20:00 -- Enabled quest scanning mode
+INFO | 2024-01-31 20:01 -- Scheduled rescan started successfully
+INFO | 2024-01-31 20:45 -- Disabled quest scanning mode
+INFO | 2024-01-31 20:45 -- Pokestop quest scan completed
+INFO | 2024-02-01 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-01 00:00 -- Cleared previous quest data
+INFO | 2024-02-01 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-01 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-01 00:00 -- New PvP data generated
+INFO | 2024-02-01 00:00 -- New last_scanned_date set to 2024-02-01 00:00:00
+INFO | 2024-02-01 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-01 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-01 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-02-01 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-01 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-01 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-01 19:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-01 19:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-02 00:00 -- Rescan scheduled starting
+INFO | 2024-02-02 00:00 -- Cleared previous quest data
+INFO | 2024-02-02 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-02 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-02 00:00 -- New PvP data generated
+INFO | 2024-02-02 00:00 -- New last_scanned_date set to 2024-02-02 00:00:00
+INFO | 2024-02-02 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-02 00:01 -- Scheduled rescan started successfully
+ERROR | 2024-02-02 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-02 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-02 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-02 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-02 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-02 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-02 04:00 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-02 04:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-02 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-03 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-03 00:00 -- Cleared previous quest data
+INFO | 2024-02-03 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-03 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-03 00:00 -- New PvP data generated
+INFO | 2024-02-03 00:00 -- New last_scanned_date set to 2024-02-03 00:00:00
+INFO | 2024-02-03 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-03 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-03 00:20 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-03 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-03 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-03 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-03 04:00 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-03 04:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-03 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-04 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-04 00:00 -- Cleared previous quest data
+INFO | 2024-02-04 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-04 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-04 00:00 -- New PvP data generated
+INFO | 2024-02-04 00:00 -- New last_scanned_date set to 2024-02-04 00:00:00
+INFO | 2024-02-04 00:01 -- Enabled quest scanning mode
+INFO | 2024-02-04 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-04 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-04 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-04 00:36 -- Disabled quest scanning mode
+INFO | 2024-02-04 00:36 -- Pokestop quest scan completed
+ERROR | 2024-02-04 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-04 16:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-04 19:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-04 19:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-05 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-05 00:00 -- Cleared previous quest data
+INFO | 2024-02-05 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-05 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-05 00:00 -- New PvP data generated
+INFO | 2024-02-05 00:00 -- New last_scanned_date set to 2024-02-05 00:00:00
+INFO | 2024-02-05 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-05 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-05 00:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-02-05 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-05 00:30 -- Disabled quest scanning mode
+INFO | 2024-02-05 00:30 -- Pokestop quest scan completed
+ERROR | 2024-02-05 02:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-05 08:45 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-05 09:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-05 10:00 -- Rescan scheduled starting
+INFO | 2024-02-05 10:00 -- Cleared previous quest data
+INFO | 2024-02-05 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-05 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-05 10:00 -- New PvP data generated
+INFO | 2024-02-05 10:00 -- New last_scanned_date set to 2024-02-05 00:00:00
+INFO | 2024-02-05 10:00 -- Enabled quest scanning mode
+INFO | 2024-02-05 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-05 10:10 -- Devices not found: Tx9s
+INFO | 2024-02-05 10:35 -- Disabled quest scanning mode
+INFO | 2024-02-05 10:35 -- Pokestop quest scan completed
+ERROR | 2024-02-05 10:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-05 16:55 -- Devices not scanning: a95xF1
+ERROR | 2024-02-05 17:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-06 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-06 00:00 -- Cleared previous quest data
+INFO | 2024-02-06 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-06 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-06 00:00 -- New PvP data generated
+INFO | 2024-02-06 00:00 -- New last_scanned_date set to 2024-02-06 00:00:00
+INFO | 2024-02-06 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-06 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-06 00:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-06 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-06 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-06 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-06 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-06 14:40 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-06 18:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-06 18:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-07 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-07 00:00 -- Cleared previous quest data
+INFO | 2024-02-07 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-07 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-07 00:00 -- New PvP data generated
+INFO | 2024-02-07 00:00 -- New last_scanned_date set to 2024-02-07 00:00:00
+INFO | 2024-02-07 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-07 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-07 00:10 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-07 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-07 00:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-07 00:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-07 00:35 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-07 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-07 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-07 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-07 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-07 14:59 -- Notification filters reloaded by jmboy#0
+ERROR | 2024-02-07 15:55 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-07 18:47 -- Updated to new version 0.299.0
+ERROR | 2024-02-07 19:37 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-02-08 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-08 00:02 -- Cleared previous quest data
+INFO | 2024-02-08 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-08 00:02 -- Truncated quests table sucessfully!
+INFO | 2024-02-08 00:02 -- New PvP data generated
+INFO | 2024-02-08 00:02 -- New last_scanned_date set to 2024-02-08 00:00:00
+INFO | 2024-02-08 00:02 -- Enabled quest scanning mode
+INFO | 2024-02-08 00:02 -- Pokestop quest scanning started
+ERROR | 2024-02-08 00:32 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-02-08 00:47 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-08 00:52 -- Disabled quest scanning mode
+INFO | 2024-02-08 00:52 -- Pokestop quest scan completed
+ERROR | 2024-02-08 05:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 06:30 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-08 06:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 10:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-08 10:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 16:10 -- Devices not scanning: a95xF1
+ERROR | 2024-02-08 16:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 16:40 -- Devices not found: Tx9s_Ethix
+ERROR | 2024-02-08 16:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-08 16:55 -- Devices not found: Tx9s_Ethix
+ERROR | 2024-02-08 17:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 18:00 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-08 18:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-08 20:15 -- Devices not scanning: Tx9s
+ERROR | 2024-02-08 20:20 -- Devices not scanning: Tx9s_Anakin
+ERROR | 2024-02-08 20:35 -- Devices not scanning: Tx9s1_JMBoy
+ERROR | 2024-02-08 20:45 -- Devices not scanning: Tx9s_Ethix
+ERROR | 2024-02-08 22:50 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-08 22:55 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-09 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-09 00:00 -- Cleared previous quest data
+INFO | 2024-02-09 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-09 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-09 00:00 -- New PvP data generated
+INFO | 2024-02-09 00:00 -- New last_scanned_date set to 2024-02-09 00:00:00
+INFO | 2024-02-09 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-09 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-09 00:15 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-09 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-09 00:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-09 00:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-09 01:15 -- Quest scanning not progressing - Restarting
+INFO | 2024-02-09 01:20 -- Disabled quest scanning mode
+INFO | 2024-02-09 01:20 -- Pokestop quest scan completed
+ERROR | 2024-02-09 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-09 11:05 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-09 11:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-09 11:55 -- Devices not scanning: a95xF1
+ERROR | 2024-02-09 16:10 -- Devices not found: Tx9s_Ethix
+ERROR | 2024-02-09 16:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-10 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-10 00:00 -- Cleared previous quest data
+INFO | 2024-02-10 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-10 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-10 00:00 -- New PvP data generated
+INFO | 2024-02-10 00:00 -- New last_scanned_date set to 2024-02-10 00:00:00
+INFO | 2024-02-10 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-10 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-10 00:05 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-10 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-10 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-10 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-10 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-10 05:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-10 05:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-11 00:00 -- Rescan scheduled starting
+INFO | 2024-02-11 00:00 -- Cleared previous quest data
+INFO | 2024-02-11 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-11 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-11 00:00 -- New PvP data generated
+INFO | 2024-02-11 00:00 -- New last_scanned_date set to 2024-02-11 00:00:00
+INFO | 2024-02-11 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-11 00:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-11 00:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-11 00:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-11 00:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-11 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-11 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-11 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-11 05:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-11 05:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-11 18:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-11 19:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-11 19:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-02-11 20:00 -- Rescan scheduled starting
+INFO | 2024-02-11 20:00 -- Cleared previous quest data
+INFO | 2024-02-11 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-11 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-11 20:00 -- New PvP data generated
+INFO | 2024-02-11 20:00 -- New last_scanned_date set to 2024-02-11 00:00:00
+INFO | 2024-02-11 20:00 -- Enabled quest scanning mode
+INFO | 2024-02-11 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-11 20:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-11 20:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-11 20:35 -- Devices not scanning: a95xF1
+INFO | 2024-02-11 20:45 -- Disabled quest scanning mode
+INFO | 2024-02-11 20:45 -- Pokestop quest scan completed
+ERROR | 2024-02-11 21:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-12 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-12 00:00 -- Cleared previous quest data
+INFO | 2024-02-12 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-12 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-12 00:00 -- New PvP data generated
+INFO | 2024-02-12 00:00 -- New last_scanned_date set to 2024-02-12 00:00:00
+INFO | 2024-02-12 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-12 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-12 00:05 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-12 00:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-12 00:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-12 00:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-12 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-12 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-12 01:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-12 05:20 -- Devices not found: a95xF1
+ERROR | 2024-02-12 05:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-12 08:20 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-12 08:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-12 08:40 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Anakin
+INFO | 2024-02-12 12:53 -- New quest scan requested by jmboy#0
+INFO | 2024-02-12 12:53 -- Cleared previous quest data
+INFO | 2024-02-12 12:53 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-12 12:53 -- Truncated quests table sucessfully!
+INFO | 2024-02-12 12:54 -- New PvP data generated
+INFO | 2024-02-12 12:54 -- New last_scanned_date set to 2024-02-12 00:00:00
+INFO | 2024-02-12 12:54 -- Enabled quest scanning mode
+ERROR | 2024-02-12 13:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-12 13:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-12 13:15 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-12 13:35 -- Disabled quest scanning mode
+INFO | 2024-02-12 13:35 -- Pokestop quest scan completed
+ERROR | 2024-02-12 14:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-12 18:30 -- Updated to new version 0.299.1
+ERROR | 2024-02-12 22:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-13 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-13 00:00 -- Cleared previous quest data
+INFO | 2024-02-13 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-13 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-13 00:00 -- New PvP data generated
+INFO | 2024-02-13 00:00 -- New last_scanned_date set to 2024-02-13 00:00:00
+INFO | 2024-02-13 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-13 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-13 00:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-13 00:20 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-13 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-13 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-13 00:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-13 04:01 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-02-13 04:06 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-13 05:01 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-13 10:01 -- Rescan scheduled starting
+INFO | 2024-02-13 10:01 -- Cleared previous quest data
+INFO | 2024-02-13 10:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-13 10:01 -- Truncated quests table sucessfully!
+INFO | 2024-02-13 10:01 -- New PvP data generated
+INFO | 2024-02-13 10:01 -- New last_scanned_date set to 2024-02-13 00:00:00
+INFO | 2024-02-13 10:01 -- Enabled quest scanning mode
+INFO | 2024-02-13 10:01 -- Scheduled rescan started successfully
+ERROR | 2024-02-13 10:26 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-13 10:31 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-13 10:36 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-13 10:41 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-13 10:46 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-13 10:46 -- Disabled quest scanning mode
+INFO | 2024-02-13 10:46 -- Pokestop quest scan completed
+INFO | 2024-02-14 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-14 00:01 -- Cleared previous quest data
+INFO | 2024-02-14 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-14 00:01 -- Truncated quests table sucessfully!
+INFO | 2024-02-14 00:01 -- New PvP data generated
+INFO | 2024-02-14 00:01 -- New last_scanned_date set to 2024-02-14 00:00:00
+INFO | 2024-02-14 00:01 -- Enabled quest scanning mode
+INFO | 2024-02-14 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-14 00:06 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-14 00:11 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-14 00:16 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-14 00:21 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-14 00:26 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-14 00:46 -- Disabled quest scanning mode
+INFO | 2024-02-14 00:46 -- Pokestop quest scan completed
+ERROR | 2024-02-14 01:51 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-14 01:56 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-14 04:00 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-14 04:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-14 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-14 05:55 -- Devices not scanning: a95xF1
+ERROR | 2024-02-14 14:40 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-14 20:55 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-02-14 21:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-14 21:45 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-14 21:50 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-15 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-15 00:00 -- Cleared previous quest data
+INFO | 2024-02-15 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-15 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-15 00:00 -- New PvP data generated
+INFO | 2024-02-15 00:00 -- New last_scanned_date set to 2024-02-15 00:00:00
+INFO | 2024-02-15 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-15 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-15 00:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-15 00:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-15 00:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-15 00:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-15 00:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-15 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-15 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-15 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-15 14:50 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-15 15:45 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-15 15:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-15 18:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-15 18:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-15 20:00 -- Rescan scheduled starting
+INFO | 2024-02-15 20:00 -- Cleared previous quest data
+INFO | 2024-02-15 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-15 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-15 20:00 -- New PvP data generated
+INFO | 2024-02-15 20:00 -- New last_scanned_date set to 2024-02-15 00:00:00
+INFO | 2024-02-15 20:00 -- Enabled quest scanning mode
+INFO | 2024-02-15 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-15 20:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-15 20:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-15 20:35 -- Disabled quest scanning mode
+INFO | 2024-02-15 20:35 -- Pokestop quest scan completed
+ERROR | 2024-02-15 21:40 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-16 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-16 00:00 -- Cleared previous quest data
+INFO | 2024-02-16 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-16 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-16 00:00 -- New PvP data generated
+INFO | 2024-02-16 00:00 -- New last_scanned_date set to 2024-02-16 00:00:00
+INFO | 2024-02-16 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-16 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-16 00:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-16 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-16 01:05 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-02-16 01:20 -- Disabled quest scanning mode
+INFO | 2024-02-16 01:20 -- Pokestop quest scan completed
+ERROR | 2024-02-16 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-17 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-17 00:00 -- Cleared previous quest data
+INFO | 2024-02-17 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-17 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-17 00:00 -- New PvP data generated
+INFO | 2024-02-17 00:00 -- New last_scanned_date set to 2024-02-17 00:00:00
+INFO | 2024-02-17 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-17 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-17 00:50 -- Devices not found: Tx9s, Tx9s2_JMBoy
+INFO | 2024-02-17 00:50 -- Disabled quest scanning mode
+INFO | 2024-02-17 00:50 -- Pokestop quest scan completed
+ERROR | 2024-02-17 00:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-17 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-02-17 09:00 -- Rescan scheduled starting
+INFO | 2024-02-17 09:00 -- Cleared previous quest data
+INFO | 2024-02-17 09:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-17 09:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-17 09:00 -- New PvP data generated
+INFO | 2024-02-17 09:00 -- New last_scanned_date set to 2024-02-17 00:00:00
+INFO | 2024-02-17 09:00 -- Enabled quest scanning mode
+INFO | 2024-02-17 09:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-17 09:10 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-17 09:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-17 09:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-17 09:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-17 09:35 -- Disabled quest scanning mode
+INFO | 2024-02-17 09:35 -- Pokestop quest scan completed
+ERROR | 2024-02-17 14:40 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-02-17 17:00 -- Rescan scheduled starting
+INFO | 2024-02-17 17:00 -- Cleared previous quest data
+INFO | 2024-02-17 17:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-17 17:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-17 17:00 -- New PvP data generated
+INFO | 2024-02-17 17:00 -- New last_scanned_date set to 2024-02-17 00:00:00
+INFO | 2024-02-17 17:00 -- Enabled quest scanning mode
+INFO | 2024-02-17 17:00 -- Scheduled rescan started successfully
+ERROR | 2024-02-17 17:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-17 17:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-17 17:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-17 17:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-17 17:35 -- Disabled quest scanning mode
+INFO | 2024-02-17 17:35 -- Pokestop quest scan completed
+INFO | 2024-02-18 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-18 00:00 -- Cleared previous quest data
+INFO | 2024-02-18 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-18 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-18 00:00 -- New PvP data generated
+INFO | 2024-02-18 00:00 -- New last_scanned_date set to 2024-02-18 00:00:00
+INFO | 2024-02-18 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-18 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-18 00:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-18 00:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-18 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-18 00:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-18 00:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-18 00:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-18 00:45 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+INFO | 2024-02-18 00:45 -- Disabled quest scanning mode
+INFO | 2024-02-18 00:45 -- Pokestop quest scan completed
+ERROR | 2024-02-18 00:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-18 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-18 05:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-18 05:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-18 06:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-18 06:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-18 06:25 -- Devices not scanning: a95xF1
+INFO | 2024-02-19 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-19 00:00 -- Cleared previous quest data
+INFO | 2024-02-19 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-19 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-19 00:00 -- New PvP data generated
+INFO | 2024-02-19 00:00 -- New last_scanned_date set to 2024-02-19 00:00:00
+INFO | 2024-02-19 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-19 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-19 00:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-19 00:50 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-19 00:50 -- Disabled quest scanning mode
+INFO | 2024-02-19 00:50 -- Pokestop quest scan completed
+ERROR | 2024-02-19 05:02 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-19 06:17 -- Devices not scanning: a95xF1
+INFO | 2024-02-19 10:02 -- Rescan scheduled starting
+INFO | 2024-02-19 10:02 -- Cleared previous quest data
+INFO | 2024-02-19 10:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-19 10:02 -- Truncated quests table sucessfully!
+INFO | 2024-02-19 10:02 -- New PvP data generated
+INFO | 2024-02-19 10:02 -- New last_scanned_date set to 2024-02-19 00:00:00
+INFO | 2024-02-19 10:02 -- Enabled quest scanning mode
+INFO | 2024-02-19 10:03 -- Scheduled rescan started successfully
+ERROR | 2024-02-19 10:17 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-19 10:22 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-19 10:27 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-19 10:37 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-19 10:42 -- Disabled quest scanning mode
+INFO | 2024-02-19 10:42 -- Pokestop quest scan completed
+ERROR | 2024-02-19 13:02 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-19 13:12 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-19 13:17 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-19 13:22 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-19 13:32 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-19 13:37 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-19 14:47 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-19 14:57 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-19 15:02 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-19 15:37 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-02-19 19:22 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-20 00:02 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-02-20 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-20 00:02 -- Cleared previous quest data
+INFO | 2024-02-20 00:02 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-20 00:02 -- Truncated quests table sucessfully!
+INFO | 2024-02-20 00:02 -- New PvP data generated
+INFO | 2024-02-20 00:02 -- New last_scanned_date set to 2024-02-20 00:00:00
+INFO | 2024-02-20 00:03 -- Enabled quest scanning mode
+INFO | 2024-02-20 00:03 -- Pokestop quest scanning started
+ERROR | 2024-02-20 00:07 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-20 00:12 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-20 00:17 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-20 00:27 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-20 00:32 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-20 00:42 -- Disabled quest scanning mode
+INFO | 2024-02-20 00:42 -- Pokestop quest scan completed
+ERROR | 2024-02-20 01:52 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-20 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-20 07:45 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-20 11:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-20 11:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-20 11:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-20 11:55 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-20 12:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-20 12:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-02-21 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-21 00:00 -- Cleared previous quest data
+INFO | 2024-02-21 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-21 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-21 00:00 -- New PvP data generated
+INFO | 2024-02-21 00:00 -- New last_scanned_date set to 2024-02-21 00:00:00
+INFO | 2024-02-21 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-21 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-21 00:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-21 00:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 00:35 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-21 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-21 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-21 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-21 05:03 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-21 05:13 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 05:23 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 05:58 -- Devices not scanning: a95xF1
+ERROR | 2024-02-21 06:03 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 06:23 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 06:28 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 06:48 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 09:13 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-21 09:18 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 09:23 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-21 09:33 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 11:23 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 11:28 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 11:33 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-21 11:38 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 13:38 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-21 13:43 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-21 13:48 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-21 14:48 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-22 00:03 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-22 00:03 -- Cleared previous quest data
+INFO | 2024-02-22 00:03 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-22 00:03 -- Truncated quests table sucessfully!
+INFO | 2024-02-22 00:03 -- New PvP data generated
+INFO | 2024-02-22 00:03 -- New last_scanned_date set to 2024-02-22 00:00:00
+INFO | 2024-02-22 00:03 -- Enabled quest scanning mode
+INFO | 2024-02-22 00:03 -- Pokestop quest scanning started
+ERROR | 2024-02-22 00:08 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-22 00:33 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-22 00:38 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-22 02:03 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-02-22 03:08 -- Quest scanning not progressing - Restarting
+ERROR | 2024-02-22 03:13 -- Devices not found: a95xF1
+ERROR | 2024-02-22 03:18 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-02-22 03:18 -- Disabled quest scanning mode
+INFO | 2024-02-22 03:18 -- Pokestop quest scan completed
+ERROR | 2024-02-22 05:13 -- Devices not found: a95xF1
+ERROR | 2024-02-22 06:33 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-22 08:43 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-22 10:14 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-22 10:43 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-22 10:48 -- Devices not found: Tx9s, Tx9s_Ethix
+ERROR | 2024-02-22 10:58 -- Devices not found: Tx9s, a95xF1
+ERROR | 2024-02-22 12:43 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-22 19:28 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-22 19:33 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-22 21:38 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-23 00:03 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-23 00:03 -- Cleared previous quest data
+INFO | 2024-02-23 00:03 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-23 00:03 -- Truncated quests table sucessfully!
+INFO | 2024-02-23 00:03 -- New PvP data generated
+INFO | 2024-02-23 00:03 -- New last_scanned_date set to 2024-02-23 00:00:00
+INFO | 2024-02-23 00:03 -- Enabled quest scanning mode
+INFO | 2024-02-23 00:03 -- Pokestop quest scanning started
+ERROR | 2024-02-23 00:08 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-23 00:13 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 00:28 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-23 00:33 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-23 00:38 -- Disabled quest scanning mode
+INFO | 2024-02-23 00:38 -- Pokestop quest scan completed
+ERROR | 2024-02-23 03:03 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-23 03:23 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-23 05:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-23 05:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 10:05 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-23 10:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 13:35 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-23 13:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 14:05 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-23 14:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-23 14:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-23 15:05 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-23 20:55 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-23 22:00 -- Rescan scheduled starting
+INFO | 2024-02-23 22:00 -- Cleared previous quest data
+INFO | 2024-02-23 22:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-23 22:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-23 22:00 -- New PvP data generated
+INFO | 2024-02-23 22:00 -- New last_scanned_date set to 2024-02-23 00:00:00
+INFO | 2024-02-23 22:00 -- Enabled quest scanning mode
+INFO | 2024-02-23 22:01 -- Scheduled rescan started successfully
+ERROR | 2024-02-23 22:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-23 22:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-23 22:35 -- Disabled quest scanning mode
+INFO | 2024-02-23 22:35 -- Pokestop quest scan completed
+INFO | 2024-02-24 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-24 00:00 -- Cleared previous quest data
+INFO | 2024-02-24 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-24 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-24 00:00 -- New PvP data generated
+INFO | 2024-02-24 00:00 -- New last_scanned_date set to 2024-02-24 00:00:00
+INFO | 2024-02-24 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-24 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-24 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-24 00:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-24 00:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-24 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-24 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-24 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-24 01:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-24 05:40 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-24 06:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-24 06:30 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-24 11:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-24 14:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-24 14:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-25 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-25 00:00 -- Cleared previous quest data
+INFO | 2024-02-25 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-25 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-25 00:00 -- New PvP data generated
+INFO | 2024-02-25 00:00 -- New last_scanned_date set to 2024-02-25 00:00:00
+INFO | 2024-02-25 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-25 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-25 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-25 00:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-25 00:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-25 00:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-25 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-25 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-25 01:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-25 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-25 05:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-25 05:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-25 12:40 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-25 13:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-26 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-26 00:00 -- Cleared previous quest data
+INFO | 2024-02-26 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-26 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-26 00:00 -- New PvP data generated
+INFO | 2024-02-26 00:00 -- New last_scanned_date set to 2024-02-26 00:00:00
+INFO | 2024-02-26 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-26 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-26 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-26 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-26 00:20 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-02-26 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-26 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-26 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-26 18:35 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-02-27 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-27 00:00 -- Cleared previous quest data
+INFO | 2024-02-27 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-27 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-27 00:00 -- New PvP data generated
+INFO | 2024-02-27 00:00 -- New last_scanned_date set to 2024-02-27 00:00:00
+INFO | 2024-02-27 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-27 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-27 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-27 00:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-27 00:45 -- Disabled quest scanning mode
+INFO | 2024-02-27 00:45 -- Pokestop quest scan completed
+ERROR | 2024-02-27 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-27 07:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-27 07:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 12:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-27 15:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-27 15:55 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-27 16:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 18:35 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-27 18:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 19:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-27 19:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 19:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-27 19:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 20:05 -- Devices not scanning: a95xF1
+ERROR | 2024-02-27 20:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-27 20:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-27 22:30 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-02-28 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-28 00:00 -- Cleared previous quest data
+INFO | 2024-02-28 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-28 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-28 00:00 -- New PvP data generated
+INFO | 2024-02-28 00:00 -- New last_scanned_date set to 2024-02-28 00:00:00
+INFO | 2024-02-28 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-28 00:00 -- Pokestop quest scanning started
+ERROR | 2024-02-28 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-02-28 00:35 -- Disabled quest scanning mode
+INFO | 2024-02-28 00:35 -- Pokestop quest scan completed
+ERROR | 2024-02-28 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-28 09:00 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-28 11:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-28 11:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-28 13:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-28 13:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-28 14:50 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-02-28 16:40 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-28 19:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-02-28 19:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-02-29 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-02-29 00:00 -- Cleared previous quest data
+INFO | 2024-02-29 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-02-29 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-02-29 00:00 -- New PvP data generated
+INFO | 2024-02-29 00:00 -- New last_scanned_date set to 2024-02-29 00:00:00
+INFO | 2024-02-29 00:00 -- Enabled quest scanning mode
+INFO | 2024-02-29 00:01 -- Pokestop quest scanning started
+ERROR | 2024-02-29 00:15 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-29 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-29 00:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-02-29 00:40 -- Disabled quest scanning mode
+INFO | 2024-02-29 00:40 -- Pokestop quest scan completed
+ERROR | 2024-02-29 00:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 03:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-02-29 03:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-02-29 05:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 11:55 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-02-29 12:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 12:50 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-02-29 12:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 14:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-02-29 14:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-02-29 14:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-02-29 15:00 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-02-29 20:05 -- Updated to new version 0.301.0
+INFO | 2024-03-01 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-01 00:00 -- Cleared previous quest data
+INFO | 2024-03-01 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-01 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-01 00:00 -- New PvP data generated
+INFO | 2024-03-01 00:00 -- New last_scanned_date set to 2024-03-01 00:00:00
+INFO | 2024-03-01 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-01 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-01 00:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-01 00:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-01 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-01 00:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-01 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-01 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-01 01:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-01 05:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 05:55 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-03-01 06:00 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-01 10:00 -- Rescan scheduled starting
+INFO | 2024-03-01 10:00 -- Cleared previous quest data
+INFO | 2024-03-01 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-01 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-01 10:00 -- New PvP data generated
+INFO | 2024-03-01 10:00 -- New last_scanned_date set to 2024-03-01 00:00:00
+INFO | 2024-03-01 10:00 -- Enabled quest scanning mode
+INFO | 2024-03-01 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-01 10:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-01 10:45 -- Disabled quest scanning mode
+INFO | 2024-03-01 10:45 -- Pokestop quest scan completed
+ERROR | 2024-03-01 12:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 12:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-01 12:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 12:50 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-01 12:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-01 14:35 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-01 17:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-01 17:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-02 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-02 00:00 -- Cleared previous quest data
+INFO | 2024-03-02 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-02 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-02 00:00 -- New PvP data generated
+INFO | 2024-03-02 00:00 -- New last_scanned_date set to 2024-03-02 00:00:00
+INFO | 2024-03-02 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-02 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-02 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-02 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-02 00:25 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-02 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-02 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-02 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-02 01:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-02 01:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-02 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-02 07:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-02 10:05 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-02 10:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-02 11:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-02 12:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-02 13:45 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-02 13:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-02 14:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-02 14:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-02 15:15 -- Devices not scanning: a95xF1
+INFO | 2024-03-03 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-03 00:00 -- Cleared previous quest data
+INFO | 2024-03-03 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-03 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-03 00:00 -- New PvP data generated
+INFO | 2024-03-03 00:00 -- New last_scanned_date set to 2024-03-03 00:00:00
+INFO | 2024-03-03 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-03 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-03 00:15 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-03 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-03 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-03 00:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-03 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-03 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-03 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-03 02:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-03 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-03 11:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-03 11:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-03 11:35 -- Devices not scanning: a95xF1
+INFO | 2024-03-03 14:00 -- Rescan scheduled starting
+INFO | 2024-03-03 14:00 -- Cleared previous quest data
+INFO | 2024-03-03 14:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-03 14:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-03 14:00 -- New PvP data generated
+INFO | 2024-03-03 14:00 -- New last_scanned_date set to 2024-03-03 00:00:00
+INFO | 2024-03-03 14:00 -- Enabled quest scanning mode
+INFO | 2024-03-03 14:01 -- Scheduled rescan started successfully
+ERROR | 2024-03-03 14:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-03 14:35 -- Disabled quest scanning mode
+INFO | 2024-03-03 14:35 -- Pokestop quest scan completed
+ERROR | 2024-03-03 14:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-03 17:00 -- Rescan scheduled starting
+INFO | 2024-03-03 17:00 -- Cleared previous quest data
+INFO | 2024-03-03 17:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-03 17:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-03 17:00 -- New PvP data generated
+INFO | 2024-03-03 17:00 -- New last_scanned_date set to 2024-03-03 00:00:00
+INFO | 2024-03-03 17:00 -- Enabled quest scanning mode
+INFO | 2024-03-03 17:01 -- Scheduled rescan started successfully
+ERROR | 2024-03-03 17:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-03 17:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-03 17:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-03 17:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-03 17:35 -- Disabled quest scanning mode
+INFO | 2024-03-03 17:35 -- Pokestop quest scan completed
+INFO | 2024-03-04 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-04 00:00 -- Cleared previous quest data
+INFO | 2024-03-04 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-04 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-04 00:00 -- New PvP data generated
+INFO | 2024-03-04 00:00 -- New last_scanned_date set to 2024-03-04 00:00:00
+INFO | 2024-03-04 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-04 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-04 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-04 00:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-04 00:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-04 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-04 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-04 04:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-04 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-04 06:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-04 11:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-04 11:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-04 14:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-04 14:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-04 14:55 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-04 16:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-03-05 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-05 00:00 -- Cleared previous quest data
+INFO | 2024-03-05 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-05 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-05 00:00 -- New PvP data generated
+INFO | 2024-03-05 00:00 -- New last_scanned_date set to 2024-03-05 00:00:00
+INFO | 2024-03-05 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-05 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-05 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-05 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-05 00:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-05 00:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-05 00:45 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-05 00:50 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-05 00:55 -- Disabled quest scanning mode
+INFO | 2024-03-05 00:55 -- Pokestop quest scan completed
+ERROR | 2024-03-05 03:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-05 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-03-05 10:00 -- Rescan scheduled starting
+INFO | 2024-03-05 10:00 -- Cleared previous quest data
+INFO | 2024-03-05 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-05 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-05 10:00 -- New PvP data generated
+INFO | 2024-03-05 10:00 -- New last_scanned_date set to 2024-03-05 00:00:00
+INFO | 2024-03-05 10:00 -- Enabled quest scanning mode
+INFO | 2024-03-05 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-05 10:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-05 10:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-05 10:40 -- Disabled quest scanning mode
+INFO | 2024-03-05 10:40 -- Pokestop quest scan completed
+ERROR | 2024-03-05 12:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-05 12:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-05 12:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-05 12:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-05 15:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-05 15:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-05 15:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-05 16:35 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-06 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-06 00:00 -- Cleared previous quest data
+INFO | 2024-03-06 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-06 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-06 00:00 -- New PvP data generated
+INFO | 2024-03-06 00:00 -- New last_scanned_date set to 2024-03-06 00:00:00
+INFO | 2024-03-06 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-06 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-06 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-06 00:10 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-06 00:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-06 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-06 00:45 -- Disabled quest scanning mode
+INFO | 2024-03-06 00:45 -- Pokestop quest scan completed
+ERROR | 2024-03-06 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-06 14:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-06 14:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-06 14:35 -- Devices not scanning: a95xF1
+ERROR | 2024-03-06 14:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-06 16:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-06 16:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-06 19:00 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-06 19:05 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-07 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-07 00:00 -- Cleared previous quest data
+INFO | 2024-03-07 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-07 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-07 00:00 -- New PvP data generated
+INFO | 2024-03-07 00:00 -- New last_scanned_date set to 2024-03-07 00:00:00
+INFO | 2024-03-07 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-07 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-07 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-07 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-07 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-07 00:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-07 00:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-07 00:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-07 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-07 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-07 04:01 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-03-07 04:06 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-07 05:01 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-07 13:26 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-07 13:31 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-07 13:46 -- Devices not scanning: a95xF1
+ERROR | 2024-03-07 15:01 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-07 15:51 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-03-08 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-08 00:01 -- Cleared previous quest data
+INFO | 2024-03-08 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-08 00:01 -- Truncated quests table sucessfully!
+INFO | 2024-03-08 00:01 -- New PvP data generated
+INFO | 2024-03-08 00:01 -- New last_scanned_date set to 2024-03-08 00:00:00
+INFO | 2024-03-08 00:01 -- Enabled quest scanning mode
+INFO | 2024-03-08 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-08 00:16 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-08 01:06 -- Disabled quest scanning mode
+INFO | 2024-03-08 01:06 -- Pokestop quest scan completed
+ERROR | 2024-03-08 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-08 09:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-08 09:55 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-08 10:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-08 11:50 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-08 11:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-08 13:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-08 14:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-08 16:30 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-08 16:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-09 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-09 00:00 -- Cleared previous quest data
+INFO | 2024-03-09 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-09 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-09 00:00 -- New PvP data generated
+INFO | 2024-03-09 00:00 -- New last_scanned_date set to 2024-03-09 00:00:00
+INFO | 2024-03-09 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-09 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-09 00:05 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-09 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-09 00:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-09 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-09 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-09 03:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-09 06:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-09 13:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-09 13:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-09 14:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-09 14:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-09 15:15 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-09 15:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-09 15:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-09 15:40 -- Devices not scanning: a95xF1
+ERROR | 2024-03-09 15:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-09 16:35 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-10 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-10 00:00 -- Cleared previous quest data
+INFO | 2024-03-10 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-10 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-10 00:00 -- New PvP data generated
+INFO | 2024-03-10 00:00 -- New last_scanned_date set to 2024-03-10 00:00:00
+INFO | 2024-03-10 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-10 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-10 00:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-10 00:10 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-10 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-10 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-10 00:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-10 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-10 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-10 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-10 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-10 07:45 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-10 10:00 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-10 11:35 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-10 12:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-10 13:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-10 14:05 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-10 17:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-10 17:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-10 19:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-10 19:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-10 20:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-10 20:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-10 20:40 -- Devices not scanning: a95xF1
+ERROR | 2024-03-10 22:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-10 22:50 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-11 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-11 00:00 -- Cleared previous quest data
+INFO | 2024-03-11 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-11 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-11 00:00 -- New PvP data generated
+INFO | 2024-03-11 00:00 -- New last_scanned_date set to 2024-03-11 00:00:00
+INFO | 2024-03-11 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-11 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-11 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-11 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-11 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-11 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-11 06:00 -- Devices not scanning: a95xF1
+ERROR | 2024-03-11 12:50 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-11 13:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-11 13:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-11 14:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-11 14:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-11 14:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-11 14:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-11 15:00 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-11 15:05 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-11 17:05 -- Updated to new version 0.303.0
+ERROR | 2024-03-11 17:05 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-11 18:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-11 18:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-11 18:45 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-11 20:00 -- Rescan scheduled starting
+INFO | 2024-03-11 20:00 -- Cleared previous quest data
+INFO | 2024-03-11 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-11 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-11 20:00 -- New PvP data generated
+INFO | 2024-03-11 20:00 -- New last_scanned_date set to 2024-03-11 00:00:00
+INFO | 2024-03-11 20:00 -- Enabled quest scanning mode
+INFO | 2024-03-11 20:01 -- Scheduled rescan started successfully
+ERROR | 2024-03-11 20:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-11 20:20 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-11 20:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-11 20:35 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-11 20:40 -- Disabled quest scanning mode
+INFO | 2024-03-11 20:40 -- Pokestop quest scan completed
+INFO | 2024-03-12 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-12 00:00 -- Cleared previous quest data
+INFO | 2024-03-12 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-12 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-12 00:00 -- New PvP data generated
+INFO | 2024-03-12 00:00 -- New last_scanned_date set to 2024-03-12 00:00:00
+INFO | 2024-03-12 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-12 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-12 00:50 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-12 00:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 01:30 -- Quest scanning not progressing - Restarting
+ERROR | 2024-03-12 01:55 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-12 02:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 02:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-03-12 02:40 -- Disabled quest scanning mode
+INFO | 2024-03-12 02:40 -- Pokestop quest scan completed
+ERROR | 2024-03-12 02:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-12 14:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-12 15:10 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-12 16:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-12 16:30 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-12 16:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 18:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-12 18:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 18:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-12 18:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 18:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-12 18:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-12 20:50 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-13 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-13 00:00 -- Cleared previous quest data
+INFO | 2024-03-13 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-13 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-13 00:00 -- New PvP data generated
+INFO | 2024-03-13 00:00 -- New last_scanned_date set to 2024-03-13 00:00:00
+INFO | 2024-03-13 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-13 00:00 -- Pokestop quest scanning started
+INFO | 2024-03-13 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-13 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-13 04:00 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-03-13 04:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-13 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-13 13:55 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-13 14:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-13 15:40 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-13 15:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-13 16:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-13 16:55 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-13 17:00 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-14 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-14 00:00 -- Cleared previous quest data
+INFO | 2024-03-14 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-14 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-14 00:00 -- New PvP data generated
+INFO | 2024-03-14 00:00 -- New last_scanned_date set to 2024-03-14 00:00:00
+INFO | 2024-03-14 00:01 -- Enabled quest scanning mode
+INFO | 2024-03-14 00:01 -- Pokestop quest scanning started
+ERROR | 2024-03-14 00:05 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-14 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-14 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-14 00:36 -- Disabled quest scanning mode
+INFO | 2024-03-14 00:36 -- Pokestop quest scan completed
+ERROR | 2024-03-14 05:00 -- Devices not scanning: Tx9s2_JMBoy
+INFO | 2024-03-14 10:00 -- Rescan scheduled starting
+INFO | 2024-03-14 10:00 -- Cleared previous quest data
+INFO | 2024-03-14 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-14 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-14 10:00 -- New PvP data generated
+INFO | 2024-03-14 10:00 -- New last_scanned_date set to 2024-03-14 00:00:00
+INFO | 2024-03-14 10:00 -- Enabled quest scanning mode
+INFO | 2024-03-14 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-14 10:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-14 10:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-14 10:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-14 10:20 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-14 10:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-14 11:00 -- Disabled quest scanning mode
+INFO | 2024-03-14 11:00 -- Pokestop quest scan completed
+ERROR | 2024-03-14 14:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-14 14:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-14 15:00 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-14 15:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-14 15:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-14 16:40 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-15 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-15 00:00 -- Cleared previous quest data
+INFO | 2024-03-15 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-15 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-15 00:00 -- New PvP data generated
+INFO | 2024-03-15 00:00 -- New last_scanned_date set to 2024-03-15 00:00:00
+INFO | 2024-03-15 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-15 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-15 00:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-15 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-15 00:20 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-15 00:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-15 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-15 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-15 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-15 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-15 13:00 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-15 13:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-15 15:35 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-15 16:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-03-15 22:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-15 22:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-16 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-16 00:00 -- Cleared previous quest data
+INFO | 2024-03-16 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-16 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-16 00:00 -- New PvP data generated
+INFO | 2024-03-16 00:00 -- New last_scanned_date set to 2024-03-16 00:00:00
+INFO | 2024-03-16 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-16 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-16 00:05 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-16 00:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-16 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-16 00:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-16 00:35 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-16 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-16 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-16 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-16 12:15 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-16 12:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-16 14:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-16 14:40 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-16 16:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-16 16:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-17 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-17 00:00 -- Cleared previous quest data
+INFO | 2024-03-17 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-17 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-17 00:00 -- New PvP data generated
+INFO | 2024-03-17 00:00 -- New last_scanned_date set to 2024-03-17 00:00:00
+INFO | 2024-03-17 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-17 00:00 -- Pokestop quest scanning started
+INFO | 2024-03-17 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-17 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-17 00:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-17 00:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-17 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-17 13:00 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-17 14:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-17 14:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-17 16:10 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-17 16:15 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-18 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-18 00:00 -- Cleared previous quest data
+INFO | 2024-03-18 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-18 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-18 00:00 -- New PvP data generated
+INFO | 2024-03-18 00:00 -- New last_scanned_date set to 2024-03-18 00:00:00
+INFO | 2024-03-18 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-18 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-18 00:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-18 00:20 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-18 00:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-18 00:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-18 00:35 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-18 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-18 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-18 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-18 00:45 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-18 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-18 11:20 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-18 13:50 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-18 13:50 -- Devices not scanning: a95xF1
+ERROR | 2024-03-18 13:55 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-18 16:15 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-18 16:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-18 16:25 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-18 16:45 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-18 20:00 -- Rescan scheduled starting
+INFO | 2024-03-18 20:00 -- Cleared previous quest data
+INFO | 2024-03-18 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-18 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-18 20:00 -- New PvP data generated
+INFO | 2024-03-18 20:00 -- New last_scanned_date set to 2024-03-18 00:00:00
+INFO | 2024-03-18 20:00 -- Enabled quest scanning mode
+INFO | 2024-03-18 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-18 20:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-18 20:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-18 20:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-18 20:40 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+INFO | 2024-03-18 20:40 -- Disabled quest scanning mode
+INFO | 2024-03-18 20:40 -- Pokestop quest scan completed
+ERROR | 2024-03-18 20:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-18 21:35 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-19 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-19 00:00 -- Cleared previous quest data
+INFO | 2024-03-19 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-19 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-19 00:00 -- New PvP data generated
+INFO | 2024-03-19 00:00 -- New last_scanned_date set to 2024-03-19 00:00:00
+INFO | 2024-03-19 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-19 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-19 00:35 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-19 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-19 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-19 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-19 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-19 13:00 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-19 14:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-19 14:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-19 16:35 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-19 17:55 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-19 18:00 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-20 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-20 00:00 -- Cleared previous quest data
+INFO | 2024-03-20 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-20 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-20 00:00 -- New PvP data generated
+INFO | 2024-03-20 00:00 -- New last_scanned_date set to 2024-03-20 00:00:00
+INFO | 2024-03-20 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-20 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-20 00:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-20 00:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 01:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+INFO | 2024-03-20 01:00 -- Disabled quest scanning mode
+INFO | 2024-03-20 01:00 -- Pokestop quest scan completed
+ERROR | 2024-03-20 01:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-20 12:30 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-20 12:35 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 13:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-20 15:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-20 16:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-20 16:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 17:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-20 17:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 17:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-20 17:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-20 17:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-20 17:25 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-21 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-21 00:00 -- Cleared previous quest data
+INFO | 2024-03-21 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-21 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-21 00:00 -- New PvP data generated
+INFO | 2024-03-21 00:00 -- New last_scanned_date set to 2024-03-21 00:00:00
+INFO | 2024-03-21 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-21 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-21 00:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-21 00:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-21 00:30 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-21 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-21 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-21 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-21 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-21 07:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-03-21 10:00 -- Rescan scheduled starting
+INFO | 2024-03-21 10:00 -- Cleared previous quest data
+INFO | 2024-03-21 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-21 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-21 10:00 -- New PvP data generated
+INFO | 2024-03-21 10:00 -- New last_scanned_date set to 2024-03-21 00:00:00
+INFO | 2024-03-21 10:00 -- Enabled quest scanning mode
+INFO | 2024-03-21 10:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-21 10:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-21 10:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-21 10:30 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-21 10:40 -- Devices not found: a95xF1
+ERROR | 2024-03-21 10:55 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-21 11:15 -- Disabled quest scanning mode
+INFO | 2024-03-21 11:15 -- Pokestop quest scan completed
+ERROR | 2024-03-21 14:15 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-21 14:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-21 15:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-21 15:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-21 15:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-21 15:35 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-21 15:35 -- Devices not scanning: a95xF1
+ERROR | 2024-03-21 15:40 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-21 15:45 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-21 16:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-21 17:35 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-21 17:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-22 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-22 00:00 -- Cleared previous quest data
+INFO | 2024-03-22 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-22 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-22 00:00 -- New PvP data generated
+INFO | 2024-03-22 00:00 -- New last_scanned_date set to 2024-03-22 00:00:00
+INFO | 2024-03-22 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-22 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-22 00:05 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-22 00:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 00:35 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy
+INFO | 2024-03-22 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-22 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-22 00:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 01:30 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-22 02:10 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-22 02:20 -- Devices not scanning: Tx9s
+ERROR | 2024-03-22 02:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 04:10 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-22 04:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-22 13:45 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-22 14:55 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-22 16:45 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-22 17:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-22 17:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 17:50 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-22 17:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-22 23:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-22 23:05 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-23 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-23 00:00 -- Cleared previous quest data
+INFO | 2024-03-23 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-23 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-23 00:00 -- New PvP data generated
+INFO | 2024-03-23 00:00 -- New last_scanned_date set to 2024-03-23 00:00:00
+INFO | 2024-03-23 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-23 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-23 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-23 00:15 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-23 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-23 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-23 00:35 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-23 00:40 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-23 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-23 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-23 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-23 10:50 -- Devices not found: Tx9s, a95xF1, Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-23 10:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-23 14:20 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-23 14:25 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-23 15:40 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-23 16:15 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+INFO | 2024-03-23 17:56 -- 12 lures removidas à conta pogoleiria601 por jmboy
+INFO | 2024-03-24 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-24 00:00 -- Cleared previous quest data
+INFO | 2024-03-24 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-24 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-24 00:00 -- New PvP data generated
+INFO | 2024-03-24 00:00 -- New last_scanned_date set to 2024-03-24 00:00:00
+INFO | 2024-03-24 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-24 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-24 00:25 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-24 00:35 -- Disabled quest scanning mode
+INFO | 2024-03-24 00:35 -- Pokestop quest scan completed
+ERROR | 2024-03-24 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-24 13:35 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-24 13:40 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-24 16:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-24 16:30 -- Devices not found: Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-24 19:50 -- Devices not found: Tx9s2_JMBoy, Tx9s_Ethix
+INFO | 2024-03-25 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-25 00:00 -- Cleared previous quest data
+INFO | 2024-03-25 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-25 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-25 00:00 -- New PvP data generated
+INFO | 2024-03-25 00:00 -- New last_scanned_date set to 2024-03-25 00:00:00
+INFO | 2024-03-25 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-25 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-25 00:10 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-03-25 00:15 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-25 00:25 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-25 00:30 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-03-25 00:45 -- Disabled quest scanning mode
+INFO | 2024-03-25 00:45 -- Pokestop quest scan completed
+ERROR | 2024-03-25 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-25 06:20 -- Devices not scanning: a95xF1
+ERROR | 2024-03-25 07:05 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-25 07:10 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-25 07:45 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-25 07:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-25 11:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-03-25 11:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-25 12:50 -- Devices not found: Tx9s, Tx9s2_JMBoy
+ERROR | 2024-03-25 12:55 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-03-25 15:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-25 15:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-25 15:35 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-25 16:15 -- Devices not scanning: Tx9s3_JMBoy
+ERROR | 2024-03-25 16:25 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-25 17:05 -- Updated to new version 0.305.1
+ERROR | 2024-03-25 18:00 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-25 19:50 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+INFO | 2024-03-25 20:00 -- Rescan scheduled starting
+INFO | 2024-03-25 20:00 -- Cleared previous quest data
+INFO | 2024-03-25 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-25 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-25 20:00 -- New PvP data generated
+INFO | 2024-03-25 20:00 -- New last_scanned_date set to 2024-03-25 00:00:00
+INFO | 2024-03-25 20:00 -- Enabled quest scanning mode
+INFO | 2024-03-25 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-25 20:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-25 20:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-25 20:15 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-25 20:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-25 20:35 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+INFO | 2024-03-25 20:35 -- Disabled quest scanning mode
+INFO | 2024-03-25 20:35 -- Pokestop quest scan completed
+ERROR | 2024-03-25 20:40 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-26 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-26 00:00 -- Cleared previous quest data
+INFO | 2024-03-26 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-26 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-26 00:00 -- New PvP data generated
+INFO | 2024-03-26 00:00 -- New last_scanned_date set to 2024-03-26 00:00:00
+INFO | 2024-03-26 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-26 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-26 00:15 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-26 00:20 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-26 00:40 -- Disabled quest scanning mode
+INFO | 2024-03-26 00:40 -- Pokestop quest scan completed
+ERROR | 2024-03-26 04:55 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-26 05:00 -- Devices not scanning: Tx9s3_JMBoy
+ERROR | 2024-03-26 05:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-26 13:55 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-26 14:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-26 15:05 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-26 15:25 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-26 15:50 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-26 16:40 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-26 16:45 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-26 18:50 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-03-27 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-27 00:00 -- Cleared previous quest data
+INFO | 2024-03-27 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-27 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-27 00:00 -- New PvP data generated
+INFO | 2024-03-27 00:00 -- New last_scanned_date set to 2024-03-27 00:00:00
+INFO | 2024-03-27 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-27 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-27 00:10 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-27 00:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 00:25 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-27 00:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-27 00:35 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 00:40 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-27 00:45 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-27 00:45 -- Disabled quest scanning mode
+INFO | 2024-03-27 00:45 -- Pokestop quest scan completed
+ERROR | 2024-03-27 02:55 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 05:00 -- Devices not scanning: Tx9s3_JMBoy
+INFO | 2024-03-27 10:00 -- Rescan scheduled starting
+INFO | 2024-03-27 10:00 -- Cleared previous quest data
+INFO | 2024-03-27 10:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-27 10:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-27 10:00 -- New PvP data generated
+INFO | 2024-03-27 10:00 -- New last_scanned_date set to 2024-03-27 00:00:00
+INFO | 2024-03-27 10:00 -- Enabled quest scanning mode
+INFO | 2024-03-27 10:01 -- Scheduled rescan started successfully
+ERROR | 2024-03-27 10:15 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-27 10:20 -- Devices not found: Tx9s, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-27 10:25 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-03-27 10:45 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-27 10:50 -- Quest scanning not progressing - Restarting
+ERROR | 2024-03-27 11:10 -- Devices not scanning: Tx9s a95xF1 Tx9s1_JMBoy Tx9s2_JMBoy Tx9s_Ethix Tx9s_Anakin
+ERROR | 2024-03-27 11:10 -- Quest scanning not progressing - Restarting
+ERROR | 2024-03-27 11:15 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-27 11:20 -- Quest scanning not progressing - Restarting
+ERROR | 2024-03-27 11:38 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 11:43 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+INFO | 2024-03-27 12:08 -- Disabled quest scanning mode
+INFO | 2024-03-27 12:08 -- Pokestop quest scan completed
+ERROR | 2024-03-27 12:13 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-27 12:18 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 14:28 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-27 16:28 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-27 16:48 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 16:58 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-27 17:03 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 17:43 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-27 17:48 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 19:03 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 19:08 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 19:13 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 19:18 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 20:53 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-27 21:28 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 21:33 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 22:33 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 22:38 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 22:48 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 22:58 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-27 23:48 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-27 23:53 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-28 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-28 04:00 -- Cleared previous quest data
+INFO | 2024-03-28 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-28 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-28 04:00 -- New PvP data generated
+INFO | 2024-03-28 04:00 -- New last_scanned_date set to 2024-03-28 00:00:00
+INFO | 2024-03-28 04:00 -- Enabled quest scanning mode
+INFO | 2024-03-28 04:00 -- Pokestop quest scanning started
+ERROR | 2024-03-28 04:10 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-28 04:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 04:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-28 04:35 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-28 04:45 -- Disabled quest scanning mode
+INFO | 2024-03-28 04:45 -- Pokestop quest scan completed
+ERROR | 2024-03-28 05:00 -- Devices not scanning: a95xF1 Tx9s3_JMBoy
+ERROR | 2024-03-28 06:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 07:10 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-28 07:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 08:20 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-28 08:25 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 11:55 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-28 12:05 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-28 12:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 15:45 -- Devices not found: Tx9s, Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-28 15:50 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 19:35 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-28 19:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-28 22:30 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-28 22:35 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-29 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-29 00:00 -- Cleared previous quest data
+INFO | 2024-03-29 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-29 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-29 00:00 -- New PvP data generated
+INFO | 2024-03-29 00:00 -- New last_scanned_date set to 2024-03-29 00:00:00
+INFO | 2024-03-29 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-29 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-29 00:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-29 00:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 00:40 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-29 00:45 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-29 00:50 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-29 01:15 -- Disabled quest scanning mode
+INFO | 2024-03-29 01:15 -- Pokestop quest scan completed
+ERROR | 2024-03-29 05:00 -- Devices not scanning: a95xF1 Tx9s3_JMBoy
+ERROR | 2024-03-29 05:30 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 05:35 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-29 05:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 09:55 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-29 10:00 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 11:30 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-29 11:35 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 12:30 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-29 12:35 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 17:40 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-29 17:55 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-29 21:50 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-29 21:55 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-30 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-30 00:00 -- Cleared previous quest data
+INFO | 2024-03-30 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-30 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-30 00:00 -- New PvP data generated
+INFO | 2024-03-30 00:00 -- New last_scanned_date set to 2024-03-30 00:00:00
+INFO | 2024-03-30 00:00 -- Enabled quest scanning mode
+INFO | 2024-03-30 00:00 -- Pokestop quest scanning started
+ERROR | 2024-03-30 00:10 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-30 00:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-30 00:25 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-03-30 00:35 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-30 00:45 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-30 00:45 -- Disabled quest scanning mode
+INFO | 2024-03-30 00:45 -- Pokestop quest scan completed
+ERROR | 2024-03-30 05:00 -- Devices not scanning: Tx9s3_JMBoy
+ERROR | 2024-03-30 09:05 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-30 12:22 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-30 12:27 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-30 14:17 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-30 14:27 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-30 14:32 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-30 14:37 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-30 14:52 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-30 16:27 -- Devices not found: Tx9s_Anakin
+ERROR | 2024-03-30 16:37 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-30 22:47 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-30 22:52 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-31 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-03-31 04:00 -- Cleared previous quest data
+INFO | 2024-03-31 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-31 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-31 04:00 -- New PvP data generated
+INFO | 2024-03-31 04:00 -- New last_scanned_date set to 2024-03-31 00:00:00
+INFO | 2024-03-31 04:00 -- Enabled quest scanning mode
+INFO | 2024-03-31 04:00 -- Pokestop quest scanning started
+ERROR | 2024-03-31 04:10 -- Devices not found: Tx9s, a95xF1, Tx9s3_JMBoy
+ERROR | 2024-03-31 04:15 -- Devices not found: a95xF1, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-31 04:20 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-31 04:25 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-03-31 04:35 -- Disabled quest scanning mode
+INFO | 2024-03-31 04:35 -- Pokestop quest scan completed
+ERROR | 2024-03-31 05:00 -- Devices not scanning: Tx9s3_JMBoy
+ERROR | 2024-03-31 09:50 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-31 15:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-31 15:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-31 15:25 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-31 15:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-31 15:45 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-31 16:00 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-31 16:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-03-31 16:05 -- Devices not found: Tx9s, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-31 16:15 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-03-31 16:15 -- Devices not scanning: Tx9s
+ERROR | 2024-03-31 16:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-03-31 16:25 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-03-31 16:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-03-31 16:50 -- Devices not scanning: Tx9s_Ethix
+ERROR | 2024-03-31 17:10 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-03-31 17:15 -- Devices not scanning: Tx9s1_JMBoy
+ERROR | 2024-03-31 17:20 -- Devices not scanning: a95xF1
+ERROR | 2024-03-31 17:40 -- Devices not scanning: Tx9s_Anakin
+ERROR | 2024-03-31 17:40 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-03-31 20:00 -- Rescan scheduled starting
+INFO | 2024-03-31 20:00 -- Cleared previous quest data
+INFO | 2024-03-31 20:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-03-31 20:00 -- Truncated quests table sucessfully!
+INFO | 2024-03-31 20:00 -- New PvP data generated
+INFO | 2024-03-31 20:00 -- New last_scanned_date set to 2024-03-31 00:00:00
+INFO | 2024-03-31 20:00 -- Enabled quest scanning mode
+INFO | 2024-03-31 20:00 -- Scheduled rescan started successfully
+ERROR | 2024-03-31 20:10 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-04-01 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-01 00:00 -- Cleared previous quest data
+INFO | 2024-04-01 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-01 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-01 00:00 -- New PvP data generated
+INFO | 2024-04-01 00:00 -- New last_scanned_date set to 2024-04-01 00:00:00
+INFO | 2024-04-01 00:00 -- Enabled quest scanning mode
+INFO | 2024-04-01 00:00 -- Pokestop quest scanning started
+ERROR | 2024-04-01 00:10 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-01 05:00 -- Devices not scanning: Tx9s a95xF1 Tx9s1_JMBoy Tx9s2_JMBoy Tx9s3_JMBoy Tx9s_Ethix Tx9s_Anakin
+ERROR | 2024-04-01 05:10 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-01 06:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 06:10 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-01 10:10 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-04-01 11:00 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 11:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 11:15 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 11:30 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 11:35 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 11:50 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 11:55 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 12:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 12:15 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 12:25 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 12:35 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 12:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 12:45 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 13:00 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 13:05 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 13:15 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 13:40 -- Devices not found: Tx9s, a95xF1, Tx9s1_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-04-01 13:45 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 13:50 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 13:55 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 14:00 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 14:05 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-04-01 17:18 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-01 17:23 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 17:33 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-01 17:38 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-01 23:23 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-04-01 23:28 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-04-02 04:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-02 04:00 -- Cleared previous quest data
+INFO | 2024-04-02 04:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-02 04:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-02 04:00 -- New PvP data generated
+INFO | 2024-04-02 04:00 -- New last_scanned_date set to 2024-04-02 00:00:00
+INFO | 2024-04-02 04:00 -- Enabled quest scanning mode
+INFO | 2024-04-02 04:00 -- Pokestop quest scanning started
+ERROR | 2024-04-02 05:00 -- Devices not scanning: a95xF1 Tx9s3_JMBoy
+ERROR | 2024-04-02 05:05 -- Devices not scanning: Tx9s Tx9s1_JMBoy Tx9s_Ethix
+ERROR | 2024-04-02 05:15 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-02 05:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-02 05:40 -- Devices not found: Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-04-02 20:15 -- Devices not found: Tx9s, Tx9s3_JMBoy
+ERROR | 2024-04-02 20:20 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-02 20:35 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-02 20:45 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-02 21:55 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-02 22:15 -- Devices not found: Tx9s3_JMBoy
+INFO | 2024-04-03 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-03 00:00 -- Cleared previous quest data
+INFO | 2024-04-03 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-03 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-03 00:00 -- New PvP data generated
+INFO | 2024-04-03 00:00 -- New last_scanned_date set to 2024-04-03 00:00:00
+INFO | 2024-04-03 00:00 -- Enabled quest scanning mode
+INFO | 2024-04-03 00:00 -- Pokestop quest scanning started
+ERROR | 2024-04-03 00:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-03 01:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-03 01:10 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy, Tx9s_Ethix
+ERROR | 2024-04-03 01:10 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-04-03 01:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-03 01:20 -- Devices not found: Tx9s1_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-03 01:40 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-03 05:00 -- Devices not scanning: a95xF1 Tx9s3_JMBoy
+ERROR | 2024-04-03 08:50 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-03 09:00 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-03 14:05 -- Devices not found: Tx9s3_JMBoy, Tx9s_Anakin
+ERROR | 2024-04-03 14:25 -- Devices not found: a95xF1, Tx9s3_JMBoy
+ERROR | 2024-04-03 14:30 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-03 19:15 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-03 19:25 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-03 23:20 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-04-04 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-04 00:00 -- Cleared previous quest data
+INFO | 2024-04-04 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-04 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-04 00:00 -- New PvP data generated
+INFO | 2024-04-04 00:00 -- New last_scanned_date set to 2024-04-04 00:00:00
+INFO | 2024-04-04 00:00 -- Enabled quest scanning mode
+INFO | 2024-04-04 00:00 -- Pokestop quest scanning started
+ERROR | 2024-04-04 00:15 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-04-04 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 01:10 -- Devices not scanning: Tx9s_Ethix Tx9s_Anakin
+ERROR | 2024-04-04 02:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 05:00 -- Devices not scanning: a95xF1
+ERROR | 2024-04-04 05:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 05:45 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-04-04 05:50 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 05:55 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-04 07:00 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-04 07:05 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 12:33 -- Devices not scanning: a95xF1 Tx9s2_JMBoy
+INFO | 2024-04-04 13:24 -- New quest scan requested by jmboy#0
+INFO | 2024-04-04 13:24 -- Cleared previous quest data
+INFO | 2024-04-04 13:24 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-04 13:24 -- Truncated quests table sucessfully!
+INFO | 2024-04-04 13:24 -- New PvP data generated
+INFO | 2024-04-04 13:24 -- New last_scanned_date set to 2024-04-04 00:00:00
+INFO | 2024-04-04 13:24 -- Enabled quest scanning mode
+INFO | 2024-04-04 18:08 -- Updated to new version 0.307.1
+ERROR | 2024-04-04 20:25 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-04 20:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-04 21:25 -- Devices not scanning: a95xF1 Tx9s2_JMBoy
+INFO | 2024-04-05 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-05 00:00 -- Cleared previous quest data
+INFO | 2024-04-05 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-05 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-05 00:00 -- New PvP data generated
+INFO | 2024-04-05 00:00 -- New last_scanned_date set to 2024-04-05 00:00:00
+INFO | 2024-04-05 00:01 -- Enabled quest scanning mode
+INFO | 2024-04-05 00:01 -- Pokestop quest scanning started
+ERROR | 2024-04-05 00:23 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 00:50 -- Devices not scanning: Tx9s Tx9s1_JMBoy Tx9s3_JMBoy Tx9s_Ethix Tx9s_Anakin
+ERROR | 2024-04-05 00:53 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 02:30 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-05 02:53 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 04:20 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 04:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 05:00 -- Devices not scanning: Tx9s a95xF1 Tx9s1_JMBoy Tx9s2_JMBoy Tx9s3_JMBoy Tx9s_Ethix Tx9s_Anakin
+ERROR | 2024-04-05 05:25 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-05 05:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 07:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 07:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 08:00 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-05 08:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 08:30 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 08:30 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-05 08:50 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 08:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 09:10 -- Devices not found: Tx9s3_JMBoy
+ERROR | 2024-04-05 09:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 09:45 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 09:55 -- Devices not found: Tx9s_Ethix
+ERROR | 2024-04-05 09:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 10:00 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-05 10:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 10:55 -- Devices not found: Tx9s_Ethix
+ERROR | 2024-04-05 10:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 11:05 -- Devices not found: Tx9s_Ethix, Tx9s_Anakin
+ERROR | 2024-04-05 11:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 11:55 -- Devices not found: Tx9s, Tx9s_Ethix
+ERROR | 2024-04-05 11:55 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 13:52 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-05 13:52 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 13:52 -- Devices not found: a95xF1, Tx9s1_JMBoy, Tx9s2_JMBoy, Tx9s_Anakin
+ERROR | 2024-04-05 13:57 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-05 14:22 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 15:52 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-05 15:52 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 17:52 -- Devices not found: a95xF1
+ERROR | 2024-04-05 17:52 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 17:57 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-05 18:22 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 18:57 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-05 19:22 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 21:17 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-05 23:31 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-05 23:46 -- Devices not found: a95xF1, Tx9s2_JMBoy, Tx9s3_JMBoy
+ERROR | 2024-04-05 23:51 -- Devices not found: Tx9s2_JMBoy
+INFO | 2024-04-06 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-06 00:01 -- Cleared previous quest data
+INFO | 2024-04-06 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-06 00:01 -- Truncated quests table sucessfully!
+INFO | 2024-04-06 00:01 -- New PvP data generated
+INFO | 2024-04-06 00:01 -- New last_scanned_date set to 2024-04-06 00:00:00
+INFO | 2024-04-06 00:01 -- Enabled quest scanning mode
+INFO | 2024-04-06 00:02 -- Pokestop quest scanning started
+ERROR | 2024-04-06 00:11 -- Devices not found: a95xF1, Tx9s2_JMBoy
+ERROR | 2024-04-06 00:16 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-06 01:36 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-04-06 01:51 -- Disabled quest scanning mode
+INFO | 2024-04-06 01:51 -- Pokestop quest scan completed
+ERROR | 2024-04-06 02:11 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-06 02:46 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-04-06 02:51 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-06 05:00 -- Devices not scanning: a95xF1 Tx9s2_JMBoy
+ERROR | 2024-04-06 05:30 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-06 22:43 -- Devices not scanning: a95xF1 Tx9s2_JMBoy
+INFO | 2024-04-07 00:03 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-07 00:03 -- Cleared previous quest data
+INFO | 2024-04-07 00:03 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-07 00:03 -- Truncated quests table sucessfully!
+INFO | 2024-04-07 00:03 -- New PvP data generated
+INFO | 2024-04-07 00:03 -- New last_scanned_date set to 2024-04-07 00:00:00
+INFO | 2024-04-07 00:03 -- Enabled quest scanning mode
+INFO | 2024-04-07 00:03 -- Pokestop quest scanning started
+ERROR | 2024-04-07 03:13 -- Quest scanning not progressing - Restarting
+ERROR | 2024-04-07 05:00 -- Devices not scanning: a95xF1 Tx9s2_JMBoy
+ERROR | 2024-04-07 05:30 -- Quest scanning not progressing - Restarting
+INFO | 2024-04-07 05:35 -- Disabled quest scanning mode
+INFO | 2024-04-07 05:35 -- Pokestop quest scan completed
+INFO | 2024-04-08 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-04-08 00:00 -- Cleared previous quest data
+INFO | 2024-04-08 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-04-08 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-04-08 00:00 -- New PvP data generated
+INFO | 2024-04-08 00:00 -- New last_scanned_date set to 2024-04-08 00:00:00
+INFO | 2024-04-08 00:01 -- Enabled quest scanning mode
+INFO | 2024-04-08 00:01 -- Pokestop quest scanning started
+ERROR | 2024-04-08 00:15 -- Devices not found: Tx9s1_JMBoy, Tx9s2_JMBoy
+ERROR | 2024-04-08 00:20 -- Devices not found: Tx9s2_JMBoy
+ERROR | 2024-04-08 02:55 -- Quest scanning not progressing - Restarting
+INFO | 2024-04-08 03:01 -- Disabled quest scanning mode
+INFO | 2024-04-08 03:01 -- Pokestop quest scan completed
+ERROR | 2024-04-08 05:00 -- Devices not scanning: Tx9s2_JMBoy
+ERROR | 2024-04-08 08:05 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
