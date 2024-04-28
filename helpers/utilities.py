@@ -9,7 +9,7 @@ import helpers.constants as constants
 versionUrl = "https://pgorelease.nianticlabs.com/plfe/version"
 
 boxUsersData = [
-    {"owner": "Faynn", "boxes": ["Tx9s1", "a95xF1"], "mention": "98846248865398784"},
+    {"owner": "Faynn", "boxes": ["Tx9s1", "Poco" "a95xF1"], "mention": "98846248865398784"},
     {"owner": "JMBoy", "boxes": ["Tx9s1_JMBoy", "Tx9s2_JMBoy", "Tx9s3_JMBoy"], "mention": "308000681271492610"},
     {"owner": "Ethix", "boxes": ["Tx9s1_Ethix"], "mention": "313738342904627200"},
     {"owner": "Anakin", "boxes": ["Tx9s1_Anakin"], "mention": "339466204638871552"}

@@ -61,7 +61,7 @@ def init():
 
     global TIME_MULTIPLIER, TOTAL_BOXES
     TIME_MULTIPLIER = 1
-    TOTAL_BOXES = 7
+    TOTAL_BOXES = 8
     
     global CACHED_MESSAGES_BY_USER
     CACHED_MESSAGES_BY_USER = []
