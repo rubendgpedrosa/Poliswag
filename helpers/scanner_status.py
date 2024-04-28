@@ -10,11 +10,12 @@ from helpers.database_connector import execute_query_to_database, get_data_from_
 from helpers.quests import get_current_quest_data, retrieve_quest_summary
 
 # current datetime lisbon timezone
-CURRENT_DATETIME = datetime.datetime.now()
+CURRENT_DATETIME = datetime.datetime.now() - datetime.timedelta(minutes=20)
 
 boxUsersMapping = {
     "Tx9s": "<@98846248865398784>",
     "a95xF1": "<@98846248865398784>",
+    "Poco": "<@98846248865398784>",
     "Tx9s1_JMBoy": "<@308000681271492610>",
     "Tx9s2_JMBoy": "<@308000681271492610>",
     "Tx9s3_JMBoy": "<@308000681271492610>",
@@ -26,6 +27,7 @@ boxUsersMapping = {
 currentActiveTimeDevices = {
     "Tx9s": CURRENT_DATETIME,
     "a95xF1": CURRENT_DATETIME,
+    "Poco": CURRENT_DATETIME,
     "Tx9s1_JMBoy": CURRENT_DATETIME,
     "Tx9s2_JMBoy": CURRENT_DATETIME,
     "Tx9s3_JMBoy": CURRENT_DATETIME,
@@ -46,6 +48,7 @@ def read_mad_log_file():
     devicesWereLastSeen = {
         "Tx9s": False,
         "a95xF1": False,
+        "Poco": False,
         "Tx9s1_JMBoy": False,
         "Tx9s2_JMBoy": False,
         "Tx9s3_JMBoy": False,
@@ -57,11 +60,11 @@ def read_mad_log_file():
     
     with open(constants.MAD_LOG_FILE, 'r') as file:
         lines = file.readlines()
-        lastLines = lines[-250:]
+        lastLines = lines[-200:]
         for line in lastLines:
             for device in deviceNames:
                 if f"{device}]" in line:                        
-                    devicesWereLastSeen[device] = True
+                    devicesWereLastSeen[device] = "origin is no longer connected" not in line
                     if "Got data of type ReceivedType." in line:
                         currentActiveTimeDevices[device] = datetime.datetime.now()
     
@@ -72,18 +75,19 @@ async def notify_devices_failing():
         if not devicesWereLastSeen[boxName]:
             totalBoxesFailing.append({"data": [boxName]})
     for boxName in currentActiveTimeDevices:
-        if datetime.datetime.now() - currentActiveTimeDevices[boxName] > datetime.timedelta(seconds=3600):
+        if datetime.datetime.now() - currentActiveTimeDevices[boxName] > datetime.timedelta(seconds=1200):
             totalDevicesNotScanning.append({"data": [boxName]})
             
     if len(totalBoxesFailing) > 0:
         await notify_devices_down(totalBoxesFailing)
-        await rename_voice_channels(totalBoxesFailing)
     else:
         await clean_map_stats_channel("clear")
-        await rename_voice_channels([])
     
     if len(totalDevicesNotScanning) > 0:
         await notify_devices_not_scanning(totalDevicesNotScanning)
+        await rename_voice_channels(totalDevicesNotScanning)
+    else:
+        await rename_voice_channels([])
 
 async def notify_devices_not_scanning(totalDevicesNotScanning):
     global cachedDevicesNotScanning
@@ -96,15 +100,6 @@ async def notify_devices_not_scanning(totalDevicesNotScanning):
     if len(newDevicesNotScanning) == 0:
         return
     
-    print(newDevicesNotScanning)
-    
-    #if len(totalBoxesFailing) > 0:
-    #    await notify_devices_down(totalBoxesFailing)
-    #    await rename_voice_channels(totalBoxesFailing)
-    #else:
-    #    await clean_map_stats_channel("clear")
-    #    await rename_voice_channels([])
-    
     content = " ".join([boxName["data"][0] for boxName in newDevicesNotScanning])
     
     embed = discord.Embed(
@@ -112,7 +107,7 @@ async def notify_devices_not_scanning(totalDevicesNotScanning):
         color=0x7b83b4
     )
     
-    log_to_file(f"Devices not scanning: {content}", "ERROR")
+    #log_to_file(f"Devices not scanning: {content}", "WARNING")
     
     user_id = 98846248865398784
     user = await constants.CLIENT.fetch_user(user_id)
@@ -187,25 +182,25 @@ async def rename_voice_channels(totalBoxesFailing):
 
 def get_status_message(downCounter, region):
     if region == "LEIRIA":
-        if downCounter == 0:
-            return f"{region}: 🟢"
-        elif downCounter in [1, 2]:
-            return f"{region}: 🟡"
-        elif downCounter in [3, 4]:
+        if downCounter > 5:
+            return f"{region}: 🔴"
+        elif downCounter > 2:
             return f"{region}: 🟠"
-        elif downCounter >= 5:
-            return f"{region}: 🔴"
-    elif region == "MARINHA":
-        if downCounter == 0:
-            return f"{region}: 🟢"
-        elif downCounter == 1:
+        elif downCounter > 1:
             return f"{region}: 🟡"
-        elif downCounter >= 2:
+        else:
+            return f"{region}: 🟢"
+    elif region == "MARINHA":
+        if downCounter > 2:
             return f"{region}: 🔴"
-    return f"{region}: 🟢"
+        elif downCounter > 0:
+            return f"{region}: 🟠"
+        else:
+            return f"{region}: 🟢"
+    return f"{region}: ⚪"
 
 def split_list_by_region(boxName):
-    if boxName == "Tx9s1_Ethix" or boxName == "Tx9s1_Anakin":
+    if boxName == "Tx9s_Ethix" or boxName == "Tx9s_Anakin":
         return "MarinhaGrande"
     else:
         return "Leiria"
@@ -261,26 +256,28 @@ def has_total_quests_scanned_been_reached():
     if currentTime.dst() != datetime.timedelta(0):
         dstTimeChanges = 60
 
-    questScanningStuck = get_data_from_database(f"SELECT IF(FROM_UNIXTIME(quest_timestamp) >= NOW() - INTERVAL {dstTimeChanges + 30} MINUTE, '', 'Stuck') AS status FROM trs_quest ORDER BY quest_timestamp DESC LIMIT 1;")
-    status = [status["data"][0] for status in questScanningStuck]  # Extract status
-    if 'Stuck' in status:
-        log_to_file("Quest scanning not progressing - Restarting", "ERROR")
-        restart_run_docker_containers()
-        return {'Leiria': False, 'Marinha': False}
+    #questScanningStuck = get_data_from_database(f"SELECT IF(FROM_UNIXTIME(quest_timestamp) >= NOW() - INTERVAL {dstTimeChanges + 30} MINUTE, '', 'Stuck') AS status FROM trs_quest ORDER BY quest_timestamp DESC LIMIT 1;")
+    #status = [status["data"][0] for status in questScanningStuck]  # Extract status
+    #if 'Stuck' in status:
+        #log_to_file("Quest scanning not progressing - Restarting", "ERROR")
+        #restart_run_docker_containers()
+        #return {'Leiria': False, 'Marinha': False}
 
     
     totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag;", "poliswag")
     totalPreviousScannedStopsLeiria = int(totalPreviousScannedStops[0]["data"][0])
-    totalPreviousScannedStopsMarinhaGrande = int(totalPreviousScannedStops[0]["data"][1])
+    totalPreviousScannedStopsMarinhaGrande = 0 #int(totalPreviousScannedStops[0]["data"][1])
 
-    totalScannedStops = get_data_from_database(f"SELECT COUNT(pokestop.pokestop_id) AS num_pokestops FROM trs_quest LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id WHERE trs_quest.layer = 1 GROUP BY IF(pokestop.longitude NOT LIKE '%-8.9%', 'Longitude not like %-8.9%', 'Longitude like %-8.9%');")
-
+    totalScannedStops = get_data_from_database(f"SELECT CASE WHEN condition_alias = 'Longitude LIKE %-8.9%' THEN 'Marinha' WHEN condition_alias = 'Longitude NOT LIKE %-8.9%' THEN 'Leiria' END AS condition_alias, IFNULL(COUNT(pokestop.pokestop_id), 0) AS num_pokestops FROM (SELECT 'Longitude LIKE %-8.9%' AS condition_alias UNION ALL SELECT 'Longitude NOT LIKE %-8.9%') AS conditions LEFT JOIN trs_quest ON 1=1 LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id AND trs_quest.layer = 1 AND ((condition_alias = 'Longitude LIKE %-8.9%' AND pokestop.longitude LIKE '%-8.9%') OR (condition_alias = 'Longitude NOT LIKE %-8.9%' AND pokestop.longitude NOT LIKE '%-8.9%')) GROUP BY condition_alias;")
     if not totalScannedStops or len(totalScannedStops) < 2:
         return {'Leiria': False, 'Marinha': False}
-    
-    totalScannedStopsLeiria = int(totalScannedStops[1]["data"][0])
-    totalScannedStopsMarinhaGrande = int(totalScannedStops[0]["data"][0])
-    
+
+    totalScannedStopsLeiria = next((item["data"][1] for item in totalScannedStops if item["data"][0] == 'Leiria'), 0)
+    totalScannedStopsMarinhaGrande = next((item["data"][1] for item in totalScannedStops if item["data"][0] == 'Marinha'), 0)
+
+    totalScannedStopsLeiria = int(totalScannedStopsLeiria)
+    totalScannedStopsMarinhaGrande = int(totalScannedStopsMarinhaGrande)
+
     #if totalScannedStopsLeiria < totalPreviousScannedStopsLeiria and totalScannedStopsMarinhaGrande >= totalPreviousScannedStopsMarinhaGrande:
     #    revert_device_scanning_marinha()
     #    restart_run_docker_containers()
