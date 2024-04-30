@@ -186,7 +186,7 @@ def get_status_message(downCounter, region):
             return f"{region}: 🔴"
         elif downCounter > 2:
             return f"{region}: 🟠"
-        elif downCounter > 1:
+        elif downCounter > 0:
             return f"{region}: 🟡"
         else:
             return f"{region}: 🟢"
@@ -256,17 +256,17 @@ def has_total_quests_scanned_been_reached():
     if currentTime.dst() != datetime.timedelta(0):
         dstTimeChanges = 60
 
-    #questScanningStuck = get_data_from_database(f"SELECT IF(FROM_UNIXTIME(quest_timestamp) >= NOW() - INTERVAL {dstTimeChanges + 30} MINUTE, '', 'Stuck') AS status FROM trs_quest ORDER BY quest_timestamp DESC LIMIT 1;")
-    #status = [status["data"][0] for status in questScanningStuck]  # Extract status
-    #if 'Stuck' in status:
-        #log_to_file("Quest scanning not progressing - Restarting", "ERROR")
-        #restart_run_docker_containers()
-        #return {'Leiria': False, 'Marinha': False}
+    questScanningStuck = get_data_from_database(f"SELECT IF(FROM_UNIXTIME(quest_timestamp) >= NOW() - INTERVAL {dstTimeChanges + 30} MINUTE, '', 'Stuck') AS status FROM trs_quest ORDER BY quest_timestamp DESC LIMIT 1;")
+    status = [status["data"][0] for status in questScanningStuck]  # Extract status
+    if 'Stuck' in status:
+        log_to_file("Quest scanning not progressing - Restarting", "ERROR")
+        restart_run_docker_containers()
+        return {'Leiria': False, 'Marinha': False}
 
     
     totalPreviousScannedStops = get_data_from_database(f"SELECT pokestop_total_leiria, pokestop_total_marinha FROM poliswag;", "poliswag")
     totalPreviousScannedStopsLeiria = int(totalPreviousScannedStops[0]["data"][0])
-    totalPreviousScannedStopsMarinhaGrande = 0 #int(totalPreviousScannedStops[0]["data"][1])
+    totalPreviousScannedStopsMarinhaGrande = int(totalPreviousScannedStops[0]["data"][1])
 
     totalScannedStops = get_data_from_database(f"SELECT CASE WHEN condition_alias = 'Longitude LIKE %-8.9%' THEN 'Marinha' WHEN condition_alias = 'Longitude NOT LIKE %-8.9%' THEN 'Leiria' END AS condition_alias, IFNULL(COUNT(pokestop.pokestop_id), 0) AS num_pokestops FROM (SELECT 'Longitude LIKE %-8.9%' AS condition_alias UNION ALL SELECT 'Longitude NOT LIKE %-8.9%') AS conditions LEFT JOIN trs_quest ON 1=1 LEFT JOIN pokestop ON trs_quest.GUID = pokestop.pokestop_id AND trs_quest.layer = 1 AND ((condition_alias = 'Longitude LIKE %-8.9%' AND pokestop.longitude LIKE '%-8.9%') OR (condition_alias = 'Longitude NOT LIKE %-8.9%' AND pokestop.longitude NOT LIKE '%-8.9%')) GROUP BY condition_alias;")
     if not totalScannedStops or len(totalScannedStops) < 2:
@@ -277,9 +277,5 @@ def has_total_quests_scanned_been_reached():
 
     totalScannedStopsLeiria = int(totalScannedStopsLeiria)
     totalScannedStopsMarinhaGrande = int(totalScannedStopsMarinhaGrande)
-
-    #if totalScannedStopsLeiria < totalPreviousScannedStopsLeiria and totalScannedStopsMarinhaGrande >= totalPreviousScannedStopsMarinhaGrande:
-    #    revert_device_scanning_marinha()
-    #    restart_run_docker_containers()
 
     return {'Leiria': totalScannedStopsLeiria >= totalPreviousScannedStopsLeiria, 'Marinha': totalScannedStopsMarinhaGrande >= totalPreviousScannedStopsMarinhaGrande}
