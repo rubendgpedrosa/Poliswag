@@ -1,5 +1,5 @@
 import helpers.constants as constants
-import requests
+import requests, pytz, datetime
 
 from helpers.utilities import log_to_file, time_now, clear_quest_file, build_embed_object_title_description
 from helpers.database_connector import execute_query_to_database, get_data_from_database
@@ -104,3 +104,26 @@ def optimize_database():
     """)
     log_to_file(f"Database optimized sucessfully!")
     constants.DOCKER_CLIENT_API.start(constants.RUN_CONTAINER)
+
+async def restart_map_container_if_scanning_stuck():
+    lisbonTz = pytz.timezone('Europe/Lisbon')
+    currentTime = datetime.datetime.now(lisbonTz)
+    dstTimeChanges = 0
+    if currentTime.dst() != datetime.timedelta(0):
+        dstTimeChanges = 60
+    pokemonScanResults = get_data_from_database(f"SELECT IF(last_updated >= NOW() - INTERVAL {constants.TIME_MULTIPLIER * (dstTimeChanges + 30)} MINUTE, '', 'Stuck') AS status FROM pokestop ORDER BY last_updated DESC LIMIT 1;")
+    for pokemonScanResult in pokemonScanResults:
+        if len(pokemonScanResult["data"][0]) > 0:
+            # Multiplier is used to "reset" the waiting time on stuck scanner
+            # This prevents it from resetting non stop after it enters the condition once
+            log_to_file("Pokemon scanning not progressing - Restarting", "ERROR")
+            restart_run_docker_containers()
+
+            channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
+            execute_query_to_database(f"UPDATE pokestop SET last_updated = date_add(last_updated, INTERVAL {constants.TIME_MULTIPLIER * 30} MINUTE);")
+            constants.TIME_MULTIPLIER = constants.TIME_MULTIPLIER + 1
+            
+            return True
+        else:
+            constants.TIME_MULTIPLIER = 1
+    return False
