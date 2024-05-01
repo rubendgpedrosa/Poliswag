@@ -61,3 +61,53 @@ ERROR | 2024-04-30 03:55 -- Devices not found: Tx9s2_JMBoy, Tx9s3_JMBoy
 ERROR | 2024-04-30 04:10 -- Quest scanning not progressing - Restarting
 INFO | 2024-04-30 04:20 -- Disabled quest scanning mode
 INFO | 2024-04-30 04:20 -- Pokestop quest scan completed
+INFO | 2024-05-01 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-01 00:00 -- Cleared previous quest data
+INFO | 2024-05-01 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:00 -- New PvP data generated
+INFO | 2024-05-01 00:00 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:01 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:29 -- New quest scan requested by faynn#0
+INFO | 2024-05-01 00:29 -- Cleared previous quest data
+INFO | 2024-05-01 00:29 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:29 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:29 -- New PvP data generated
+INFO | 2024-05-01 00:29 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:29 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:30 -- New quest scan requested by rekrad1994#0
+INFO | 2024-05-01 00:30 -- Cleared previous quest data
+INFO | 2024-05-01 00:30 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:30 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:30 -- New PvP data generated
+INFO | 2024-05-01 00:30 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:30 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:31 -- New quest scan requested by rekrad1994#0
+INFO | 2024-05-01 00:31 -- Cleared previous quest data
+INFO | 2024-05-01 00:31 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:31 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:31 -- New PvP data generated
+INFO | 2024-05-01 00:31 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:31 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:32 -- Cleared previous quest data
+INFO | 2024-05-01 00:32 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:32 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:32 -- New PvP data generated
+INFO | 2024-05-01 00:32 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:32 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:32 -- Cleared previous quest data
+INFO | 2024-05-01 00:32 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:32 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:32 -- New PvP data generated
+INFO | 2024-05-01 00:32 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:33 -- Enabled quest scanning mode
+INFO | 2024-05-01 00:50 -- New quest scan requested by rekrad1994#0
+INFO | 2024-05-01 00:50 -- Cleared previous quest data
+INFO | 2024-05-01 00:50 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-01 00:50 -- Truncated quests table sucessfully!
+INFO | 2024-05-01 00:50 -- New PvP data generated
+INFO | 2024-05-01 00:50 -- New last_scanned_date set to 2024-05-01 00:00:00
+INFO | 2024-05-01 00:50 -- Enabled quest scanning mode
+ERROR | 2024-05-01 04:15 -- Quest scanning not progressing - Restarting
+INFO | 2024-05-01 04:20 -- Disabled quest scanning mode
+INFO | 2024-05-01 04:20 -- Pokestop quest scan completed
