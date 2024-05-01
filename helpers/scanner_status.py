@@ -1,12 +1,11 @@
 import helpers.constants as constants
 import discord
 import datetime, requests
-from bs4 import BeautifulSoup
 import pytz
 
-from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, clean_map_stats_channel
-from helpers.scanner_manager import set_quest_scanning_state, restart_run_docker_containers, revert_device_scanning_marinha
-from helpers.database_connector import execute_query_to_database, get_data_from_database
+from helpers.utilities import build_embed_object_title_description, log_to_file, build_embed_object_title_description, clean_map_stats_channel, is_there_message_to_be_deleted
+from helpers.scanner_manager import set_quest_scanning_state, restart_run_docker_containers
+from helpers.database_connector import get_data_from_database
 from helpers.quests import get_current_quest_data, retrieve_quest_summary
 
 # current datetime lisbon timezone
@@ -23,153 +22,97 @@ boxUsersMapping = {
     "Tx9s_Anakin": "<@339466204638871552>"
 }
 
-# default time = current time
-currentActiveTimeDevices = {
-    "Tx9s": CURRENT_DATETIME,
-    "a95xF1": CURRENT_DATETIME,
-    "Poco": CURRENT_DATETIME,
-    "Tx9s1_JMBoy": CURRENT_DATETIME,
-    "Tx9s2_JMBoy": CURRENT_DATETIME,
-    "Tx9s3_JMBoy": CURRENT_DATETIME,
-    "Tx9s_Ethix": CURRENT_DATETIME,
-    "Tx9s_Anakin": CURRENT_DATETIME
-}
-
-devicesWereLastSeen = {}
-
-cachedDevicesNotScanning = []
-
 async def check_boxes_with_issues():
-    read_mad_log_file()
-    await notify_devices_failing()
-    
-def read_mad_log_file():
-    global currentActiveTimeDevices, devicesWereLastSeen
-    devicesWereLastSeen = {
-        "Tx9s": False,
-        "a95xF1": False,
-        "Poco": False,
-        "Tx9s1_JMBoy": False,
-        "Tx9s2_JMBoy": False,
-        "Tx9s3_JMBoy": False,
-        "Tx9s_Ethix": False,
-        "Tx9s_Anakin": False
-    }
-    
-    deviceNames = devicesWereLastSeen.keys()
-    
-    with open(constants.MAD_LOG_FILE, 'r') as file:
-        lines = file.readlines()
-        lastLines = lines[-200:]
-        for line in lastLines:
-            for device in deviceNames:
-                if f"{device}]" in line:                        
-                    devicesWereLastSeen[device] = "origin is no longer connected" not in line
-                    if "Got data of type ReceivedType." in line:
-                        currentActiveTimeDevices[device] = datetime.datetime.now()
-    
-async def notify_devices_failing():
-    totalBoxesFailing = []
-    totalDevicesNotScanning = []
-    for boxName in devicesWereLastSeen:
-        if not devicesWereLastSeen[boxName]:
-            totalBoxesFailing.append({"data": [boxName]})
-    for boxName in currentActiveTimeDevices:
-        if datetime.datetime.now() - currentActiveTimeDevices[boxName] > datetime.timedelta(seconds=1200):
-            totalDevicesNotScanning.append({"data": [boxName]})
-            
-    if len(totalBoxesFailing) > 0:
-        await notify_devices_down(totalBoxesFailing)
-    else:
-        await clean_map_stats_channel("clear")
-    
-    if len(totalDevicesNotScanning) > 0:
-        await notify_devices_not_scanning(totalDevicesNotScanning)
-        await rename_voice_channels(totalDevicesNotScanning)
-    else:
-        await rename_voice_channels([])
-
-async def notify_devices_not_scanning(totalDevicesNotScanning):
-    global cachedDevicesNotScanning
-    newDevicesNotScanning = []
-    for device in totalDevicesNotScanning:
-        if device not in cachedDevicesNotScanning:
-            newDevicesNotScanning.append(device)
-            cachedDevicesNotScanning.append(device)
-    
-    if len(newDevicesNotScanning) == 0:
+    deviceStatusJson = await get_devices_status()
+    if not deviceStatusJson:
         return
-    
-    content = " ".join([boxName["data"][0] for boxName in newDevicesNotScanning])
-    
-    embed = discord.Embed(
-        title=":warning: DEVICES NOT SCANNING :warning:",
-        color=0x7b83b4
-    )
-    
-    #log_to_file(f"Devices not scanning: {content}", "WARNING")
-    
-    user_id = 98846248865398784
-    user = await constants.CLIENT.fetch_user(user_id)
+    devicesStatusList = prepare_dashboard_data(deviceStatusJson)
+    await device_status_embed_dashboard(devicesStatusList)
+    usersDeviceMap = map_users_failing_devices(devicesStatusList)
+    await notify_users_failing_devices(usersDeviceMap)
+    await rename_voice_channels(devicesStatusList)
 
-    if user:
-        try:
-            await user.send(
-                content=content,
-                embed=embed
-            )
-        except discord.Forbidden:
-            print(f"I don't have permission to send a direct message to {user.name}")
-    else:
-        print("User not found")
-    
-    
-async def notify_devices_down(totalBoxesFailing):
-    usersToNotify = []
-    boxNamesToNotify = []
-    for boxName in totalBoxesFailing:
-        boxName = boxName["data"][0]
-        userMention = boxUsersMapping.get(boxName)
-        if userMention:
-            if userMention not in usersToNotify:
-                usersToNotify.append(userMention)
-            boxNamesToNotify.append(boxName)
+async def get_devices_status():
+    try:
+        data = requests.get(constants.BACKEND_ENDPOINT + 'get_status', timeout=20)
+        data.raise_for_status() # Raise an exception if there is an HTTP error status code (4xx or 5xx)
+        if data.status_code == 200:
+            return data.json()
+        return None
+    except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+        print(f"Error: {e}")
+        return None
 
-    usersToNotifyString = " ".join(usersToNotify)
-    boxesNameJoined = ", ".join(boxNamesToNotify)
-    boxesToNotifyString = boxesNameJoined + f" precisa{'' if len(boxNamesToNotify) == 1 else 'm'} de um reboot"
-
-    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
-    messages = [message async for message in channel.history(limit=10)]
-    for msg in messages:
-        for embed in msg.embeds:
-            if boxesToNotifyString in embed.footer.text:
-                return
+def prepare_dashboard_data(deviceStatus):
+    devicesStatusList = []
+    for device in deviceStatus:
+        # Check if connected to MAD
+        deviceNameStatus = f"{get_device_status_icon(device['lastProtoDateTime'])} {device['name']} - {get_device_connected_status(device)}"
+        devicesStatusList.append(deviceNameStatus)
+    return sorted(devicesStatusList, key=lambda x: x.split(" - ")[0].split(" ")[1])
         
-    await clean_map_stats_channel("clear")
+def get_device_status_icon(deviceTimeStamp):
+    if datetime.datetime.now() - datetime.datetime.fromtimestamp(deviceTimeStamp) > datetime.timedelta(minutes=25):
+        return "🔴"
+    if datetime.datetime.now() - datetime.datetime.fromtimestamp(deviceTimeStamp) > datetime.timedelta(minutes=20):
+        return "🟠"
+    if datetime.datetime.now() - datetime.datetime.fromtimestamp(deviceTimeStamp) > datetime.timedelta(minutes=15):
+        return "🟡"
+    return "🟢"
 
+def get_device_connected_status(device):
+    twentyMinutesAgo = datetime.datetime.now() - datetime.timedelta(minutes=20)
+    if device["lastProtoDateTime"] <= twentyMinutesAgo.timestamp() and \
+       (device["lastPogoReboot"] == 0 or device["lastPogoReboot"] <= twentyMinutesAgo.timestamp()):
+        return "**DISCONNECTED**"
+    return "Connected"
+
+async def device_status_embed_dashboard(devicesStatusList):
+    mapStatsChannel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    embedMessage = await mapStatsChannel.fetch_message(constants.POLISWAG_MESSAGE_ID)
+    
+    nbActiveDevices = len([device for device in devicesStatusList if "🟢" in device])
     embed = discord.Embed(
-        title=":warning: ANOMALIA DETETADA :warning:",
         color=0x7b83b4
     )
     
-    embed.add_field(name="Ativadas", value=f":green_circle: {constants.TOTAL_BOXES - len(totalBoxesFailing)}/{constants.TOTAL_BOXES}", inline=False)
-    embed.add_field(name="Desativadas", value=f":red_circle: {len(totalBoxesFailing)}/{constants.TOTAL_BOXES}", inline=False)
+    leiriaDevices = [device for device in devicesStatusList if "Tx9s_" not in device]
+    marinhaDevices = [device for device in devicesStatusList if "Tx9s_" in device]
 
-    embed.set_footer(text=boxesToNotifyString)
+    embed.add_field(name="LEIRIA:", value='\n\n'.join(leiriaDevices) + "\n\u200b", inline=False)
+    embed.add_field(name="MARINHA GRANDE:", value='\n\n'.join(marinhaDevices) + "\n\u200b", inline=False)
+    embed.set_footer(text=f"Última atualização: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    await channel.send(
-        content=usersToNotifyString,
-        embed=embed
-    )
-    log_to_file(f"Devices not found: {boxesNameJoined}", "ERROR")
+    await embedMessage.edit(content=f"**DISPOSITIVOS ATIVOS: {nbActiveDevices} (em {len(devicesStatusList)})\n**", embed=embed)
+    
+def map_users_failing_devices(devicesStatusList):
+    userDevicesMap = []
+    for device in devicesStatusList:
+        if "DISCONNECTED" in device:
+            deviceName = device.split(" - ")[0].split()[1]  # Extracting the second element after splitting by spaces which contains the device name
+            userMention = boxUsersMapping.get(deviceName)
+            if userMention:
+                if userMention not in userDevicesMap:
+                    userDevicesMap.append(userMention)
+    return userDevicesMap
 
-async def rename_voice_channels(totalBoxesFailing):
+async def notify_users_failing_devices(usersDeviceMap):
+    userMentionString = ",".join(usersDeviceMap)
+    if not userMentionString:
+        await clean_map_stats_channel("clear")
+        return
+
+    if await is_there_message_to_be_deleted(userMentionString):
+        await clean_map_stats_channel("clear")
+        mapStatusChannel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+        await mapStatusChannel.send(content=userMentionString)
+
+async def rename_voice_channels(devicesStatusList):
     leiriaVoiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_ID)
     marinhaVoiceChannel = constants.CLIENT.get_channel(constants.VOICE_CHANNEL_MARINHA_ID)
 
-    leiriaDownCounter = sum(1 for boxName in totalBoxesFailing if split_list_by_region(boxName["data"][0]) == "Leiria")
-    marinhaDownCounter = sum(1 for boxName in totalBoxesFailing if split_list_by_region(boxName["data"][0]) == "MarinhaGrande")
+    leiriaDownCounter = sum("Leiria" in split_list_by_region(boxName) and "🟢" not in boxName for boxName in devicesStatusList)
+    marinhaDownCounter = sum("MarinhaGrande" in split_list_by_region(boxName) and "🟢" not in boxName for boxName in devicesStatusList)
 
     leiriaStatus = get_status_message(leiriaDownCounter, "LEIRIA")
     marinhaStatus = get_status_message(marinhaDownCounter, "MARINHA")
@@ -200,33 +143,10 @@ def get_status_message(downCounter, region):
     return f"{region}: ⚪"
 
 def split_list_by_region(boxName):
-    if boxName == "Tx9s_Ethix" or boxName == "Tx9s_Anakin":
+    if "Tx9s_Ethix" in boxName or "Tx9s_Anakin" in boxName:
         return "MarinhaGrande"
     else:
         return "Leiria"
-
-async def restart_map_container_if_scanning_stuck():
-    lisbonTz = pytz.timezone('Europe/Lisbon')
-    currentTime = datetime.datetime.now(lisbonTz)
-    dstTimeChanges = 0
-    if currentTime.dst() != datetime.timedelta(0):
-        dstTimeChanges = 60
-    pokemonScanResults = get_data_from_database(f"SELECT IF(last_updated >= NOW() - INTERVAL {constants.TIME_MULTIPLIER * (dstTimeChanges + 30)} MINUTE, '', 'Stuck') AS status FROM pokestop ORDER BY last_updated DESC LIMIT 1;")
-    for pokemonScanResult in pokemonScanResults:
-        if len(pokemonScanResult["data"][0]) > 0:
-            # Multiplier is used to "reset" the waiting time on stuck scanner
-            # This prevents it from resetting non stop after it enters the condition once
-            log_to_file("Pokemon scanning not progressing - Restarting", "ERROR")
-            restart_run_docker_containers()
-
-            channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
-            execute_query_to_database(f"UPDATE pokestop SET last_updated = date_add(last_updated, INTERVAL {constants.TIME_MULTIPLIER * 30} MINUTE);")
-            constants.TIME_MULTIPLIER = constants.TIME_MULTIPLIER + 1
-            
-            return True
-        else:
-            constants.TIME_MULTIPLIER = 1
-    return False
 
 async def is_quest_scanning_complete():
     get_current_quest_data()
