@@ -114,19 +114,23 @@ def time_now():
     dt = datetime.combine(date, timeHour)  # combine the date and time objects
     return str(dt)
 
-def build_notification_mention_string(notificationMentionString, box):
-    for user in boxUsersData:
-        if box in user['boxes'] and user['mention'] not in notificationMentionString:
-            return notificationMentionString + f"<@{user['mention']}> "
-    return notificationMentionString
-
 async def clean_map_stats_channel(message):
     channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
     async for msg in channel.history(limit=200):
         if message is not None and msg.author is not None and str(msg.author.id) not in constants.ADMIN_USERS_IDS and msg.author.id != constants.POLISWAG_ID:
             await msg.delete()
-        elif message == "clear":
+        elif message == "clear" and "DISPOSITIVOS ATIVOS" not in msg.content:
             await msg.delete()
+
+def get_dict_embed_from_message(message):
+    return message.embeds[0].to_dict()
+
+async def is_there_message_to_be_deleted(mentionString):
+    channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    async for msg in channel.history(limit=200):
+        if msg.author.id == constants.POLISWAG_ID and mentionString != msg.content and "DISPOSITIVOS ATIVOS" not in msg.content:
+            return True
+    return False
 
 async def is_message_spam_message(message):
     if message.author.id == constants.POLISWAG_ID or message.author.id in constants.ADMIN_USERS_IDS:
@@ -158,3 +162,17 @@ async def remove_all_cached_messages_by_user(message):
 
     async for message in message.author.history(limit=None, after=time_threshold):
         await message.delete()
+
+async def message_me(embed):
+    user_id = 98846248865398784
+    user = await constants.CLIENT.fetch_user(user_id)
+    if user:
+        try:
+            await user.send(
+                content="TEST",
+                embed=embed
+            )
+        except discord.Forbidden:
+            print(f"I don't have permission to send a direct message to {user.name}")
+    else:
+        print("User not found")
