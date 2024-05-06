@@ -76,7 +76,7 @@ def log_actions(message):
 def validate_message_for_deletion(message, channel, author = None):
     # Checks if any of these strings are in the command list and in the channels affected
     if channel in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.CONVIVIO_CHANNEL_ID]:
-        if message.lower().startswith((constants.POLISWAG_ROLE_ID, "!rules", "!location", "!questleiria", "!questmarinha")):
+        if message.lower().startswith((constants.POLISWAG_ROLE_ID, "!rules", "!roles", "!questleiria", "!questmarinha")):
             return True
         # In case it's a random message for quest channel. We only accept the admins one
         if channel == constants.QUEST_CHANNEL_ID and author != constants.CLIENT.user and str(author.id) not in constants.ADMIN_USERS_IDS:
@@ -119,17 +119,17 @@ async def clean_map_stats_channel(message):
     async for msg in channel.history(limit=200):
         if message is not None and msg.author is not None and str(msg.author.id) not in constants.ADMIN_USERS_IDS and msg.author.id != constants.POLISWAG_ID:
             await msg.delete()
-        elif message == "clear" and "DISPOSITIVOS ATIVOS" not in msg.content:
+        elif message == "clear" and "SCANNING" not in msg.content:
             await msg.delete()
 
 def get_dict_embed_from_message(message):
     return message.embeds[0].to_dict()
 
-async def is_there_message_to_be_deleted(mentionString):
+async def is_there_message_to_be_deleted(userMentionString):
     channel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
     async for msg in channel.history(limit=200):
-        if msg.author.id == constants.POLISWAG_ID and mentionString != msg.content and "DISPOSITIVOS ATIVOS" not in msg.content:
-            return True
+        if msg.author.id == constants.POLISWAG_ID and "ACTIVE SCANNING DEVICES" not in msg.content and userMentionString != msg.content:
+            return msg
     return False
 
 async def is_message_spam_message(message):
