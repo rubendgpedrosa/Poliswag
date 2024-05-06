@@ -22,10 +22,13 @@ boxUsersMapping = {
     "Tx9s_Anakin": "<@339466204638871552>"
 }
 
+devicesWereLastSeen = {}
+
 async def check_boxes_with_issues():
     deviceStatusJson = await get_devices_status()
     if not deviceStatusJson:
         return
+    read_mad_log_file()
     devicesStatusList = prepare_dashboard_data(deviceStatusJson)
     await device_status_embed_dashboard(devicesStatusList)
     usersDeviceMap = map_users_failing_devices(devicesStatusList)
@@ -61,15 +64,49 @@ def get_device_status_icon(deviceTimeStamp):
     return "🟢"
 
 def get_device_connected_status(device):
-    twentyMinutesAgo = datetime.datetime.now() - datetime.timedelta(minutes=20)
-    if device["lastProtoDateTime"] <= twentyMinutesAgo.timestamp() and \
-       (device["lastPogoReboot"] == 0 or device["lastPogoReboot"] <= twentyMinutesAgo.timestamp()):
-        return "**DISCONNECTED**"
-    return "Connected"
+    pastDate = datetime.datetime.now() - datetime.timedelta(minutes=15)
+    if device['name'] in devicesWereLastSeen:
+        if devicesWereLastSeen[device['name']] or device['lastProtoDateTime'] >= pastDate.timestamp():
+            return "Connected"
+    return "**DISCONNECTED**"
+
+def read_mad_log_file():
+    global devicesWereLastSeen
+    devicesWereLastSeen = {
+        "Tx9s": False,
+        "a95xF1": False,
+        "Poco": False,
+        "Tx9s1_JMBoy": False,
+        "Tx9s2_JMBoy": False,
+        "Tx9s3_JMBoy": False,
+        "Tx9s_Ethix": False,
+        "Tx9s_Anakin": False
+    }
+
+    deviceNames = devicesWereLastSeen.keys()
+
+    with open(constants.MAD_LOG_FILE, 'r') as file:
+        lines = file.readlines()
+        lastLines = lines[-200:]
+        for line in lastLines:
+            if "Starting MAD" in line:
+                devicesWereLastSeen = {
+                    "Tx9s": True,
+                    "a95xF1": True,
+                    "Poco": True,
+                    "Tx9s1_JMBoy": True,
+                    "Tx9s2_JMBoy": True,
+                    "Tx9s3_JMBoy": True,
+                    "Tx9s_Ethix": True,
+                    "Tx9s_Anakin": True
+                }
+                break
+            for device in deviceNames:
+                if f"{device}]" in line:                        
+                    devicesWereLastSeen[device] = "origin is no longer connected" not in line
 
 async def device_status_embed_dashboard(devicesStatusList):
     mapStatsChannel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
-    embedMessage = await mapStatsChannel.fetch_message(constants.POLISWAG_MESSAGE_ID)
     
     nbActiveDevices = len([device for device in devicesStatusList if "🟢" in device])
     embed = discord.Embed(
@@ -82,8 +119,20 @@ async def device_status_embed_dashboard(devicesStatusList):
     embed.add_field(name="LEIRIA:", value='\n\n'.join(leiriaDevices) + "\n\u200b", inline=False)
     embed.add_field(name="MARINHA GRANDE:", value='\n\n'.join(marinhaDevices) + "\n\u200b", inline=False)
     embed.set_footer(text=f"Última atualização: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    embedMessage = None
+    try:
+        async for message in mapStatsChannel.history(limit=5):
+            if message.content.startswith("**ACTIVE SCANNING DEVICES:"):
+                embedMessage = message
+                break
+        if embedMessage is not None:
+            await embedMessage.edit(content=f"**ACTIVE SCANNING DEVICES: {nbActiveDevices} (de {len(devicesStatusList)})\n**", embed=embed)
+        else:
+            await mapStatsChannel.send(content=f"**ACTIVE SCANNING DEVICES: {nbActiveDevices} (de {len(devicesStatusList)})\n**", embed=embed)
+    except discord.errors.NotFound:
+        await mapStatsChannel.send(content=f"**ACTIVE SCANNING DEVICES: {nbActiveDevices} (de {len(devicesStatusList)})\n**", embed=embed)
 
-    await embedMessage.edit(content=f"**DISPOSITIVOS ATIVOS: {nbActiveDevices} (em {len(devicesStatusList)})\n**", embed=embed)
     
 def map_users_failing_devices(devicesStatusList):
     userDevicesMap = []
@@ -97,14 +146,18 @@ def map_users_failing_devices(devicesStatusList):
     return userDevicesMap
 
 async def notify_users_failing_devices(usersDeviceMap):
-    userMentionString = ",".join(usersDeviceMap)
+    userMentionString = ", ".join(usersDeviceMap)
     if not userMentionString:
         await clean_map_stats_channel("clear")
         return
 
-    if await is_there_message_to_be_deleted(userMentionString):
+    mapStatusChannel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    messageToDelete = await is_there_message_to_be_deleted(userMentionString)
+    if messageToDelete:
         await clean_map_stats_channel("clear")
-        mapStatusChannel = constants.CLIENT.get_channel(constants.MAPSTATS_CHANNEL_ID)
+    print(messageToDelete.content)
+    print(userMentionString)
+    if (messageToDelete is not False and messageToDelete.content != userMentionString) or messageToDelete is False:
         await mapStatusChannel.send(content=userMentionString)
 
 async def rename_voice_channels(devicesStatusList):
@@ -134,7 +187,7 @@ def get_status_message(downCounter, region):
         else:
             return f"{region}: 🟢"
     elif region == "MARINHA":
-        if downCounter > 2:
+        if downCounter > 1:
             return f"{region}: 🔴"
         elif downCounter > 0:
             return f"{region}: 🟠"
