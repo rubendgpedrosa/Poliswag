@@ -72,7 +72,7 @@ async def on_message(message):
 
     messageToSend = ""
     if str(message.author.id) in constants.ADMIN_USERS_IDS:
-        if message.content.startswith('!location'):
+        if message.content.startswith('!roles'):
             await prepare_view_roles_location(message.channel)
         if message.content.startswith('!rules'):
             await build_rules_message(message)
@@ -187,7 +187,7 @@ async def on_message(message):
 
 @constants.CLIENT.event
 async def on_message_delete(message):
-    if message.channel.id not in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.MAPSTATS_CHANNEL_ID]:
+    if message.channel.id not in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.MAPSTATS_CHANNEL_ID] and str(message.author.id) not in constants.ADMIN_USERS_IDS and message.author != constants.CLIENT.user:
         channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
         embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
         embed.add_field(name=message.author, value=message.content, inline=False)

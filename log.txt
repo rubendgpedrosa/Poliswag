@@ -111,3 +111,89 @@ INFO | 2024-05-01 00:50 -- Enabled quest scanning mode
 ERROR | 2024-05-01 04:15 -- Quest scanning not progressing - Restarting
 INFO | 2024-05-01 04:20 -- Disabled quest scanning mode
 INFO | 2024-05-01 04:20 -- Pokestop quest scan completed
+INFO | 2024-05-02 00:02 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-02 00:02 -- Cleared previous quest data
+INFO | 2024-05-02 00:03 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-02 00:03 -- Truncated quests table sucessfully!
+INFO | 2024-05-02 00:03 -- New PvP data generated
+INFO | 2024-05-02 00:03 -- New last_scanned_date set to 2024-05-02 00:00:00
+INFO | 2024-05-02 00:03 -- Enabled quest scanning mode
+INFO | 2024-05-02 00:04 -- Pokestop quest scanning started
+ERROR | 2024-05-02 09:20 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 12:25 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 12:30 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 16:34 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 16:39 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 17:04 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 17:09 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 17:34 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 17:39 -- Quest scanning not progressing - Restarting
+INFO | 2024-05-02 18:04 -- Updated to new version 0.311.0
+ERROR | 2024-05-02 18:04 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 23:09 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 23:14 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-02 23:39 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-02 23:44 -- Quest scanning not progressing - Restarting
+INFO | 2024-05-03 00:00 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-03 00:00 -- Cleared previous quest data
+INFO | 2024-05-03 00:00 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-03 00:00 -- Truncated quests table sucessfully!
+INFO | 2024-05-03 00:00 -- New PvP data generated
+INFO | 2024-05-03 00:00 -- New last_scanned_date set to 2024-05-03 00:00:00
+INFO | 2024-05-03 00:00 -- Enabled quest scanning mode
+INFO | 2024-05-03 00:00 -- Pokestop quest scanning started
+ERROR | 2024-05-03 00:09 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 06:10 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 17:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 17:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 17:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 17:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 18:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 18:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 18:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 18:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 19:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 19:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 19:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 19:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 20:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 20:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 20:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 20:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 21:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 21:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 21:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 21:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 22:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 22:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 22:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 22:41 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 23:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 23:11 -- Quest scanning not progressing - Restarting
+ERROR | 2024-05-03 23:36 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-03 23:41 -- Quest scanning not progressing - Restarting
+INFO | 2024-05-04 00:01 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-04 00:01 -- Cleared previous quest data
+INFO | 2024-05-04 00:01 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-04 00:01 -- Truncated quests table sucessfully!
+INFO | 2024-05-04 00:01 -- New PvP data generated
+INFO | 2024-05-04 00:01 -- New last_scanned_date set to 2024-05-04 00:00:00
+ERROR | 2024-05-04 00:06 -- Pokemon scanning not progressing - Restarting
+ERROR | 2024-05-04 04:30 -- Quest scanning not progressing - Restarting
+INFO | 2024-05-04 14:45 -- PlayIntegrityFix command updated
+INFO | 2024-05-04 15:15 -- Disabled quest scanning mode
+INFO | 2024-05-04 15:15 -- Pokestop quest scan completed
+INFO | 2024-05-05 14:25 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-05 14:25 -- Cleared previous quest data
+INFO | 2024-05-05 14:25 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-05 14:25 -- Truncated quests table sucessfully!
+INFO | 2024-05-05 14:25 -- New PvP data generated
+INFO | 2024-05-05 14:25 -- New last_scanned_date set to 2024-05-05 00:00:00
+ERROR | 2024-05-05 14:55 -- Pokemon scanning not progressing - Restarting
+INFO | 2024-05-06 08:20 -- Day change encountered, pokestop scanning initialized
+INFO | 2024-05-06 08:20 -- Cleared previous quest data
+INFO | 2024-05-06 08:20 -- Expired pokestops and gyms cleared sucessfully!
+INFO | 2024-05-06 08:20 -- Truncated quests table sucessfully!
+INFO | 2024-05-06 08:20 -- New PvP data generated
+INFO | 2024-05-06 08:20 -- New last_scanned_date set to 2024-05-06 00:00:00
+ERROR | 2024-05-06 08:50 -- Pokemon scanning not progressing - Restarting
