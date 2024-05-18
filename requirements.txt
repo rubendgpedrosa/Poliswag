@@ -6,3 +6,4 @@ docker==5.0.3
 pymysql==1.0.2
 llama-index==0.5.5
 tapo==0.2.1
+imgkit==1.2.3
