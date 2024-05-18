@@ -1,0 +1,24 @@
+INFO | 2024-05-15 14:37 -- Day change encountered
+INFO | 2024-05-15 14:37 -- New last_scanned_date set to 2024-05-15 00:00:00
+INFO | 2024-05-15 14:37 -- Started quest scanning mode
+INFO | 2024-05-15 14:37 -- Finished quest scanning mode
+INFO | 2024-05-15 14:38 -- Day change encountered
+INFO | 2024-05-15 14:38 -- New last_scanned_date set to 2024-05-15 00:00:00
+INFO | 2024-05-15 14:38 -- Started quest scanning mode
+INFO | 2024-05-15 14:38 -- Finished quest scanning mode
+INFO | 2024-05-15 14:43 -- Day change encountered
+INFO | 2024-05-15 14:43 -- New last_scanned_date set to 2024-05-15 00:00:00
+INFO | 2024-05-15 14:43 -- Started quest scanning mode
+INFO | 2024-05-15 14:43 -- Finished quest scanning mode
+INFO | 2024-05-16 00:00 -- Day change encountered
+INFO | 2024-05-16 00:00 -- New last_scanned_date set to 2024-05-16 00:00:00
+INFO | 2024-05-16 00:00 -- Started quest scanning mode
+INFO | 2024-05-16 00:00 -- Finished quest scanning mode
+INFO | 2024-05-17 00:00 -- Day change encountered
+INFO | 2024-05-17 00:00 -- New last_scanned_date set to 2024-05-17 00:00:00
+INFO | 2024-05-18 00:00 -- Day change encountered
+INFO | 2024-05-18 00:00 -- New last_scanned_date set to 2024-05-18 00:00:00
+INFO | 2024-05-18 11:38 -- Day change encountered
+INFO | 2024-05-18 11:38 -- New last_scanned_date set to 2024-05-18 00:00:00
+INFO | 2024-05-18 11:38 -- Started quest scanning mode
+INFO | 2024-05-18 11:39 -- Finished quest scanning mode
