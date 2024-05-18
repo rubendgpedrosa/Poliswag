@@ -1,196 +1,143 @@
 #!/usr/bin/python\
-import discord, sys, os
-from discord.ext import tasks
+import discord, os, traceback, time
 from dotenv import load_dotenv
+from discord.ext import commands, tasks
 
-import helpers.constants as constants
-import traceback
+from modules.role_manager import RoleManager
+from modules.scanner_status import ScannerStatus
+from modules.scanner_manager import ScannerManager
+from modules.utility import Utility
+from modules.database_connector import DatabaseConnector
+from modules.image_generator import ImageGenerator
+from modules.quest_search import QuestSearch
 
-from helpers.poliswag import load_filter_data, build_commands_message, notify_accounts_available_message, decrement_and_notify_lure_count_by_username, update_playintegrity_job
-from helpers.roles_manager import prepare_view_roles_location, restart_response_user_role_selection, build_rules_message, strip_user_roles
-from helpers.quests import find_quest, write_filter_data, update_tracking_entries, list_track_quest
-from helpers.utilities import check_current_pokemongo_version, clear_quest_file, log_to_file, build_embed_object_title_description, prepare_environment, validate_message_for_deletion, read_last_lines_from_log, clean_map_stats_channel, is_message_spam_message, remove_all_cached_messages_by_user
-from helpers.scanner_manager import start_pokestop_scan, set_quest_scanning_state, restart_alarm_docker_container, start_quest_scanner_if_day_change, clear_quests_table, restart_map_container_if_scanning_stuck
-from helpers.scanner_status import check_boxes_with_issues, is_quest_scanning_complete
-from helpers.events import generate_database_entries_upcoming_events, ask_if_automatic_rescan_is_to_cancel, initialize_scheduled_rescanning_of_quests, notify_event_bonus_activated, restart_cancel_rescan_callback, retrieve_database_upcoming_events
-from helpers.poligpt import get_response
+class Poliswag(commands.Bot):
+    def __init__( self):
+        intents = discord.Intents.all()
+        intents.messages = True
+        super().__init__(command_prefix="!", intents=intents)
 
-# Validates arguments passed to check what env was requested
-if (len(sys.argv) != 2):
-    print("Invalid number of arguments, usage: python3 main.py (dev|prod)")
-    quit()
+        load_dotenv() # Load environment variables from .env file
 
-# Environment variables are loaded into memory here 
-load_dotenv(prepare_environment(sys.argv[1]))
+        """ IMPORTED CLASSES """
+        self.db = DatabaseConnector()
+        self.role_manager = RoleManager()
+        self.utility = Utility(self) # Utility methods like building embeds and random cURL requests
+        self.scanner_status = ScannerStatus(self)
+        self.scanner_manager = ScannerManager(self)
+        self.image_generator = ImageGenerator(self)
+        self.quest_search = QuestSearch(self)
+        """ ! IMPORTED CLASSSES ! """
 
-# Initialize global variables
-constants.init()
+        """ CHANNEL'S INITIAL SETUP """
+        self.QUEST_CHANNEL = None
+        self.CONVIVIO_CHANNEL = None
+        self.MOD_CHANNEL = None
+        self.VOICE_CHANNEL_LEIRIA = None
+        self.VOICE_CHANNEL_MARINHA = None
+        """ ! CHANNEL'S INITIAL SETUP ! """
 
-@tasks.loop(seconds=300)
-async def __init__():
-    try:
-        await check_current_pokemongo_version()
-        await check_boxes_with_issues()
+        """ USER IDS """
+        self.ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS").split(",")
+        """ ! USER IDS ! """
+
+    async def on_ready(self):
+        await self.get_channels()
+        await self.scheduled_tasks.start()
+
+    async def setup_hook(self):
+        await self.load_extension("cogs.quests")
+        await self.tree.sync()
+    
+    async def get_channels(self):
+        self.QUEST_CHANNEL = await self.fetch_channel(int(os.environ.get("QUEST_CHANNEL_ID")))
+        self.CONVIVIO_CHANNEL = await self.fetch_channel(int(os.environ.get("CONVIVIO_CHANNEL_ID")))
+        self.MOD_CHANNEL = await self.fetch_channel(int(os.environ.get("MOD_CHANNEL_ID")))
+        self.VOICE_CHANNEL_LEIRIA = await self.fetch_channel(int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID")))
+        self.VOICE_CHANNEL_MARINHA = await self.fetch_channel(int(os.environ.get("VOICE_CHANNEL_MARINHA_ID")))
+
+    @tasks.loop(seconds=60)
+    async def scheduled_tasks(self):
+        try:
+            """ UPDATE FILES DATA """
+            self.quest_search.get_translationfile_data()
+            self.quest_search.get_masterfile_data()
+            self.quest_search.generate_pokemon_item_name_map()
+            """ ! UPDATE FILES DATA ! """
+
+
+            """ NEW FORCED VERSIONS """
+            new_version = await self.utility.get_new_pokemongo_version()
+            if new_version is not None:
+                await self.CONVIVIO_CHANNEL.send(
+                    embed = self.utility.build_embed_object_title_description("PAAAAAAAAAUUUUUUUUUU!!! FORCED VERSION UPDATED!", f"Nova versão: {new_version}")
+                )
+            """ ! NEW FORCED VERSIONS ! """
+
+
+            """ DETECT DAY CHANGE """
+            day_changed = self.scanner_manager.is_day_change()
+            if day_changed:
+                await self.QUEST_CHANNEL.send(
+                    embed = self.utility.build_embed_object_title_description("Mudança de dia detetada", "Scan das novas quests inicializado!")
+                )
+            """ ! DETECT DAY CHANGE ! """
+
+
+            """ CHECK QUEST SCANNING COMPLETION """
+            if not day_changed:
+                quest_completed = await self.scanner_status.is_quest_scanning_complete()
+                if quest_completed is not None and quest_completed['leiria_completed'] and quest_completed['marinha_completed']:
+                    self.scanner_manager.update_quest_scanning_state()
+                    await self.QUEST_CHANNEL.send(
+                        embed = self.utility.build_embed_object_title_description(
+                        "SCAN DE QUESTS TERMINADO!", 
+                        "Todas as quests do dia foram recolhidas e podem ser visualizadas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
+                        "Esta informação expira ao final do dia"
+                        )
+                    )
+            """ ! CHECK QUEST SCANNING COMPLETION ! """
+
+
+            """ START / END OF EVENTS """
+            """ ! START / END OF EVENTS ! """
+
+
+            """ TRACKING SPECIAL QUESTS """
+            """ ! TRACKING SPECIAL QUESTS ! """
+
+
+            """ FAILING WORKERS """
+            workers_status = await self.scanner_status.get_workers_with_issues()
+            await self.scanner_status.rename_voice_channels(workers_status['down_devices_leiria'], workers_status['down_devices_marinha'])
+            """ ! FAILING WORKERS ! """
+        except Exception as e:
+            print("CRASH ---", e)
+            traceback.print_exc() # logs broken line
+            error_msg = f"{str(e)}\n{traceback.format_exc()}"
+            self.utility.log_to_file(error_msg, "CRASH")
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction):
+        """ PRIMARY ROLES ON DISCORD TO ACCESS NOTIFICATIONS """
+        custom_id = interaction.data["custom_id"]
         
-        scanningStuck = await restart_map_container_if_scanning_stuck()
-        if not scanningStuck:
-            await generate_database_entries_upcoming_events()
-            await initialize_scheduled_rescanning_of_quests()
-            await ask_if_automatic_rescan_is_to_cancel()
-            
-            await is_quest_scanning_complete()
-            await start_quest_scanner_if_day_change()
-            #await check_force_expire_accounts_required()
-    except Exception as e:
-        error_msg = f"{str(e)}\n{traceback.format_exc()}"
-        log_to_file(error_msg, "CRASH")
+        if custom_id.startswith("Alertas") or custom_id in ["Leiria", "Marinha", "Remote", "Mystic", "Valor", "Instinct"]:
+            await self.role_manager.restart_response_user_role_selection(interaction)
+        else:
+            await self.role_manager.restart_cancel_rescan_callback(interaction)
+        """ ! PRIMARY ROLES ON DISCORD TO ACCESS NOTIFICATIONS ! """
 
-@constants.CLIENT.event
-async def on_ready():
-    __init__.start()
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        if message.channel.id not in [self.MOD_CHANNEL.id, self.QUEST_CHANNEL.id] and str(message.author.id) not in self.ADMIN_USERS_IDS and message.author != self.user:
+            embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
+            embed.add_field(name=message.author, value=message.content, inline=False)
+            await self.MOD_CHANNEL.send(embed=embed)
 
-@constants.CLIENT.event
-async def on_interaction(interaction):
-    custom_id = interaction.data["custom_id"]
-    
-    if custom_id.startswith("Alertas") or custom_id in ["Leiria", "Marinha", "Remote", "Mystic", "Valor", "Instinct"]:
-        await restart_response_user_role_selection(interaction)
-    else:
-        await restart_cancel_rescan_callback(interaction)
+def main():
+    poliswag = Poliswag()
+    poliswag.run(os.environ.get("DISCORD_API_KEY"))
 
-@constants.CLIENT.event
-async def on_message(message):
-    # Keeps the map status channel with the most recent message
-    if message.channel.id == constants.MAPSTATS_CHANNEL_ID:
-        await clean_map_stats_channel(message)
-    
-    if message.author == constants.CLIENT.user:
-        return
-    
-    if validate_message_for_deletion(message.content, message.channel.id, message.author):
-        await message.delete()
-
-    messageToSend = ""
-    if str(message.author.id) in constants.ADMIN_USERS_IDS:
-        if message.content.startswith('!roles'):
-            await prepare_view_roles_location(message.channel)
-        if message.content.startswith('!rules'):
-            await build_rules_message(message)
-            
-    #if message.channel.id == 946803671881089095 and await is_message_spam_message(message):
-    #    await strip_user_roles(message.author)
-    #    await remove_all_cached_messages_by_user(message)
-
-    # Moderation commands to manage the pokemon scanner
-    if message.channel.id == constants.MOD_CHANNEL_ID:
-        if str(message.author.id) in constants.ADMIN_USERS_IDS:
-            # TODO: Change message
-            if message.content.startswith('!add') or message.content.startswith('!remove'):
-                if message.content.startswith('!add'):
-                    receivedData = message.content.replace("!add ","")
-                    add = True
-                else:
-                    receivedData = message.content.replace("!remove ","")
-                    add = False
-                receivedData = receivedData.split(" ", 1)
-                returnedData = write_filter_data(receivedData, add)
-                if returnedData == False:
-                    messageToSend = build_embed_object_title_description("Woops, parece que te enganaste migo.")
-                else:
-                    messageToSend = build_embed_object_title_description(returnedData)
-
-            if message.content.startswith('!reload'):
-                log_to_file(f"Notification filters reloaded by {message.author}")
-                restart_alarm_docker_container()
-                messageToSend = build_embed_object_title_description("Alterações nas notificações efetuadas")
-
-            if message.content.startswith('!quest'):
-                set_quest_scanning_state(1)
-
-            if message.content.startswith('!scan'):
-                log_to_file(f"New quest scan requested by {message.author}")
-                await message.channel.send(embed=build_embed_object_title_description(f"New quest scan requested by {message.author}"))
-                start_pokestop_scan()
-                messageToSend = build_embed_object_title_description(f"Scan quest has successfully started")
-
-            if message.content.startswith('!logs'):
-                messageToSend = build_embed_object_title_description("MOST RECENT LOGS", read_last_lines_from_log())
-            
-            # BETA FEATURE -> Too expensive to run in prod
-            if message.content.startswith("!q") and constants.ENABLE_POLISWAGGPT:
-                await message.channel.send(content=await get_response(message.content))
-            
-            if (message.content.startswith('!event')):
-                await notify_event_bonus_activated()
-                
-            if (message.content.startswith('!lures')):
-                await notify_accounts_available_message(message)
-                
-            if (message.content.startswith('!uselure')):
-                await decrement_and_notify_lure_count_by_username(message)
-                
-            if (message.content.startswith('!questclear')):
-                clear_quests_table()
-                clear_quest_file()
-                messageToSend = build_embed_object_title_description("Quest data cleared!", "Quest table and file have been cleared")
-
-            if (message.content.startswith('!upcoming')):
-                await retrieve_database_upcoming_events(message)
-                
-            if (message.content.startswith('!playintegrity')):
-                await update_playintegrity_job(message)
-            
-            if message.content.startswith("!tracklist"):
-                await list_track_quest(message.channel)
-            
-            if not message.content.startswith("!tracklist") and (message.content.startswith("!track") or message.content.startswith("!untrack") or message.content.startswith("!untrackall")):
-                rewardToTrack = message.content.replace("!track ","") if message.content.startswith("!track") else message.content.replace("!untrack ","")
-                update_tracking_entries(rewardToTrack, message)
-                if message.content.startswith("!untrackall"):
-                    messageToSend = build_embed_object_title_description(f"Successfully cleared tracking list")
-                else:
-                    messageToSend = build_embed_object_title_description(f"Successfully {'added' if message.content.startswith('!track') else 'removed'} {rewardToTrack} {'to' if message.content.startswith('!track') else 'from'} tracking list")
-                
-            if message.content.startswith("<@" + str(constants.POLISWAG_ID) + ">") or message.content.startswith(constants.POLISWAG_ROLE_ID):
-                await build_commands_message(message)
-
-    # Quest channel commands in order do display quests
-    if message.channel.id == constants.QUEST_CHANNEL_ID:
-        if message.content.startswith('!questleiria') or message.content.startswith('!questmarinha'):
-            leiria = False
-            if message.content.startswith('!questleiria'):
-                receivedData = message.content.replace("!questleiria ","")
-                leiria = True
-            else:
-                receivedData = message.content.replace("!questmarinha ","")
-            returnedData = find_quest(receivedData, leiria)
-            if returnedData == False:
-                return
-
-            if len(returnedData) > 0 and len(returnedData) < 30:
-                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Resultados para: "  + message.content))
-                for data in returnedData:
-                    embed = discord.Embed(title=data["name"], url=data["map"], description=data["quest"], color=0x7b83b4)
-                    embed.set_thumbnail(url=data["image"])
-                    await message.channel.send(embed=embed)
-            elif len(returnedData) == 0:
-                await message.channel.send(embed=build_embed_object_title_description("( " + message.author.name + " ) Sem resultados para: " + message.content))
-            else:
-                await message.channel.send(embed=build_embed_object_title_description("Lista de stops demasiado grande, especifica melhor a quest/recompensa ou visita " + constants.WEBSITE_URL))
-
-    if message.channel.id == constants.CONVIVIO_CHANNEL_ID or message.channel.id == constants.MOD_CHANNEL_ID:
-        if message.content.startswith("!alertas"):
-            messageToSend = load_filter_data()
-
-    if messageToSend is not None and len(messageToSend) > 0:
-        await message.channel.send(embed=messageToSend)
-
-@constants.CLIENT.event
-async def on_message_delete(message):
-    if message.channel.id not in [constants.MOD_CHANNEL_ID, constants.QUEST_CHANNEL_ID, constants.MAPSTATS_CHANNEL_ID] and str(message.author.id) not in constants.ADMIN_USERS_IDS and message.author != constants.CLIENT.user:
-        channel = constants.CLIENT.get_channel(constants.MOD_CHANNEL_ID)
-        embed=discord.Embed(title=f"[{message.channel}] Mensagem removida", color=0x7b83b4)
-        embed.add_field(name=message.author, value=message.content, inline=False)
-        await channel.send(embed=embed)
-
-constants.CLIENT.run(constants.DISCORD_API_KEY)
+if __name__ == "__main__":
+    main()
