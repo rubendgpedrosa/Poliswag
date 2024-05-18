@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quest Information</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            width: 800px;
+            font-family: 'Roboto', sans-serif;
+            margin: 0 auto;
+            background-color: #2b2d31;
+            color: #FFFFFF;
+            padding: 20px;
+        }
+
+        .quest-title {
+            background-color: #7289da;
+            color: #FFFFFF;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 32px;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .column-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .quest-list-container {
+            width: 100%;
+        }
+
+        .quest-list {
+            width: 100%;
+        }
+
+        .quest-card {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-radius: 12px;
+            background-color: #1e1f22;
+            position: relative;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .quest-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .quest-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background-color: #66B6FF;
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+        }
+
+        .quest-card .image-container {
+            position: relative;
+        }
+
+        .quest-card img {
+            width: 70px;
+            height: 70px;
+            margin-right: 20px;
+            margin-left: 10px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .ar-task {
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 3px 6px;
+            font-size: 12px;
+            background-color: rgb(33, 33, 33);
+            color: rgb(255, 255, 255);
+            position: absolute;
+            bottom: -5px;
+            right: 8px;
+            text-transform: uppercase;
+        }
+
+        .quest-card .content {
+            flex: 1;
+        }
+
+        .quest-card .content h3 {
+            margin-top: 0;
+            margin-bottom: 4px;
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .quest-card .content p {
+            margin: 0;
+            font-size: 16px;
+            color: #b9bbbe;
+        }
+
+        .search-amount-holder {
+            position: absolute;
+            right: 16px;
+            bottom: 8px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 2px #000;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="quest-title">
+        {% if is_leiria %}
+            RESULTADOS PARA LEIRIA
+        {% else %}
+            RESULTADOS PARA MARINHA GRANDE
+        {% endif %}
+    </div>
+    {% for quest_list in quests %}
+        <div class="column-container">
+            <div class="quest-list-container {% if quest_list.quests|length == 1 %}single-quest{% endif %}">
+                <div class="quest-list">
+                {% for quest in quest_list.quests %}
+                    <div class="quest-card">
+                        {% if quest.url %}
+                        <div class="image-container">
+                            <img src="{{ quest.url }}" alt="{{ quest.name }}">
+                            {% if 'quest_item_id' not in quest %}
+                                <div class="ar-task">AR Quest</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="content">
+                            <h3>{{ quest.name }}</h3>
+                            <p>{{ quest_list.quest_title }}</p>
+                        </div>
+                        <img src="https://raw.githubusercontent.com/nileplumb/PkmnShuffleMap/master/UICONS/{{ quest.quest_slug }}" alt="Reward">
+                        {% if quest.quest_reward_amount %}
+                            <div class="search-amount-holder">x{{ quest.quest_reward_amount }}</div>
+                        {% endif %}
+                        {% if quest.alternative_quest_reward_amount %}
+                            <div class="search-amount-holder">x{{ quest.alternative_quest_reward_amount }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</body>
+</html>
