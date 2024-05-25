@@ -1,13 +1,20 @@
-import pymysql, os, subprocess
+import pymysql
+import os
+import subprocess
+import logging
 
 class DatabaseConnector:
     def __init__(self, database = None):
         self.CONTAINER_NAME = "db"
+        self.database = database if database is not None else os.environ.get("DB_POLISWAG")
+        self.connect_to_db()
+
+    def connect_to_db(self):
         self.db = pymysql.connect(
             host=self.get_container_ip(),
             user=os.environ.get("DB_USER"),
             password=os.environ.get("DB_PASSWORD"),
-            db=database if database is not None else os.environ.get("DB_POLISWAG")
+            db=self.database
         )
 
     def get_container_ip(self):
@@ -18,32 +25,47 @@ class DatabaseConnector:
         else:
             raise RuntimeError(f"Failed to obtain IP address for container {self.CONTAINER_NAME}")
 
-    def get_data_from_database(self, query):
-        with self.db.cursor() as cursor:
-            cursor.execute(query)
-            results = cursor.fetchall()
-            columns = [col[0] for col in cursor.description]
+    def get_data_from_database(self, query, retries=3):
+        for attempt in range(retries):
+            try:
+                with self.db.cursor() as cursor:
+                    cursor.execute(query)
+                    results = cursor.fetchall()
+                    columns = [col[0] for col in cursor.description]
+                    self.db.commit()
 
-        if len(results) == 1:
-            # If there's only one row, return it as a single object
-            obj = {}
-            for i, col in enumerate(columns):
-                obj[col] = results[0][i]
-            return obj
-        else:
-            # If there are multiple rows, return them as a list of objects
-            objects_list = []
-            for row in results:
-                obj = {}
-                for i, col in enumerate(columns):
-                    obj[col] = row[i]
-                objects_list.append(obj)
-            return objects_list
+                if len(results) == 1:
+                    obj = {columns[i]: results[0][i] for i in range(len(columns))}
+                    return obj
+                else:
+                    objects_list = [{columns[i]: row[i] for i in range(len(columns))} for row in results]
+                    return objects_list
+            except pymysql.MySQLError as e:
+                logging.error(f"Database error on attempt {attempt + 1}: {e}")
+                if "server has gone away" in str(e).lower() or "lost connection" in str(e).lower():
+                    self.connect_to_db()
+                else:
+                    raise
+            except Exception as e:
+                logging.error(f"Unexpected error: {e}")
+                raise
+        raise RuntimeError("Exceeded maximum retry attempts")
 
-    def execute_query_to_database(self, query):
-        with self.db.cursor() as cursor:
-            cursor.execute(query)
-            affected_rows = cursor.rowcount
-            self.db.commit()
-
-        return affected_rows
+    def execute_query_to_database(self, query, retries=3):
+        for attempt in range(retries):
+            try:
+                with self.db.cursor() as cursor:
+                    cursor.execute(query)
+                    affected_rows = cursor.rowcount
+                    self.db.commit()
+                    return affected_rows
+            except pymysql.MySQLError as e:
+                logging.error(f"Database error on attempt {attempt + 1}: {e}")
+                if "server has gone away" in str(e).lower() or "lost connection" in str(e).lower():
+                    self.connect_to_db()
+                else:
+                    raise
+            except Exception as e:
+                logging.error(f"Unexpected error: {e}")
+                raise
+        raise RuntimeError("Exceeded maximum retry attempts")

@@ -8,6 +8,9 @@ class QuestSearch:
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.db = DatabaseConnector(os.environ.get("DB_SCANNER"))
+        self.POKEMON_NAME_FILE = os.environ.get("POKEMON_NAME_FILE")
+        self.ITEM_NAME_FILE = os.environ.get("ITEM_NAME_FILE")
+
         self.masterfile_data = None
         self.translationfile_data = None
         self.quest_data = None
@@ -99,7 +102,7 @@ class QuestSearch:
 
     def get_pokemon_id_by_pokemon_name_map(self, search):
         possible_pokemon_id_list = []
-        with open("data/pokemon_name_map.json", "r") as file:
+        with open(self.POKEMON_NAME_FILE, "r") as file:
             pokemon_name_map = json.load(file)
             for pokemon_id, pokemon_name in pokemon_name_map.items():
                 if search.lower() in pokemon_name.lower():
@@ -108,7 +111,7 @@ class QuestSearch:
 
     def get_item_id_by_item_name_map(self, search):
         possible_item_id_list = []
-        with open("data/item_name_map.json", "r") as file:
+        with open(self.ITEM_NAME_FILE, "r") as file:
             item_name_map = json.load(file)
             for item_id, item_name in item_name_map.items():
                 if search.lower() in item_name.lower():
@@ -126,9 +129,9 @@ class QuestSearch:
         item_data = self.masterfile_data["items"]
         item_name_map = {item_id: details for item_id, details in item_data.items()}
 
-        with open("data/pokemon_name_map.json", "w") as file:
+        with open(self.POKEMON_NAME_FILE, "w") as file:
             json.dump(pokemon_name_map, file, indent=4)
-        with open("data/item_name_map.json", "w") as file:
+        with open(self.ITEM_NAME_FILE, "w") as file:
             json.dump(item_name_map, file, indent=4)
 
     def find_quest_by_search_keyword(self, search, is_leiria):
@@ -174,7 +177,7 @@ class QuestSearch:
             quest_title_translated = self.translationfile_data["data"].get(quest_title, "").replace("{0}", quest_target)
 
             if if_dynamic_condition(quest):
-                if search in quest_title_translated.lower() or quest_pokemon_id in mapped_pokemon_ids or quest_item_id in mapped_item_ids:
+                if search in quest_title_translated.lower() or quest_pokemon_id in mapped_pokemon_ids or quest_item_id in mapped_item_ids or (search in "mega energy" and quest_reward_type == 12) or (search in "experience" and quest_reward_type == 1):
                     quest["quest_slug"] = self.generate_quest_slug_for_image(quest_reward_type, quest_pokemon_id, quest_reward_amount, quest_item_id)
                     quest_title_found = False
                     for found_quest in found_quests:
