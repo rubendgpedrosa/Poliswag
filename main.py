@@ -10,6 +10,7 @@ from modules.utility import Utility
 from modules.database_connector import DatabaseConnector
 from modules.image_generator import ImageGenerator
 from modules.quest_search import QuestSearch
+from modules.event_manager import EventManager
 
 class Poliswag(commands.Bot):
     def __init__( self):
@@ -27,6 +28,7 @@ class Poliswag(commands.Bot):
         self.scanner_manager = ScannerManager(self)
         self.image_generator = ImageGenerator(self)
         self.quest_search = QuestSearch(self)
+        self.event_manager = EventManager(self)
         """ ! IMPORTED CLASSSES ! """
 
         """ CHANNEL'S INITIAL SETUP """
@@ -63,6 +65,7 @@ class Poliswag(commands.Bot):
             self.quest_search.get_translationfile_data()
             self.quest_search.get_masterfile_data()
             self.quest_search.generate_pokemon_item_name_map()
+            self.event_manager.get_events()
             """ ! UPDATE FILES DATA ! """
 
 
@@ -75,17 +78,13 @@ class Poliswag(commands.Bot):
             """ ! NEW FORCED VERSIONS ! """
 
 
-            """ DETECT DAY CHANGE """
+            """ DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION """
             day_changed = self.scanner_manager.is_day_change()
             if day_changed:
                 await self.QUEST_CHANNEL.send(
                     embed = self.utility.build_embed_object_title_description("Mudança de dia detetada", "Scan das novas quests inicializado!")
                 )
-            """ ! DETECT DAY CHANGE ! """
-
-
-            """ CHECK QUEST SCANNING COMPLETION """
-            if not day_changed:
+            else:
                 quest_completed = await self.scanner_status.is_quest_scanning_complete()
                 if quest_completed is not None and quest_completed['leiria_completed'] and quest_completed['marinha_completed']:
                     self.scanner_manager.update_quest_scanning_state()
@@ -96,10 +95,21 @@ class Poliswag(commands.Bot):
                         "Esta informação expira ao final do dia"
                         )
                     )
-            """ ! CHECK QUEST SCANNING COMPLETION ! """
+            """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
 
             """ START / END OF EVENTS """
+            current_active_events = self.event_manager.get_current_active_events()
+            if current_active_events is not None:
+                for event in current_active_events:
+                    await self.CONVIVIO_CHANNEL.send(
+                        content = event["content"],
+                        embed = self.utility.build_embed_object_title_description(
+                            event["name"],
+                            event["body"],
+                            event["footer"]
+                        )
+                    )
             """ ! START / END OF EVENTS ! """
 
 

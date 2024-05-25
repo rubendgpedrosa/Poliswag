@@ -36,7 +36,7 @@ class Quests(commands.Cog):
         
         found_quests = self.poliswag.quest_search.find_quest_by_search_keyword(search.lower(), is_leiria)
         if not found_quests:
-            await ctx.send("Nenhuma quest encontrada!")
+            await ctx.send(f"{user.mention}, não foram encontradas quests para '{search}'!")
             return
         
         self.poliswag.image_generator.generate_image_from_quest_data(found_quests, is_leiria)
