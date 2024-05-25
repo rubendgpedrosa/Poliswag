@@ -57,3 +57,9 @@ class Utility:
         time_hour = time(hour=0, minute=0, second=0)  # create a time object with 00:00:00
         dt = datetime.combine(date, time_hour)
         return str(dt)
+    
+    async def send_message_to_channel(self, channel, message):
+        await channel.send(message)
+
+    async def send_embed_to_channel(self, channel, embed):
+        await channel.send(embed=embed)
