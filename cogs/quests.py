@@ -6,6 +6,8 @@ class Quests(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.SCAN_QUESTS_ALL_URL = os.environ.get("SCAN_QUESTS_ALL_URL")
+        self.QUESTS_IMAGE_FILE = os.environ.get("QUESTS_IMAGE_FILE")
+        self.QUESTS_IMAGE_MAP_FILE = os.environ.get("QUESTS_IMAGE_MAP_FILE")
     
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -40,9 +42,9 @@ class Quests(commands.Cog):
             return
         
         self.poliswag.image_generator.generate_image_from_quest_data(found_quests, is_leiria)
-        await ctx.send(f"{user.mention}, aqui estão os resultados para '{search}':", file=discord.File("quests.jpg"))
+        await ctx.send(f"{user.mention}, aqui estão os resultados para '{search}':", file=discord.File(self.QUESTS_IMAGE_FILE))
         self.poliswag.image_generator.generate_map_image_from_quest_data(found_quests)
-        await ctx.send(file=discord.File("quests_map.jpg"))
+        await ctx.send(file=discord.File(self.QUESTS_IMAGE_MAP_FILE))
 
 async def setup(poliswag):
     await poliswag.add_cog(Quests(poliswag))
