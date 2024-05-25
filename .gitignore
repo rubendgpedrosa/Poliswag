@@ -4,3 +4,6 @@ dev.env
 savedVersion.txt
 filters.json
 **/__pycache__/
+
+quests_map.jpg
+quests.jpg
