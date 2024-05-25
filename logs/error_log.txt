@@ -1,0 +1,185 @@
+CRASH | 2024-05-25 10:07 -- (2013, 'Lost connection to MySQL server during query')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 548, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 775, in _read_query_result
+    result.read()
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 1156, in read
+    first_packet = self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 692, in _read_packet
+    packet_header = self._read_bytes(4)
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 748, in _read_bytes
+    raise err.OperationalError(
+pymysql.err.OperationalError: (2013, 'Lost connection to MySQL server during query')
+
+CRASH | 2024-05-25 10:08 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:09 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:10 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:11 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:12 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:13 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
+CRASH | 2024-05-25 10:14 -- (0, '')
+Traceback (most recent call last):
+  File "/root/Poliswag/main.py", line 68, in scheduled_tasks
+    self.event_manager.get_events()
+  File "/root/Poliswag/modules/event_manager.py", line 15, in get_events
+    self.write_events_to_database()
+  File "/root/Poliswag/modules/event_manager.py", line 25, in write_events_to_database
+    self.poliswag.db.execute_query_to_database(f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name_escaped}', '{event['start']}', '{event['end']}');")
+  File "/root/Poliswag/modules/database_connector.py", line 45, in execute_query_to_database
+    self.db = pymysql.connect(
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 148, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/cursors.py", line 310, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 547, in query
+    self._execute_command(COMMAND.COM_QUERY, sql)
+  File "/usr/local/lib/python3.12/dist-packages/pymysql/connections.py", line 793, in _execute_command
+    raise err.InterfaceError(0, "")
+pymysql.err.InterfaceError: (0, '')
+
