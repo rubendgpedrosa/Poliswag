@@ -32,6 +32,9 @@ class ScannerStatus:
         down_devices_leiria = max(down_devices_leiria, 0)
         down_devices_marinha = max(down_devices_marinha, 0)
 
+        if down_devices_leiria > 0 or down_devices_marinha > 0:
+            self.poliswag.utility.log_to_file(f"Worker status: {worker_status}")
+
         return {'down_devices_leiria': down_devices_leiria, 'down_devices_marinha': down_devices_marinha}
     
     async def get_worker_status(self):
