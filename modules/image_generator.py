@@ -3,6 +3,7 @@ import imgkit, os, requests
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
+
 class ImageGenerator:
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -21,14 +22,14 @@ class ImageGenerator:
         template = env.get_template(self.QUESTS_TEMPLATE_HTML_FILE)
 
         for quest_list in quest_data:
-            quest_list['quests'].sort(key=lambda x: x['name'].lower())
+            quest_list["quests"].sort(key=lambda x: x["name"].lower())
 
         html_content = template.render(quests=quest_data, is_leiria=is_leiria)
         options = {
-            'format': 'png',
-            'encoding': 'UTF-8',
-            'width': '1200',
-            'quality': '80'
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": "1200",
+            "quality": "80",
         }
         imgkit.from_string(html_content, self.QUESTS_IMAGE_FILE, options=options)
 
@@ -39,16 +40,23 @@ class ImageGenerator:
 
             print(f"Quest Image Size: {quest_image.size}")
             print(f"Map Image Size: {map_image.size}")
-            map_image = map_image.resize((quest_image.width, int(quest_image.width * (map_image.height / map_image.width))))
+            map_image = map_image.resize(
+                (
+                    quest_image.width,
+                    int(quest_image.width * (map_image.height / map_image.width)),
+                )
+            )
             print(f"Resized Map Image Size: {map_image.size}")
 
-            combined_image = Image.new("RGBA", (quest_image.width, quest_image.height + map_image.height + 20))
+            combined_image = Image.new(
+                "RGBA", (quest_image.width, quest_image.height + map_image.height + 20)
+            )
             print("Combined image created.")
             combined_image.paste(quest_image, (0, 0))
             combined_image.paste(map_image, (0, quest_image.height + 20))
 
             combined_image.save("combined_quest.png", "PNG")
-            
+
             return True
         except FileNotFoundError as e:
             print(f"Error opening image file: {e}")
@@ -58,47 +66,52 @@ class ImageGenerator:
             return None  # Or handle the error as needed
 
     def generate_map_image_from_quest_data(self, quest_data):
-            coordinates = []
-            for quest in quest_data:
-                for sub_quest in quest.get('quests', []):
-                    if 'lat' in sub_quest and 'lon' in sub_quest:
-                        coordinates.append((sub_quest['lat'], sub_quest['lon']))
+        coordinates = []
+        for quest in quest_data:
+            for sub_quest in quest.get("quests", []):
+                if "lat" in sub_quest and "lon" in sub_quest:
+                    coordinates.append((sub_quest["lat"], sub_quest["lon"]))
 
-            if not coordinates:
-                raise ValueError("No valid coordinates found in quest data.")
+        if not coordinates:
+            raise ValueError("No valid coordinates found in quest data.")
 
-            base_url = "https://maps.googleapis.com/maps/api/staticmap?"
-            params = f"key={self.google_api_key}&size=1280x720"
-            markers = "&".join([f"markers=color:red%7Clabel:{chr(65 + idx)}%7C{lat},{lon}" for idx, (lat, lon) in enumerate(coordinates)])
-            url = f"{base_url}{params}&{markers}"
-            
-            response = requests.get(url)
-            if response.status_code == 200:
-                with open(self.QUESTS_IMAGE_MAP_FILE, 'wb') as file:
-                    file.write(response.content)
-            else:
-                raise Exception(f"Error fetching the map image: {response.status_code} - {response.text}")
+        base_url = "https://maps.googleapis.com/maps/api/staticmap?"
+        params = f"key={self.google_api_key}&size=1280x720"
+        markers = "&".join(
+            [
+                f"markers=color:red%7Clabel:{chr(65 + idx)}%7C{lat},{lon}"
+                for idx, (lat, lon) in enumerate(coordinates)
+            ]
+        )
+        url = f"{base_url}{params}&{markers}"
+
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(self.QUESTS_IMAGE_MAP_FILE, "wb") as file:
+                file.write(response.content)
+        else:
+            raise Exception(
+                f"Error fetching the map image: {response.status_code} - {response.text}"
+            )
 
     def generate_image_from_account_stats(self, account_data):
         env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
         template = env.get_template(self.ACCOUNTS_TEMPLATE_HTML_FILE)
 
-        good_accounts = account_data.get('good', 0)
-        in_use_accounts = account_data.get('in_use', 0)
-        cooldown_accounts = account_data.get('cooldown', 0)
+        good_accounts = account_data.get("good", 0)
+        in_use_accounts = account_data.get("in_use", 0)
+        cooldown_accounts = account_data.get("cooldown", 0)
 
         html_content = template.render(
-            good=good_accounts,
-            in_use=in_use_accounts,
-            cooldown=cooldown_accounts
+            good=good_accounts, in_use=in_use_accounts, cooldown=cooldown_accounts
         )
 
         options = {
-            'format': 'png',
-            'encoding': 'UTF-8',
-            'width': '800',
-            'height': '400',
-            'quality': '100'
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": "800",
+            "height": "400",
+            "quality": "100",
         }
 
         try:
