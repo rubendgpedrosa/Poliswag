@@ -1,26 +1,61 @@
 from jinja2 import Environment, FileSystemLoader
 import imgkit, os, requests
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 class ImageGenerator:
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.google_api_key = os.environ.get("GOOGLE_API_KEY")
 
-        self.QUESTS_TEMPLATE_HTML_DIR = os.environ.get("QUESTS_TEMPLATE_HTML_DIR")
+        self.TEMPLATE_HTML_DIR = os.environ.get("TEMPLATE_HTML_DIR")
         self.QUESTS_TEMPLATE_HTML_FILE = os.environ.get("QUESTS_TEMPLATE_HTML_FILE")
+        self.ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
+
         self.QUESTS_IMAGE_FILE = os.environ.get("QUESTS_IMAGE_FILE")
         self.QUESTS_IMAGE_MAP_FILE = os.environ.get("QUESTS_IMAGE_MAP_FILE")
+        self.QUESTS_COMPOSITE_IMAGE_FILE = os.environ.get("QUESTS_COMPOSITE_IMAGE_FILE")
 
     def generate_image_from_quest_data(self, quest_data, is_leiria):
-        env = Environment(loader=FileSystemLoader(self.QUESTS_TEMPLATE_HTML_DIR))
+        env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
         template = env.get_template(self.QUESTS_TEMPLATE_HTML_FILE)
+
+        for quest_list in quest_data:
+            quest_list['quests'].sort(key=lambda x: x['name'].lower())
+
         html_content = template.render(quests=quest_data, is_leiria=is_leiria)
         options = {
-            'format': 'jpg',
+            'format': 'png',
             'encoding': 'UTF-8',
-            'width': '800',
+            'width': '1200',
+            'quality': '80'
         }
         imgkit.from_string(html_content, self.QUESTS_IMAGE_FILE, options=options)
+
+    def combine_images(self):
+        try:
+            quest_image = Image.open(self.QUESTS_IMAGE_FILE).convert("RGBA")
+            map_image = Image.open(self.QUESTS_IMAGE_MAP_FILE).convert("RGBA")
+
+            print(f"Quest Image Size: {quest_image.size}")
+            print(f"Map Image Size: {map_image.size}")
+            map_image = map_image.resize((quest_image.width, int(quest_image.width * (map_image.height / map_image.width))))
+            print(f"Resized Map Image Size: {map_image.size}")
+
+            combined_image = Image.new("RGBA", (quest_image.width, quest_image.height + map_image.height + 20))
+            print("Combined image created.")
+            combined_image.paste(quest_image, (0, 0))
+            combined_image.paste(map_image, (0, quest_image.height + 20))
+
+            combined_image.save("combined_quest.png", "PNG")
+            
+            return True
+        except FileNotFoundError as e:
+            print(f"Error opening image file: {e}")
+            return None  # Or handle the error as needed
+        except Exception as e:
+            print(f"An error occurred during image combination: {e}")
+            return None  # Or handle the error as needed
 
     def generate_map_image_from_quest_data(self, quest_data):
             coordinates = []
@@ -43,3 +78,32 @@ class ImageGenerator:
                     file.write(response.content)
             else:
                 raise Exception(f"Error fetching the map image: {response.status_code} - {response.text}")
+
+    def generate_image_from_account_stats(self, account_data):
+        env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
+        template = env.get_template(self.ACCOUNTS_TEMPLATE_HTML_FILE)
+
+        good_accounts = account_data.get('good', 0)
+        in_use_accounts = account_data.get('in_use', 0)
+        cooldown_accounts = account_data.get('cooldown', 0)
+
+        html_content = template.render(
+            good=good_accounts,
+            in_use=in_use_accounts,
+            cooldown=cooldown_accounts
+        )
+
+        options = {
+            'format': 'png',
+            'encoding': 'UTF-8',
+            'width': '800',
+            'height': '400',
+            'quality': '100'
+        }
+
+        try:
+            img = imgkit.from_string(html_content, output_path=False, options=options)
+            return img
+        except Exception as e:
+            print(f"Error generating account image: {e}")
+            return None
