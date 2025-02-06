@@ -2,14 +2,12 @@
 <html>
 <head>
     <title>Quest Information</title>
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
-
     <style>
         body {
-            width: 800px;
+            width: 1200px;
             font-family: 'Roboto', sans-serif;
             margin: 0 auto;
             background-color: #2b2d31;
@@ -35,7 +33,13 @@
         }
 
         .quest-list-container {
-            width: 100%;
+            width: calc(50% - 10px); /* Two columns with some gap */
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .quest-list-container.single-list {
+            width: 100%; /* Full width for single lists */
         }
 
         .quest-list {
@@ -44,7 +48,7 @@
 
         .quest-card {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             padding: 16px;
             border-radius: 12px;
             background-color: #1e1f22;
@@ -52,6 +56,7 @@
             margin-bottom: 16px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
             transition: transform 0.2s, box-shadow 0.2s;
+            page-break-inside: avoid;
         }
 
         .quest-card:hover {
@@ -73,6 +78,7 @@
 
         .quest-card .image-container {
             position: relative;
+            margin-top: 10px;
         }
 
         .quest-card img {
@@ -99,6 +105,7 @@
 
         .quest-card .content {
             flex: 1;
+            margin-right: 10px;
         }
 
         .quest-card .content h3 {
@@ -106,24 +113,32 @@
             margin-bottom: 4px;
             font-size: 20px;
             font-weight: 500;
+            word-break: break-word;
         }
 
         .quest-card .content p {
             margin: 0;
             font-size: 16px;
             color: #b9bbbe;
+            word-break: break-word;
+        }
+
+        .reward-image {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+            margin-left: 10px;
         }
 
         .search-amount-holder {
-            position: absolute;
-            right: 16px;
-            bottom: 8px;
+            position: relative;
+            margin-left: 10px;
+            bottom: 0;
             font-size: 18px;
             font-weight: 700;
             color: #fff;
             text-shadow: 0 0 2px #000;
         }
-
     </style>
 </head>
 <body>
@@ -134,36 +149,36 @@
             RESULTADOS PARA MARINHA GRANDE
         {% endif %}
     </div>
-    {% for quest_list in quests %}
-        <div class="column-container">
-            <div class="quest-list-container {% if quest_list.quests|length == 1 %}single-quest{% endif %}">
+    <div class="column-container">
+        {% for quest_list in quests %}
+            <div class="quest-list-container {% if quests|length == 1 %}single-list{% endif %}">
                 <div class="quest-list">
-                {% for quest in quest_list.quests %}
-                    <div class="quest-card">
-                        {% if quest.url %}
-                        <div class="image-container">
-                            <img src="{{ quest.url }}" alt="{{ quest.name }}">
-                            {% if 'quest_item_id' not in quest %}
-                                <div class="ar-task">AR Quest</div>
+                    {% for quest in quest_list.quests %}
+                        <div class="quest-card">
+                            {% if quest.url %}
+                                <div class="image-container">
+                                    <img src="{{ quest.url }}" alt="{{ quest.name }}">
+                                    {% if 'quest_item_id' in quest %}
+                                        <div class="ar-task">AR Quest</div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            <div class="content">
+                                <h3>{{ quest.name }}</h3>
+                                <p>{{ quest_list.quest_title }}</p>
+                            </div>
+                            <img class="reward-image" src="https://raw.githubusercontent.com/nileplumb/PkmnShuffleMap/master/UICONS/{{ quest.quest_slug }}" alt="Reward">
+                            {% if quest.quest_reward_amount %}
+                                <div class="search-amount-holder">x{{ quest.quest_reward_amount }}</div>
+                            {% endif %}
+                            {% if quest.alternative_quest_reward_amount %}
+                                <div class="search-amount-holder">x{{ quest.alternative_quest_reward_amount }}</div>
                             {% endif %}
                         </div>
-                        {% endif %}
-                        <div class="content">
-                            <h3>{{ quest.name }}</h3>
-                            <p>{{ quest_list.quest_title }}</p>
-                        </div>
-                        <img src="https://raw.githubusercontent.com/nileplumb/PkmnShuffleMap/master/UICONS/{{ quest.quest_slug }}" alt="Reward">
-                        {% if quest.quest_reward_amount %}
-                            <div class="search-amount-holder">x{{ quest.quest_reward_amount }}</div>
-                        {% endif %}
-                        {% if quest.alternative_quest_reward_amount %}
-                            <div class="search-amount-holder">x{{ quest.alternative_quest_reward_amount }}</div>
-                        {% endif %}
-                    </div>
-                {% endfor %}
+                    {% endfor %}
                 </div>
             </div>
-        </div>
-    {% endfor %}
+        {% endfor %}
+    </div>
 </body>
 </html>

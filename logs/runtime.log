@@ -1,0 +1,125 @@
+
+Area: LeiriaBigger, Expected Workers: 3
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_01', 'device_id': 'PoGoLeiria-001', 'last_data': 1738881673, 'account_name': 'shuvra5440f', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 65, 'route_pos': 0, 'current_route_time': 6}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881673
+Connection Status: Executing Worker
+Time Difference: 7.174957990646362
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_02', 'device_id': 'PoGoLeiria-003', 'last_data': 1738881673, 'account_name': 'tantalifluoride8', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 45, 'current_route_time': 254}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881673
+Connection Status: Executing Worker
+Time Difference: 7.17497706413269
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_03', 'device_id': 'PoGoLeiria-006', 'last_data': 1738881673, 'account_name': 'subsultusac54e', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 15, 'current_route_time': 85}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881673
+Connection Status: Executing Worker
+Time Difference: 7.174987077713013
+isWorkerUp: True
+--- Worker End ---
+Area: LeiriaBigger, Down Devices: 0
+Area: MarinhaGrande, Expected Workers: 1
+--- Worker Start ---
+Worker Data: {'worker_name': 'MarinhaGrande_01', 'device_id': 'PoGoLeiria-004', 'last_data': 1738881673, 'account_name': 'murgavi48a3a', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 48, 'part_route_points': 48, 'route_pos': 3, 'current_route_time': 23}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881673
+Connection Status: Executing Worker
+Time Difference: 7.175000905990601
+isWorkerUp: True
+--- Worker End ---
+Area: MarinhaGrande, Down Devices: 0
+{'downDevicesLeiria': 0, 'downDevicesMarinha': 0}
+Area: LeiriaBigger, Expected Workers: 3
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_01', 'device_id': 'PoGoLeiria-001', 'last_data': 1738881733, 'account_name': 'shuvra5440f', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 65, 'route_pos': 10, 'current_route_time': 67}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881733
+Connection Status: Executing Worker
+Time Difference: 7.324208974838257
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_02', 'device_id': 'PoGoLeiria-003', 'last_data': 1738881736, 'account_name': 'tantalifluoride8', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 56, 'current_route_time': 314}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881736
+Connection Status: Executing Worker
+Time Difference: 4.324230909347534
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_03', 'device_id': 'PoGoLeiria-006', 'last_data': 1738881735, 'account_name': 'subsultusac54e', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 25, 'current_route_time': 145}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881735
+Connection Status: Executing Worker
+Time Difference: 5.324242115020752
+isWorkerUp: True
+--- Worker End ---
+Area: LeiriaBigger, Down Devices: 0
+Area: MarinhaGrande, Expected Workers: 1
+--- Worker Start ---
+Worker Data: {'worker_name': 'MarinhaGrande_01', 'device_id': 'PoGoLeiria-004', 'last_data': 1738881732, 'account_name': 'murgavi48a3a', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 48, 'part_route_points': 48, 'route_pos': 13, 'current_route_time': 83}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881732
+Connection Status: Executing Worker
+Time Difference: 8.32425594329834
+isWorkerUp: True
+--- Worker End ---
+Area: MarinhaGrande, Down Devices: 0
+{'downDevicesLeiria': 0, 'downDevicesMarinha': 0}
+Area: LeiriaBigger, Expected Workers: 3
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_01', 'device_id': 'PoGoLeiria-001', 'last_data': 1738881792, 'account_name': 'shuvra5440f', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 65, 'route_pos': 21, 'current_route_time': 126}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881792
+Connection Status: Executing Worker
+Time Difference: 8.156402111053467
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_02', 'device_id': 'PoGoLeiria-003', 'last_data': 1738881791, 'account_name': 'tantalifluoride8', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 2, 'current_route_time': 20}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881791
+Connection Status: Executing Worker
+Time Difference: 9.156425952911377
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_03', 'device_id': 'PoGoLeiria-006', 'last_data': 1738881793, 'account_name': 'subsultusac54e', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 36, 'current_route_time': 205}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881793
+Connection Status: Executing Worker
+Time Difference: 7.1564390659332275
+isWorkerUp: True
+--- Worker End ---
+Area: LeiriaBigger, Down Devices: 0
+Area: MarinhaGrande, Expected Workers: 1
+--- Worker Start ---
+Worker Data: {'worker_name': 'MarinhaGrande_01', 'device_id': 'PoGoLeiria-004', 'last_data': 1738881793, 'account_name': 'murgavi48a3a', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 48, 'part_route_points': 48, 'route_pos': 24, 'current_route_time': 143}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881793
+Connection Status: Executing Worker
+Time Difference: 7.156455993652344
+isWorkerUp: True
+--- Worker End ---
+Area: MarinhaGrande, Down Devices: 0
+{'downDevicesLeiria': 0, 'downDevicesMarinha': 0}
+Area: LeiriaBigger, Expected Workers: 3
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_01', 'device_id': 'PoGoLeiria-001', 'last_data': 1738881853, 'account_name': 'shuvra5440f', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 65, 'route_pos': 32, 'current_route_time': 186}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881853
+Connection Status: Executing Worker
+Time Difference: 7.208357095718384
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_02', 'device_id': 'PoGoLeiria-003', 'last_data': 1738881852, 'account_name': 'tantalifluoride8', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 11, 'current_route_time': 80}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881852
+Connection Status: Executing Worker
+Time Difference: 8.208384990692139
+isWorkerUp: True
+--- Worker End ---
+--- Worker Start ---
+Worker Data: {'worker_name': 'LeiriaBigger_03', 'device_id': 'PoGoLeiria-006', 'last_data': 1738881852, 'account_name': 'subsultusac54e', 'current_mode': 'PokemonMode', 'mode_status': {'name': 'RouteMode', 'total_route_points': 193, 'part_route_points': 64, 'route_pos': 47, 'current_route_time': 265}, 'connection_status': 'Executing Worker'}
+Last Data: 1738881852
+Connection Status: Executing Worker
+Time Difference: 8.208401918411255
+isWorkerUp: True
+--- Worker End ---
+Area: LeiriaBigger, Down Devices: 0
+Area: MarinhaGrande, Expected Workers: 1
+--- Worker Start ---
