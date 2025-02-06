@@ -49,6 +49,7 @@ class Poliswag(commands.Bot):
 
     async def setup_hook(self):
         await self.load_extension("cogs.quests")
+        await self.load_extension("cogs.accounts")
         await self.tree.sync()
     
     async def get_channels(self):
@@ -86,7 +87,7 @@ class Poliswag(commands.Bot):
                 )
             else:
                 quest_completed = await self.scanner_status.is_quest_scanning_complete()
-                if quest_completed is not None and quest_completed['leiria_completed'] and quest_completed['marinha_completed']:
+                if quest_completed is not None and quest_completed['leiriaCompleted'] and quest_completed['marinhaCompleted']:
                     self.scanner_manager.update_quest_scanning_state()
                     await self.QUEST_CHANNEL.send(
                         embed = self.utility.build_embed_object_title_description(
@@ -119,7 +120,7 @@ class Poliswag(commands.Bot):
 
             """ FAILING WORKERS """
             workers_status = await self.scanner_status.get_workers_with_issues()
-            await self.scanner_status.rename_voice_channels(workers_status['down_devices_leiria'], workers_status['down_devices_marinha'])
+            await self.scanner_status.rename_voice_channels(workers_status['downDevicesLeiria'], workers_status['downDevicesMarinha'])
             """ ! FAILING WORKERS ! """
         except Exception as e:
             print("CRASH ---", e)
