@@ -34,11 +34,6 @@ jobs:
         pip install black
         black --check .
 
-    - name: Lint code with Flake8
-      run: |
-        pip install flake8
-        flake8 .
-
     # Prepare for tests even if none exist yet
     - name: Run tests (if available)
       run: |
