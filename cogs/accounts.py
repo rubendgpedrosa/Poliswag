@@ -1,6 +1,7 @@
 import discord, requests, os, io
 from discord.ext import commands
 
+
 class Accounts(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -16,15 +17,21 @@ class Accounts(commands.Cog):
         try:
             if ctx.guild is not None:
                 await ctx.message.delete()
-        
+
             account_data = await self.poliswag.scanner_status.get_account_stats()
 
             if account_data:
-                image_bytes = self.poliswag.image_generator.generate_image_from_account_stats(account_data)
+                image_bytes = (
+                    self.poliswag.image_generator.generate_image_from_account_stats(
+                        account_data
+                    )
+                )
                 if image_bytes:
                     try:
                         with io.BytesIO(image_bytes) as image_file:
-                            discord_file = discord.File(image_file, filename="account_status_report.png")
+                            discord_file = discord.File(
+                                image_file, filename="account_status_report.png"
+                            )
                             await ctx.send(file=discord_file)
                     except Exception as e:
                         error_message = f"Error sending image: {e}"
@@ -42,7 +49,10 @@ class Accounts(commands.Cog):
             error_message = f"An error occurred: {e}"
             print(error_message)
             self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send("An error occurred while generating the report. Check the logs.")
+            await ctx.send(
+                "An error occurred while generating the report. Check the logs."
+            )
+
 
 async def setup(poliswag):
     await poliswag.add_cog(Accounts(poliswag))
