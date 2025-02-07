@@ -1,4 +1,4 @@
-import datetime, requests, discord, pytz, os, aiohttp
+import datetime, requests, os, aiohttp
 
 
 class ScannerStatus:

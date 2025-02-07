@@ -28,17 +28,34 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+    # First, check code formatting
     - name: Lint code with Black
       run: |
         pip install black
         black --check .
 
+    - name: Lint code with Flake8
+      run: |
+        pip install flake8
+        flake8 .
+
+    # Prepare for tests even if none exist yet
+    - name: Run tests (if available)
+      run: |
+        if [ -d "tests" ]; then
+          pytest --maxfail=1 --disable-warnings -q
+        else
+          echo "No tests directory found. Skipping tests."
+        fi
+
+    # Now perform security scanning; override commit range and use full history
     - name: Check for secrets
       uses: gitleaks/gitleaks-action@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITLEAKS_COMMIT_RANGE: ''
 
+    # Additional quality checks
     - name: Check for TODOs
       run: |
         grep -r "TODO" . || true

@@ -27,15 +27,6 @@ class Quests(commands.Cog):
 
     @commands.command(name="questleiria", aliases=["questmarinha"])
     async def questcmd(self, ctx):
-        if ctx.guild is not None:
-            await ctx.message.delete()
-
-        if len(ctx.message.content.split(" ")) < 2:
-            await ctx.send(
-                "Argumentos inválidos! Usa: !questleiria/!questmarinha POKÉSTOP/QUEST/RECOMPENSA"
-            )
-            return
-
         search = (
             ctx.message.content.replace("!questleiria", "")
             .replace("!questmarinha", "")
@@ -53,36 +44,22 @@ class Quests(commands.Cog):
             )
             return
 
+        # Generate images into memory
         self.poliswag.image_generator.generate_image_from_quest_data(
             foundQuests, isLeiria
         )
         self.poliswag.image_generator.generate_map_image_from_quest_data(foundQuests)
-        combinedImagePath = self.poliswag.image_generator.combine_images()
+        combinedBuffer = self.poliswag.image_generator.combine_images()
 
-        if combinedImagePath:  # Check if image combination was successful
+        if combinedBuffer:
             try:
-                with open(self.QUESTS_COMPOSITE_IMAGE_FILE, "rb") as imageFile:
-                    await ctx.send(
-                        f"{user.mention}, aqui estão os resultados para '{search}':",
-                        file=discord.File(
-                            imageFile, filename=self.QUESTS_COMPOSITE_IMAGE_FILE
-                        ),
-                    )
-            except discord.HTTPException as e:
-                print(f"Error sending image to Discord: {e}")
                 await ctx.send(
-                    f"{user.mention}, ocorreu um erro ao enviar a imagem. Tente novamente mais tarde."
-                )
-            except FileNotFoundError as e:  # Catch file not found
-                print(f"Combined image not found: {e}")
-                await ctx.send(
-                    f"{user.mention}, ocorreu um erro ao processar a imagem. Tente novamente mais tarde."
+                    f"{user.mention}, aqui estão os resultados para '{search}':",
+                    file=discord.File(combinedBuffer, filename="quest_results.png"),
                 )
             except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-                await ctx.send(
-                    f"{user.mention}, ocorreu um erro inesperado. Tente novamente mais tarde."
-                )
+                print(f"Erro ao enviar imagem: {e}")
+                await ctx.send(f"{user.mention}, um erro occorreu ao enviar a imagem.")
         else:
             await ctx.send(
                 f"{user.mention}, ocorreu um erro ao gerar a imagem combinada. Tente novamente mais tarde."

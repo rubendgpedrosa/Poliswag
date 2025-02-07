@@ -1,7 +1,9 @@
+import os
+import requests
+import imgkit
+import io
+from PIL import Image
 from jinja2 import Environment, FileSystemLoader
-import imgkit, os, requests
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
 
 
 class ImageGenerator:
@@ -13,9 +15,8 @@ class ImageGenerator:
         self.QUESTS_TEMPLATE_HTML_FILE = os.environ.get("QUESTS_TEMPLATE_HTML_FILE")
         self.ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
 
-        self.QUESTS_IMAGE_FILE = os.environ.get("QUESTS_IMAGE_FILE")
-        self.QUESTS_IMAGE_MAP_FILE = os.environ.get("QUESTS_IMAGE_MAP_FILE")
-        self.QUESTS_COMPOSITE_IMAGE_FILE = os.environ.get("QUESTS_COMPOSITE_IMAGE_FILE")
+        self.quests_image_bytes = None
+        self.quests_map_bytes = None
 
     def generate_image_from_quest_data(self, quest_data, is_leiria):
         env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
@@ -31,39 +32,9 @@ class ImageGenerator:
             "width": "1200",
             "quality": "80",
         }
-        imgkit.from_string(html_content, self.QUESTS_IMAGE_FILE, options=options)
-
-    def combine_images(self):
-        try:
-            quest_image = Image.open(self.QUESTS_IMAGE_FILE).convert("RGBA")
-            map_image = Image.open(self.QUESTS_IMAGE_MAP_FILE).convert("RGBA")
-
-            print(f"Quest Image Size: {quest_image.size}")
-            print(f"Map Image Size: {map_image.size}")
-            map_image = map_image.resize(
-                (
-                    quest_image.width,
-                    int(quest_image.width * (map_image.height / map_image.width)),
-                )
-            )
-            print(f"Resized Map Image Size: {map_image.size}")
-
-            combined_image = Image.new(
-                "RGBA", (quest_image.width, quest_image.height + map_image.height + 20)
-            )
-            print("Combined image created.")
-            combined_image.paste(quest_image, (0, 0))
-            combined_image.paste(map_image, (0, quest_image.height + 20))
-
-            combined_image.save("combined_quest.png", "PNG")
-
-            return True
-        except FileNotFoundError as e:
-            print(f"Error opening image file: {e}")
-            return None  # Or handle the error as needed
-        except Exception as e:
-            print(f"An error occurred during image combination: {e}")
-            return None  # Or handle the error as needed
+        self.quests_image_bytes = imgkit.from_string(
+            html_content, output_path=False, options=options
+        )
 
     def generate_map_image_from_quest_data(self, quest_data):
         coordinates = []
@@ -87,12 +58,50 @@ class ImageGenerator:
 
         response = requests.get(url)
         if response.status_code == 200:
-            with open(self.QUESTS_IMAGE_MAP_FILE, "wb") as file:
-                file.write(response.content)
+            self.quests_map_bytes = response.content
         else:
             raise Exception(
                 f"Error fetching the map image: {response.status_code} - {response.text}"
             )
+
+    def combine_images(self):
+        try:
+            if self.quests_image_bytes is None or self.quests_map_bytes is None:
+                print("Required image bytes not available.")
+                return None
+
+            quest_image = Image.open(io.BytesIO(self.quests_image_bytes)).convert(
+                "RGBA"
+            )
+            map_image = Image.open(io.BytesIO(self.quests_map_bytes)).convert("RGBA")
+
+            print(f"Quest Image Size: {quest_image.size}")
+            print(f"Map Image Size: {map_image.size}")
+            map_image = map_image.resize(
+                (
+                    quest_image.width,
+                    int(quest_image.width * (map_image.height / map_image.width)),
+                )
+            )
+            print(f"Resized Map Image Size: {map_image.size}")
+
+            combined_image = Image.new(
+                "RGBA", (quest_image.width, quest_image.height + map_image.height + 20)
+            )
+            print("Combined image created.")
+            combined_image.paste(quest_image, (0, 0))
+            combined_image.paste(map_image, (0, quest_image.height + 20))
+
+            output_buffer = io.BytesIO()
+            combined_image.save(output_buffer, "PNG")
+            output_buffer.seek(0)
+            return output_buffer
+        except FileNotFoundError as e:
+            print(f"Error opening image bytes: {e}")
+            return None
+        except Exception as e:
+            print(f"An error occurred during image combination: {e}")
+            return None
 
     def generate_image_from_account_stats(self, account_data):
         env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
