@@ -1,7 +1,6 @@
 .env
 dev.env
 
-savedVersion.txt
 filters.json
 **/__pycache__/
 
