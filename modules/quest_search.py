@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import json
 from modules.database_connector import DatabaseConnector
 
+
 class QuestSearch:
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -21,7 +22,9 @@ class QuestSearch:
         self.generate_pokemon_item_name_map()
 
     def get_quest_data(self):
-        if self.quest_data is not None and datetime.now() - datetime.fromisoformat(self.quest_data["date"]) < timedelta(hours=1):
+        if self.quest_data is not None and datetime.now() - datetime.fromisoformat(
+            self.quest_data["date"]
+        ) < timedelta(hours=1):
             return self.quest_data
 
         quest_data = self.db.get_data_from_database(
@@ -39,13 +42,18 @@ class QuestSearch:
             FROM pokestop WHERE quest_reward_type IS NOT NULL;
             """
         )
-    
+
         quest_data = {"data": quest_data, "date": datetime.now().isoformat()}
         self.quest_data = quest_data
         return quest_data
-    
+
     def get_alternative_quest_data(self):
-        if self.alternative_quest_data is not None and datetime.now() - datetime.fromisoformat(self.alternative_quest_data["date"]) < timedelta(hours=1):
+        if (
+            self.alternative_quest_data is not None
+            and datetime.now()
+            - datetime.fromisoformat(self.alternative_quest_data["date"])
+            < timedelta(hours=1)
+        ):
             return self.alternative_quest_data
 
         alternative_quest_data = self.db.get_data_from_database(
@@ -63,25 +71,39 @@ class QuestSearch:
             FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL;
             """
         )
-    
-        alternative_quest_data = {"data": alternative_quest_data, "date": datetime.now().isoformat()}
+
+        alternative_quest_data = {
+            "data": alternative_quest_data,
+            "date": datetime.now().isoformat(),
+        }
         self.alternative_quest_data = alternative_quest_data
         return alternative_quest_data
 
     def get_masterfile_data(self):
-        if self.masterfile_data is not None and datetime.now() - datetime.fromisoformat(self.masterfile_data["date"]) < timedelta(hours=24):
+        if self.masterfile_data is not None and datetime.now() - datetime.fromisoformat(
+            self.masterfile_data["date"]
+        ) < timedelta(hours=24):
             return self.masterfile_data
 
         masterfile_json = requests.get(os.environ.get("MASTERFILE_URL"))
         if masterfile_json.status_code == 200:
             masterfile_json = masterfile_json.json()
-            masterfile_json = {key: value for key, value in masterfile_json.items() if key in ["items", "questRewardTypes", "pokemon"]}
+            masterfile_json = {
+                key: value
+                for key, value in masterfile_json.items()
+                if key in ["items", "questRewardTypes", "pokemon"]
+            }
             masterfile_json["date"] = datetime.now().isoformat()
             self.masterfile_data = masterfile_json
             return masterfile_json
 
     def get_translationfile_data(self):
-        if self.translationfile_data is not None and datetime.now() - datetime.fromisoformat(self.translationfile_data["date"]) < timedelta(hours=24):
+        if (
+            self.translationfile_data is not None
+            and datetime.now()
+            - datetime.fromisoformat(self.translationfile_data["date"])
+            < timedelta(hours=24)
+        ):
             return self.translationfile_data
 
         translationfile_json = requests.get(os.environ.get("TRANSLATIONFILE_URL"))
@@ -124,7 +146,9 @@ class QuestSearch:
             return
 
         pokemon_data = self.masterfile_data["pokemon"]
-        pokemon_name_map = {pokemon_id: details["name"] for pokemon_id, details in pokemon_data.items()}
+        pokemon_name_map = {
+            pokemon_id: details["name"] for pokemon_id, details in pokemon_data.items()
+        }
 
         item_data = self.masterfile_data["items"]
         item_name_map = {item_id: details for item_id, details in item_data.items()}
@@ -140,8 +164,14 @@ class QuestSearch:
         alternative_quest_data = self.get_alternative_quest_data()["data"]
 
         found_quests = []
-        found_quests.extend(self.find_and_process_quest_by_search_keyword(search, is_leiria, quest_data))
-        found_quests.extend(self.find_and_process_quest_by_search_keyword(search, is_leiria, alternative_quest_data))
+        found_quests.extend(
+            self.find_and_process_quest_by_search_keyword(search, is_leiria, quest_data)
+        )
+        found_quests.extend(
+            self.find_and_process_quest_by_search_keyword(
+                search, is_leiria, alternative_quest_data
+            )
+        )
 
         if found_quests == []:
             return None
@@ -151,19 +181,51 @@ class QuestSearch:
     def find_and_process_quest_by_search_keyword(self, search, is_leiria, quest_data):
         found_quests = []
 
-        mapped_pokemon_ids = self.get_pokemon_id_by_pokemon_name_map(search) # Get possible pokemon ids from the search string
-        mapped_item_ids = self.get_item_id_by_item_name_map(search) # Get possible item ids from the search string
+        mapped_pokemon_ids = self.get_pokemon_id_by_pokemon_name_map(
+            search
+        )  # Get possible pokemon ids from the search string
+        mapped_item_ids = self.get_item_id_by_item_name_map(
+            search
+        )  # Get possible item ids from the search string
 
-        if_dynamic_condition = lambda quest: ("-8.9" not in str(quest['lon'])) if is_leiria else ("-8.9" in str(quest['lon']))
+        if_dynamic_condition = lambda quest: (
+            ("-8.9" not in str(quest["lon"]))
+            if is_leiria
+            else ("-8.9" in str(quest["lon"]))
+        )
 
         for quest in quest_data:
             # Determine the appropriate field names based on the context
-            title_field = "alternative_quest_title" if "alternative_quest_title" in quest else "quest_title"
-            pokemon_id_field = "alternative_quest_pokemon_id" if "alternative_quest_pokemon_id" in quest else "quest_pokemon_id"
-            item_id_field = "alternative_quest_item_id" if "alternative_quest_item_id" in quest else "quest_item_id"
-            target_field = "alternative_quest_target" if "alternative_quest_target" in quest else "quest_target"
-            reward_type_field = "alternative_quest_reward_type" if "alternative_quest_reward_type" in quest else "quest_reward_type"
-            reward_amount_field = "alternative_quest_reward_amount" if "alternative_quest_reward_amount" in quest else "quest_reward_amount"
+            title_field = (
+                "alternative_quest_title"
+                if "alternative_quest_title" in quest
+                else "quest_title"
+            )
+            pokemon_id_field = (
+                "alternative_quest_pokemon_id"
+                if "alternative_quest_pokemon_id" in quest
+                else "quest_pokemon_id"
+            )
+            item_id_field = (
+                "alternative_quest_item_id"
+                if "alternative_quest_item_id" in quest
+                else "quest_item_id"
+            )
+            target_field = (
+                "alternative_quest_target"
+                if "alternative_quest_target" in quest
+                else "quest_target"
+            )
+            reward_type_field = (
+                "alternative_quest_reward_type"
+                if "alternative_quest_reward_type" in quest
+                else "quest_reward_type"
+            )
+            reward_amount_field = (
+                "alternative_quest_reward_amount"
+                if "alternative_quest_reward_amount" in quest
+                else "quest_reward_amount"
+            )
 
             # Retrieve the values from the quest data using the determined field names
             quest_title = quest.get(title_field, "").lower()
@@ -174,11 +236,26 @@ class QuestSearch:
             quest_reward_amount = quest.get(reward_amount_field, "")
 
             # Translate the quest title
-            quest_title_translated = self.translationfile_data["data"].get(quest_title, "").replace("{0}", quest_target)
+            quest_title_translated = (
+                self.translationfile_data["data"]
+                .get(quest_title, "")
+                .replace("{0}", quest_target)
+            )
 
             if if_dynamic_condition(quest):
-                if search in quest_title_translated.lower() or quest_pokemon_id in mapped_pokemon_ids or quest_item_id in mapped_item_ids or (search in "mega energy" and quest_reward_type == 12) or (search in "experience" and quest_reward_type == 1):
-                    quest["quest_slug"] = self.generate_quest_slug_for_image(quest_reward_type, quest_pokemon_id, quest_reward_amount, quest_item_id)
+                if (
+                    search in quest_title_translated.lower()
+                    or quest_pokemon_id in mapped_pokemon_ids
+                    or quest_item_id in mapped_item_ids
+                    or (search in "mega energy" and quest_reward_type == 12)
+                    or (search in "experience" and quest_reward_type == 1)
+                ):
+                    quest["quest_slug"] = self.generate_quest_slug_for_image(
+                        quest_reward_type,
+                        quest_pokemon_id,
+                        quest_reward_amount,
+                        quest_item_id,
+                    )
                     quest_title_found = False
                     for found_quest in found_quests:
                         if found_quest["quest_title"] == quest_title_translated:
@@ -186,24 +263,52 @@ class QuestSearch:
                             quest_title_found = True
                             break
                     if not quest_title_found:
-                        found_quests.append({"quest_title": quest_title_translated, "quests": [quest]})  # Append [quest] instead of quest
+                        found_quests.append(
+                            {"quest_title": quest_title_translated, "quests": [quest]}
+                        )  # Append [quest] instead of quest
 
         return found_quests
 
-    def generate_quest_slug_for_image(self, quest_reward_type, quest_pokemon_id = None, quest_reward_amount = None, quest_item_id = None):
-        quest_reward_masterfile_string = self.masterfile_data["questRewardTypes"][str(quest_reward_type)]
+    def generate_quest_slug_for_image(
+        self,
+        quest_reward_type,
+        quest_pokemon_id=None,
+        quest_reward_amount=None,
+        quest_item_id=None,
+    ):
+        quest_reward_masterfile_string = self.masterfile_data["questRewardTypes"][
+            str(quest_reward_type)
+        ]
 
         if quest_reward_type == 1:  # Experience
             quest_reward_masterfile_string = "reward/experience/0.png"
         elif quest_reward_type == 2:  # item
-            quest_reward_masterfile_string = "reward/item/" + str(quest_item_id) + ".png"
+            quest_reward_masterfile_string = (
+                "reward/item/" + str(quest_item_id) + ".png"
+            )
         elif quest_reward_type == 3:  # stardust
-            quest_reward_masterfile_string = "reward/" + quest_reward_masterfile_string.replace(" ", "_").lower() + "/0.png"
+            quest_reward_masterfile_string = (
+                "reward/"
+                + quest_reward_masterfile_string.replace(" ", "_").lower()
+                + "/0.png"
+            )
         elif quest_reward_type == 7:  # Pokemon
             quest_reward_masterfile_string = "pokemon/" + str(quest_pokemon_id) + ".png"
         elif quest_reward_type == 12:  # Mega Energy
-            quest_reward_masterfile_string = "reward/" + quest_reward_masterfile_string.replace(" ", "_").lower() + "/" + str(quest_pokemon_id) + ".png"
+            quest_reward_masterfile_string = (
+                "reward/"
+                + quest_reward_masterfile_string.replace(" ", "_").lower()
+                + "/"
+                + str(quest_pokemon_id)
+                + ".png"
+            )
         else:
-            quest_reward_masterfile_string = "reward/" + quest_reward_masterfile_string.replace(" ", "_").lower() + "/" + str(quest_reward_amount) + ".png"
+            quest_reward_masterfile_string = (
+                "reward/"
+                + quest_reward_masterfile_string.replace(" ", "_").lower()
+                + "/"
+                + str(quest_reward_amount)
+                + ".png"
+            )
 
         return quest_reward_masterfile_string
