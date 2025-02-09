@@ -38,8 +38,7 @@ class Poliswag(commands.Bot):
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
         self.MOD_CHANNEL = None
-        self.VOICE_CHANNEL_LEIRIA = None
-        self.VOICE_CHANNEL_MARINHA = None
+        self.ACCOUNTS_CHANNEL = None
         """ ! CHANNEL'S INITIAL SETUP ! """
 
         """ USER IDS """
@@ -65,11 +64,8 @@ class Poliswag(commands.Bot):
         self.MOD_CHANNEL = await self.fetch_channel(
             int(os.environ.get("MOD_CHANNEL_ID"))
         )
-        self.VOICE_CHANNEL_LEIRIA = await self.fetch_channel(
-            int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID"))
-        )
-        self.VOICE_CHANNEL_MARINHA = await self.fetch_channel(
-            int(os.environ.get("VOICE_CHANNEL_MARINHA_ID"))
+        self.ACCOUNTS_CHANNEL = await self.fetch_channel(
+            int(os.environ.get("ACCOUNTS_CHANNEL_ID"))
         )
 
     @tasks.loop(seconds=60)
@@ -79,7 +75,7 @@ class Poliswag(commands.Bot):
             self.quest_search.get_translationfile_data()
             self.quest_search.get_masterfile_data()
             self.quest_search.generate_pokemon_item_name_map()
-            self.event_manager.get_events()
+            self.event_manager.fetch_events()  # Events are now deprecated on ccev github
             """ ! UPDATE FILES DATA ! """
 
             """ NEW FORCED VERSIONS """
@@ -87,7 +83,7 @@ class Poliswag(commands.Bot):
             if new_version is not None:
                 await self.CONVIVIO_CHANNEL.send(
                     embed=self.utility.build_embed_object_title_description(
-                        "PAAAAAAAAAUUUUUUUUUU!!! FORCED VERSION UPDATED!",
+                        "PAAAAAAAAAUUUUUUUUUU!!! FORCE UPDATE!",
                         f"Nova versão: {new_version}",
                     )
                 )
@@ -119,7 +115,7 @@ class Poliswag(commands.Bot):
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """
-            current_active_events = self.event_manager.get_current_active_events()
+            current_active_events = self.event_manager.get_active_events()
             if current_active_events is not None:
                 for event in current_active_events:
                     await self.CONVIVIO_CHANNEL.send(
@@ -135,11 +131,16 @@ class Poliswag(commands.Bot):
 
             """ FAILING WORKERS """
             workers_status = await self.scanner_status.get_workers_with_issues()
-            await self.scanner_status.rename_voice_channels(
-                workers_status["downDevicesLeiria"],
-                workers_status["downDevicesMarinha"],
-            )
+            if workers_status:
+                await self.scanner_status.rename_voice_channels(
+                    workers_status["downDevicesLeiria"],
+                    workers_status["downDevicesMarinha"],
+                )
             """ ! FAILING WORKERS ! """
+
+            """ SCANNER ACCOUNTS SCHEDULED IMAGE """
+            await self.scanner_status.update_channel_accounts_stats()
+            """ ! SCANNER ACCOUNTS SCHEDULED IMAGE ! """
         except Exception as e:
             print("CRASH ---", e)
             traceback.print_exc()  # logs broken line
