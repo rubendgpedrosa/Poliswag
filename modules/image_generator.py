@@ -108,19 +108,21 @@ class ImageGenerator:
         template = env.get_template(self.ACCOUNTS_TEMPLATE_HTML_FILE)
 
         good_accounts = account_data.get("good", 0)
-        in_use_accounts = account_data.get("in_use", 0)
         cooldown_accounts = account_data.get("cooldown", 0)
+        disabled_accounts = account_data.get("disabled", 0)
 
         html_content = template.render(
-            good=good_accounts, in_use=in_use_accounts, cooldown=cooldown_accounts
+            good=good_accounts, cooldown=cooldown_accounts, disabled=disabled_accounts
         )
 
         options = {
             "format": "png",
             "encoding": "UTF-8",
             "width": "800",
-            "height": "400",
+            "height": "200",
             "quality": "100",
+            "transparent": "",
+            "javascript-delay": "1000",
         }
 
         try:
