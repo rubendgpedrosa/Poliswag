@@ -6,9 +6,6 @@ class Quests(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.SCAN_QUESTS_ALL_URL = os.environ.get("SCAN_QUESTS_ALL_URL")
-        self.QUESTS_IMAGE_FILE = os.environ.get("QUESTS_IMAGE_FILE")
-        self.QUESTS_IMAGE_MAP_FILE = os.environ.get("QUESTS_IMAGE_MAP_FILE")
-        self.QUESTS_COMPOSITE_IMAGE_FILE = os.environ.get("QUESTS_COMPOSITE_IMAGE_FILE")
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
