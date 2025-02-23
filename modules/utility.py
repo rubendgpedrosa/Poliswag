@@ -22,16 +22,29 @@ class Utility:
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.POKEMON_VERSION_URL) as response:
                     if response.status == 200:
-                        retrievedVersion = (await response.text()).strip()
-                        storedVersion = self.poliswag.db.get_data_from_database(
+                        retrievedVersion = (
+                            (await response.text()).strip().replace("\x07", "")
+                        )
+
+                        result = self.poliswag.db.get_data_from_database(
                             "SELECT version FROM poliswag"
                         )
 
-                        if retrievedVersion != storedVersion["version"]:
+                        storedVersion = (
+                            result[0] if isinstance(result, tuple) else result
+                        )
+
+                        if isinstance(storedVersion, dict):
+                            current_version = storedVersion.get("version")
+                        else:
+                            current_version = storedVersion
+
+                        if retrievedVersion != current_version:
                             self.poliswag.db.execute_query_to_database(
-                                "UPDATE poliswag SET version = %s", (retrievedVersion,)
+                                f"UPDATE poliswag SET version = '{retrievedVersion}'"
                             )
                             return retrievedVersion
+                        return None
             return None
         except Exception as e:
             self.log_to_file(f"Error fetching Pokemon version: {e}", "ERROR")
@@ -39,7 +52,11 @@ class Utility:
 
     def log_to_file(self, message, log_type="INFO"):
         try:
-            logFile = self.ERROR_LOG_FILE if log_type == "CRASH" else self.LOG_FILE
+            logFile = (
+                self.ERROR_LOG_FILE
+                if (log_type == "CRASH" or log_type == "ERROR")
+                else self.LOG_FILE
+            )
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             logEntry = f"{log_type} | {timestamp} -- {message}\n"
 
