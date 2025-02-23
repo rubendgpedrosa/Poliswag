@@ -170,11 +170,15 @@ class ScannerStatus:
             elif downCounter == 2:
                 return f"{region}: 🟠"
             elif downCounter >= 3:
-                return f"{region}: 🔴 ({downCounter})"
+                return f"{region}: 🔴"
             else:
                 return f"{region}: 🔴"
 
     async def is_quest_scanning_complete(self):
+        current_time = datetime.datetime.now()
+        if current_time.hour == 0 and current_time.minute < 2:
+            return {"leiriaCompleted": False, "marinhaCompleted": False}
+
         quest_scanning_ongoing = self.poliswag.db.get_data_from_database(
             f"SELECT scanned FROM poliswag;"
         )
@@ -182,6 +186,7 @@ class ScannerStatus:
         is_quest_scanning = True if quest_scanning_ongoing["scanned"] == 0 else False
         if not is_quest_scanning:
             return {"leiriaCompleted": False, "marinhaCompleted": False}
+
         try:
             response_leiria = requests.get(self.LEIRIA_QUEST_SCANNING_URL)
             response_marinha = requests.get(self.MARINHA_QUEST_SCANNING_URL)
@@ -191,6 +196,9 @@ class ScannerStatus:
 
             leiria_data = response_leiria.json()
             marinha_data = response_marinha.json()
+
+            if leiria_data.get("ar_quests") == 0 or marinha_data.get("ar_quests") == 0:
+                return {"leiriaCompleted": False, "marinhaCompleted": False}
 
             leiria_completed = leiria_data.get("total") == leiria_data.get("ar_quests")
             marinha_completed = marinha_data.get("total") == marinha_data.get(

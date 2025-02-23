@@ -75,7 +75,7 @@ class Poliswag(commands.Bot):
             self.quest_search.get_translationfile_data()
             self.quest_search.get_masterfile_data()
             self.quest_search.generate_pokemon_item_name_map()
-            self.event_manager.fetch_events()  # Events are now deprecated on ccev github
+            self.event_manager.fetch_events()
             """ ! UPDATE FILES DATA ! """
 
             """ NEW FORCED VERSIONS """
@@ -115,15 +115,15 @@ class Poliswag(commands.Bot):
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """
-            current_active_events = self.event_manager.get_active_events()
-            if current_active_events is not None:
-                for event in current_active_events:
-                    await self.CONVIVIO_CHANNEL.send(
-                        content=event["content"],
-                        embed=self.utility.build_embed_object_title_description(
-                            event["name"], event["body"], event["footer"]
-                        ),
-                    )
+            # current_active_events = self.event_manager.get_active_events()
+            # if current_active_events is not None:
+            #    for event in current_active_events:
+            #        await self.CONVIVIO_CHANNEL.send(
+            #            content=event["content"],
+            #            embed=self.utility.build_embed_object_title_description(
+            #                event["name"], event["body"], event["footer"]
+            #            ),
+            #        )
             """ ! START / END OF EVENTS ! """
 
             """ TRACKING SPECIAL QUESTS """

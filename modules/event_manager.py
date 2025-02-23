@@ -9,7 +9,7 @@ class EventManager:
 
     def fetch_events(self):
         response = requests.get(
-            "https://raw.githubusercontent.com/ccev/pogoinfo/v2/active/events.json"
+            "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
         )
         response.raise_for_status()
         self.events = response.json()
@@ -20,15 +20,28 @@ class EventManager:
             return
 
         for event in self.events:
-            if event.get("start") and event.get("end"):
-                event_name = event["name"].replace("'", "\\'")
-                name_lower = event["name"].lower()
-                if "unannounced" not in name_lower:
-                    query = f"INSERT IGNORE INTO event(name, start, end) VALUES ('{event_name}', '{event['start']}', '{event['end']}');"
-                    self.poliswag.db.execute_query_to_database(query)
+            try:
+                start = event["start"]
+                end = event["end"]
+                name = event["name"]
+            except KeyError:
+                continue
+
+            if "unannounced" in name.lower():
+                continue
+
+            # Clean up date formatting
+            start = start.replace("Z", "").split(".")[0]
+            end = end.replace("Z", "").split(".")[0]
+
+            query = f"""
+                INSERT IGNORE INTO event(name, start, end)
+                VALUES ('{name.replace("'", "''")}', '{start}', '{end}')
+            """
+            self.poliswag.db.execute_query_to_database(query)
 
     def get_active_events(self):
-        current_time = datetime.now()
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         query = f"""
             SELECT name, start, end, notification_date 
             FROM event 
@@ -40,54 +53,70 @@ class EventManager:
         if not stored_events:
             return None
 
-        event_names = [
-            f"'{event['name'].replace('\'', '\\\'')}'" for event in stored_events
-        ]
-        names_string = ", ".join(event_names)
-
         embeds_content = []
         for event in self.events:
-            event_start = datetime.strptime(event["start"], "%Y-%m-%d %H:%M").replace(
-                second=0, microsecond=0
-            )
-            event_end = datetime.strptime(event["end"], "%Y-%m-%d %H:%M").replace(
-                second=0, microsecond=0
-            )
+            try:
+                event_start = datetime.fromisoformat(event["start"].rstrip("Z"))
+                event_end = datetime.fromisoformat(event["end"].rstrip("Z"))
+            except (KeyError, ValueError):
+                continue
 
-            if event_start <= current_time <= event_end:
-                event_bonuses = []
-                for key, value in event.items():
-                    if (
-                        key
-                        not in [
-                            "has_quests",
-                            "has_spawnpoints",
-                            "start",
-                            "end",
-                            "name",
-                            "type",
-                        ]
-                        and value
-                    ):
-                        if key == "bonuses":
-                            event_bonuses.extend(
-                                [f"• {bonus['text']}" for bonus in value]
-                            )
-                        else:
-                            event_bonuses.append(f"• {key.capitalize()}: {value}")
-
-                embeds_content.append(
-                    {
-                        "content": (
-                            "**ATUAIS EVENTOS ATIVOS:**" if not embeds_content else None
-                        ),
-                        "name": event["name"].upper(),
-                        "body": "\n".join(event_bonuses),
-                        "footer": f"Entre {event_start} e {event_end}",
-                    }
-                )
-
-        update_query = f"UPDATE event SET notification_date = CASE WHEN notification_date IS NULL THEN start ELSE end END WHERE name IN({names_string});"
-        self.poliswag.db.execute_query_to_database(update_query)
+            if event_start <= datetime.now() <= event_end:
+                event_details = self._parse_event_details(event)
+                if event_details:
+                    embeds_content.append(
+                        {
+                            "content": (
+                                "**ATUAIS EVENTOS ATIVOS:**"
+                                if not embeds_content
+                                else None
+                            ),
+                            "name": event["name"].upper(),
+                            "body": "\n".join(event_details["bonuses"]),
+                            "footer": f"Entre {event_start.strftime('%Y-%m-%d %H:%M')} e {event_end.strftime('%Y-%m-%d %H:%M')}",
+                            "image": event.get("image", ""),
+                        }
+                    )
 
         return embeds_content
+
+    def _parse_event_details(self, event):
+        details = {"bonuses": []}
+        extra = event.get("extraData", {})
+
+        event_type = event.get("eventType", "").lower()
+
+        if "spotlight" in event_type:
+            if spotlight := extra.get("spotlight"):
+                details["bonuses"].append(f"• Pokémon: {spotlight.get('name', '')}")
+                if bonus := spotlight.get("bonus"):
+                    details["bonuses"].append(f"• Bônus: {bonus}")
+                if shiny := spotlight.get("canBeShiny"):
+                    details["bonuses"].append("• Pokémon Shiny disponível")
+
+        elif "raid" in event_type:
+            if raids := extra.get("raidbattles"):
+                for boss in raids.get("bosses", []):
+                    shiny_status = (
+                        " (Shiny disponível)" if boss.get("canBeShiny") else ""
+                    )
+                    details["bonuses"].append(
+                        f"• Chefe de Raide: {boss['name']}{shiny_status}"
+                    )
+
+        elif generic := extra.get("generic"):
+            if generic.get("hasFieldResearchTasks"):
+                details["bonuses"].append("• Missões de Pesquisa Especiais")
+            if generic.get("hasSpawns"):
+                details["bonuses"].append("• Spawns Especiais")
+
+        if "gbl" in event_type or "battle-league" in event_type:
+            if leagues := [event.get("heading", "")]:
+                details["bonuses"].append(f"• Ligas: {', '.join(leagues)}")
+
+        if not details["bonuses"]:
+            details["bonuses"].append("• Verifique o link para detalhes completos")
+
+        details["bonuses"].append(f"• Mais informações: {event.get('link', '')}")
+
+        return details

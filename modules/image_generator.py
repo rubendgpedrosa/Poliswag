@@ -31,6 +31,7 @@ class ImageGenerator:
             "encoding": "UTF-8",
             "width": "1200",
             "quality": "80",
+            "quiet": "",
         }
         self.quests_image_bytes = imgkit.from_string(
             html_content, output_path=False, options=options
@@ -123,6 +124,7 @@ class ImageGenerator:
             "quality": "100",
             "transparent": "",
             "javascript-delay": "1000",
+            "quiet": "",
         }
 
         try:
