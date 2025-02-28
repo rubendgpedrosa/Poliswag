@@ -17,6 +17,7 @@ class ScannerStatus:
         self.LEIRIA_QUEST_SCANNING_URL = os.environ.get("LEIRIA_QUEST_SCANNING_URL")
         self.MARINHA_QUEST_SCANNING_URL = os.environ.get("MARINHA_QUEST_SCANNING_URL")
         self.UPDATE_THRESHOLD = 3600
+        self.ALL_DOWN_ENDPOINT = os.environ.get("ALL_DOWN_ENDPOINT")
 
         self.channelCache = {
             "leiria": {"name": None, "last_update": 0},
@@ -26,6 +27,9 @@ class ScannerStatus:
             "LeiriaBigger": 3,
             "MarinhaGrande": 1,
         }
+
+        self.last_all_down_request_time = 0
+        self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
 
     async def get_voice_channel(self, channelName):
         try:
@@ -43,7 +47,14 @@ class ScannerStatus:
 
     async def rename_voice_channels(self, leiriaDownCounter, marinhaDownCounter):
         current_time = time.time()
-        updated_channel = False
+
+        if (
+            leiriaDownCounter is not None
+            and marinhaDownCounter is not None
+            and leiriaDownCounter >= self.defaultExpectedWorkers["LeiriaBigger"]
+            and marinhaDownCounter >= self.defaultExpectedWorkers["MarinhaGrande"]
+        ):
+            await self.trigger_all_down_action()
 
         if self.should_update_channel("leiria", leiriaDownCounter):
             leiria_status = self.get_status_message(leiriaDownCounter, "LEIRIA")
@@ -56,7 +67,6 @@ class ScannerStatus:
                             "name": leiria_status,
                             "last_update": current_time,
                         }
-                        updated_channel = True
                     except discord.errors.HTTPException as e:
                         if e.code == 429:  # Rate limit error
                             print(f"Rate limited while updating Leiria channel: {e}")
@@ -74,7 +84,6 @@ class ScannerStatus:
                             "name": marinha_status,
                             "last_update": current_time,
                         }
-                        updated_channel = True
                     except discord.errors.HTTPException as e:
                         if e.code == 429:  # Rate limit error
                             print(f"Rate limited while updating Marinha channel: {e}")
@@ -142,6 +151,25 @@ class ScannerStatus:
             "downDevicesLeiria": downDevicesLeiria,
             "downDevicesMarinha": downDevicesMarinha,
         }
+
+    async def trigger_all_down_action(self):
+        current_time = time.time()
+        if (
+            current_time - self.last_all_down_request_time
+            >= self.ALL_DOWN_REQUEST_COOLDOWN
+        ):
+            self.last_all_down_request_time = current_time
+            try:
+                payload = {"type": "all_devices_down", "value": "true"}
+                response = requests.post(
+                    self.ALL_DOWN_ENDPOINT, json=payload, timeout=10
+                )
+                response.raise_for_status()
+
+            except requests.exceptions.RequestException as e:
+                self.poliswag.utility.log_to_file(
+                    f"Error sending all-down notification to myendpoint: {e}", "ERROR"
+                )
 
     async def get_worker_status(self):
         async with aiohttp.ClientSession() as session:
