@@ -1,3 +1,8 @@
+# ⚠️🚨 OUTDATED FILE 🚨⚠️
+# This file is no longer used/outdated and needs rework or removal.
+# TODO: Refactor or remove this file.
+
+
 import json, requests
 
 import discord

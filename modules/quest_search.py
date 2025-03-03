@@ -8,7 +8,7 @@ from modules.database_connector import DatabaseConnector
 class QuestSearch:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.db = DatabaseConnector(os.environ.get("DB_SCANNER"))
+        self.db = DatabaseConnector(os.environ.get("DB_SCANNER_NAME"))
         self.POKEMON_NAME_FILE = os.environ.get("POKEMON_NAME_FILE")
         self.ITEM_NAME_FILE = os.environ.get("ITEM_NAME_FILE")
 
@@ -85,7 +85,7 @@ class QuestSearch:
         ) < timedelta(hours=24):
             return self.masterfile_data
 
-        masterfile_json = requests.get(os.environ.get("MASTERFILE_URL"))
+        masterfile_json = requests.get(os.environ.get("MASTERFILE_ENDPOINT"))
         if masterfile_json.status_code == 200:
             masterfile_json = masterfile_json.json()
             masterfile_json = {
@@ -106,7 +106,7 @@ class QuestSearch:
         ):
             return self.translationfile_data
 
-        translationfile_json = requests.get(os.environ.get("TRANSLATIONFILE_URL"))
+        translationfile_json = requests.get(os.environ.get("TRANSLATIONFILE_ENDPOINT"))
         if translationfile_json.status_code == 200:
             translationfile_json = translationfile_json.json()
             translation_data = translationfile_json.get("data", [])

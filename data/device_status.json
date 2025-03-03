@@ -1,0 +1,172 @@
+{
+    "devices": [
+        {
+            "dateLastMessageReceived": 1741008595343,
+            "dateLastMessageSent": 1741008595343,
+            "deviceId": "PoGoLeiria",
+            "init": false,
+            "instanceNo": 4,
+            "heartbeatCheckStatus": true,
+            "isAlive": true,
+            "lastMemory": {
+                "memFree": 562348,
+                "memMitm": 258972,
+                "memStart": 0
+            },
+            "nextId": 115,
+            "noMessagesReceived": 0,
+            "noMessagesSent": 114,
+            "origin": "MITM-PoGoLeiria",
+            "version": 20241005,
+            "dateConnected": 1741001754948,
+            "publicIp": "127.0.0.1"
+        }
+    ],
+    "workers": [
+        {
+            "deviceId": "PoGoLeiria",
+            "controller": {
+                "dateLastMessageSent": 1741008607752,
+                "instanceNo": 57,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "loginListener": 0,
+                "origin": "MITM-PoGoLeiria",
+                "workerId": "PoGoLeiria-001",
+                "workerName": "LeiriaBigger_01/WORKER_1"
+            },
+            "isAllocated": true,
+            "worker": {
+                "dateLastMessageReceived": 1741008607752,
+                "dateLastMessageSent": 1741008607752,
+                "init": false,
+                "instanceNo": 77,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "noMessagesReceived": 4024,
+                "noMessagesSent": 4025,
+                "origin": "MITM-PoGoLeiria",
+                "traceMessages": false,
+                "version": "20241005",
+                "workerId": "PoGoLeiria-001",
+                "deviceId": "PoGoLeiria",
+                "userAgent": "MITM"
+            },
+            "workerId": "PoGoLeiria-001"
+        },
+        {
+            "deviceId": "PoGoLeiria",
+            "controller": {
+                "dateLastMessageSent": 1741008607238,
+                "instanceNo": 58,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "loginListener": 0,
+                "origin": "MITM-PoGoLeiria",
+                "workerId": "PoGoLeiria-002",
+                "workerName": "LeiriaBigger_02/WORKER_2"
+            },
+            "isAllocated": true,
+            "worker": {
+                "dateLastMessageReceived": 1741008607238,
+                "dateLastMessageSent": 1741008605438,
+                "init": false,
+                "instanceNo": 78,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "noMessagesReceived": 3736,
+                "noMessagesSent": 3736,
+                "origin": "MITM-PoGoLeiria",
+                "traceMessages": false,
+                "version": "20241005",
+                "workerId": "PoGoLeiria-002",
+                "deviceId": "PoGoLeiria",
+                "userAgent": "MITM"
+            },
+            "workerId": "PoGoLeiria-003"
+        },
+        {
+            "deviceId": "PoGoLeiria",
+            "controller": {
+                "dateLastMessageSent": 1741008605030,
+                "instanceNo": 59,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "loginListener": 0,
+                "origin": "MITM-PoGoLeiria",
+                "workerId": "PoGoLeiria-003",
+                "workerName": "MarinhaGrande_01/WORKER_3"
+            },
+            "isAllocated": true,
+            "worker": {
+                "dateLastMessageReceived": 1741008605030,
+                "dateLastMessageSent": 1741008603786,
+                "init": false,
+                "instanceNo": 79,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "noMessagesReceived": 3489,
+                "noMessagesSent": 3489,
+                "origin": "MITM-PoGoLeiria",
+                "traceMessages": false,
+                "version": "20241005",
+                "workerId": "PoGoLeiria-003",
+                "deviceId": "PoGoLeiria",
+                "userAgent": "MITM"
+            },
+            "workerId": "PoGoLeiria-002"
+        },
+        {
+            "deviceId": "PoGoLeiria",
+            "controller": {
+                "dateLastMessageSent": 1741008604612,
+                "instanceNo": 60,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "loginListener": 0,
+                "origin": "MITM-PoGoLeiria",
+                "workerId": "PoGoLeiria-004",
+                "workerName": "LeiriaBigger_03/WORKER_4"
+            },
+            "isAllocated": true,
+            "worker": {
+                "dateLastMessageReceived": 1741008604612,
+                "dateLastMessageSent": 1741008608114,
+                "init": false,
+                "instanceNo": 80,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "noMessagesReceived": 3464,
+                "noMessagesSent": 3465,
+                "origin": "MITM-PoGoLeiria",
+                "traceMessages": false,
+                "version": "20241005",
+                "workerId": "PoGoLeiria-004",
+                "deviceId": "PoGoLeiria",
+                "userAgent": "MITM"
+            },
+            "workerId": "PoGoLeiria-005"
+        },
+        {
+            "deviceId": "PoGoLeiria",
+            "isAllocated": false,
+            "worker": {
+                "dateLastMessageReceived": 1741001802039,
+                "dateLastMessageSent": 0,
+                "init": false,
+                "instanceNo": 81,
+                "heartbeatCheckStatus": true,
+                "isAlive": true,
+                "noMessagesReceived": 0,
+                "noMessagesSent": 0,
+                "origin": "MITM-PoGoLeiria",
+                "traceMessages": false,
+                "version": "20241005",
+                "workerId": "PoGoLeiria-005",
+                "deviceId": "PoGoLeiria",
+                "userAgent": "MITM"
+            },
+            "workerId": "PoGoLeiria-005"
+        }
+    ]
+}

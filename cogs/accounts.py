@@ -1,4 +1,4 @@
-import discord, requests, os, io
+import discord, io
 from discord.ext import commands
 
 

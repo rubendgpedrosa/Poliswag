@@ -1,11 +1,11 @@
-import discord, requests, os
+import discord, os
 from discord.ext import commands
 
 
 class Quests(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.SCAN_QUESTS_ALL_URL = os.environ.get("SCAN_QUESTS_ALL_URL")
+        self.SCAN_QUESTS_ALL_ENDPOINT = os.environ.get("SCAN_QUESTS_ALL_ENDPOINT")
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -15,7 +15,7 @@ class Quests(commands.Cog):
 
     @commands.command(name="scan")
     async def rescancmd(self, ctx):
-        request = requests.get(self.SCAN_QUESTS_ALL_URL)
+        request = await self.poliswag.utility.fetch_data("scan_quest_all")
         if request.status_code == 200:
             await ctx.send("Scan de quests iniciado!")
             self.poliswag.scanner_manager.update_quest_scanning_state(0)
