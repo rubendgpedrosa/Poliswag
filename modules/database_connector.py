@@ -1,19 +1,18 @@
 import pymysql
 import os
-import subprocess
 import logging
 
 
 class DatabaseConnector:
     def __init__(self, database=None):
-        self.CONTAINER_NAME = "db"
         self.database = database or os.environ.get("DB_POLISWAG")
         self.db = self.connect_to_db()
 
     def connect_to_db(self):
         try:
             db = pymysql.connect(
-                host=self.get_container_ip(),
+                host="db",
+                port=3306,
                 user=os.environ.get("DB_USER"),
                 password=os.environ.get("DB_PASSWORD"),
                 db=self.database,
@@ -23,23 +22,6 @@ class DatabaseConnector:
         except pymysql.MySQLError as e:
             logging.error(f"Failed to connect to the database: {e}")
             raise
-
-    def get_container_ip(self):
-        command = "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' db"
-        result = subprocess.run(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,
-        )
-
-        ip_address = result.stdout.strip()
-        logging.info(
-            f"Obtained IP address for container {self.CONTAINER_NAME}: {ip_address}"
-        )
-        return ip_address
 
     def get_data_from_database(self, query, retries=3):
         return self.execute_query(query, fetch=True, retries=retries)
