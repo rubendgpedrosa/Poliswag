@@ -21,7 +21,7 @@ class Utility:
         self.ENDPOINTS = {
             "scanner_status": os.environ.get("SCANNER_STATUS_ENDPOINT"),
             "device_status": os.environ.get("DEVICE_STATUS_ENDPOINT"),
-            "scanner_accounts": os.environ.get("SCANNER_ACCOUNTS_STATUS_ENDPOINT"),
+            "account_status": os.environ.get("SCANNER_ACCOUNTS_STATUS_ENDPOINT"),
             "leiria_quest_scanning": os.environ.get("LEIRIA_QUEST_SCANNING_ENDPOINT"),
             "marinha_quest_scanning": os.environ.get("MARINHA_QUEST_SCANNING_ENDPOINT"),
             "all_down": os.environ.get("ALL_DOWN_ENDPOINT"),
@@ -137,11 +137,11 @@ class Utility:
             self.log_to_file(f"Failed to send embed: {e}", "ERROR")
 
     async def fetch_data(self, endpoint_key, timeout=20, method="GET", data=None):
-        if self.DEV:
+        if self.DEV and endpoint_key not in ["all_down", "events"]:
             mock_file_map = {
                 "scanner_status": "scanner_status.json",
                 "device_status": "device_status.json",
-                "scanner_accounts": "scanner_accounts_status.json",
+                "account_status": "account_status.json",
                 "leiria_quest_scanning": "leiria_quest_scanning.json",
                 "marinha_quest_scanning": "marinha_quest_scanning.json",
                 "all_down": "",
