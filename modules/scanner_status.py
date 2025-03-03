@@ -253,7 +253,7 @@ class ScannerStatus:
             return {"leiriaCompleted": False, "marinhaCompleted": False}
 
     async def get_account_stats(self):
-        account_stats = await self.poliswag.utility.fetch_data("scanner_accounts")
+        account_stats = await self.poliswag.utility.fetch_data("account_status")
 
         if not account_stats:
             return {

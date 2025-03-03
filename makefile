@@ -32,7 +32,6 @@ up: ## Start the full application
 ifneq ($(ENV),PRODUCTION) ## Extras for development environment, logs are automatically started once container is built
 	@sleep 5
 	@echo "Initializing database..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) exec db mysql -u poliswag -ppoliswag < mock_data_sample/init.sql
 	@mkdir -p $(MOCK_DATA_DIR)
 	@cp -n mock_data_sample/*.json $(MOCK_DATA_DIR) || true
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
@@ -76,5 +75,5 @@ reload: ## Reload the Python script inside the container, cleaning log files.
 	@echo "Poliswag application reloaded."
 
 install-hooks: ## Install pre-commit hooks
-	pip install pre-commit
+	python3 -m pip install pre-commit --break-system-packages
 	pre-commit install
