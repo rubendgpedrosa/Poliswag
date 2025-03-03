@@ -11,8 +11,8 @@ class DatabaseConnector:
     def connect_to_db(self):
         try:
             db = pymysql.connect(
-                host="db",
-                port=3306,
+                host=os.environ.get("DB_HOST"),
+                port=int(os.environ.get("DB_PORT")),
                 user=os.environ.get("DB_USER"),
                 password=os.environ.get("DB_PASSWORD"),
                 db=self.database,

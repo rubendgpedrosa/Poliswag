@@ -13,6 +13,11 @@ services:
       - "3306:3306"
     volumes:
       - ./mock_database:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   poliswag:
     build: .
     image: poliswag
@@ -29,6 +34,7 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy # wait until the db is healthy
     env_file:
       - .env
