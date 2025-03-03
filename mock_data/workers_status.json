@@ -1,0 +1,44 @@
+{
+  "areas": [
+    {
+      "name": "LeiriaBigger",
+      "worker_managers": [
+        {
+          "expected_workers": 3,
+          "workers": [
+            {
+              "worker_id": "leiria-worker-1",
+              "last_data": 1704067200,
+              "connection_status": "Executing Worker"
+            },
+            {
+              "worker_id": "leiria-worker-2",
+              "last_data": 1704067200,
+              "connection_status": "Executing Worker"
+            },
+            {
+              "worker_id": "leiria-worker-3",
+              "last_data": 1704067200,
+              "connection_status": "Executing Worker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MarinhaGrande",
+      "worker_managers": [
+        {
+          "expected_workers": 1,
+          "workers": [
+            {
+              "worker_id": "marinha-worker-1",
+              "last_data": 1704067200,
+              "connection_status": "Executing Worker"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

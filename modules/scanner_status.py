@@ -1,7 +1,6 @@
 import datetime
 import requests
 import os
-import aiohttp
 import time
 import discord
 import io
@@ -11,38 +10,31 @@ class ScannerStatus:
     def __init__(self, poliswag):
         self.poliswag = poliswag
 
-        self.BACKEND_ENDPOINT = os.environ.get("BACKEND_ENDPOINT")
-        self.SCANNER_STATUS_URL = os.environ.get("SCANNER_STATUS_URL")
-        self.SCANNER_ACCOUNTS_STATUS_URL = os.environ.get("SCANNER_ACCOUNTS_STATUS_URL")
-        self.LEIRIA_QUEST_SCANNING_URL = os.environ.get("LEIRIA_QUEST_SCANNING_URL")
-        self.MARINHA_QUEST_SCANNING_URL = os.environ.get("MARINHA_QUEST_SCANNING_URL")
-        self.UPDATE_THRESHOLD = 3600
-        self.ALL_DOWN_ENDPOINT = os.environ.get("ALL_DOWN_ENDPOINT")
+        self.MOCK_DATA_DIR = "mock_data"
 
         self.channelCache = {
             "leiria": {"name": None, "last_update": 0},
             "marinha": {"name": None, "last_update": 0},
         }
+
         self.defaultExpectedWorkers = {
             "LeiriaBigger": 3,
             "MarinhaGrande": 1,
         }
 
         self.last_all_down_request_time = 0
+        self.UPDATE_THRESHOLD = 3600  # 1 hour
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
 
     async def get_voice_channel(self, channelName):
         try:
-            if channelName == "leiria":
-                return await self.poliswag.fetch_channel(
-                    int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID"))
-                )
-            elif channelName == "marinha":
-                return await self.poliswag.fetch_channel(
-                    int(os.environ.get("VOICE_CHANNEL_MARINHA_ID"))
-                )
+            channel_env_var = f"VOICE_CHANNEL_{channelName.upper()}_ID"
+            channel_id = int(os.environ.get(channel_env_var))
+            return await self.poliswag.fetch_channel(channel_id)
         except Exception as e:
-            print(f"Error fetching {channelName} channel: {e}")
+            self.poliswag.utility.log_to_file(
+                f"Error fetching {channelName} channel: {e}", "ERROR"
+            )
             return None
 
     async def rename_voice_channels(self, leiriaDownCounter, marinhaDownCounter):
@@ -56,39 +48,34 @@ class ScannerStatus:
         ):
             await self.trigger_all_down_action()
 
-        if self.should_update_channel("leiria", leiriaDownCounter):
-            leiria_status = self.get_status_message(leiriaDownCounter, "LEIRIA")
-            if leiria_status != self.channelCache["leiria"]["name"]:
-                channel = await self.get_voice_channel("leiria")
-                if channel:
-                    try:
-                        await channel.edit(name=leiria_status)
-                        self.channelCache["leiria"] = {
-                            "name": leiria_status,
-                            "last_update": current_time,
-                        }
-                    except discord.errors.HTTPException as e:
-                        if e.code == 429:  # Rate limit error
-                            print(f"Rate limited while updating Leiria channel: {e}")
-                        else:
-                            print(f"Error updating Leiria channel: {e}")
-
-        if self.should_update_channel("marinha", marinhaDownCounter):
-            marinha_status = self.get_status_message(marinhaDownCounter, "MARINHA")
-            if marinha_status != self.channelCache["marinha"]["name"]:
-                channel = await self.get_voice_channel("marinha")
-                if channel:
-                    try:
-                        await channel.edit(name=marinha_status)
-                        self.channelCache["marinha"] = {
-                            "name": marinha_status,
-                            "last_update": current_time,
-                        }
-                    except discord.errors.HTTPException as e:
-                        if e.code == 429:  # Rate limit error
-                            print(f"Rate limited while updating Marinha channel: {e}")
-                        else:
-                            print(f"Error updating Marinha channel: {e}")
+        # Update channels if needed
+        for channel_info in [
+            ("leiria", leiriaDownCounter, "LEIRIA"),
+            ("marinha", marinhaDownCounter, "MARINHA"),
+        ]:
+            channel_key, counter, region = channel_info
+            if self.should_update_channel(channel_key, counter):
+                status = self.get_status_message(counter, region)
+                if status != self.channelCache[channel_key]["name"]:
+                    channel = await self.get_voice_channel(channel_key)
+                    if channel:
+                        try:
+                            await channel.edit(name=status)
+                            self.channelCache[channel_key] = {
+                                "name": status,
+                                "last_update": current_time,
+                            }
+                        except discord.errors.HTTPException as e:
+                            if e.code == 429:  # Rate limit error
+                                self.poliswag.utility.log_to_file(
+                                    f"Rate limited while updating {channel_key} channel: {e}",
+                                    "ERROR",
+                                )
+                            else:
+                                self.poliswag.utility.log_to_file(
+                                    f"Error updating {channel_key} channel: {e}",
+                                    "ERROR",
+                                )
 
     def should_update_channel(self, channelType, counter):
         current_time = time.time()
@@ -104,7 +91,7 @@ class ScannerStatus:
         return new_status != cacheEntry["name"]
 
     async def get_workers_with_issues(self):
-        workerStatus = await self.get_worker_status()
+        workerStatus = await self.poliswag.utility.fetch_data("scanner_status")
         downDevicesLeiria = None
         downDevicesMarinha = None
 
@@ -152,6 +139,24 @@ class ScannerStatus:
             "downDevicesMarinha": downDevicesMarinha,
         }
 
+    async def check_all_devices_status(self):
+        device_status = await self.poliswag.utility.fetch_data("device_status")
+
+        if not device_status or "devices" not in device_status:
+            return False
+
+        current_time_ms = datetime.datetime.now().timestamp() * 1000
+        inactive_threshold_ms = 600000  # 10 minutes in milliseconds
+
+        for device in device_status["devices"]:
+            last_message_time = device.get("dateLastMessageReceived", 0)
+            time_since_last_message = current_time_ms - last_message_time
+
+            if time_since_last_message <= inactive_threshold_ms:
+                return False
+
+        return True
+
     async def trigger_all_down_action(self):
         current_time = time.time()
         if (
@@ -160,47 +165,46 @@ class ScannerStatus:
         ):
             self.last_all_down_request_time = current_time
             try:
-                payload = {"type": "all_devices_down", "value": "true"}
-                response = requests.post(
-                    self.ALL_DOWN_ENDPOINT, json=payload, timeout=10
-                )
-                response.raise_for_status()
+                all_devices_down = await self.check_all_devices_status()
+
+                if all_devices_down:
+                    account_data = await self.get_account_stats()
+                    payload = {
+                        "type": "all_devices_down",
+                        "value": account_data.get("good"),
+                    }
+
+                    if self.poliswag.utility.DEV:
+                        self.poliswag.utility.log_to_file(
+                            f"[DEV] Would send all-down notification with payload: {payload}"
+                        )
+                    else:
+                        response = requests.post(
+                            os.environ.get("ALL_DOWN_ENDPOINT"),
+                            json=payload,
+                            timeout=10,
+                        )
+                        response.raise_for_status()
+                else:
+                    self.poliswag.utility.log_to_file(
+                        f"Not all devices are down, so not sending all-down notification"
+                    )
 
             except requests.exceptions.RequestException as e:
                 self.poliswag.utility.log_to_file(
-                    f"Error sending all-down notification to myendpoint: {e}", "ERROR"
+                    f"Error sending all-down notification to myendpoint: {e}",
+                    "ERROR",
                 )
-
-    async def get_worker_status(self):
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(self.SCANNER_STATUS_URL, timeout=20) as response:
-                    response.raise_for_status()
-                    return await response.json()
-            except Exception as e:
-                print(f"Error encountered: {e}")
-                return None
 
     def get_status_message(self, downCounter, region):
         if downCounter is None:
             return f"{region}: ❓"
 
         if region == "MARINHA":
-            if downCounter == 0:
-                return f"{region}: 🟢"
-            else:
-                return f"{region}: 🔴"
+            return f"{region}: {'🟢' if downCounter == 0 else '🔴'}"
         else:
-            if downCounter == 0:
-                return f"{region}: 🟢"
-            elif downCounter == 1:
-                return f"{region}: 🟡"
-            elif downCounter == 2:
-                return f"{region}: 🟠"
-            elif downCounter >= 3:
-                return f"{region}: 🔴"
-            else:
-                return f"{region}: 🔴"
+            status_indicators = {0: "🟢", 1: "🟡", 2: "🟠"}
+            return f"{region}: {status_indicators.get(downCounter, '🔴')}"
 
     async def is_quest_scanning_complete(self):
         current_time = datetime.datetime.now()
@@ -216,14 +220,15 @@ class ScannerStatus:
             return {"leiriaCompleted": False, "marinhaCompleted": False}
 
         try:
-            response_leiria = requests.get(self.LEIRIA_QUEST_SCANNING_URL)
-            response_marinha = requests.get(self.MARINHA_QUEST_SCANNING_URL)
+            leiria_data = await self.poliswag.utility.fetch_data(
+                "leiria_quest_scanning"
+            )
+            marinha_data = await self.poliswag.utility.fetch_data(
+                "marinha_quest_scanning"
+            )
 
-            response_leiria.raise_for_status()
-            response_marinha.raise_for_status()
-
-            leiria_data = response_leiria.json()
-            marinha_data = response_marinha.json()
+            if not leiria_data or not marinha_data:
+                return {"leiriaCompleted": False, "marinhaCompleted": False}
 
             if leiria_data.get("ar_quests") == 0 or marinha_data.get("ar_quests") == 0:
                 return {"leiriaCompleted": False, "marinhaCompleted": False}
@@ -240,47 +245,47 @@ class ScannerStatus:
                 "leiriaCompleted": leiria_completed,
                 "marinhaCompleted": marinha_completed,
             }
-        except requests.RequestException as e:
+
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Error in quest scanning check: {e}", "ERROR"
+            )
             return {"leiriaCompleted": False, "marinhaCompleted": False}
 
     async def get_account_stats(self):
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(
-                    self.SCANNER_ACCOUNTS_STATUS_URL, timeout=20
-                ) as response:
-                    response.raise_for_status()
-                    account_stats = await response.json()
+        account_stats = await self.poliswag.utility.fetch_data("scanner_accounts")
 
-                    in_use_accounts = account_stats.get("in_use", 0)
-                    good_accounts = account_stats.get("good", 0)
-                    cooldown_accounts = account_stats.get("cooldown", 0)
-                    disabled_accounts = (
-                        account_stats.get("banned", 0)
-                        + account_stats.get("invalid", 0)
-                        + account_stats.get("auth_banned", 0)
-                        + account_stats.get("suspended", 0)
-                        + account_stats.get("warned", 0)
-                        + account_stats.get("disabled", 0)
-                        + account_stats.get("missing_token", 0)
-                        + account_stats.get("provider_disabled", 0)
-                        + account_stats.get("zero_last_released", 0)
-                    )
+        if not account_stats:
+            return {
+                "in_use": 0,
+                "good": 0,
+                "cooldown": 0,
+                "disabled": 0,
+            }
 
-                    return {
-                        "in_use": in_use_accounts,
-                        "good": good_accounts,
-                        "cooldown": cooldown_accounts,
-                        "disabled": disabled_accounts,
-                    }
-            except Exception as e:
-                print(f"Error encountered getting stats: {e}")
-                return {
-                    "in_use": 0,
-                    "good": 0,
-                    "cooldown": 0,
-                    "disabled": 0,
-                }
+        disabled_accounts = sum(
+            [
+                account_stats.get(status, 0)
+                for status in [
+                    "banned",
+                    "invalid",
+                    "auth_banned",
+                    "suspended",
+                    "warned",
+                    "disabled",
+                    "missing_token",
+                    "provider_disabled",
+                    "zero_last_released",
+                ]
+            ]
+        )
+
+        return {
+            "in_use": account_stats.get("in_use", 0),
+            "good": account_stats.get("good", 0),
+            "cooldown": account_stats.get("cooldown", 0),
+            "disabled": disabled_accounts,
+        }
 
     async def update_channel_accounts_stats(self):
         try:
@@ -297,9 +302,11 @@ class ScannerStatus:
                     account_data
                 )
             )
+
             if not image_bytes:
-                error_message = "Error generating account image"
-                self.poliswag.utility.log_to_file(error_message, "ERROR")
+                self.poliswag.utility.log_to_file(
+                    "Error generating account image", "ERROR"
+                )
                 return
 
             try:
@@ -308,21 +315,25 @@ class ScannerStatus:
                         image_file, filename="account_status_report.png"
                     )
 
+                now = datetime.datetime.now()
+                timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
                 if existing_message:
-                    now = datetime.datetime.now()
-                    timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
                     await existing_message.edit(
                         content=f"*updated at:* {timestamp_str}",
                         attachments=[discord_file],
                     )
                 else:
-                    await self.poliswag.ACCOUNTS_CHANNEL.send(file=discord_file)
+                    await self.poliswag.ACCOUNTS_CHANNEL.send(
+                        content=f"*updated at:* {timestamp_str}", file=discord_file
+                    )
 
             except Exception as e:
-                error_message = f"Error handling image file: {e}"
-                self.poliswag.utility.log_to_file(error_message, "ERROR")
-                return
+                self.poliswag.utility.log_to_file(
+                    f"Error handling image file: {e}", "ERROR"
+                )
 
         except Exception as e:
-            error_message = f"An error occurred in update_channel_accounts_stats: {e}"
-            self.poliswag.utility.log_to_file(error_message, "ERROR")
+            self.poliswag.utility.log_to_file(
+                f"An error occurred in update_channel_accounts_stats: {e}", "ERROR"
+            )

@@ -1,0 +1,20 @@
+[tool.black]
+exclude = '''
+\.git
+| \.venv
+| _build
+| buck-out
+| venv
+| logs
+| data
+| mock_data
+| mock_database
+| templates
+| .vscode
+| .github
+| makefile
+| README.md
+| requirements.txt
+| docker-compose.yaml
+| docker-compose.prod.yaml
+'''

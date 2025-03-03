@@ -1,0 +1,34 @@
+services:
+  db:
+    image: mariadb:10.11
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password --binlog-expire-logs-seconds=86400
+    container_name: db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: poliswag
+      MYSQL_USER: poliswag
+      MYSQL_PASSWORD: poliswag
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mock_database:/docker-entrypoint-initdb.d
+  poliswag:
+    build: .
+    image: poliswag
+    container_name: poliswag
+    command: >
+        bash -c 'while true; do
+          echo "Starting or restarting bot..."
+          exec python main.py;
+          echo "Bot crashed, sleeping for 5 seconds...";
+          sleep 5;
+        done'
+    ports:
+      - "8989:8989"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    env_file:
+      - .env
