@@ -921,3 +921,9 @@ CREATE TABLE `event` (
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Grant all privileges on all databases to the 'poliswag' user.
+GRANT ALL PRIVILEGES ON *.* TO 'poliswag'@'%' IDENTIFIED BY 'poliswag';
+FLUSH PRIVILEGES;
+
+-- Dump completed
