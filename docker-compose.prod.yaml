@@ -1,0 +1,24 @@
+services:
+  poliswag:
+    build: .
+    image: poliswag
+    container_name: poliswag
+    command: >
+        bash -c 'while true; do
+          echo "Starting or restarting bot..."
+          exec python main.py;
+          echo "Bot crashed, sleeping for 5 seconds...";
+          sleep 5;
+        done'
+    ports:
+      - "8989:8989"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    networks:
+      - scanner
+
+networks:
+  scanner:
+    external: true

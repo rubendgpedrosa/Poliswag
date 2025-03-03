@@ -1,4 +1,3 @@
-import requests
 from datetime import datetime
 
 
@@ -7,12 +6,11 @@ class EventManager:
         self.poliswag = poliswag
         self.events = None
 
-    def fetch_events(self):
-        response = requests.get(
-            "https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.min.json"
-        )
-        response.raise_for_status()
-        self.events = response.json()
+    async def fetch_events(self):
+        response = await self.poliswag.utility.fetch_data("events")
+        if response is None:
+            return
+
         self.store_events_in_database()
 
     def store_events_in_database(self):
@@ -43,9 +41,9 @@ class EventManager:
     def get_active_events(self):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         query = f"""
-            SELECT name, start, end, notification_date 
-            FROM event 
-            WHERE (notification_date IS NULL AND start < '{current_time}') 
+            SELECT name, start, end, notification_date
+            FROM event
+            WHERE (notification_date IS NULL AND start < '{current_time}')
                OR (notification_date < end AND end < '{current_time}');
         """
         stored_events = self.poliswag.db.get_data_from_database(query)
