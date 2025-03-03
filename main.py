@@ -26,7 +26,7 @@ class Poliswag(commands.Bot):
         self.role_manager = RoleManager()
         self.utility = Utility(
             self
-        )  # Utility methods like building embeds and random cURL requests
+        )  # Utility methods like building embeds and cURL requests
         self.scanner_status = ScannerStatus(self)
         self.scanner_manager = ScannerManager(self)
         self.image_generator = ImageGenerator(self)
@@ -75,7 +75,7 @@ class Poliswag(commands.Bot):
             self.quest_search.get_translationfile_data()
             self.quest_search.get_masterfile_data()
             self.quest_search.generate_pokemon_item_name_map()
-            self.event_manager.fetch_events()
+            await self.event_manager.fetch_events()
             """ ! UPDATE FILES DATA ! """
 
             """ NEW FORCED VERSIONS """
