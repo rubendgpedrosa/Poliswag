@@ -139,7 +139,7 @@ class ScannerStatus:
             "downDevicesMarinha": downDevicesMarinha,
         }
 
-    async def check_all_devices_status(self):
+    async def check_device_status(self):
         device_status = await self.poliswag.utility.fetch_data("device_status")
 
         if not device_status or "devices" not in device_status:
@@ -153,9 +153,9 @@ class ScannerStatus:
             time_since_last_message = current_time_ms - last_message_time
 
             if time_since_last_message <= inactive_threshold_ms:
-                return False
+                return "🟢"
 
-        return True
+        return "🔴"
 
     async def trigger_all_down_action(self):
         current_time = time.time()
@@ -165,30 +165,28 @@ class ScannerStatus:
         ):
             self.last_all_down_request_time = current_time
             try:
-                all_devices_down = await self.check_all_devices_status()
+                device_status = await self.check_device_status()
 
-                if all_devices_down:
-                    account_data = await self.get_account_stats()
-                    payload = {
-                        "type": "all_devices_down",
-                        "value": account_data.get("good"),
-                    }
+                account_data = await self.get_account_stats()
+                payload = {
+                    "type": "map_status",
+                    "value": {
+                        "accounts": account_data.get("good"),
+                        "device_status": device_status,
+                    },
+                }
 
-                    if self.poliswag.utility.DEV:
-                        self.poliswag.utility.log_to_file(
-                            f"[DEV] Would send all-down notification with payload: {payload}"
-                        )
-                    else:
-                        response = requests.post(
-                            os.environ.get("ALL_DOWN_ENDPOINT"),
-                            json=payload,
-                            timeout=10,
-                        )
-                        response.raise_for_status()
-                else:
+                if self.poliswag.utility.DEV:
                     self.poliswag.utility.log_to_file(
-                        f"Not all devices are down, so not sending all-down notification"
+                        f"[DEV] Would send all-down notification with payload: {payload}"
                     )
+                else:
+                    response = requests.post(
+                        os.environ.get("ALL_DOWN_ENDPOINT"),
+                        json=payload,
+                        timeout=10,
+                    )
+                    response.raise_for_status()
 
             except requests.exceptions.RequestException as e:
                 self.poliswag.utility.log_to_file(
