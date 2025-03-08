@@ -1,8 +1,12 @@
 import os
+import discord
 import requests
 from datetime import datetime, timedelta
 import json
 from modules.database_connector import DatabaseConnector
+from sklearn.cluster import KMeans
+import numpy as np
+import math
 
 
 class QuestSearch:
@@ -11,6 +15,8 @@ class QuestSearch:
         self.db = DatabaseConnector(os.environ.get("DB_SCANNER_NAME"))
         self.POKEMON_NAME_FILE = os.environ.get("POKEMON_NAME_FILE")
         self.ITEM_NAME_FILE = os.environ.get("ITEM_NAME_FILE")
+
+        self.QUEST_ICON_BASE_URL = os.environ.get("UI_ICONS_URL")
 
         self.masterfile_data = None
         self.translationfile_data = None
@@ -312,3 +318,116 @@ class QuestSearch:
             )
 
         return quest_reward_masterfile_string
+
+    def group_pokestops_geographically(self, pokestops, max_per_group=10):
+        if len(pokestops) <= max_per_group:
+            return [pokestops]
+
+        # Extract coordinates for clustering
+        coordinates = np.array(
+            [[float(stop["lat"]), float(stop["lon"])] for stop in pokestops]
+        )
+
+        # Determine number of clusters needed
+        num_clusters = math.ceil(len(pokestops) / max_per_group)
+
+        # Apply K-means clustering
+        kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(coordinates)
+
+        # Group pokestops by cluster
+        grouped_pokestops = [[] for _ in range(num_clusters)]
+        for i, stop in enumerate(pokestops):
+            cluster_id = kmeans.labels_[i]
+            grouped_pokestops[cluster_id].append(stop)
+
+        result = []
+        for group in grouped_pokestops:
+            if group:
+                # If a group is still too large, split it
+                for i in range(0, len(group), max_per_group):
+                    result.append(group[i : i + max_per_group])
+
+        return result
+
+    def create_quest_embed(
+        self, quest_title, pokestops, is_leiria, page=1, total_pages=1
+    ):
+        location_name = "Leiria" if is_leiria else "Marinha Grande"
+
+        color = discord.Color.blue() if is_leiria else discord.Color.green()
+
+        embed = discord.Embed(
+            title=f"{quest_title}",
+            description=f"Encontrados em {location_name}",
+            color=color,
+        )
+
+        if pokestops and "quest_slug" in pokestops[0]:
+            thumbnail_url = f"{self.QUEST_ICON_BASE_URL}{pokestops[0]['quest_slug']}"
+            embed.set_thumbnail(url=thumbnail_url)
+
+        for stop in pokestops:
+            lat, lon = stop["lat"], stop["lon"]
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            name = stop["name"]
+
+            embed.add_field(
+                name=f"📍 {name}", value=f"[Abrir no mapa]({maps_url})", inline=False
+            )
+
+        embed.set_footer(text=f"Página {page}/{total_pages}")
+
+        return embed
+
+    def group_pokestops_by_reward(self, found_quests):
+        reward_groups = {}
+
+        for quest_group in found_quests:
+            quest_title = quest_group["quest_title"]
+
+            for pokestop in quest_group["quests"]:
+                if "quest_slug" not in pokestop:
+                    continue
+
+                reward_slug = pokestop["quest_slug"]
+
+                if reward_slug not in reward_groups:
+                    reward_groups[reward_slug] = {"title": quest_title, "pokestops": []}
+
+                reward_groups[reward_slug]["pokestops"].append(pokestop)
+
+        for reward_slug, group_data in reward_groups.items():
+            pokestops = group_data["pokestops"]
+
+            if pokestops and len(pokestops) > 0:
+                sample = pokestops[0]
+
+                reward_type_field = (
+                    "quest_reward_type"
+                    if "quest_reward_type" in sample
+                    else "alternative_quest_reward_type"
+                )
+                reward_type = sample.get(reward_type_field)
+
+                if reward_type == 7:
+                    pass
+                elif reward_type == 2:  # Item
+                    reward_amount_field = (
+                        "quest_reward_amount"
+                        if "quest_reward_amount" in sample
+                        else "alternative_quest_reward_amount"
+                    )
+                    amount = sample.get(reward_amount_field, "")
+                    if amount:
+                        group_data["title"] = f"{amount}x {group_data['title']}"
+                elif reward_type == 3:  # Stardust
+                    reward_amount_field = (
+                        "quest_reward_amount"
+                        if "quest_reward_amount" in sample
+                        else "alternative_quest_reward_amount"
+                    )
+                    amount = sample.get(reward_amount_field, "")
+                    if amount:
+                        group_data["title"] = f"{amount} {group_data['title']}"
+
+        return reward_groups

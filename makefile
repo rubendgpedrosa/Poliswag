@@ -28,7 +28,7 @@ up: ## Start the full application
 	docker compose -f $(DOCKER_COMPOSE_FILE) build
 	docker compose -f $(DOCKER_COMPOSE_FILE) up -d
 	@echo "Creating log files..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "mkdir -p /app/logs && touch /app/logs/actions.log && touch /app/logs/error_log.log"
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "mkdir -p /app/logs && touch /app/logs/actions.log && touch /app/logs/error.log"
 ifneq ($(ENV),PRODUCTION) ## Extras for development environment, logs are automatically started once container is built
 	@sleep 5
 	@echo "Initializing database..."
@@ -69,7 +69,7 @@ test: ## Run the tests with pytest
 
 reload: ## Reload the Python script inside the container, cleaning log files.
 	@echo "Reloading Poliswag application..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "echo '' > /app/logs/actions.log && echo '' > /app/logs/error_log.log"
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "echo '' > /app/logs/actions.log && echo '' > /app/logs/error.log"
 	docker compose -f $(DOCKER_COMPOSE_FILE) restart poliswag
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
 	@echo "Poliswag application reloaded."
