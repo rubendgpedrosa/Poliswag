@@ -7,12 +7,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         body {
-            width: 1200px;
             font-family: 'Roboto', sans-serif;
             margin: 0 auto;
             background-color: #2b2d31;
             color: #FFFFFF;
             padding: 20px;
+            max-width: 1200px;
         }
 
         .quest-title {
@@ -27,23 +27,13 @@
         }
 
         .column-container {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Always two equal columns */
             gap: 20px;
         }
 
         .quest-list-container {
-            width: calc(50% - 10px); /* Two columns with some gap */
-            display: inline-block;
-            vertical-align: top;
-        }
-
-        .quest-list-container.single-list {
-            width: 100%; /* Full width for single lists */
-        }
-
-        .quest-list {
-            width: 100%;
+            display: contents; /* Make the list container transparent for grid layout */
         }
 
         .quest-card {
@@ -111,14 +101,14 @@
         .quest-card .content h3 {
             margin-top: 0;
             margin-bottom: 4px;
-            font-size: 20px;
+            font-size: 32px;
             font-weight: 500;
             word-break: break-word;
         }
 
         .quest-card .content p {
             margin: 0;
-            font-size: 16px;
+            font-size: 24px;
             color: #b9bbbe;
             word-break: break-word;
         }
@@ -139,6 +129,12 @@
             color: #fff;
             text-shadow: 0 0 2px #000;
         }
+
+        @media (max-width: 768px) {
+            .column-container {
+                grid-template-columns: 1fr; /* One column on small screens */
+            }
+        }
     </style>
 </head>
 <body>
@@ -151,33 +147,29 @@
     </div>
     <div class="column-container">
         {% for quest_list in quests %}
-            <div class="quest-list-container {% if quests|length == 1 %}single-list{% endif %}">
-                <div class="quest-list">
-                    {% for quest in quest_list.quests %}
-                        <div class="quest-card">
-                            {% if quest.url %}
-                                <div class="image-container">
-                                    <img src="{{ quest.url }}" alt="{{ quest.name }}">
-                                    {% if 'quest_item_id' in quest %}
-                                        <div class="ar-task">AR Quest</div>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
-                            <div class="content">
-                                <h3>{{ quest.name }}</h3>
-                                <p>{{ quest_list.quest_title }}</p>
-                            </div>
-                            <img class="reward-image" src="https://raw.githubusercontent.com/nileplumb/PkmnShuffleMap/master/UICONS/{{ quest.quest_slug }}" alt="Reward">
-                            {% if quest.quest_reward_amount %}
-                                <div class="search-amount-holder">x{{ quest.quest_reward_amount }}</div>
-                            {% endif %}
-                            {% if quest.alternative_quest_reward_amount %}
-                                <div class="search-amount-holder">x{{ quest.alternative_quest_reward_amount }}</div>
+            {% for quest in quest_list.quests %}
+                <div class="quest-card">
+                    {% if quest.url %}
+                        <div class="image-container">
+                            <img src="{{ quest.url }}" alt="{{ quest.name }}">
+                            {% if 'quest_item_id' in quest %}
+                                <div class="ar-task">AR Quest</div>
                             {% endif %}
                         </div>
-                    {% endfor %}
+                    {% endif %}
+                    <div class="content">
+                        <h3>{{ quest.name }}</h3>
+                        <p>{{ quest_list.quest_title }}</p>
+                    </div>
+                    <img class="reward-image" src="https://raw.githubusercontent.com/nileplumb/PkmnShuffleMap/master/UICONS/{{ quest.quest_slug }}" alt="Reward">
+                    {% if quest.quest_reward_amount %}
+                        <div class="search-amount-holder">x{{ quest.quest_reward_amount }}</div>
+                    {% endif %}
+                    {% if quest.alternative_quest_reward_amount %}
+                        <div class="search-amount-holder">x{{ quest.alternative_quest_reward_amount }}</div>
+                    {% endif %}
                 </div>
-            </div>
+            {% endfor %}
         {% endfor %}
     </div>
 </body>
