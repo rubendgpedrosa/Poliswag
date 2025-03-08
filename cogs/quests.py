@@ -1,4 +1,4 @@
-import discord, os
+import os
 from discord.ext import commands
 
 
@@ -6,6 +6,7 @@ class Quests(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.SCAN_QUESTS_ALL_ENDPOINT = os.environ.get("SCAN_QUESTS_ALL_ENDPOINT")
+        self.MAX_POKESTOPS_PER_EMBED = 10
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -29,37 +30,63 @@ class Quests(commands.Cog):
             .replace("!questmarinha", "")
             .strip()
         )
-        isLeiria = ctx.invoked_with == "questleiria"
+        is_leiria = ctx.invoked_with == "questleiria"
         user = ctx.author
 
-        foundQuests = self.poliswag.quest_search.find_quest_by_search_keyword(
-            search.lower(), isLeiria
+        found_quests = self.poliswag.quest_search.find_quest_by_search_keyword(
+            search.lower(), is_leiria
         )
-        if not foundQuests:
+
+        if not found_quests:
             await ctx.send(
-                f"{user.mention}, não foram encontradas quests {'em Leiria' if isLeiria else 'na Marinha'} para '{search}'!"
+                f"{user.mention}, não foram encontradas quests {'em Leiria' if is_leiria else 'na Marinha'} para '{search}'!"
             )
             return
 
-        # Generate images into memory
-        self.poliswag.image_generator.generate_image_from_quest_data(
-            foundQuests, isLeiria
+        processing_msg = await ctx.send(
+            f"{user.mention}, a processar resultados para '{search}'..."
         )
-        self.poliswag.image_generator.generate_map_image_from_quest_data(foundQuests)
-        combinedBuffer = self.poliswag.image_generator.combine_images()
 
-        if combinedBuffer:
-            try:
-                await ctx.send(
-                    f"{user.mention}, aqui estão os resultados para '{search}':",
-                    file=discord.File(combinedBuffer, filename="quest_results.png"),
+        try:
+            reward_groups = self.poliswag.quest_search.group_pokestops_by_reward(
+                found_quests
+            )
+
+            for group_data in reward_groups.items():
+                reward_title = group_data["title"]
+                all_pokestops = group_data["pokestops"]
+
+                pokestop_groups = (
+                    self.poliswag.quest_search.group_pokestops_geographically(
+                        all_pokestops, self.MAX_POKESTOPS_PER_EMBED
+                    )
                 )
-            except Exception as e:
-                print(f"Erro ao enviar imagem: {e}")
-                await ctx.send(f"{user.mention}, um erro occorreu ao enviar a imagem.")
-        else:
-            await ctx.send(
-                f"{user.mention}, ocorreu um erro ao gerar a imagem combinada. Tente novamente mais tarde."
+
+                for page, pokestop_group in enumerate(pokestop_groups, 1):
+                    embed = self.poliswag.quest_search.create_quest_embed(
+                        reward_title,
+                        pokestop_group,
+                        is_leiria,
+                        page,
+                        len(pokestop_groups),
+                    )
+
+                    map_url = (
+                        self.poliswag.image_generator.generate_static_map_for_group(
+                            pokestop_group
+                        )
+                    )
+                    if map_url:
+                        embed.set_image(url=map_url)
+
+                    await ctx.send(embed=embed)
+
+            await processing_msg.delete()
+
+        except Exception as e:
+            print(f"Erro ao processar quests: {e}")
+            await processing_msg.edit(
+                content=f"{user.mention}, ocorreu um erro ao processar os resultados: {e}"
             )
 
 

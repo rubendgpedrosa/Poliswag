@@ -15,6 +15,8 @@ class ImageGenerator:
         self.QUESTS_TEMPLATE_HTML_FILE = os.environ.get("QUESTS_TEMPLATE_HTML_FILE")
         self.ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
 
+        self.QUEST_ICON_BASE_URL = os.environ.get("UI_ICONS_URL")
+
         self.quests_image_bytes = None
         self.quests_map_bytes = None
 
@@ -133,3 +135,28 @@ class ImageGenerator:
         except Exception as e:
             print(f"Error generating account image: {e}")
             return None
+
+    def generate_static_map_for_group(self, pokestops):
+        coordinates = []
+        for idx, stop in enumerate(pokestops):
+            if "lat" in stop and "lon" in stop:
+                coordinates.append(
+                    (stop["lat"], stop["lon"], chr(65 + idx), stop["quest_slug"])
+                )
+
+        if not coordinates:
+            return None
+
+        base_url = "https://maps.googleapis.com/maps/api/staticmap?"
+        params = (
+            f"key={self.poliswag.image_generator.google_api_key}&size=600x300&scale=2"
+        )
+
+        markers = "&".join(
+            [
+                f"markers=icon:{self.QUEST_ICON_BASE_URL}{quest_slug}|label:{label}|{lat},{lon}"
+                for lat, lon, label, quest_slug in coordinates
+            ]
+        )
+
+        return f"{base_url}{params}&{markers}"

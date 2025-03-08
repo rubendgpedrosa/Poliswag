@@ -23,12 +23,25 @@ services:
     image: poliswag
     container_name: poliswag
     command: >
-        bash -c 'while true; do
-          echo "Starting or restarting bot..."
-          exec python main.py;
-          echo "Bot crashed, sleeping for 5 seconds...";
-          sleep 5;
-        done'
+      bash -c 'while true; do
+        echo "####################################################################"
+        echo "####################################################################"
+        echo "##                                                                ##"
+        echo "##                         Starting Bot!                          ##"
+        echo "##                                                                ##"
+        echo "####################################################################"
+        echo "####################################################################"
+        exec python main.py;
+        echo "####################################################################"
+        echo "####################################################################"
+        echo "##                                                                ##"
+        echo "##                         Bot Crashed!                           ##"
+        echo "##                   Sleeping for 5 seconds...                    ##"
+        echo "##                                                                ##"
+        echo "####################################################################"
+        echo "####################################################################"
+        sleep 5;
+      done'
     ports:
       - "8989:8989"
     volumes:

@@ -137,7 +137,7 @@ The project is managed through the `Makefile` with the following commands:
 * `docker-compose.prod.yaml` - Docker Compose setup for PRODUCTION environment
 * `cogs/` - Discord command modules (cogs) that extend bot functionality, with each file representing a distinct cog.
 * `data/` - Contains project-related static content and persistent data, primarily for quests.
-* `logs/` - Stores log files, including actions.log (bot activity) and error_log.log (errors).
+* `logs/` - Stores log files, including actions.log (bot activity) and error.log (errors).
 * `mock_data/` - Provides sample JSON data for development and testing.
 * `mock_database/` - Contains data.sql, which is used to populate the database with mock data for the DEVELOPMENT environment. This file is excluded from the check-added-large-files pre-commit hook.
 * `modules/` - Holds core Python components managing the scanner, database, Discord bot, and other key functionalities.
