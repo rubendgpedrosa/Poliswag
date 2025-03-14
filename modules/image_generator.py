@@ -1,8 +1,5 @@
 import os
-import requests
 import imgkit
-import io
-from PIL import Image
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -74,8 +71,7 @@ class ImageGenerator:
         }
 
         try:
-            img = imgkit.from_string(html_content, output_path=False, options=options)
-            return img
+            return imgkit.from_string(html_content, output_path=False, options=options)
         except Exception as e:
             print(f"Error generating account image: {e}")
             return None

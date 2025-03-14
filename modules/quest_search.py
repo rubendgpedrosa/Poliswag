@@ -355,6 +355,8 @@ class QuestSearch:
             return f"reward/item/{quest_item_id}.png"
         elif quest_reward_type == 3:  # Stardust
             return f"reward/stardust/0.png"
+        elif quest_reward_type == 4:  # Candies
+            return f"reward/candy/{quest_pokemon_id}.png"
         elif quest_reward_type == 7:  # Pokemon
             return f"pokemon/{quest_pokemon_id}.png"
         elif quest_reward_type == 12:  # Mega Energy
@@ -381,7 +383,7 @@ class QuestSearch:
         num_clusters = math.ceil(len(pokestops) / max_per_group)
         kmeans = KMeans(n_clusters=num_clusters, random_state=0, n_init="auto").fit(
             coordinates
-        )  # explicitly set n_init
+        )
 
         grouped_pokestops = [[] for _ in range(num_clusters)]
         for i, stop in enumerate(pokestops):
@@ -433,18 +435,7 @@ class QuestSearch:
                     sample = pokestops[0]
                     reward_type = sample.get("quest_reward_type")
 
-                    if reward_type == 7:  # Pokemon
-                        pokemon_id = sample.get("quest_pokemon_id", "")
-                        if pokemon_id and "pokemon" in self.masterfile_data:
-                            pokemon_name = (
-                                self.masterfile_data["pokemon"]
-                                .get(str(pokemon_id), {})
-                                .get("name", "")
-                            )
-                            if pokemon_name:
-                                group_data["reward_text"] = pokemon_name
-
-                    elif reward_type == 2:  # Item
+                    if reward_type == 2:  # Item
                         amount = sample.get("quest_reward_amount", "")
                         item_id = sample.get("quest_item_id", "")
                         if amount and item_id and "items" in self.masterfile_data:
@@ -462,6 +453,36 @@ class QuestSearch:
                         if amount:
                             group_data["reward_text"] = f"{amount} Stardust"
                             group_data["title"] = f"{amount} {group_data['title']}"
+
+                    elif reward_type == 4:  # Candies
+                        amount = sample.get("quest_reward_amount", "")
+                        pokemon_id = sample.get("quest_pokemon_id", "")
+                        pokemon_name = ""
+
+                        if amount and pokemon_id and "pokemon" in self.masterfile_data:
+                            pokemon_name = (
+                                self.masterfile_data["pokemon"]
+                                .get(str(pokemon_id), {})
+                                .get("name", "")
+                            )
+                            if pokemon_name:
+                                group_data["reward_text"] = pokemon_name
+
+                        if pokemon_name:
+                            group_data["reward_text"] = f"{amount} {pokemon_name} Candy"
+                        else:
+                            group_data["reward_text"] = f"{amount} Candy"
+
+                    elif reward_type == 7:  # Pokemon
+                        pokemon_id = sample.get("quest_pokemon_id", "")
+                        if pokemon_id and "pokemon" in self.masterfile_data:
+                            pokemon_name = (
+                                self.masterfile_data["pokemon"]
+                                .get(str(pokemon_id), {})
+                                .get("name", "")
+                            )
+                            if pokemon_name:
+                                group_data["reward_text"] = pokemon_name
 
                     elif reward_type == 12:  # Mega Energy
                         amount = sample.get("quest_reward_amount", "")
@@ -534,18 +555,7 @@ class QuestSearch:
 
                 reward_type = sample.get(reward_type_field)
 
-                if reward_type == 7:  # Pokemon
-                    pokemon_id = sample.get(pokemon_id_field, "")
-                    if pokemon_id and "pokemon" in self.masterfile_data:
-                        pokemon_data = self.masterfile_data["pokemon"].get(
-                            str(pokemon_id), None
-                        )
-                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
-                            group_data["reward_text"] = pokemon_data["name"]
-                        elif isinstance(pokemon_data, str):
-                            group_data["reward_text"] = pokemon_data
-
-                elif reward_type == 2:  # Item
+                if reward_type == 2:  # Item
                     amount = sample.get(reward_amount_field, "")
                     item_id = sample.get(item_id_field, "")
                     if amount and item_id and "items" in self.masterfile_data:
@@ -568,6 +578,30 @@ class QuestSearch:
                     if amount:
                         group_data["reward_text"] = f"{amount} Stardust"
                         group_data["title"] = f"{group_data['title']}"
+
+                elif reward_type == 4:  # Candies
+                    amount = sample.get(reward_amount_field, "")
+                    pokemon_id = sample.get(pokemon_id_field, "")
+                    if amount and pokemon_id and "pokemon" in self.masterfile_data:
+                        pokemon_data = self.masterfile_data["pokemon"].get(
+                            str(pokemon_id), None
+                        )
+                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
+                            pokemon_name = pokemon_data["name"]
+                            group_data["reward_text"] = f"{amount} {pokemon_name} Candy"
+                        elif isinstance(pokemon_data, str):
+                            group_data["reward_text"] = f"{amount} Candy"
+
+                elif reward_type == 7:  # Pokemon
+                    pokemon_id = sample.get(pokemon_id_field, "")
+                    if pokemon_id and "pokemon" in self.masterfile_data:
+                        pokemon_data = self.masterfile_data["pokemon"].get(
+                            str(pokemon_id), None
+                        )
+                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
+                            group_data["reward_text"] = pokemon_data["name"]
+                        elif isinstance(pokemon_data, str):
+                            group_data["reward_text"] = pokemon_data
 
                 elif reward_type == 12:  # Mega Energy
                     amount = sample.get(reward_amount_field, "")
