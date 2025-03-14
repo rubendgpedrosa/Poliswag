@@ -28,6 +28,8 @@ class Utility:
             "events": os.environ.get("EVENTS_ENDPOINT"),
             "scan_quest_all": os.environ.get("SCAN_QUESTS_ALL_ENDPOINT"),
         }
+        self.UI_ICONS_URL = os.environ.get("UI_ICONS_URL")
+        self.embed_color = 0x4169E1
 
         self.LOG_FILE.touch(exist_ok=True)
         self.ERROR_LOG_FILE.touch(exist_ok=True)
@@ -62,14 +64,10 @@ class Utility:
                             "SELECT version FROM poliswag"
                         )
 
-                        storedVersion = (
-                            result[0] if isinstance(result, tuple) else result
-                        )
-
-                        if isinstance(storedVersion, dict):
-                            current_version = storedVersion.get("version")
+                        if result and len(result) > 0:
+                            current_version = result[0]["version"]
                         else:
-                            current_version = storedVersion
+                            current_version = None
 
                         if retrievedVersion != current_version:
                             self.poliswag.db.execute_query_to_database(
@@ -77,7 +75,7 @@ class Utility:
                             )
                             return retrievedVersion
                         return None
-            return None
+                    return None
         except Exception as e:
             self.log_to_file(f"Error fetching Pokemon version: {e}", "ERROR")
             return None
@@ -92,7 +90,7 @@ class Utility:
         embed = discord.Embed(
             title=title,
             description=description,
-            color=0x7B83B4,
+            color=self.embed_color,
             timestamp=datetime.now(),
         )
         if footer:
@@ -208,3 +206,52 @@ class Utility:
                     f"Error fetching data from {endpoint_key}: {e}", "ERROR"
                 )
                 return None
+
+    async def build_tracked_summary_embeds(self, channel, reward_groups, footer_text):
+        for reward_slug, group_data in reward_groups.items():
+            title = group_data["title"]
+            reward_text = group_data.get("reward_text", "")
+            count = len(group_data["pokestops"])
+            image_url = f"{self.UI_ICONS_URL}{reward_slug}"
+
+            embed = discord.Embed(color=self.embed_color)
+            embed.description = f"**{count} quest de {title}**"
+            embed.set_footer(text=footer_text)
+            embed.set_author(name=f"{reward_text}", icon_url=image_url)
+            await channel.send(embed=embed)
+
+    async def build_tracked_list_embed(self, title="Quests Seguidas", footer_text=None):
+        """Helper method to build a consistent embed for tracked quests"""
+        tracked_quests = self.poliswag.db.get_data_from_database(
+            "SELECT target, creator, createddate FROM tracked_quest_reward ORDER BY createddate DESC"
+        )
+
+        if len(tracked_quests) == 0:
+            embed = discord.Embed(
+                title=title,
+                description="Não há quests/rewards a serem seguidas atualmente.",
+                color=self.embed_color,
+            )
+        else:
+            embed = discord.Embed(title=title, color=self.embed_color)
+
+            for quest_data in tracked_quests:
+                quest_name = quest_data["target"]
+                creator = quest_data["creator"]
+                createddate = quest_data.get("createddate", "Data desconhecida")
+
+                if isinstance(createddate, datetime):
+                    createddate_str = createddate.strftime("%d/%m/%Y %H:%M")
+                else:
+                    createddate_str = str(createddate)
+
+                embed.add_field(
+                    name=quest_name,
+                    value=f"Adicionado por: {creator}\n{createddate_str}",
+                    inline=False,
+                )
+
+        if footer_text:
+            embed.set_footer(text=footer_text)
+
+        return embed
