@@ -39,21 +39,12 @@ class DatabaseConnector:
                         columns = [col[0] for col in cursor.description]
                         self.db.commit()
 
-                        if len(results) == 1:
-                            data = {
-                                columns[i]: results[0][i] for i in range(len(columns))
-                            }
-                            logging.info(f"Query returned a single result: {data}")
-                            return data
-                        else:
-                            data_list = [
-                                {columns[i]: row[i] for i in range(len(columns))}
-                                for row in results
-                            ]
-                            logging.info(
-                                f"Query returned multiple results: {data_list}"
-                            )
-                            return data_list
+                        data_list = [
+                            {columns[i]: row[i] for i in range(len(columns))}
+                            for row in results
+                        ]
+                        logging.info(f"Query returned {len(data_list)} results")
+                        return data_list
                     else:
                         affected_rows = cursor.rowcount
                         self.db.commit()

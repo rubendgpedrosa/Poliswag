@@ -26,7 +26,7 @@ help: ## Display available commands
 up: ## Start the full application
 	@echo "Starting Poliswag in $(ENV) environment..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) build
-	docker compose -f $(DOCKER_COMPOSE_FILE) up -d
+	docker compose -f $(DOCKER_COMPOSE_FILE) up -d --build
 	@echo "Creating log files..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "mkdir -p /app/logs && touch /app/logs/actions.log && touch /app/logs/error.log"
 ifneq ($(ENV),PRODUCTION) ## Extras for development environment, logs are automatically started once container is built

@@ -210,11 +210,10 @@ class ScannerStatus:
             return {"leiriaCompleted": False, "marinhaCompleted": False}
 
         quest_scanning_ongoing = self.poliswag.db.get_data_from_database(
-            f"SELECT scanned FROM poliswag;"
+            f"SELECT scanned FROM poliswag WHERE scanned = 1;"
         )
 
-        is_quest_scanning = True if quest_scanning_ongoing["scanned"] == 0 else False
-        if not is_quest_scanning:
+        if quest_scanning_ongoing and len(quest_scanning_ongoing) > 0:
             return {"leiriaCompleted": False, "marinhaCompleted": False}
 
         try:

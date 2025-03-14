@@ -31,7 +31,7 @@ services:
         echo "##                                                                ##"
         echo "####################################################################"
         echo "####################################################################"
-        exec python main.py;
+        exec python -u main.py;
         echo "####################################################################"
         echo "####################################################################"
         echo "##                                                                ##"
@@ -51,3 +51,7 @@ services:
         condition: service_healthy # wait until the db is healthy
     env_file:
       - .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m" # Optional: Limit the log file size
