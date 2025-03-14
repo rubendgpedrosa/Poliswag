@@ -52,6 +52,7 @@ class Poliswag(commands.Bot):
     async def setup_hook(self):
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")
+        await self.load_extension("cogs.tracker")
         await self.tree.sync()
 
     async def get_channels(self):
@@ -72,8 +73,8 @@ class Poliswag(commands.Bot):
     async def scheduled_tasks(self):
         try:
             """UPDATE FILES DATA"""
-            self.quest_search.get_translationfile_data()
-            self.quest_search.get_masterfile_data()
+            self.quest_search.load_translation_data()
+            self.quest_search.load_masterfile_data()
             self.quest_search.generate_pokemon_item_name_map()
             await self.event_manager.fetch_events()
             """ ! UPDATE FILES DATA ! """
@@ -112,6 +113,10 @@ class Poliswag(commands.Bot):
                             "Esta informação expira ao final do dia",
                         )
                     )
+
+                    """ NOTIFY FOLLOWED QUESTS / REWARDS """
+                    await self.quest_search.check_tracked(self.CONVIVIO_CHANNEL)
+                    """ ! NOTIFY FOLLOWED QUESTS / REWARDS ! """
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """
@@ -125,9 +130,6 @@ class Poliswag(commands.Bot):
             #            ),
             #        )
             """ ! START / END OF EVENTS ! """
-
-            """ TRACKING SPECIAL QUESTS """
-            """ ! TRACKING SPECIAL QUESTS ! """
 
             """ FAILING WORKERS """
             workers_status = await self.scanner_status.get_workers_with_issues()

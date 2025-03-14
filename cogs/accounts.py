@@ -12,7 +12,9 @@ class Accounts(commands.Cog):
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
 
-    @commands.command(name="accounts")
+    @commands.command(
+        name="accounts", brief="Gera imagem do atual número de contas do mapa"
+    )
     async def account_report_cmd(self, ctx):
         try:
             if ctx.guild is not None:

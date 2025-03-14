@@ -48,7 +48,7 @@ class EventManager:
         """
         stored_events = self.poliswag.db.get_data_from_database(query)
 
-        if not stored_events:
+        if len(stored_events) == 0:
             return None
 
         embeds_content = []
