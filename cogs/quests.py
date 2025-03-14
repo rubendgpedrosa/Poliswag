@@ -30,13 +30,18 @@ class Quests(commands.Cog):
         help="Pesquisa quests em Leiria ou Marinha com base na palavra-chave fornecida. Utilize: !questleiria <palavra-chave> ou !questmarinha <palavra-chave>",
     )
     async def questcmd(self, ctx):
+        user = ctx.author
         search = (
             ctx.message.content.replace("!questleiria", "")
             .replace("!questmarinha", "")
             .strip()
         )
+
+        if search == "":
+            await ctx.send(f"{user.mention}, é necessário incluir algo para pesquisar!")
+            return
+
         is_leiria = ctx.invoked_with == "questleiria"
-        user = ctx.author
         found_quests = self.poliswag.quest_search.find_quest_by_search_keyword(
             search.lower(), is_leiria
         )
