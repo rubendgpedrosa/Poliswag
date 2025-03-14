@@ -20,4 +20,4 @@ EXPOSE 8989
 #ENV NAME Poliswag
 
 # Run app.py when the container launches
-CMD ["python", "./main.py"]
+CMD ["python", "-u", "./main.py"]
