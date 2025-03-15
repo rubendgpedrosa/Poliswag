@@ -14,6 +14,9 @@ class Tracker(commands.Cog):
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
 
+    def cog_check(self, ctx):
+        return str(ctx.author.id) in self.ADMIN_USERS_IDS
+
     @commands.command(
         name="track",
         brief="Adiciona uma quest à lista de seguimento",
@@ -90,7 +93,6 @@ class Tracker(commands.Cog):
         help="Remove todas as quests da lista.",
     )
     async def untrack_all(self, ctx):
-        # Get count before deleting
         tracked_count = self.poliswag.db.get_data_from_database(
             "SELECT COUNT(*) as count FROM tracked_quest_reward"
         )
@@ -98,7 +100,6 @@ class Tracker(commands.Cog):
 
         self.poliswag.db.execute_query_to_database("DELETE FROM tracked_quest_reward")
 
-        # Create confirmation embed
         confirm_embed = discord.Embed(
             title="Todas as Quests Removidas",
             description=f"{count} quests foram removidas da lista de seguimento.",
@@ -119,8 +120,8 @@ class Tracker(commands.Cog):
 
     @commands.command(
         name="tracked",
-        brief="Verifica quests seguidas e envia uma lista.",
-        help="Verifica as quests que estão a ser seguidas e envia uma lista das encontradas.",
+        brief="Envia a lista de quests seguidas para o canal de convívio.",
+        help="Verifica as quests que estão a ser seguidas e envia uma lista das encontradas para o canal convívio.",
     )
     async def check_tracked_by_cmd(self, ctx):
         await self.poliswag.quest_search.check_tracked(ctx)

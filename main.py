@@ -1,5 +1,5 @@
 #!/usr/bin/python\
-import discord, os, traceback, time
+import discord, os, traceback, datetime
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 
@@ -44,6 +44,8 @@ class Poliswag(commands.Bot):
         """ USER IDS """
         self.ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS").split(",")
         """ ! USER IDS ! """
+
+        self.quest_scanning_message = None
 
     async def on_ready(self):
         await self.get_channels()
@@ -93,30 +95,54 @@ class Poliswag(commands.Bot):
             """ DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION """
             day_changed = self.scanner_manager.is_day_change()
             if day_changed:
-                await self.QUEST_CHANNEL.send(
+                self.quest_scanning_message = await self.QUEST_CHANNEL.send(
                     embed=self.utility.build_embed_object_title_description(
-                        "Mudança de dia detetada", "Scan das novas quests inicializado!"
+                        "SCAN DE QUESTS INICIADO!",
+                        "A recolher quests em Leiria e Marinha Grande...",
                     )
                 )
             else:
                 quest_completed = await self.scanner_status.is_quest_scanning_complete()
-                if (
-                    quest_completed is not None
-                    and quest_completed["leiriaCompleted"]
-                    and quest_completed["marinhaCompleted"]
-                ):
-                    self.scanner_manager.update_quest_scanning_state()
-                    await self.QUEST_CHANNEL.send(
-                        embed=self.utility.build_embed_object_title_description(
-                            "SCAN DE QUESTS TERMINADO!",
-                            "Todas as quests do dia foram recolhidas e podem ser visualizadas com o uso de:\n!questleiria/questmarinha POKÉSTOP/QUEST/RECOMPENSA",
-                            "Esta informação expira ao final do dia",
-                        )
-                    )
 
-                    """ NOTIFY FOLLOWED QUESTS / REWARDS """
-                    await self.quest_search.check_tracked(self.CONVIVIO_CHANNEL)
-                    """ ! NOTIFY FOLLOWED QUESTS / REWARDS ! """
+                if quest_completed is not None:
+                    if self.quest_scanning_message is None:
+                        self.quest_scanning_message = (
+                            await self.utility.find_quest_scanning_message(
+                                self.QUEST_CHANNEL
+                            )
+                        )
+
+                    if (
+                        quest_completed["leiriaCompleted"]
+                        and quest_completed["marinhaCompleted"]
+                    ):
+                        self.scanner_manager.update_quest_scanning_state()
+
+                        embed = self.utility.build_embed_object_title_description(
+                            "✅ SCAN DE QUESTS CONCLUÍDO!",
+                            (
+                                "**Todas as quests diárias foram recolhidas com sucesso!**\n\n"
+                                f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests\n"
+                                f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests\n\n"
+                                "📋 **Como consultar:**\n"
+                                "`!questleiria PESQUISA` - Ver quests de Leiria\n"
+                                "`!questmarinha PESQUISA` - Ver quests de Marinha\n"
+                            ),
+                            footer=f"{datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+                        )
+
+                        """ NOTIFY FOLLOWED QUESTS / REWARDS """
+                        await self.quest_search.check_tracked(self.CONVIVIO_CHANNEL)
+                        """ ! NOTIFY FOLLOWED QUESTS / REWARDS ! """
+                    else:
+                        embed = self.utility.build_embed_object_title_description(
+                            "SCAN DE QUESTS EM PROGRESSO...",
+                            f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests ({quest_completed['leiriaPercentage']:.1f}%)\n"
+                            + f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests ({quest_completed['marinhaPercentage']:.1f}%)",
+                            footer=f"{datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+                        )
+
+                    await self.quest_scanning_message.edit(embed=embed)
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """

@@ -207,14 +207,14 @@ class ScannerStatus:
     async def is_quest_scanning_complete(self):
         current_time = datetime.datetime.now()
         if current_time.hour == 0 and current_time.minute < 2:
-            return {"leiriaCompleted": False, "marinhaCompleted": False}
+            return None
 
         quest_scanning_ongoing = self.poliswag.db.get_data_from_database(
             f"SELECT scanned FROM poliswag WHERE scanned = 1;"
         )
 
         if quest_scanning_ongoing and len(quest_scanning_ongoing) > 0:
-            return {"leiriaCompleted": False, "marinhaCompleted": False}
+            return None
 
         try:
             leiria_data = await self.poliswag.utility.fetch_data(
@@ -225,15 +225,26 @@ class ScannerStatus:
             )
 
             if not leiria_data or not marinha_data:
-                return {"leiriaCompleted": False, "marinhaCompleted": False}
+                return None
 
             if leiria_data.get("ar_quests") == 0 or marinha_data.get("ar_quests") == 0:
-                return {"leiriaCompleted": False, "marinhaCompleted": False}
+                return None
 
-            leiria_completed = leiria_data.get("total") == leiria_data.get("ar_quests")
-            marinha_completed = marinha_data.get("total") == marinha_data.get(
-                "ar_quests"
+            # Calculate percentages
+            leiria_total = leiria_data.get("total") or 0
+            leiria_ar_quests = leiria_data.get("ar_quests") or 0
+            marinha_total = marinha_data.get("total") or 0
+            marinha_ar_quests = marinha_data.get("ar_quests") or 0
+
+            leiria_percentage = (
+                (leiria_ar_quests / leiria_total * 100) if leiria_total > 0 else 0
             )
+            marinha_percentage = (
+                (marinha_ar_quests / marinha_total * 100) if marinha_total > 0 else 0
+            )
+
+            leiria_completed = leiria_ar_quests == leiria_total
+            marinha_completed = marinha_ar_quests == marinha_total
 
             if leiria_completed and marinha_completed:
                 self.poliswag.scanner_manager.update_quest_scanning_state()
@@ -241,13 +252,19 @@ class ScannerStatus:
             return {
                 "leiriaCompleted": leiria_completed,
                 "marinhaCompleted": marinha_completed,
+                "leiriaTotal": leiria_total,
+                "leiriaScanned": leiria_ar_quests,
+                "marinhaTotal": marinha_total,
+                "marinhaScanned": marinha_ar_quests,
+                "leiriaPercentage": leiria_percentage,
+                "marinhaPercentage": marinha_percentage,
             }
 
         except Exception as e:
             self.poliswag.utility.log_to_file(
                 f"Error in quest scanning check: {e}", "ERROR"
             )
-            return {"leiriaCompleted": False, "marinhaCompleted": False}
+            return None
 
     async def get_account_stats(self):
         account_stats = await self.poliswag.utility.fetch_data("account_status")
