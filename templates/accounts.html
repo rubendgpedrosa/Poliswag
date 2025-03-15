@@ -20,6 +20,7 @@
             width: 100%;
             height: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
@@ -30,33 +31,29 @@
             justify-content: space-between;
             width: 100%;
             max-width: 800px;
-            background: rgba(0, 0, 0, 0.2);
             border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
         }
 
         .stats-item {
             background-color: #36393f;
             border-radius: 12px;
-            padding: 20px;
+            padding: 24px;
             flex: 1;
-            margin-right: 20px;
+            margin-right: 12px;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: rgba(0, 0, 0, 0.2);
         }
 
         .stats-item:last-child {
             margin-right: 0;
         }
 
-        .stats-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-        }
-
         .stats-label {
             font-weight: 600;
-            font-size: 20px;
+            font-size: 16px;
             color: #b9bbbe;
             margin-bottom: 12px;
             text-transform: uppercase;
@@ -65,14 +62,60 @@
 
         .stats-value {
             font-weight: 900;
-            font-size: 60px;
+            font-size: 76px;
             line-height: 1;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        .good-value { color: #43b581; }
-        .in-use-value { color: #faa61a; }
-        .cooldown-value { color: #f04747; }
+        .good-value { color: #43b581; text-shadow: 0 0 8px #43b581; }
+        .in-use-value { color: #faa61a; text-shadow: 0 0 8px #faa61a; }
+        .cooldown-value { color: #f04747; text-shadow: 0 0 8px #f04747; }
+
+        .device-status {
+            width: 100%;
+            max-width: 800px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .device-label {
+            margin-left: 24px;
+            font-weight: 600;
+            font-size: 16px;
+            color: #b9bbbe;
+            margin-right: 12px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-text {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .status-active {
+            background-color: #43b581;
+            box-shadow: 0 0 8px #43b581;
+        }
+
+        .status-inactive {
+            background-color: #f04747;
+            box-shadow: 0 0 8px #f04747;
+        }
+
+        .text-active { color: #43b581; }
+        .text-inactive { color: #f04747; }
 
         @media (max-width: 600px) {
             .stats-container {
@@ -90,9 +133,20 @@
 </head>
 <body>
     <div class="container">
+        <div class="device-status">
+            <div class="device-label">DEVICE:</div>
+            {% if device_status %}
+                <div class="status-indicator status-active"></div>
+                <div class="status-text text-active">ACTIVE</div>
+            {% else %}
+                <div class="status-indicator status-inactive"></div>
+                <div class="status-text text-inactive">INACTIVE</div>
+            {% endif %}
+        </div>
+
         <div class="stats-container">
             <div class="stats-item">
-                <div class="stats-label">Good</div>
+                <div class="stats-label">Available</div>
                 <div class="stats-value good-value">{{ good }}</div>
             </div>
             <div class="stats-item">
@@ -107,4 +161,3 @@
     </div>
 </body>
 </html>
-
