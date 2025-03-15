@@ -47,7 +47,7 @@ class ImageGenerator:
             print(f"Error generating account image: {e}")
             return None
 
-    def generate_image_from_account_stats(self, account_data):
+    def generate_image_from_account_stats(self, account_data, device_status):
         env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
         template = env.get_template(self.ACCOUNTS_TEMPLATE_HTML_FILE)
 
@@ -56,14 +56,17 @@ class ImageGenerator:
         disabled_accounts = account_data.get("disabled", 0)
 
         html_content = template.render(
-            good=good_accounts, cooldown=cooldown_accounts, disabled=disabled_accounts
+            good=good_accounts,
+            cooldown=cooldown_accounts,
+            disabled=disabled_accounts,
+            device_status=device_status,
         )
 
         options = {
             "format": "png",
             "encoding": "UTF-8",
             "width": "800",
-            "height": "200",
+            "height": "220",
             "quality": "100",
             "transparent": "",
             "javascript-delay": "1000",

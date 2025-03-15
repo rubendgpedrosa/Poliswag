@@ -7,8 +7,17 @@ WORKDIR /app
 # Copy the current directory contents into the container at /app
 COPY . /app
 
-# Install wkhtmltopdf
-RUN apt-get update && apt-get install -y wkhtmltopdf
+# Update package lists, clean the cache, and remove temporary files
+RUN apt-get update && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install wkhtmltopdf with no-install-recommends to reduce size
+RUN apt-get update && apt-get install -y --no-install-recommends wkhtmltopdf
+
+# Clean up again after installation to further reduce image size
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

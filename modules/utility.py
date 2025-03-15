@@ -255,3 +255,19 @@ class Utility:
             embed.set_footer(text=footer_text)
 
         return embed
+
+    async def find_quest_scanning_message(self, channel):
+        try:
+            today = datetime.now().date()
+            async for message in channel.history(limit=100):
+                if (
+                    message.author == self.poliswag.user
+                    and message.embeds
+                    and "SCAN DE QUESTS" in message.embeds[0].title.upper()
+                    and message.created_at.date() == today
+                ):
+                    return message
+            return None  # No matching message found today
+        except Exception as e:
+            self.log_to_file(f"Error finding quest scanning message: {e}", "ERROR")
+            return None

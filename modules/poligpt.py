@@ -1,7 +1,7 @@
 # ⚠️🚨 OUTDATED FILE 🚨⚠️
 # This file is no longer used/outdated and needs rework or removal.
 # TODO: Refactor or remove this file.
-
+"""
 
 from llama_index import GPTSimpleVectorIndex, SimpleDirectoryReader
 import os
@@ -25,3 +25,4 @@ async def get_response(question):
         f"Data: {current_time}| Pergunta: {question}. Responde em Portugues, em bullet points. Nao traduzas items de jogo tais como lure, incense , raids, lucky egg e afins."
     )
     return response
+"""
