@@ -21,11 +21,12 @@ class Accounts(commands.Cog):
                 await ctx.message.delete()
 
             account_data = await self.poliswag.scanner_status.get_account_stats()
+            device_status = await self.poliswag.scanner_status.is_device_connected()
 
             if account_data:
                 image_bytes = (
                     self.poliswag.image_generator.generate_image_from_account_stats(
-                        account_data
+                        account_data, device_status
                     )
                 )
                 if image_bytes:
