@@ -121,12 +121,12 @@ class Poliswag(commands.Bot):
                         embed = self.utility.build_embed_object_title_description(
                             "✅ SCAN DE QUESTS CONCLUÍDO!",
                             (
-                                "**Todas as quests diárias foram recolhidas com sucesso!**\n\n"
+                                "**Concluída a verificação de todas as PokéStops nas áreas de Leiria e Marinha Grande. Lista de quests finalizada!**\n\n"
                                 f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests\n"
-                                f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests\n\n"
+                                f"**Marinha Grande:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests\n\n"
                                 "📋 **Como consultar:**\n"
-                                "`!questleiria PESQUISA` - Ver quests de Leiria\n"
-                                "`!questmarinha PESQUISA` - Ver quests de Marinha\n"
+                                "`!questleiria <QUEST/ITEM>`\n"
+                                "`!questmarinha <QUEST/ITEM>`\n"
                             ),
                             footer=f"{datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}",
                         )
@@ -135,11 +135,46 @@ class Poliswag(commands.Bot):
                         await self.quest_search.check_tracked(self.CONVIVIO_CHANNEL)
                         """ ! NOTIFY FOLLOWED QUESTS / REWARDS ! """
                     else:
+                        leiria_bar_length = 20
+                        marinha_bar_length = 20
+
+                        leiria_filled = int(
+                            (quest_completed["leiriaPercentage"] / 100)
+                            * leiria_bar_length
+                        )
+                        marinha_filled = int(
+                            (quest_completed["marinhaPercentage"] / 100)
+                            * marinha_bar_length
+                        )
+
+                        leiria_bar = "█" * leiria_filled + "░" * (
+                            leiria_bar_length - leiria_filled
+                        )
+                        marinha_bar = "█" * marinha_filled + "░" * (
+                            marinha_bar_length - marinha_filled
+                        )
+
+                        total_percentage = (
+                            quest_completed["leiriaPercentage"]
+                            + quest_completed["marinhaPercentage"]
+                        ) / 2
+
+                        if total_percentage < 25:
+                            status_emoji = "🔍"
+                        elif total_percentage < 50:
+                            status_emoji = "⏳"
+                        elif total_percentage < 75:
+                            status_emoji = "⌛"
+                        else:
+                            status_emoji = "🔜"
+
                         embed = self.utility.build_embed_object_title_description(
-                            "SCAN DE QUESTS EM PROGRESSO...",
+                            f"{status_emoji} SCAN DE QUESTS EM PROGRESSO...",
                             f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests ({quest_completed['leiriaPercentage']:.1f}%)\n"
-                            + f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests ({quest_completed['marinhaPercentage']:.1f}%)",
-                            footer=f"{datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}",
+                            + f"{leiria_bar}\n\n"
+                            + f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests ({quest_completed['marinhaPercentage']:.1f}%)\n"
+                            + f"{marinha_bar}",
+                            footer=f"Última atualização: {datetime.datetime.now().strftime('%H:%M')}",
                         )
 
                     await self.quest_scanning_message.edit(embed=embed)
