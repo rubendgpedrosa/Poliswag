@@ -10,6 +10,7 @@ from modules.utility import Utility
 from modules.database_connector import DatabaseConnector
 from modules.image_generator import ImageGenerator
 from modules.quest_search import QuestSearch
+from modules.poliwiz import PoliWiz
 from modules.event_manager import EventManager
 
 
@@ -31,6 +32,7 @@ class Poliswag(commands.Bot):
         self.scanner_manager = ScannerManager(self)
         self.image_generator = ImageGenerator(self)
         self.quest_search = QuestSearch(self)
+        self.poliwiz = PoliWiz(self)
         self.event_manager = EventManager(self)
         """ ! IMPORTED CLASSSES ! """
 
@@ -181,15 +183,16 @@ class Poliswag(commands.Bot):
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """
-            # current_active_events = self.event_manager.get_active_events()
-            # if current_active_events is not None:
-            #    for event in current_active_events:
-            #        await self.CONVIVIO_CHANNEL.send(
-            #            content=event["content"],
-            #            embed=self.utility.build_embed_object_title_description(
-            #                event["name"], event["body"], event["footer"]
-            #            ),
-            #        )
+            current_active_events = await self.event_manager.get_active_events()
+            if current_active_events is not None:
+                for event in current_active_events:
+                    user = await self.fetch_user(int(os.environ.get("MY_ID")))
+                    await user.send(
+                        content=event["content"],
+                        embed=self.utility.build_embed_object_title_description(
+                            event["name"], event["body"], event["footer"]
+                        ),
+                    )
             """ ! START / END OF EVENTS ! """
 
             """ FAILING WORKERS """
