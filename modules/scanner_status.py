@@ -143,16 +143,13 @@ class ScannerStatus:
         device_status = await self.poliswag.utility.fetch_data("device_status")
 
         if not device_status or "devices" not in device_status:
+            self.poliswag.utility.log_to_file(
+                "No device status data or 'devices' key missing.", "WARNING"
+            )
             return False
 
-        current_time_ms = datetime.datetime.now().timestamp() * 1000
-        inactive_threshold_ms = 600000  # 10 minutes in milliseconds
-
         for device in device_status["devices"]:
-            last_message_time = device.get("dateLastMessageReceived", 0)
-            time_since_last_message = current_time_ms - last_message_time
-
-            if time_since_last_message <= inactive_threshold_ms:
+            if device.get("isAlive", False):
                 return True
 
         return False
@@ -171,7 +168,7 @@ class ScannerStatus:
                     "type": "map_status",
                     "value": {
                         "accounts": account_data.get("good"),
-                        "device_status": "🟢" if device_status else "🔴",
+                        "device_status": device_status,
                     },
                 }
 
