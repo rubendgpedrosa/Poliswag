@@ -57,6 +57,8 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")
         await self.load_extension("cogs.tracker")
+        await self.load_extension("cogs.event")
+        await self.load_extension("cogs.container_manager")
         await self.tree.sync()
 
     async def get_channels(self):
@@ -183,16 +185,21 @@ class Poliswag(commands.Bot):
             """ ! DETECT DAY CHANGE & CHECK QUEST SCANNING COMPLETION ! """
 
             """ START / END OF EVENTS """
-            current_active_events = await self.event_manager.get_active_events()
-            if current_active_events is not None:
-                for event in current_active_events:
-                    user = await self.fetch_user(int(os.environ.get("MY_ID")))
-                    await user.send(
-                        content=event["content"],
-                        embed=self.utility.build_embed_object_title_description(
-                            event["name"], event["body"], event["footer"]
-                        ),
-                    )
+            events = await self.event_manager.check_current_events_changes()
+            if events:
+                # await self.CONVIVIO_CHANNEL.send(
+                #    content=events["content"],
+                #    embed=self.utility.build_embed_object_title_description(
+                #        events["name"], events["body"], events["footer"]
+                #    ),
+                # )
+                user = await self.fetch_user(int(os.environ.get("MY_ID")))
+                await user.send(
+                    content=events["content"],
+                    embed=self.utility.build_embed_object_title_description(
+                        events["name"], events["body"], events["footer"]
+                    ),
+                )
             """ ! START / END OF EVENTS ! """
 
             """ FAILING WORKERS """

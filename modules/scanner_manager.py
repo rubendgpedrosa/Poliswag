@@ -1,9 +1,13 @@
+import docker
+import os
+
+
 class ScannerManager:
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        self.SCANNER_CONTAINER_NAME = os.getenv("SCANNER_CONTAINER_NAME")
 
     def start_pokestop_scan(self):
-        # fetch_new_pvp_data()
         self.update_last_scanned_date(self.poliswag.utility.time_now())
         self.update_quest_scanning_state(0)
 
@@ -32,3 +36,25 @@ class ScannerManager:
             self.start_pokestop_scan()
             return True
         return False
+
+    def change_scanner_status(self, action):
+        if not self.SCANNER_CONTAINER_NAME:
+            raise ValueError("SCANNER_CONTAINER_NAME environment variable not set.")
+
+        client = docker.from_env()
+        try:
+            container = client.containers.get(self.SCANNER_CONTAINER_NAME)
+            if action == "start":
+                container.start()
+            elif action == "stop":
+                container.stop()
+            else:
+                raise ValueError(
+                    f"Invalid action: {action}. Must be 'start' or 'stop'."
+                )
+        except docker.errors.NotFound:
+            raise Exception(f"Container '{self.SCANNER_CONTAINER_NAME}' not found.")
+        except docker.errors.APIError as e:
+            raise Exception(f"Docker API error: {e}")
+        finally:
+            client.close()
