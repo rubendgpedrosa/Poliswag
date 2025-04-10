@@ -1,26 +1,8 @@
--- Drop and create the scanner database
 DROP DATABASE IF EXISTS scanner;
 CREATE DATABASE IF NOT EXISTS scanner;
 USE scanner;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `pokestop`
---
-
 DROP TABLE IF EXISTS `pokestop`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `pokestop` (
   `id` varchar(35) NOT NULL,
   `lat` double(18,14) NOT NULL,
@@ -82,10 +64,8 @@ CREATE TABLE `pokestop` (
   KEY `ix_alternative_quest_expiry` (`alternative_quest_expiry`),
   KEY `ix_old_forts` (`cell_id`,`deleted`,`updated`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `pokestop` WRITE;
-/*!40000 ALTER TABLE `pokestop` DISABLE KEYS */;
 INSERT INTO `pokestop` VALUES
 ('00c44c9f22da358c97c4a82ac3a56c8e.16',39.74666500000000,-8.93444000000000,'Praça Do Vidreiro','https://lh3.googleusercontent.com/IW2r5Ig7mRiqc2yj4dCusjJ3-f_ikkTeDP8Mwe-vc95QZLciBATcqB9dGKb1ecFwKK_Dr_yMEL4NmLQhSIABO6fPsn4AdOs9l9UZ59s',1734949994,1740760233,1740787673,1,6,1740787673,2,'[]','[{\"info\":{\"pokemon_id\":588},\"type\":7}]','fr_go_tour_2025_leadup_hatch','quest_hatch_egg_plural',946334927362719744,0,505,1718216671,0,NULL,0,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1740873600,NULL,'Pequena praça com vista para o monumento operário na rotunda. Evocativo do levantamento dos operários vidreiros em 18 de janeiro de 1934, relembra as dificuldades passadas por esta classe operária',7,NULL,NULL,588,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 ('01a435e293263fa2b2bc1b4c7fb620ef.16',39.75082000000000,-8.93155000000000,'Mosaico  catedral verde','https://lh3.googleusercontent.com/zUQ5l-ZYfkX1920UJqpMS_48jyNchBJlWLo_byex_cWPhrxlvd7VT74RTl9A5RaXEpyAmDv4sTMgtQMdYH8bIdu_3n8T-5iW7Ca0qyg5iw',1739801048,1740786378,1740787814,1,5,1740787416,10,'[]','[{\"info\":{\"pokemon_id\":501},\"type\":7}]','fr_go_tour_2025_leadup_spin','quest_visit_pokestops_plural',946334835020922880,0,504,1714902233,0,NULL,1,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1740873600,NULL,'Mosaico feito por Lopes Vieiria com o título para deslumbrar o significado da floresta e da vista do mar para o autor',7,NULL,NULL,501,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
@@ -850,80 +830,49 @@ INSERT INTO `pokestop` VALUES
 ('ff3b3e7903854132b0a8a1ebcb45040d.16',39.75852200000000,-8.82132300000000,'Mosjid Rahmah','https://lh3.googleusercontent.com/KTWsBPX6vPnWutoKpoQkCqjsbjEjn67p3IfnYApFi0svhulK98tyJJ0c4BtTIDYZNa6B6Ra4izJJ1gqx7T5ovU1MsIo',1735068635,1740786408,1740787322,1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,946445473378467840,0,501,1714857796,0,NULL,0,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'Mesquita Leiria. Local de culto islâmico.',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 ('ffa50f037c35420faa2db4536ac3bc3e.11',39.74511800000000,-8.80420900000000,'Estátua Vacas','https://lh3.googleusercontent.com/-wgNZQR7q0josjUB0z1Q8TWax7ChZyFiKw8QEHFVVV1qN5ELfTsj2eyrm9834AUuQ53oge0eB5GHG9CvFzVNK_9wriw',1736964366,1740767239,1740787351,1,6,1740787351,2,'[]','[{\"info\":{\"pokemon_id\":588},\"type\":7}]','fr_go_tour_2025_leadup_hatch','quest_hatch_egg_plural',946445786911080448,0,505,1714857797,0,NULL,0,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1740873600,NULL,NULL,7,NULL,NULL,588,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
 ('ffc6670f458840839c3aacf54cd69017.16',39.74186900000000,-8.80535300000000,'Lady in Red','https://lh3.googleusercontent.com/ZucqMQ8dVO_WEQfBoUus5SGP1mTt9ZdeMu_fqqFIF9KfbVRwRp5BAgBATwZKj9isHZNdVH5FY60lEj-b9xX4ezBUqpo',1739060753,1740767328,1740787427,1,6,1740787427,2,'[]','[{\"info\":{\"pokemon_id\":588},\"type\":7}]','fr_go_tour_2025_leadup_hatch','quest_hatch_egg_plural',946445789058564096,0,501,1714857797,0,NULL,0,0,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1740873600,NULL,'Mural de arte urbana',7,NULL,NULL,588,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
-/*!40000 ALTER TABLE `pokestop` ENABLE KEYS */;
+
+
 UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Now create and set up the poliswag database
 DROP DATABASE IF EXISTS poliswag;
 CREATE DATABASE IF NOT EXISTS poliswag;
 USE poliswag;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `poliswag`
---
 DROP TABLE IF EXISTS `poliswag`;
-/*!40101 SET @saved_cs_client = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `poliswag` (
   `scanned` tinyint(4) DEFAULT NULL,
   `version` varchar(10) DEFAULT NULL,
   `last_scanned_date` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `poliswag` WRITE;
-/*!40000 ALTER TABLE `poliswag` DISABLE KEYS */;
 INSERT INTO `poliswag` VALUES
 (1,'0.349.1','2025-03-01 00:00:00');
-/*!40000 ALTER TABLE `poliswag` ENABLE KEYS */;
 UNLOCK TABLES;
 
---
--- Table structure for table `event`
---
+
 DROP TABLE IF EXISTS `event`;
-/*!40101 SET @saved_cs_client = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `event` (
   `name` varchar(255) NOT NULL,
   `start` datetime NOT NULL,
   `end` datetime DEFAULT NULL,
   `notification_date` datetime DEFAULT NULL,
   PRIMARY KEY (`name`,`start`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+);
 
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Grant all privileges on all databases to the 'poliswag' user.
+DROP TABLE IF EXISTS `tracked_quest_reward`;
+CREATE TABLE `tracked_quest_reward` (
+  `target` varchar(255) DEFAULT NULL,
+  `creator` varchar(255) DEFAULT NULL,
+  `createddate` timestamp NOT NULL DEFAULT current_timestamp(),
+  UNIQUE KEY `unique_reward` (`target`)
+);
+
+
+DROP TABLE IF EXISTS `excluded_event_type`;
+CREATE TABLE `excluded_event_type`(
+    type VARCHAR(50) NOT NULL PRIMARY KEY COMMENT 'Primary Key for event type'
+);
+
 GRANT ALL PRIVILEGES ON *.* TO 'poliswag'@'%' IDENTIFIED BY 'poliswag';
 FLUSH PRIVILEGES;
-
--- Dump completed

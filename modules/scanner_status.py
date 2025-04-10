@@ -18,7 +18,7 @@ class ScannerStatus:
         }
 
         self.defaultExpectedWorkers = {
-            "LeiriaBigger": 3,
+            "LeiriaBigger": 4,
             "MarinhaGrande": 1,
         }
 
@@ -197,8 +197,22 @@ class ScannerStatus:
         if region == "MARINHA":
             return f"{region}: {'🟢' if downCounter == 0 else '🔴'}"
         else:
-            status_indicators = {0: "🟢", 1: "🟡", 2: "🟠"}
-            return f"{region}: {status_indicators.get(downCounter, '🔴')}"
+            expected_workers = self.defaultExpectedWorkers.get("LeiriaBigger", 5)
+
+            down_percentage = (
+                (downCounter / expected_workers) if expected_workers > 0 else 0
+            )
+
+            if down_percentage == 0:
+                status_indicator = "🟢"
+            elif down_percentage <= 0.4:
+                status_indicator = "🟡"
+            elif down_percentage <= 0.8:
+                status_indicator = "🟠"
+            else:
+                status_indicator = "🔴"
+
+            return f"{region}: {status_indicator}"
 
     async def is_quest_scanning_complete(self):
         current_time = datetime.datetime.now()

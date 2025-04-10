@@ -27,6 +27,7 @@ services:
       - "8989:8989"
     volumes:
       - .:/app
+      - ./logs:/app/logs
     env_file:
       - .env
     networks:
@@ -34,7 +35,7 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m" # Optional: Limit the log file size
+        max-size: "10m"
 
 networks:
   scanner:
