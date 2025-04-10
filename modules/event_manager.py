@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 import json
+import random
+import re
 
 
 class EventManager:
@@ -7,6 +9,37 @@ class EventManager:
         self.poliswag = poliswag
         self.events = None
         self.use_ai = use_ai
+        self.cache_failed_cooldown = None
+        self.ai_cooldown_duration = timedelta(minutes=30)
+        # Define theme colors for different event types
+        self.event_colors = {
+            "community-day": 0xFF9D00,  # Orange
+            "spotlight-hour": 0xFFD700,  # Gold
+            "raid-day": 0xFF0000,  # Red
+            "go-battle": 0x800080,  # Purple
+            "research": 0x4169E1,  # Royal Blue
+            "season": 0x32CD32,  # Lime Green
+            "default": 0x3498DB,  # Blue
+        }
+        # Emoji mappings for different event features
+        self.feature_emojis = {
+            "shiny": "✨",
+            "raid": "🛡️",
+            "research": "🔍",
+            "egg": "🥚",
+            "stardust": "💫",
+            "candy": "🍬",
+            "xp": "📈",
+            "evolution": "⚡",
+            "trade": "🔄",
+            "battle": "⚔️",
+            "catch": "🎯",
+            "hatch": "🐣",
+            "walk": "👣",
+            "friend": "👫",
+            "item": "🎒",
+            "default": "🎮",
+        }
 
     async def fetch_events(self):
         response = await self.poliswag.utility.fetch_data("events")
@@ -30,7 +63,6 @@ class EventManager:
         if self.events is None:
             return
 
-        stored_count = 0
         for event in self.events:
             try:
                 event_id = event.get("id", "")
@@ -44,125 +76,96 @@ class EventManager:
                 if not all([start, end, name]) or "unannounced" in name.lower():
                     continue
 
-                start = start.replace("Z", "").split(".")[0].replace("T", " ")
-                end = end.replace("Z", "").split(".")[0].replace("T", " ")
+                start = self.poliswag.utility.format_datetime_string(start)
+                end = self.poliswag.utility.format_datetime_string(end)
 
-                check_query = f"""
-                    SELECT name, extra_data FROM event
-                    WHERE name = '{name.replace("'", "''")}' AND start = '{start}'
-                """
-                existing_event = self.poliswag.db.get_data_from_database(check_query)
-
-                parsed_content = None
-
-                if not existing_event and self.use_ai:
-                    event_data = {
-                        "id": event_id,
-                        "name": name,
-                        "eventType": event_type,
-                        "start": start,
-                        "end": end,
-                        "extraData": event.get("extraData", {}),
-                    }
-
-                    # Use PoliWiz to generate structured data (only if AI is enabled)
-                    parsed_content = await self.poliswag.poliwiz.process_event(
-                        event_data
-                    )
-
-                    if parsed_content:
-                        event["parsed_content"] = parsed_content
-
-                # Insert or update event in database
-                query = f"""
-                    INSERT INTO event(name, start, end, image, event_type, link, extra_data, notification_date, notification_end_date)
-                    VALUES (
-                        '{name.replace("'", "''")}',
-                        '{start}',
-                        '{end}',
-                        '{image.replace("'", "''")}',
-                        '{event_type.replace("'", "''")}',
-                        '{link.replace("'", "''")}',
-                        '{json.dumps(event).replace("'", "''")}'
-                        ,NULL,
-                        NULL
-                    )
-                    ON DUPLICATE KEY UPDATE
-                    image = '{image.replace("'", "''")}',
-                    event_type = '{event_type.replace("'", "''")}',
-                    link = '{link.replace("'", "''")}',
-                    extra_data = '{json.dumps(event).replace("'", "''")}'
-                """
+                query = self.build_upsert_query(
+                    name, start, end, image, event_type, link, event
+                )
                 self.poliswag.db.execute_query_to_database(query)
-                stored_count += 1
             except Exception as e:
                 self.poliswag.utility.log_to_file(
                     f"Error storing event {event.get('name', 'unknown')}: {str(e)}",
                     "ERROR",
                 )
 
-        self.poliswag.utility.log_to_file(
-            f"Stored/updated {stored_count} events", "INFO"
-        )
-
-    async def get_active_events(self):
-        """Get newly active events (that haven't been notified yet)"""
+    async def check_current_events_changes(self):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Fetch potentially relevant events including their notification status
         query = f"""
-            SELECT name, start, end, notification_date, image, event_type, link, extra_data
+            SELECT name, start, end, image, event_type, link, extra_data, notification_date, notification_end_date,
+                CASE
+                    WHEN start <= '{current_time}' AND end >= '{current_time}' THEN 'active'
+                    WHEN start <= '{current_time}' AND end <= '{current_time}' THEN 'ended'
+                    WHEN start > '{current_time}' THEN 'upcoming'
+                END as event_status
             FROM event
-            WHERE start <= '{current_time}' AND end >= '{current_time}'
-            AND notification_date IS NULL
-            ORDER BY end ASC;
+            LEFT OUTER JOIN excluded_event_type ON excluded_event_type.type = event.event_type
+            WHERE (
+                (start <= '{current_time}' AND end >= '{current_time}') OR -- Active events
+                (end <= '{current_time}' AND notification_end_date IS NULL) OR -- Recently ended, not notified
+                (start > '{current_time}') -- Upcoming (though not directly used for notification here)
+            )
+            AND excluded_event_type.type IS NULL
+            ORDER BY end ASC -- Keep sorting, might be useful
         """
-
-        active_events = self.poliswag.db.get_data_from_database(query)
-
-        if len(active_events) == 0:
+        events = self.poliswag.db.get_data_from_database(query)
+        if not events:
             return None
 
-        embeds_content = []
-        for event in active_events:
+        embed_content = {
+            "content": "**🔔 ATUALIZAÇÃO NOS EVENTOS 🔔**",
+            "name": "",  # Will be set later if needed
+            "body": "",
+            "footer": f"Atualizado a {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            "color": 0x3498DB,  # Default color
+            "image": "",
+            "thumbnail": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",  # Default thumbnail
+        }
+
+        sections = []
+        started_events = []
+        ended_events = []
+        active_events = []
+        first_started_event_image = (
+            None  # To store the image of the first *newly* started event
+        )
+
+        for event in events:
             try:
                 event_start = datetime.strptime(
                     str(event["start"]), "%Y-%m-%d %H:%M:%S"
                 )
                 event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+                extra_data = self.parse_extra_data(event)
 
-                extra_data = {}
-                if "extra_data" in event and event["extra_data"]:
-                    try:
-                        extra_data = json.loads(event["extra_data"])
-                    except:
-                        pass
+                # --- Logic Modification Start ---
+                # Determine the actual state change we care about for notifications
+                is_newly_started = (
+                    event["event_status"] == "active"
+                    and event.get("notification_date") is None
+                )
+                is_already_active = (
+                    event["event_status"] == "active"
+                    and event.get("notification_date") is not None
+                )
+                # Check for ended events that haven't had their end notification sent
+                is_newly_ended = (
+                    event["event_status"] == "ended"
+                    and event.get("notification_end_date") is None
+                )
+                # --- Logic Modification End ---
 
                 parsed_content = None
-                if "parsed_content" in extra_data:
-                    parsed_content = extra_data["parsed_content"]
-                elif self.use_ai:
-                    event_data = {
-                        "id": event.get("id", ""),
-                        "name": event["name"],
-                        "eventType": event["event_type"],
-                        "start": str(event["start"]),
-                        "end": str(event["end"]),
-                        "extraData": extra_data.get("extraData", {}),
-                    }
-
-                    parsed_content = await self.poliswag.poliwiz.process_event(
-                        event_data
+                # Get/Generate content if it's active (either newly or ongoing) as we need info for display
+                # Or if using AI and it hasn't been parsed yet for a newly started event.
+                if is_newly_started or is_already_active:
+                    # The condition inside get_or_generate_parsed_content checks 'active' status which is correct here
+                    parsed_content = await self.get_or_generate_parsed_content(
+                        event, extra_data, event_start
                     )
-
-                    if parsed_content:
-                        extra_data["parsed_content"] = parsed_content
-                        update_query = f"""
-                            UPDATE event
-                            SET extra_data = '{json.dumps(extra_data).replace("'", "''")}'
-                            WHERE name = '{event["name"].replace("'", "''")}' AND start = '{event_start.strftime("%Y-%m-%d %H:%M:%S")}'
-                        """
-                        self.poliswag.db.execute_query_to_database(update_query)
-                else:
+                else:  # For ended events or if AI fails/disabled
                     parsed_content = {
                         "featured_pokemon": None,
                         "bonuses": None,
@@ -170,286 +173,108 @@ class EventManager:
                         "time_period": f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}",
                     }
 
-                event_description = []
-
-                # Add event type as first line if no AI-generated content
-                if not self.use_ai:
-                    event_description.append(f"• Tipo de evento: {event['event_type']}")
-
-                # Add featured Pokémon if available
-                if (
-                    parsed_content
-                    and parsed_content.get("featured_pokemon")
-                    and parsed_content["featured_pokemon"] != "None"
-                ):
-                    event_description.append(
-                        f"• Pokémon: {parsed_content['featured_pokemon']}"
-                    )
-
-                # Add bonuses if available
-                if (
-                    parsed_content
-                    and parsed_content.get("bonuses")
-                    and parsed_content["bonuses"] != "None"
-                ):
-                    event_description.append(f"• Bónus: {parsed_content['bonuses']}")
-
-                # Add special features if available
-                if (
-                    parsed_content
-                    and parsed_content.get("special_features")
-                    and parsed_content["special_features"] != "None"
-                ):
-                    event_description.append(
-                        f"• Características: {parsed_content['special_features']}"
-                    )
-
-                # Add time period
-                time_period = parsed_content.get(
-                    "time_period",
-                    f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}",
-                )
-
-                # Add link if available
-                if event.get("link"):
-                    event_description.append(f"• Mais informações: {event.get('link')}")
-
-                # Create embed
-                embeds_content.append(
-                    {
-                        "content": (
-                            "**NOVOS EVENTOS ATIVOS:**" if not embeds_content else None
-                        ),
-                        "name": event["name"].upper(),
-                        "body": (
-                            "\n".join(event_description)
-                            if event_description
-                            else "Novo evento activo."
-                        ),
-                        "footer": f"Ativo entre {time_period}",
-                        "image": event.get("image", ""),
-                    }
-                )
-
-                # Mark as notified
-                update_query = f"""
-                    UPDATE event
-                    SET notification_date = '{current_time}'
-                    WHERE name = '{event["name"].replace("'", "''")}' AND start = '{event_start.strftime("%Y-%m-%d %H:%M:%S")}'
-                """
-                self.poliswag.db.execute_query_to_database(update_query)
-
-            except Exception as e:
-                self.poliswag.utility.log_to_file(
-                    f"Error processing active event {event.get('name', 'unknown')}: {str(e)}",
-                    "ERROR",
-                )
-
-        return embeds_content
-
-    async def get_ending_events(self, hours=24):
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        end_threshold = (datetime.now() + timedelta(hours=hours)).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-
-        query = f"""
-            SELECT name, start, end, notification_date, image, event_type, link, extra_data
-            FROM event
-            WHERE end > '{current_time}' AND end <= '{end_threshold}'
-            AND notification_end_date IS NULL
-            ORDER BY end ASC;
-        """
-
-        ending_events = self.poliswag.db.get_data_from_database(query)
-
-        if len(ending_events) == 0:
-            return None
-
-        embeds_content = []
-        for event in ending_events:
-            try:
-                event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
-
-                embeds_content.append(
-                    {
-                        "content": (
-                            "**EVENTOS A TERMINAR EM BREVE:**"
-                            if not embeds_content
-                            else None
-                        ),
-                        "name": event["name"].upper(),
-                        "body": f"Este evento termina em {self.get_time_remaining(event_end)}",
-                        "footer": f"Termina em {event_end.strftime('%d/%m/%Y %H:%M')}",
-                        "image": event.get("image", ""),
-                    }
-                )
-
-                update_query = f"""
-                    UPDATE event
-                    SET notification_end_date = '{current_time}'
-                    WHERE name = '{event["name"].replace("'", "''")}' AND start = '{event["start"]}'
-                """
-                self.poliswag.db.execute_query_to_database(update_query)
-
-            except Exception as e:
-                self.poliswag.utility.log_to_file(
-                    f"Error processing ending event {event.get('name', 'unknown')}: {str(e)}",
-                    "ERROR",
-                )
-
-        return embeds_content
-
-    async def get_all_current_active_events(self):
-        """Get all currently active events (including previously notified ones)"""
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        query = f"""
-            SELECT name, start, end, notification_date, image, event_type, link, extra_data
-            FROM event
-            WHERE start <= '{current_time}' AND end >= '{current_time}'
-            ORDER BY end ASC;
-        """
-
-        active_events = self.poliswag.db.get_data_from_database(query)
-
-        if len(active_events) == 0:
-            return None
-
-        embeds_content = [
-            {
-                "content": "**TODOS OS EVENTOS ATIVOS ATUALMENTE:**",
-                "name": "RESUMO DE EVENTOS",
-                "body": f"Existem atualmente {len(active_events)} eventos ativos.",
-                "footer": f"Atualizado em {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-                "image": "",
-            }
-        ]
-
-        for event in active_events:
-            try:
-                event_start = datetime.strptime(
-                    str(event["start"]), "%Y-%m-%d %H:%M:%S"
-                )
-                event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
-
-                # Process extra data
-                extra_data = {}
-                if "extra_data" in event and event["extra_data"]:
-                    try:
-                        extra_data = json.loads(event["extra_data"])
-                    except:
-                        pass
-
-                parsed_content = extra_data.get("parsed_content", {})
-                if not parsed_content:
+                # Fallback if parsing fails
+                if parsed_content is None:
                     parsed_content = {
-                        "time_period": f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}"
+                        "featured_pokemon": None,
+                        "bonuses": None,
+                        "special_features": None,
+                        "time_period": f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}",
                     }
 
-                event_description = []
-
-                if event.get("event_type"):
-                    event_description.append(f"• Tipo de evento: {event['event_type']}")
-
-                event_description.append(
-                    f"• Termina em: {self.get_time_remaining(event_end)}"
+                event_emoji = self.get_event_emoji(event["event_type"], parsed_content)
+                event_link = self.get_event_link(event)
+                event_name_linked = (
+                    f"[{event['name']}]({event_link})"
+                    if event_link
+                    else f"{event['name']}"
                 )
 
-                if event.get("link"):
-                    event_description.append(f"• Mais informações: {event.get('link')}")
+                # --- Process based on the corrected state ---
+                if is_newly_started:
+                    time_remaining = self.get_time_remaining(event_end)
+                    event_description = await self.generate_event_description(
+                        event, parsed_content
+                    )
+                    description_text = "\n".join(event_description)
 
-                embeds_content.append(
-                    {
-                        "content": None,
-                        "name": event["name"].upper(),
-                        "body": (
-                            "\n".join(event_description)
-                            if event_description
-                            else "Evento activo."
-                        ),
-                        "footer": f"Ativo até {event_end.strftime('%d/%m/%Y %H:%M')}",
-                        "image": event.get("image", ""),
-                    }
-                )
+                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Termina em {time_remaining}\n{description_text}"
+                    started_events.append(event_entry)
+                    self.mark_event_notified(
+                        event, event_start, is_end=False
+                    )  # Mark start notification sent
+
+                    # Store the image of the first newly started event for the embed
+                    if first_started_event_image is None and event.get("image"):
+                        first_started_event_image = event.get("image")
+                    # Set embed color based on the first started event type
+                    if not embed_content.get("name"):  # Only set color/title once
+                        embed_content["name"] = f"{event_emoji} {event['name']}"
+                        event_type_key = self.get_event_type_key(event["event_type"])
+                        embed_content["color"] = self.event_colors.get(
+                            event_type_key, self.event_colors["default"]
+                        )
+                        # Optionally set thumbnail based on event type
+                        # embed_content["thumbnail"] = self.get_event_thumbnail(event["event_type"])
+
+                elif is_newly_ended:
+                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Terminou a {event_end.strftime('%d/%m/%Y %H:%M')}\n"
+                    ended_events.append(event_entry)
+                    self.mark_event_notified(
+                        event, event_end, is_end=True
+                    )  # Mark end notification sent
+                    # Set embed color/title if not already set by a started event
+                    if not embed_content.get("name"):
+                        embed_content["name"] = (
+                            f"{event_emoji} {event['name']} (Terminado)"
+                        )
+                        embed_content["color"] = 0xAAAAAA  # Grey for ended events
+
+                elif is_already_active:
+                    time_remaining = self.get_time_remaining(event_end)
+                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Termina em {time_remaining} ({event_end.strftime('%d/%m/%Y %H:%M')})\n"
+                    # Optional: Add brief details from parsed_content if desired
+                    # if parsed_content and parsed_content.get("featured_pokemon"):
+                    #    event_entry += f"   └─ Destaque: {parsed_content['featured_pokemon']}\n"
+                    active_events.append(event_entry)
 
             except Exception as e:
                 self.poliswag.utility.log_to_file(
-                    f"Error processing current active event {event.get('name', 'unknown')}: {str(e)}",
+                    f"Error processing event {event.get('name', 'unknown')} during notification check: {str(e)}",
                     "ERROR",
                 )
+                # Optionally log traceback: import traceback; traceback.print_exc()
 
-        return embeds_content
+        # --- Assemble the notification ---
+        # Only proceed if there's a change (started or ended event)
+        if not (started_events or ended_events):
+            return None  # No changes to notify
 
-    async def check_ended_events(self):
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        one_hour_ago = (datetime.now() - timedelta(hours=1)).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        if started_events:
+            sections.append("🎉 **EVENTOS INICIADOS:**\n" + "\n".join(started_events))
 
-        query = f"""
-            SELECT name, start, end, image, event_type, link
-            FROM event
-            WHERE end > '{one_hour_ago}' AND end <= '{current_time}'
-            ORDER BY end DESC;
-        """
+        if ended_events:
+            sections.append("⏰ **EVENTOS TERMINADOS:**\n" + "\n".join(ended_events))
 
-        ended_events = self.poliswag.db.get_data_from_database(query)
-
-        if len(ended_events) == 0:
-            return None
-
-        active_query = f"""
-            SELECT COUNT(*) as active_count
-            FROM event
-            WHERE start <= '{current_time}' AND end > '{current_time}';
-        """
-
-        active_result = self.poliswag.db.get_data_from_database(active_query)
-        active_count = active_result[0]["active_count"] if active_result else 0
-
-        embeds_content = [
-            {
-                "content": "**EVENTOS TERMINADOS:**",
-                "name": "EVENTOS QUE ACABARAM DE TERMINAR",
-                "body": f"{len(ended_events)} evento(s) terminaram recentemente. Ainda existem {active_count} evento(s) ativos.",
-                "footer": f"Atualizado em {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-                "image": "",
-            }
-        ]
-
-        for event in ended_events:
-            try:
-                event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
-
-                embeds_content.append(
-                    {
-                        "content": None,
-                        "name": f"{event['name'].upper()} - TERMINADO",
-                        "body": f"Este evento terminou. Tipo: {event.get('event_type', 'N/A')}",
-                        "footer": f"Terminou em {event_end.strftime('%d/%m/%Y %H:%M')}",
-                        "image": event.get("image", ""),
-                    }
-                )
-
-            except Exception as e:
-                self.poliswag.utility.log_to_file(
-                    f"Error processing ended event {event.get('name', 'unknown')}: {str(e)}",
-                    "ERROR",
-                )
-
-        if active_count > 0:
-            embeds_content.append(
-                {
-                    "content": None,
-                    "name": "EVENTOS AINDA ATIVOS",
-                    "body": f"Existem ainda {active_count} evento(s) em progresso! Use o comando para ver eventos ativos para mais detalhes.",
-                    "footer": "Bons jogos!",
-                    "image": "",
-                }
+        # Always include active events if there was a change notification
+        if active_events:
+            sections.append(
+                f"🌟 **EVENTOS ATIVOS ({len(active_events)}):**\n"
+                + "\n".join(active_events)
             )
 
-        return embeds_content
+        embed_content["body"] = "\n\n".join(sections)
+
+        # Use the image of the first *newly started* event if available
+        if first_started_event_image:
+            embed_content["image"] = first_started_event_image
+        # Fallback: if only ended events, maybe use a generic image or none?
+
+        # Ensure embed name is set if only ended events occurred
+        if not embed_content.get("name") and ended_events:
+            embed_content["name"] = "Atualização de Eventos"  # Generic title
+
+        return embed_content
 
     def get_time_remaining(self, end_time):
         delta = end_time - datetime.now()
@@ -458,8 +283,263 @@ class EventManager:
         minutes, _ = divmod(remainder, 60)
 
         if days > 0:
-            return f"{days} dias, {hours} horas"
+            return f"{days}d {hours}h"
         elif hours > 0:
-            return f"{hours} horas, {minutes} minutos"
+            return f"{hours}h {minutes}m"
         else:
-            return f"{minutes} minutos"
+            return f"{minutes}m"
+
+    def build_upsert_query(self, name, start, end, image, event_type, link, event):
+        return f"""
+            INSERT INTO event(name, start, end, image, event_type, link, extra_data, notification_date, notification_end_date)
+            VALUES (
+                '{name.replace("'", "''")}',
+                '{start}',
+                '{end}',
+                '{image.replace("'", "''")}',
+                '{event_type.replace("'", "''")}',
+                '{link.replace("'", "''")}',
+                '{json.dumps(event).replace("'", "''")}'
+                ,NULL,
+                NULL
+            )
+            ON DUPLICATE KEY UPDATE
+            image = '{image.replace("'", "''")}',
+            event_type = '{event_type.replace("'", "''")}',
+            link = '{link.replace("'", "''")}',
+            extra_data = '{json.dumps(event).replace("'", "''")}'
+        """
+
+    def parse_extra_data(self, event):
+        extra_data = {}
+        if "extra_data" in event and event["extra_data"]:
+            try:
+                extra_data = json.loads(event["extra_data"])
+            except:
+                pass
+        return extra_data
+
+    async def get_or_generate_parsed_content(self, event, extra_data, event_start):
+        parsed_content = None
+        if "parsed_content" in extra_data:
+            parsed_content = extra_data["parsed_content"]
+        elif self.use_ai and self.cache_failed_cooldown is None:
+            event_data = {
+                "id": event.get("id", ""),
+                "name": event["name"],
+                "eventType": event["event_type"],
+                "start": str(event["start"]),
+                "end": str(event["end"]),
+                "extraData": extra_data.get("extraData", {}),
+            }
+
+            parsed_content = await self.poliswag.poliwiz.process_event(event_data)
+
+            if parsed_content:
+                extra_data["parsed_content"] = parsed_content
+                update_query = f"""
+                    UPDATE event
+                    SET extra_data = '{json.dumps(extra_data).replace("'", "''")}'
+                    WHERE name = '{event["name"].replace("'", "''")}' AND start = '{event_start.strftime("%Y-%m-%d %H:%M:%S")}'
+                """
+                self.poliswag.db.execute_query_to_database(update_query)
+        else:
+            event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+            parsed_content = {
+                "featured_pokemon": None,
+                "bonuses": None,
+                "special_features": None,
+                "time_period": f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}",
+            }
+
+        return parsed_content
+
+    async def generate_event_description(self, event, parsed_content):
+        event_description = []
+
+        if not self.use_ai:
+            event_description.append(f"🏷️ **Tipo de evento:** {event['event_type']}")
+
+        # Add featured Pokémon if available
+        if (
+            parsed_content
+            and parsed_content.get("featured_pokemon")
+            and parsed_content["featured_pokemon"] != "None"
+        ):
+            featured = parsed_content["featured_pokemon"]
+            if isinstance(featured, list):
+                featured = ", ".join(featured)
+            event_description.append(f"🔍 **Pokémon em destaque:**\n└─ {featured}")
+
+        # Add bonuses if available
+        if (
+            parsed_content
+            and parsed_content.get("bonuses")
+            and parsed_content["bonuses"] != "None"
+        ):
+            bonuses = parsed_content["bonuses"]
+            if isinstance(bonuses, list):
+                bonuses_text = "\n└─ ".join(bonuses)
+                event_description.append(f"🎁 **Bónus:**\n└─ {bonuses_text}")
+            else:
+                event_description.append(f"🎁 **Bónus:**\n└─ {bonuses}")
+
+        # Add special features if available
+        if (
+            parsed_content
+            and parsed_content.get("special_features")
+            and parsed_content["special_features"] != "None"
+        ):
+            features = parsed_content["special_features"]
+            if isinstance(features, list):
+                features_text = "\n└─ ".join(features)
+                event_description.append(
+                    f"✨ **Características especiais:**\n└─ {features_text}"
+                )
+            else:
+                event_description.append(
+                    f"✨ **Características especiais:**\n└─ {features}"
+                )
+
+        # Add link if available
+        if event.get("link"):
+            event_description.append(
+                f"🔗 **Mais informações:** [Clique aqui]({event.get('link')})"
+            )
+
+        return event_description
+
+    def mark_event_notified(self, event, event_date, is_end=False):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        field_name = "notification_end_date" if is_end else "notification_date"
+        date_field = "end" if is_end else "start"
+
+        update_query = f"""
+            UPDATE event
+            SET {field_name} = '{current_time}'
+            WHERE name = '{event["name"].replace("'", "''")}' AND {date_field} = '{event_date.strftime("%Y-%m-%d %H:%M:%S")}'
+        """
+        self.poliswag.db.execute_query_to_database(update_query)
+
+    def count_active_events(self, current_time):
+        active_query = f"""
+            SELECT COUNT(*) as active_count
+            FROM event
+            WHERE start <= '{current_time}' AND end > '{current_time}';
+        """
+        active_result = self.poliswag.db.get_data_from_database(active_query)
+        return active_result[0]["active_count"] if active_result else 0
+
+    def get_event_type_key(self, event_type):
+        """Convert event type to a standardized key for color mapping"""
+        event_type = event_type.lower()
+        if "community" in event_type or "day" in event_type:
+            return "community-day"
+        elif "spotlight" in event_type or "hour" in event_type:
+            return "spotlight-hour"
+        elif "raid" in event_type:
+            return "raid-day"
+        elif "battle" in event_type or "league" in event_type:
+            return "go-battle"
+        elif "research" in event_type:
+            return "research"
+        elif "season" in event_type:
+            return "season"
+        return "default"
+
+    def get_event_emoji(self, event_type, parsed_content):
+        """Get appropriate emoji for the event type and content"""
+        event_type = event_type.lower()
+
+        # Event type specific emojis
+        if "community" in event_type:
+            return "🌟"
+        elif "spotlight" in event_type:
+            return "🔦"
+        elif "raid" in event_type:
+            return "🛡️"
+        elif "battle" in event_type:
+            return "⚔️"
+        elif "research" in event_type:
+            return "🔍"
+        elif "season" in event_type:
+            return "🍂"
+
+        # Check parsed content for keywords
+        if parsed_content:
+            features = []
+            if parsed_content.get("special_features"):
+                if isinstance(parsed_content["special_features"], list):
+                    features.extend(parsed_content["special_features"])
+                else:
+                    features.append(parsed_content["special_features"])
+
+            if parsed_content.get("bonuses"):
+                if isinstance(parsed_content["bonuses"], list):
+                    features.extend(parsed_content["bonuses"])
+                else:
+                    features.append(parsed_content["bonuses"])
+
+            feature_text = " ".join(features).lower()
+
+            for keyword, emoji in self.feature_emojis.items():
+                if keyword in feature_text:
+                    return emoji
+
+        # Random Pokemon-themed emoji as fallback
+        pokemon_emojis = ["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"]
+        return random.choice(pokemon_emojis)
+
+    def get_event_thumbnail(self, event_type):
+        event_type = event_type.lower()
+
+        # These are placeholder URLs - replace with actual Pokemon GO asset URLs
+        thumbnails = {
+            "community day": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1401.png",
+            "spotlight hour": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1402.png",
+            "raid": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1403.png",
+            "battle": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1105.png",
+            "research": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1106.png",
+            "season": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",
+        }
+
+        for key, url in thumbnails.items():
+            if key in event_type:
+                return url
+
+        # Default thumbnail
+        return "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png"
+
+    def get_event_link(self, event):
+        """Generate a LeekDuck URL for the event"""
+        # First check if the event already has a link
+        if event.get("link") and "leekduck.com" in event.get("link"):
+            return event.get("link")
+
+        # Otherwise, generate a LeekDuck URL based on the event name
+        event_name = event.get("name", "").strip()
+        if not event_name:
+            return None
+
+        # Convert the event name to a URL-friendly format for LeekDuck
+        # Remove special characters and replace spaces with hyphens
+        url_name = re.sub(r"[^\w\s-]", "", event_name.lower())
+        url_name = re.sub(r"[\s-]+", "-", url_name)
+
+        # Determine event type for URL path
+        event_type_path = "events"  # Default path
+        event_type = event.get("event_type", "").lower()
+
+        if "community" in event_type and "day" in event_type:
+            event_type_path = "community-day"
+        elif "spotlight" in event_type:
+            event_type_path = "spotlight-hour"
+        elif "raid" in event_type or "battle" in event_type:
+            event_type_path = "raid-day"
+        elif "research" in event_type:
+            event_type_path = "research"
+        elif "season" in event_type:
+            event_type_path = "season"
+
+        # Construct the LeekDuck URL
+        return f"https://www.leekduck.com/{event_type_path}/{url_name}"
