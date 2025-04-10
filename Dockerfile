@@ -1,13 +1,18 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim-buster
+
+# Set timezone to Europe/Lisbon
+ENV TZ=Europe/Lisbon
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Set the working directory to /app
 WORKDIR /app
 # Copy the current directory contents into the container at /app
 COPY . /app
 
-# Install wkhtmltopdf and cleanup in the same RUN command to reduce image layers
+# Install wkhtmltopdf and tzdata, then cleanup
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wkhtmltopdf && \
+    apt-get install -y --no-install-recommends wkhtmltopdf tzdata && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

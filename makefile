@@ -32,7 +32,7 @@ ifneq ($(ENV),PRODUCTION) ## Extras for development environment, logs are automa
 	@sleep 5
 	@echo "Initializing database..."
 	@mkdir -p $(MOCK_DATA_DIR)
-	@cp -n mock_data_sample/*.json $(MOCK_DATA_DIR) || true
+	@cp -n mock_data/*.json $(MOCK_DATA_DIR) || true
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
 endif
 	@echo "Poliswag started successfully in $(ENV) environment."
@@ -67,8 +67,9 @@ test: ## Run the tests with pytest
 	@echo "Tests finished."
 
 reload: ## Reload the Python script inside the container, cleaning log files.
+	@echo "Cleaning log files..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "truncate -s 0 /app/logs/actions.log && truncate -s 0 /app/logs/error.log"
 	@echo "Reloading Poliswag application..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "echo '' > /app/logs/actions.log && echo '' > /app/logs/error.log"
 	docker compose -f $(DOCKER_COMPOSE_FILE) restart poliswag
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
 	@echo "Poliswag application reloaded."

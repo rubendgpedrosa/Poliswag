@@ -15,7 +15,7 @@ class Tracker(commands.Cog):
         print(f"{self.__class__.__name__} unloaded!")
 
     def cog_check(self, ctx):
-        return str(ctx.author.id) in self.ADMIN_USERS_IDS
+        return str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS
 
     @commands.command(
         name="track",
