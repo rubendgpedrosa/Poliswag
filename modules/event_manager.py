@@ -11,7 +11,6 @@ class EventManager:
         self.use_ai = use_ai
         self.cache_failed_cooldown = None
         self.ai_cooldown_duration = timedelta(minutes=30)
-        # Define theme colors for different event types
         self.event_colors = {
             "community-day": 0xFF9D00,  # Orange
             "spotlight-hour": 0xFFD700,  # Gold
@@ -21,7 +20,6 @@ class EventManager:
             "season": 0x32CD32,  # Lime Green
             "default": 0x3498DB,  # Blue
         }
-        # Emoji mappings for different event features
         self.feature_emojis = {
             "shiny": "✨",
             "raid": "🛡️",
@@ -92,7 +90,6 @@ class EventManager:
     async def check_current_events_changes(self):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Fetch potentially relevant events including their notification status
         query = f"""
             SELECT name, start, end, image, event_type, link, extra_data, notification_date, notification_end_date,
                 CASE
@@ -108,29 +105,18 @@ class EventManager:
                 (start > '{current_time}') -- Upcoming (though not directly used for notification here)
             )
             AND excluded_event_type.type IS NULL
-            ORDER BY end ASC -- Keep sorting, might be useful
+            ORDER BY end ASC
         """
         events = self.poliswag.db.get_data_from_database(query)
         if not events:
             return None
 
-        embed_content = {
-            "content": "**🔔 ATUALIZAÇÃO NOS EVENTOS 🔔**",
-            "name": "",  # Will be set later if needed
-            "body": "",
-            "footer": f"Atualizado a {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-            "color": 0x3498DB,  # Default color
-            "image": "",
-            "thumbnail": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",  # Default thumbnail
-        }
-
-        sections = []
         started_events = []
         ended_events = []
         active_events = []
-        first_started_event_image = (
-            None  # To store the image of the first *newly* started event
-        )
+
+        first_started_event_image = None
+        first_ended_event_image = None
 
         for event in events:
             try:
@@ -140,8 +126,6 @@ class EventManager:
                 event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
                 extra_data = self.parse_extra_data(event)
 
-                # --- Logic Modification Start ---
-                # Determine the actual state change we care about for notifications
                 is_newly_started = (
                     event["event_status"] == "active"
                     and event.get("notification_date") is None
@@ -150,30 +134,17 @@ class EventManager:
                     event["event_status"] == "active"
                     and event.get("notification_date") is not None
                 )
-                # Check for ended events that haven't had their end notification sent
                 is_newly_ended = (
                     event["event_status"] == "ended"
                     and event.get("notification_end_date") is None
                 )
-                # --- Logic Modification End ---
 
                 parsed_content = None
-                # Get/Generate content if it's active (either newly or ongoing) as we need info for display
-                # Or if using AI and it hasn't been parsed yet for a newly started event.
                 if is_newly_started or is_already_active:
-                    # The condition inside get_or_generate_parsed_content checks 'active' status which is correct here
                     parsed_content = await self.get_or_generate_parsed_content(
                         event, extra_data, event_start
                     )
-                else:  # For ended events or if AI fails/disabled
-                    parsed_content = {
-                        "featured_pokemon": None,
-                        "bonuses": None,
-                        "special_features": None,
-                        "time_period": f"{event_start.strftime('%d/%m/%Y %H:%M')} até {event_end.strftime('%d/%m/%Y %H:%M')}",
-                    }
 
-                # Fallback if parsing fails
                 if parsed_content is None:
                     parsed_content = {
                         "featured_pokemon": None,
@@ -190,7 +161,6 @@ class EventManager:
                     else f"{event['name']}"
                 )
 
-                # --- Process based on the corrected state ---
                 if is_newly_started:
                     time_remaining = self.get_time_remaining(event_end)
                     event_description = await self.generate_event_description(
@@ -198,44 +168,44 @@ class EventManager:
                     )
                     description_text = "\n".join(event_description)
 
-                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Termina em {time_remaining}\n{description_text}"
-                    started_events.append(event_entry)
-                    self.mark_event_notified(
-                        event, event_start, is_end=False
-                    )  # Mark start notification sent
+                    event_entry = f"{event_emoji} **{event_name_linked}**"
+                    event_entry += (
+                        f"\n{description_text}\nTermina em {time_remaining}\n"
+                    )
+                    started_events.append(
+                        {
+                            "entry": event_entry,
+                            "name": event["name"],
+                            "emoji": event_emoji,
+                            "image": event.get("image", ""),
+                            "type": event["event_type"],
+                        }
+                    )
+                    self.mark_event_notified(event, event_start, is_end=False)
 
-                    # Store the image of the first newly started event for the embed
                     if first_started_event_image is None and event.get("image"):
                         first_started_event_image = event.get("image")
-                    # Set embed color based on the first started event type
-                    if not embed_content.get("name"):  # Only set color/title once
-                        embed_content["name"] = f"{event_emoji} {event['name']}"
-                        event_type_key = self.get_event_type_key(event["event_type"])
-                        embed_content["color"] = self.event_colors.get(
-                            event_type_key, self.event_colors["default"]
-                        )
-                        # Optionally set thumbnail based on event type
-                        # embed_content["thumbnail"] = self.get_event_thumbnail(event["event_type"])
 
                 elif is_newly_ended:
-                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Terminou a {event_end.strftime('%d/%m/%Y %H:%M')}\n"
-                    ended_events.append(event_entry)
-                    self.mark_event_notified(
-                        event, event_end, is_end=True
-                    )  # Mark end notification sent
-                    # Set embed color/title if not already set by a started event
-                    if not embed_content.get("name"):
-                        embed_content["name"] = (
-                            f"{event_emoji} {event['name']} (Terminado)"
-                        )
-                        embed_content["color"] = 0xAAAAAA  # Grey for ended events
+                    event_entry = f"{event_emoji} **{event_name_linked}**\n"
+                    ended_events.append(
+                        {
+                            "entry": event_entry,
+                            "name": event["name"],
+                            "emoji": event_emoji,
+                            "image": event.get("image", ""),
+                            "type": event["event_type"],
+                        }
+                    )
+                    self.mark_event_notified(event, event_end, is_end=True)
+
+                    if first_ended_event_image is None and event.get("image"):
+                        first_ended_event_image = event.get("image")
 
                 elif is_already_active:
                     time_remaining = self.get_time_remaining(event_end)
-                    event_entry = f"{event_emoji} **{event_name_linked}**\n└─ Termina em {time_remaining} ({event_end.strftime('%d/%m/%Y %H:%M')})\n"
-                    # Optional: Add brief details from parsed_content if desired
-                    # if parsed_content and parsed_content.get("featured_pokemon"):
-                    #    event_entry += f"   └─ Destaque: {parsed_content['featured_pokemon']}\n"
+                    event_entry = f"{event_emoji} **{event_name_linked}**\n"
+                    event_entry += f"Termina em {time_remaining} ({event_end.strftime('%d/%m/%Y %H:%M')})\n"
                     active_events.append(event_entry)
 
             except Exception as e:
@@ -243,38 +213,52 @@ class EventManager:
                     f"Error processing event {event.get('name', 'unknown')} during notification check: {str(e)}",
                     "ERROR",
                 )
-                # Optionally log traceback: import traceback; traceback.print_exc()
 
-        # --- Assemble the notification ---
-        # Only proceed if there's a change (started or ended event)
         if not (started_events or ended_events):
-            return None  # No changes to notify
+            return None
+
+        result = {}
+        current_datetime = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         if started_events:
-            sections.append("🎉 **EVENTOS INICIADOS:**\n" + "\n".join(started_events))
+            first_event = started_events[0]
+            event_type_key = self.get_event_type_key(first_event["type"])
+            color = self.event_colors.get(event_type_key, self.event_colors["default"])
+
+            result["started"] = {
+                "content": "**🎉 EVENTOS INICIADOS 🎉**",
+                "name": f"{first_event['emoji']} {first_event['name']}",
+                "body": "\n\n".join([event["entry"] for event in started_events]),
+                "footer": f"Atualizado a {current_datetime}",
+                "color": color,
+                "image": first_started_event_image,
+                "thumbnail": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",
+            }
 
         if ended_events:
-            sections.append("⏰ **EVENTOS TERMINADOS:**\n" + "\n".join(ended_events))
+            first_event = ended_events[0]
+            result["ended"] = {
+                "content": "**⏰ EVENTOS TERMINADOS ⏰**",
+                "name": f"{first_event['emoji']} {first_event['name']} (Terminado)",
+                "body": "\n\n".join([event["entry"] for event in ended_events]),
+                "footer": f"Atualizado a {current_datetime}",
+                "color": 0xAAAAAA,  # Grey for ended events
+                "image": first_ended_event_image,
+                "thumbnail": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",
+            }
 
-        # Always include active events if there was a change notification
         if active_events:
-            sections.append(
-                f"🌟 **EVENTOS ATIVOS ({len(active_events)}):**\n"
-                + "\n".join(active_events)
-            )
+            result["active"] = {
+                "content": f"**🌟 EVENTOS ATIVOS ({len(active_events)}) 🌟**",
+                "name": "",
+                "body": "\n\n".join(active_events),
+                "footer": f"Atualizado a {current_datetime}",
+                "color": 0x3498DB,
+                "image": "",
+                "thumbnail": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",
+            }
 
-        embed_content["body"] = "\n\n".join(sections)
-
-        # Use the image of the first *newly started* event if available
-        if first_started_event_image:
-            embed_content["image"] = first_started_event_image
-        # Fallback: if only ended events, maybe use a generic image or none?
-
-        # Ensure embed name is set if only ended events occurred
-        if not embed_content.get("name") and ended_events:
-            embed_content["name"] = "Atualização de Eventos"  # Generic title
-
-        return embed_content
+        return result
 
     def get_time_remaining(self, end_time):
         delta = end_time - datetime.now()
@@ -360,7 +344,6 @@ class EventManager:
         if not self.use_ai:
             event_description.append(f"🏷️ **Tipo de evento:** {event['event_type']}")
 
-        # Add featured Pokémon if available
         if (
             parsed_content
             and parsed_content.get("featured_pokemon")
@@ -371,41 +354,27 @@ class EventManager:
                 featured = ", ".join(featured)
             event_description.append(f"🔍 **Pokémon em destaque:**\n└─ {featured}")
 
-        # Add bonuses if available
         if (
             parsed_content
             and parsed_content.get("bonuses")
             and parsed_content["bonuses"] != "None"
         ):
             bonuses = parsed_content["bonuses"]
-            if isinstance(bonuses, list):
-                bonuses_text = "\n└─ ".join(bonuses)
-                event_description.append(f"🎁 **Bónus:**\n└─ {bonuses_text}")
-            else:
-                event_description.append(f"🎁 **Bónus:**\n└─ {bonuses}")
+            bonuses_text = (
+                "\n└─ ".join(bonuses) if isinstance(bonuses, list) else bonuses
+            )
+            event_description.append(f"🎁 **Bónus:**\n└─ {bonuses_text}")
 
-        # Add special features if available
         if (
             parsed_content
             and parsed_content.get("special_features")
             and parsed_content["special_features"] != "None"
         ):
             features = parsed_content["special_features"]
-            if isinstance(features, list):
-                features_text = "\n└─ ".join(features)
-                event_description.append(
-                    f"✨ **Características especiais:**\n└─ {features_text}"
-                )
-            else:
-                event_description.append(
-                    f"✨ **Características especiais:**\n└─ {features}"
-                )
-
-        # Add link if available
-        if event.get("link"):
-            event_description.append(
-                f"🔗 **Mais informações:** [Clique aqui]({event.get('link')})"
+            features_text = (
+                "\n└─ ".join(features) if isinstance(features, list) else features
             )
+            event_description.append(f"✨ **Funcionalidades:**\n└─ {features_text}")
 
         return event_description
 
@@ -421,17 +390,7 @@ class EventManager:
         """
         self.poliswag.db.execute_query_to_database(update_query)
 
-    def count_active_events(self, current_time):
-        active_query = f"""
-            SELECT COUNT(*) as active_count
-            FROM event
-            WHERE start <= '{current_time}' AND end > '{current_time}';
-        """
-        active_result = self.poliswag.db.get_data_from_database(active_query)
-        return active_result[0]["active_count"] if active_result else 0
-
     def get_event_type_key(self, event_type):
-        """Convert event type to a standardized key for color mapping"""
         event_type = event_type.lower()
         if "community" in event_type or "day" in event_type:
             return "community-day"
@@ -448,10 +407,8 @@ class EventManager:
         return "default"
 
     def get_event_emoji(self, event_type, parsed_content):
-        """Get appropriate emoji for the event type and content"""
         event_type = event_type.lower()
 
-        # Event type specific emojis
         if "community" in event_type:
             return "🌟"
         elif "spotlight" in event_type:
@@ -465,7 +422,6 @@ class EventManager:
         elif "season" in event_type:
             return "🍂"
 
-        # Check parsed content for keywords
         if parsed_content:
             features = []
             if parsed_content.get("special_features"):
@@ -486,48 +442,21 @@ class EventManager:
                 if keyword in feature_text:
                     return emoji
 
-        # Random Pokemon-themed emoji as fallback
         pokemon_emojis = ["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"]
         return random.choice(pokemon_emojis)
 
-    def get_event_thumbnail(self, event_type):
-        event_type = event_type.lower()
-
-        # These are placeholder URLs - replace with actual Pokemon GO asset URLs
-        thumbnails = {
-            "community day": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1401.png",
-            "spotlight hour": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1402.png",
-            "raid": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1403.png",
-            "battle": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1105.png",
-            "research": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1106.png",
-            "season": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png",
-        }
-
-        for key, url in thumbnails.items():
-            if key in event_type:
-                return url
-
-        # Default thumbnail
-        return "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Items/Item_1301.png"
-
     def get_event_link(self, event):
-        """Generate a LeekDuck URL for the event"""
-        # First check if the event already has a link
         if event.get("link") and "leekduck.com" in event.get("link"):
             return event.get("link")
 
-        # Otherwise, generate a LeekDuck URL based on the event name
         event_name = event.get("name", "").strip()
         if not event_name:
             return None
 
-        # Convert the event name to a URL-friendly format for LeekDuck
-        # Remove special characters and replace spaces with hyphens
         url_name = re.sub(r"[^\w\s-]", "", event_name.lower())
         url_name = re.sub(r"[\s-]+", "-", url_name)
 
-        # Determine event type for URL path
-        event_type_path = "events"  # Default path
+        event_type_path = "events"
         event_type = event.get("event_type", "").lower()
 
         if "community" in event_type and "day" in event_type:
@@ -541,5 +470,4 @@ class EventManager:
         elif "season" in event_type:
             event_type_path = "season"
 
-        # Construct the LeekDuck URL
         return f"https://www.leekduck.com/{event_type_path}/{url_name}"

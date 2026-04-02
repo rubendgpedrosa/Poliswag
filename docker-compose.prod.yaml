@@ -28,6 +28,7 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
+      - /root/PoGoLeiria/public:/pogo-public
     env_file:
       - .env
     networks:
