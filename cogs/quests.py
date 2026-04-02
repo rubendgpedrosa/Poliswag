@@ -14,6 +14,17 @@ class Quests(commands.Cog):
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
 
+    @commands.command(name="exportquests", brief="Exporta quests para o PWA (admin)")
+    async def exportquestscmd(self, ctx):
+        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
+            return
+        msg = await ctx.send("A exportar quests...")
+        try:
+            await self.poliswag.quest_exporter.export()
+            await msg.edit(content="✅ Quests exportadas com sucesso!")
+        except Exception as e:
+            await msg.edit(content=f"❌ Erro ao exportar quests: {e}")
+
     @commands.command(name="scan", brief="Inicia novo scan de quests")
     async def rescancmd(self, ctx):
         request = await self.poliswag.utility.fetch_data("scan_quest_all")
