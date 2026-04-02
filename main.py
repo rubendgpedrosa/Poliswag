@@ -12,6 +12,7 @@ from modules.image_generator import ImageGenerator
 from modules.quest_search import QuestSearch
 from modules.poliwiz import PoliWiz
 from modules.event_manager import EventManager
+from modules.quest_exporter import QuestExporter
 
 
 class Poliswag(commands.Bot):
@@ -33,7 +34,8 @@ class Poliswag(commands.Bot):
         self.image_generator = ImageGenerator(self)
         self.quest_search = QuestSearch(self)
         self.poliwiz = PoliWiz(self)
-        self.event_manager = EventManager(self)
+        self.event_manager = EventManager(self, False)
+        self.quest_exporter = QuestExporter(self)
         """ ! IMPORTED CLASSSES ! """
 
         """ CHANNEL'S INITIAL SETUP """
@@ -138,6 +140,10 @@ class Poliswag(commands.Bot):
                         """ NOTIFY FOLLOWED QUESTS / REWARDS """
                         await self.quest_search.check_tracked(self.CONVIVIO_CHANNEL)
                         """ ! NOTIFY FOLLOWED QUESTS / REWARDS ! """
+
+                        """ EXPORT QUESTS JSON FOR PWA """
+                        await self.quest_exporter.export()
+                        """ ! EXPORT QUESTS JSON FOR PWA ! """
                     else:
                         leiria_bar_length = 20
                         marinha_bar_length = 20
