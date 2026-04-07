@@ -1,4 +1,5 @@
-import discord, io
+import discord
+import io
 from discord.ext import commands
 
 
@@ -20,38 +21,32 @@ class Accounts(commands.Cog):
             if ctx.guild is not None:
                 await ctx.message.delete()
 
-            account_data = await self.poliswag.scanner_status.get_account_stats()
-            device_status = await self.poliswag.scanner_status.is_device_connected()
+            account_data = await self.poliswag.account_monitor.get_account_stats()
+            device_status = await self.poliswag.account_monitor.is_device_connected()
 
-            if account_data:
-                image_bytes = (
-                    self.poliswag.image_generator.generate_image_from_account_stats(
-                        account_data, device_status
-                    )
+            image_bytes = (
+                await self.poliswag.image_generator.generate_image_from_account_stats(
+                    account_data, device_status
                 )
-                if image_bytes:
-                    try:
-                        with io.BytesIO(image_bytes) as image_file:
-                            discord_file = discord.File(
-                                image_file, filename="account_status_report.png"
-                            )
-                            await ctx.send(file=discord_file)
-                    except Exception as e:
-                        error_message = f"Error sending image: {e}"
-                        print(error_message)
-                        self.poliswag.utility.log_to_file(error_message, "ERROR")
-                        await ctx.send("Error sending image. Check logs.")
-
-                else:
-                    await ctx.send("Error generating account image. Check logs.")
-
+            )
+            if image_bytes:
+                try:
+                    discord_file = discord.File(
+                        io.BytesIO(image_bytes), filename="account_status_report.png"
+                    )
+                    await ctx.send(file=discord_file)
+                except Exception as e:
+                    self.poliswag.utility.log_to_file(
+                        f"Error sending image: {e}", "ERROR"
+                    )
+                    await ctx.send("Error sending image. Check logs.")
             else:
-                await ctx.send("Could not retrieve account data. Check logs.")
+                await ctx.send("Error generating account image. Check logs.")
 
         except Exception as e:
-            error_message = f"An error occurred: {e}"
-            print(error_message)
-            self.poliswag.utility.log_to_file(error_message, "ERROR")
+            self.poliswag.utility.log_to_file(
+                f"Error in account_report_cmd: {e}", "ERROR"
+            )
             await ctx.send(
                 "An error occurred while generating the report. Check the logs."
             )

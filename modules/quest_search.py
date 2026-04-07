@@ -57,7 +57,7 @@ class QuestSearch:
         if self.masterfile_data and datetime.now() - datetime.fromisoformat(
             self.masterfile_data["date"]
         ) < timedelta(hours=24):
-            return self.masterfile_data
+            return False
 
         try:
             response = requests.get(os.environ.get("MASTERFILE_ENDPOINT"))
@@ -70,10 +70,10 @@ class QuestSearch:
                 if key in ["items", "questRewardTypes", "pokemon"]
             }
             self.masterfile_data["date"] = datetime.now().isoformat()
-            return self.masterfile_data
+            return True
         except requests.exceptions.RequestException as e:
             logging.error(f"Error loading masterfile data: {e}")
-            return None
+            return False
 
     def generate_pokemon_item_name_map(self):
         if not self.masterfile_data or "pokemon" not in self.masterfile_data:
@@ -243,18 +243,12 @@ class QuestSearch:
             if "alternative_quest_reward_type" in quest
             else "quest_reward_type"
         )
-        reward_amount_field = (
-            "alternative_quest_reward_amount"
-            if "alternative_quest_reward_amount" in quest
-            else "quest_reward_amount"
-        )
 
         quest_title = quest.get(title_field, "").lower()
         quest_pokemon_id = str(quest.get(pokemon_id_field, ""))
         quest_item_id = str(quest.get(item_id_field, ""))
         quest_target = str(quest.get(target_field, ""))
         quest_reward_type = quest.get(reward_type_field, "")
-        quest_reward_amount = quest.get(reward_amount_field, "")
 
         if self.translationfile_data is None:
             logging.warning("Translation data is not available.")
@@ -354,7 +348,7 @@ class QuestSearch:
         elif quest_reward_type == 2:  # Item
             return f"reward/item/{quest_item_id}.png"
         elif quest_reward_type == 3:  # Stardust
-            return f"reward/stardust/0.png"
+            return "reward/stardust/0.png"
         elif quest_reward_type == 4:  # Candies
             return f"reward/candy/{quest_pokemon_id}.png"
         elif quest_reward_type == 7:  # Pokemon
@@ -421,100 +415,6 @@ class QuestSearch:
 
         embed.set_footer(text=f"Página {page}/{total_pages}")
         return embed
-
-    def group_pokestops_by_reward(self, found_quests):
-        if isinstance(found_quests, dict) and all(
-            isinstance(found_quests[key], dict) and "pokestops" in found_quests[key]
-            for key in found_quests
-        ):
-            reward_groups = found_quests
-
-            for reward_slug, group_data in reward_groups.items():
-                pokestops = group_data["pokestops"]
-                if pokestops and len(pokestops) > 0:
-                    sample = pokestops[0]
-                    reward_type = sample.get("quest_reward_type")
-
-                    if reward_type == 2:  # Item
-                        amount = sample.get("quest_reward_amount", "")
-                        item_id = sample.get("quest_item_id", "")
-                        if amount and item_id and "items" in self.masterfile_data:
-                            item_name = (
-                                self.masterfile_data["items"]
-                                .get(str(item_id), {})
-                                .get("name", "")
-                            )
-                            if item_name:
-                                group_data["reward_text"] = f"{amount}x {item_name}"
-                                group_data["title"] = f"{amount}x {group_data['title']}"
-
-                    elif reward_type == 3:  # Stardust
-                        amount = sample.get("quest_reward_amount", "")
-                        if amount:
-                            group_data["reward_text"] = f"{amount} Stardust"
-                            group_data["title"] = f"{amount} {group_data['title']}"
-
-                    elif reward_type == 4:  # Candies
-                        amount = sample.get("quest_reward_amount", "")
-                        pokemon_id = sample.get("quest_pokemon_id", "")
-                        pokemon_name = ""
-
-                        if amount and pokemon_id and "pokemon" in self.masterfile_data:
-                            pokemon_name = (
-                                self.masterfile_data["pokemon"]
-                                .get(str(pokemon_id), {})
-                                .get("name", "")
-                            )
-                            if pokemon_name:
-                                group_data["reward_text"] = pokemon_name
-
-                        if pokemon_name:
-                            group_data["reward_text"] = f"{amount} {pokemon_name} Candy"
-                        else:
-                            group_data["reward_text"] = f"{amount} Candy"
-
-                    elif reward_type == 7:  # Pokemon
-                        pokemon_id = sample.get("quest_pokemon_id", "")
-                        if pokemon_id and "pokemon" in self.masterfile_data:
-                            pokemon_name = (
-                                self.masterfile_data["pokemon"]
-                                .get(str(pokemon_id), {})
-                                .get("name", "")
-                            )
-                            if pokemon_name:
-                                group_data["reward_text"] = pokemon_name
-
-                    elif reward_type == 12:  # Mega Energy
-                        amount = sample.get("quest_reward_amount", "")
-                        pokemon_id = sample.get("quest_pokemon_id", "")
-                        if amount and pokemon_id and "pokemon" in self.masterfile_data:
-                            pokemon_name = (
-                                self.masterfile_data["pokemon"]
-                                .get(str(pokemon_id), {})
-                                .get("name", "")
-                            )
-                            if pokemon_name:
-                                group_data["reward_text"] = (
-                                    f"{amount} {pokemon_name} Mega Energy"
-                                )
-
-                    elif reward_type == 1:  # Experience
-                        amount = sample.get("quest_reward_amount", "")
-                        if amount:
-                            group_data["reward_text"] = f"{amount} XP"
-
-            return reward_groups
-
-        reward_groups = {}
-        for quest_group in found_quests:
-            quest_title = quest_group["quest_title"]
-            for pokestop in quest_group["quests"]:
-                if "quest_slug" not in pokestop:
-                    continue
-                reward_slug = pokestop["quest_slug"]
-                if reward_slug not in reward_groups:
-                    reward_groups[reward_slug] = {"title": quest_title, "pokestops": []}
-                reward_groups[reward_slug]["pokestops"].append(pokestop)
 
     def group_pokestops_by_reward(self, found_quests):
         reward_groups = {}
@@ -667,12 +567,15 @@ class QuestSearch:
             self.poliswag.utility.log_to_file("Nenhuma quest seguida encontrada.")
             return
 
+        from modules.embeds import build_tracked_summary_embeds
+        from modules.config import Config
+
         if all_found_quests_leiria:
             reward_groups_leiria = self.poliswag.quest_search.group_pokestops_by_reward(
                 all_found_quests_leiria
             )
-            await self.poliswag.utility.build_quest_summary_embeds(
-                channel, reward_groups_leiria, "Leiria"
+            await build_tracked_summary_embeds(
+                channel, reward_groups_leiria, "Leiria", Config.UI_ICONS_URL
             )
 
         if all_found_quests_marinha:
@@ -681,6 +584,6 @@ class QuestSearch:
                     all_found_quests_marinha
                 )
             )
-            await self.poliswag.utility.build_quest_summary_embeds(
-                channel, reward_groups_marinha, "Marinha Grande"
+            await build_tracked_summary_embeds(
+                channel, reward_groups_marinha, "Marinha Grande", Config.UI_ICONS_URL
             )

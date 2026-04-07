@@ -1,11 +1,9 @@
-import os
 from discord.ext import commands
 
 
 class Quests(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.SCAN_QUESTS_ALL_ENDPOINT = os.environ.get("SCAN_QUESTS_ALL_ENDPOINT")
         self.MAX_POKESTOPS_PER_EMBED = 10
 
     async def cog_load(self):
@@ -27,8 +25,14 @@ class Quests(commands.Cog):
 
     @commands.command(name="scan", brief="Inicia novo scan de quests")
     async def rescancmd(self, ctx):
-        request = await self.poliswag.utility.fetch_data("scan_quest_all")
-        if request.status_code == 200:
+        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
+            return
+        from modules.http_client import fetch_data
+
+        request = await fetch_data(
+            "scan_quest_all", log_fn=self.poliswag.utility.log_to_file
+        )
+        if request is not None:
             await ctx.send("Scan de quests iniciado!")
             self.poliswag.scanner_manager.update_quest_scanning_state(0)
         else:
@@ -40,15 +44,11 @@ class Quests(commands.Cog):
         brief="Procura quests em Leiria ou Marinha",
         help="Pesquisa quests em Leiria ou Marinha com base na palavra-chave fornecida. Utilize: !questleiria <palavra-chave> ou !questmarinha <palavra-chave>",
     )
-    async def questcmd(self, ctx):
+    async def questcmd(self, ctx, *, search=""):
         user = ctx.author
-        search = (
-            ctx.message.content.replace("!questleiria", "")
-            .replace("!questmarinha", "")
-            .strip()
-        )
+        search = search.strip()
 
-        if search == "":
+        if not search:
             await ctx.send(f"{user.mention}, é necessário incluir algo para pesquisar!")
             return
 
@@ -70,7 +70,9 @@ class Quests(commands.Cog):
         )
 
         for reward_slug, group_data in reward_groups.items():
-            reward_title = group_data["title"] + " - " + group_data["reward_text"]
+            reward_title = (
+                group_data["title"] + " - " + group_data.get("reward_text", "")
+            )
             all_pokestops = group_data["pokestops"]
             pokestop_groups = self.poliswag.quest_search.group_pokestops_geographically(
                 all_pokestops, self.MAX_POKESTOPS_PER_EMBED

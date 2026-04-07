@@ -1,6 +1,33 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs
 logs/
 *.log
+
+# Git / IDE / tooling
 .git/
+.github/
+.vscode/
+.claude/
+
+# Env / secrets
 .env
+.env.example
+
+# Docs / config not needed at runtime
+README.md
+*.md
+.pre-commit-config.yaml
+pyproject.toml
+
+# Mock fixtures (mounted at runtime via bind mounts in dev compose)
+mock_data/
+mock_database/

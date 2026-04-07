@@ -34,14 +34,8 @@ jobs:
         pip install black
         black --check .
 
-    # Prepare for tests even if none exist yet
-    - name: Run tests (if available)
-      run: |
-        if [ -d "tests" ]; then
-          pytest --maxfail=1 --disable-warnings -q
-        else
-          echo "No tests directory found. Skipping tests."
-        fi
+    - name: Run tests
+      run: pytest
 
     # Now perform security scanning; override commit range and use full history
     - name: Check for secrets

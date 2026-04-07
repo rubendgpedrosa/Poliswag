@@ -18,3 +18,17 @@ exclude = '''
 | docker-compose.yaml
 | docker-compose.prod.yaml
 '''
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=modules",
+    "--cov=cogs",
+    "--cov-report=term-missing",
+]
+asyncio_mode = "auto"
