@@ -1,11 +1,14 @@
 import discord
 from discord.ext import commands
+from modules.event_store import EventStore
+from modules.embeds import build_excluded_list_embed
+from modules.config import Config
 
 
 class EventExclusion(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.embed_color = 0x4169E1
+        self.event_store = EventStore(poliswag.db)
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -24,29 +27,23 @@ class EventExclusion(commands.Cog):
     async def exclude_event(self, ctx, *, event_type):
         event_type = event_type.lower()
 
-        existing_exclusion = self.poliswag.db.get_data_from_database(
-            f"SELECT type FROM excluded_event_type WHERE type = '{event_type}'"
-        )
-
-        if len(existing_exclusion) > 0:
+        if self.event_store.is_excluded(event_type):
             await ctx.send(
                 f"O tipo de evento '{event_type}' já está na lista de exclusão."
             )
             return
 
-        self.poliswag.db.execute_query_to_database(
-            f"INSERT INTO excluded_event_type (type) VALUES ('{event_type}')"
-        )
+        self.event_store.add_excluded(event_type)
 
         confirm_embed = discord.Embed(
             title="Tipo de Evento Excluído",
             description=f"Eventos do tipo **{event_type}** adicionado à lista de exclusão.",
-            color=self.embed_color,
+            color=Config.EMBED_COLOR,
         )
-
         await ctx.send(embed=confirm_embed)
 
-        excluded_list_embed = await self.poliswag.utility.build_excluded_list_embed(
+        excluded_list_embed = await build_excluded_list_embed(
+            self.poliswag.db,
             title="Lista de tipo de Eventos Excluídos",
             footer_text="Use !excludedlist para ver esta lista novamente",
         )
@@ -59,10 +56,7 @@ class EventExclusion(commands.Cog):
     )
     async def include_event(self, ctx, *, event_type):
         event_type = event_type.lower()
-
-        affected_rows = self.poliswag.db.execute_query_to_database(
-            f"DELETE FROM excluded_event_type WHERE type = '{event_type}'"
-        )
+        affected_rows = self.event_store.remove_excluded(event_type)
 
         if affected_rows == 0:
             await ctx.send(f"O tipo de evento '{event_type}' não estava excluído.")
@@ -70,11 +64,12 @@ class EventExclusion(commands.Cog):
             remove_embed = discord.Embed(
                 title="Tipo de Evento Incluído",
                 description=f"**{event_type}** voltou a ser incluído nas notificações.",
-                color=self.embed_color,
+                color=Config.EMBED_COLOR,
             )
             await ctx.send(embed=remove_embed)
 
-            excluded_list_embed = await self.poliswag.utility.build_excluded_list_embed(
+            excluded_list_embed = await build_excluded_list_embed(
+                self.poliswag.db,
                 title="Lista Atualizada de Tipos de Eventos Excluídos",
                 footer_text="Use !excludedlist para ver esta lista novamente",
             )
@@ -86,19 +81,13 @@ class EventExclusion(commands.Cog):
         help="Remove todos os tipos de eventos da lista de exclusão.",
     )
     async def exclude_clear_all_events(self, ctx):
-        excluded_count = self.poliswag.db.get_data_from_database(
-            "SELECT COUNT(*) as count FROM excluded_event_type"
-        )
-        count = excluded_count[0]["count"] if excluded_count else 0
-
-        self.poliswag.db.execute_query_to_database("DELETE FROM excluded_event_type")
+        count = self.event_store.clear_excluded()
 
         confirm_embed = discord.Embed(
             title="Todos os Tipos de Eventos Incluídos",
             description=f"{count} tipos de eventos foram removidos da lista de exclusão.",
-            color=self.embed_color,
+            color=Config.EMBED_COLOR,
         )
-
         await ctx.send(embed=confirm_embed)
 
     @commands.command(
@@ -107,7 +96,7 @@ class EventExclusion(commands.Cog):
         help="Mostra uma lista de todos os tipos de eventos que estão excluídos.",
     )
     async def excluded_list(self, ctx):
-        excluded_list_embed = await self.poliswag.utility.build_excluded_list_embed()
+        excluded_list_embed = await build_excluded_list_embed(self.poliswag.db)
         await ctx.send(embed=excluded_list_embed)
 
     @commands.command(
@@ -116,9 +105,7 @@ class EventExclusion(commands.Cog):
         help="Mostra uma lista de todos os tipos de eventos que estão registados na base de dados.",
     )
     async def event_types(self, ctx):
-        event_types = self.poliswag.db.get_data_from_database(
-            "SELECT event_type FROM event GROUP BY event_type"
-        )
+        event_types = self.event_store.get_all_event_types()
 
         if not event_types:
             await ctx.send("Não foram encontrados tipos de eventos.")
@@ -131,7 +118,7 @@ class EventExclusion(commands.Cog):
         embed = discord.Embed(
             title="Tipos de Eventos Registados",
             description=f"Lista de tipos de eventos:\n{event_type_list}",
-            color=self.embed_color,
+            color=Config.EMBED_COLOR,
         )
         await ctx.send(embed=embed)
 

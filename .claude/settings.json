@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec:*)",
+      "Bash(wc -l /root/Poliswag/cogs/*.py)"
+    ]
+  }
+}
