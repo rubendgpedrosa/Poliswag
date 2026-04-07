@@ -44,7 +44,7 @@ class QuestExporter:
         standard_rows = await asyncio.to_thread(
             qs.db.get_data_from_database,
             """
-            SELECT name, lat, lon,
+            SELECT name, lat, lon, url,
                    quest_title, quest_target, quest_reward_type,
                    quest_item_id, quest_pokemon_id, quest_reward_amount
             FROM pokestop WHERE quest_reward_type IS NOT NULL
@@ -53,7 +53,7 @@ class QuestExporter:
         ar_rows = await asyncio.to_thread(
             qs.db.get_data_from_database,
             """
-            SELECT name, lat, lon,
+            SELECT name, lat, lon, url,
                    alternative_quest_title         AS quest_title,
                    alternative_quest_target        AS quest_target,
                    alternative_quest_reward_type   AS quest_reward_type,
@@ -93,21 +93,24 @@ class QuestExporter:
                         "reward": reward,
                         "pokestops": [],
                     }
-                merged[key]["pokestops"].append(
-                    {
-                        "name": row["name"] or "Unknown",
-                        "location": {
-                            "lat": float(row["lat"]),
-                            "lng": float(row["lon"]),
-                        },
-                        "zone": self._get_zone(row["lon"]),
-                    }
-                )
+                stop: dict = {
+                    "name": row["name"] or "Unknown",
+                    "location": {
+                        "lat": float(row["lat"]),
+                        "lng": float(row["lon"]),
+                    },
+                    "zone": self._get_zone(row["lon"]),
+                    "done": False,
+                }
+                if row.get("url"):
+                    stop["imageUrl"] = row["url"]
+                merged[key]["pokestops"].append(stop)
 
         quests = []
         for entry in merged.values():
             entry["stopsCount"] = len(entry["pokestops"])
             quests.append(entry)
+        quests.sort(key=lambda q: q["title"].lower())
 
         output = Path(self.output_path)
         output.parent.mkdir(parents=True, exist_ok=True)

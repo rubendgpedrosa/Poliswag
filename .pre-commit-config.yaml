@@ -1,46 +1,47 @@
 # pre-commit configuration
+default_language_version:
+  python: python3.11
+
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+        description: "Ruff: fast Python linter (catches unused imports, dead code, etc.)"
+
   - repo: https://github.com/psf/black
-    rev: 25.1.0  # Use the latest version of Black
+    rev: 25.1.0
     hooks:
       - id: black
         language_version: python3
         description: "Black: Python code formatter"
 
-  # Auto-stage modified files
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      # Basic quality checks
       - id: trailing-whitespace
         description: "Trims trailing whitespace from all files"
       - id: end-of-file-fixer
         description: "Ensures files end with a newline"
-        exclude: ^(logs/|mock_database/|mock_data/|data/|templates/|\.git/|\.venv/|_build/|buck-out/|venv/|\.vscode/|\.github/)
+        exclude: ^(logs/|mock_database/|mock_data/|data/|templates/|\.github/)
       - id: check-yaml
         description: "Validates YAML syntax"
+      - id: check-toml
+        description: "Validates TOML syntax"
+      - id: check-case-conflict
+        description: "Detects filenames that conflict on case-insensitive filesystems"
+      - id: mixed-line-ending
+        description: "Normalises mixed line endings"
+        args: [--fix=lf]
       - id: check-added-large-files
         description: "Prevents giant files from being committed"
-        entry: check-added-large-files
-        language: python
-        types: [file]
-        exclude: ^mock_database/mock_data.sql$
-        name: check-added-large-files
+        exclude: ^mock_database/.*\.sql$
       - id: check-merge-conflict
         description: "Checks for files containing merge conflict strings"
       - id: detect-private-key
         description: "Checks for presence of private keys"
 
-  # This will automatically stage files modified by the hooks above
-  - repo: https://github.com/mattlqx/pre-commit-sign
-    rev: v1.2.0
-    hooks:
-      - id: sign-commit
-        additional_dependencies: ["gitpython"]
-        args: ["--stage-modified"]
-        description: "Automatically stages files modified by formatting hooks"
-
-# fail_fast: false means all checks run even if one fails
 fail_fast: false
 
 # 1. pip install pre-commit

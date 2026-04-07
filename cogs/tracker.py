@@ -1,12 +1,14 @@
 import discord
 from discord.ext import commands
-from datetime import datetime
+from modules.tracker_store import TrackerStore
+from modules.embeds import build_tracked_list_embed
+from modules.config import Config
 
 
 class Tracker(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.embed_color = 0x4169E1
+        self.tracker_store = TrackerStore(poliswag.db)
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -24,30 +26,22 @@ class Tracker(commands.Cog):
     )
     async def track(self, ctx, *, search_string):
         search_string = search_string.lower()
-        creator = str(ctx.author.name)
 
-        existing_quest = self.poliswag.db.get_data_from_database(
-            f"SELECT target FROM tracked_quest_reward WHERE target = '{search_string}'"
-        )
-
-        if len(existing_quest) > 0:
+        if self.tracker_store.exists(search_string):
             await ctx.send(f"A quest '{search_string}' já está a ser seguida.")
             return
 
-        current_time = datetime.now()
-        self.poliswag.db.execute_query_to_database(
-            f"INSERT INTO tracked_quest_reward (target, creator, createddate) VALUES ('{search_string}', '{creator}', '{current_time}')"
-        )
+        self.tracker_store.add(search_string, str(ctx.author.name))
 
         confirm_embed = discord.Embed(
             title="Quest Adicionada",
             description=f"Agora a seguir a quest: **{search_string}**",
-            color=self.embed_color,
+            color=Config.EMBED_COLOR,
         )
-
         await ctx.send(embed=confirm_embed)
 
-        tracked_list_embed = await self.poliswag.utility.build_tracked_list_embed(
+        tracked_list_embed = await build_tracked_list_embed(
+            self.poliswag.db,
             title="Lista Atualizada de Quests",
             footer_text="Use !tracklist para ver esta lista novamente",
         )
@@ -60,14 +54,7 @@ class Tracker(commands.Cog):
     )
     async def untrack(self, ctx, *, search_string):
         search_string = search_string.lower()
-
-        quest_to_remove = self.poliswag.db.get_data_from_database(
-            f"SELECT target FROM tracked_quest_reward WHERE target = '{search_string}'"
-        )
-
-        affected_rows = self.poliswag.db.execute_query_to_database(
-            f"DELETE FROM tracked_quest_reward WHERE target = '{search_string}'"
-        )
+        affected_rows = self.tracker_store.remove(search_string)
 
         if affected_rows == 0:
             await ctx.send(
@@ -77,11 +64,12 @@ class Tracker(commands.Cog):
             remove_embed = discord.Embed(
                 title="Quest Removida",
                 description=f"Deixou de seguir a quest: **{search_string}**",
-                color=self.embed_color,
+                color=Config.EMBED_COLOR,
             )
             await ctx.send(embed=remove_embed)
 
-            tracked_list_embed = await self.poliswag.utility.build_tracked_list_embed(
+            tracked_list_embed = await build_tracked_list_embed(
+                self.poliswag.db,
                 title="Lista Atualizada de Quests",
                 footer_text="Use !tracklist para ver esta lista novamente",
             )
@@ -93,19 +81,13 @@ class Tracker(commands.Cog):
         help="Remove todas as quests da lista.",
     )
     async def untrack_all(self, ctx):
-        tracked_count = self.poliswag.db.get_data_from_database(
-            "SELECT COUNT(*) as count FROM tracked_quest_reward"
-        )
-        count = tracked_count[0]["count"] if tracked_count else 0
-
-        self.poliswag.db.execute_query_to_database("DELETE FROM tracked_quest_reward")
+        count = self.tracker_store.clear()
 
         confirm_embed = discord.Embed(
             title="Todas as Quests Removidas",
             description=f"{count} quests foram removidas da lista de seguimento.",
-            color=self.embed_color,
+            color=Config.EMBED_COLOR,
         )
-
         await ctx.send(embed=confirm_embed)
 
     @commands.command(
@@ -115,7 +97,7 @@ class Tracker(commands.Cog):
         help="Mostra uma lista de todas as quests que estão a ser seguidas.",
     )
     async def track_list(self, ctx):
-        tracked_list_embed = await self.poliswag.utility.build_tracked_list_embed()
+        tracked_list_embed = await build_tracked_list_embed(self.poliswag.db)
         await ctx.send(embed=tracked_list_embed)
 
     @commands.command(

@@ -14,7 +14,7 @@ endif
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test reload install-hooks
+.PHONY: all help up down build logs install run stop test reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -61,10 +61,23 @@ install: ## Install dependencies
 	@echo "Running the install command is redudant. Packages are installed in the dockerfile"
 	@echo "docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag pip install -r requirements.txt"
 
-test: ## Run the tests with pytest
-	@echo "Running tests..."
-	pytest -v --cov=modules tests/
+test: ## Run the tests with pytest inside the poliswag container
+	@echo "Running tests in $(CONTAINER_NAME) container..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) pytest
 	@echo "Tests finished."
+
+format: ## Auto-format Python code with black inside the container
+	@echo "Running black inside $(CONTAINER_NAME) container..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) black .
+	@echo "Formatting finished."
+
+format-check: ## Check Python formatting with black inside the container (CI-equivalent)
+	@echo "Checking formatting with black inside $(CONTAINER_NAME) container..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) black --check .
+
+dead-code: ## Check for dead code with vulture inside the container (CI-equivalent)
+	@echo "Running vulture inside $(CONTAINER_NAME) container..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) vulture . --min-confidence 70
 
 reload: ## Reload the Python script inside the container, cleaning log files.
 	@echo "Cleaning log files..."
@@ -77,3 +90,6 @@ reload: ## Reload the Python script inside the container, cleaning log files.
 install-hooks: ## Install pre-commit hooks
 	python3 -m pip install pre-commit --break-system-packages
 	pre-commit install
+
+lint: ## Run pre-commit hooks on all files
+	pre-commit run --all-files
