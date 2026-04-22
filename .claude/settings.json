@@ -2,7 +2,36 @@
   "permissions": {
     "allow": [
       "Bash(docker exec:*)",
-      "Bash(wc -l /root/Poliswag/cogs/*.py)"
+      "Bash(wc -l /root/Poliswag/cogs/*.py)",
+      "Read(//root/**)",
+      "Bash(git reset:*)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('/root/reactmap/server/src/configs/local.json','utf8'\\)\\); console.log\\('ok'\\)\")",
+      "Bash(node -e \"const c=JSON.parse\\(require\\('fs'\\).readFileSync\\('/root/reactmap/server/src/configs/local.json','utf8'\\)\\); console.log\\(JSON.stringify\\(c.defaultFilters\\)\\)\")",
+      "Bash(node -e \"const c=JSON.parse\\(require\\('fs'\\).readFileSync\\('/root/reactmap/server/src/configs/local.json','utf8'\\)\\); console.log\\(c.tileServers.map\\(t=>t.name\\).join\\(','\\)\\)\")",
+      "Bash(node -e \"const c=JSON.parse\\(require\\('fs'\\).readFileSync\\('/root/reactmap/server/src/configs/local.json','utf8'\\)\\); const m=c.map.general.menuOrder; console.log\\(JSON.stringify\\(m\\)\\)\")",
+      "Bash(node -e \"const c=JSON.parse\\(require\\('fs'\\).readFileSync\\('/root/reactmap/server/src/configs/local.json','utf8'\\)\\); console.log\\(JSON.stringify\\(c.icons.defaultIcons\\)\\)\")",
+      "Bash(pm2 list:*)",
+      "Bash(pm2 describe:*)",
+      "Bash(pm2 logs:*)",
+      "Bash(pm2 status:*)",
+      "Bash(git -C /root/Poliswag diff --stat HEAD)",
+      "Bash(git -C /root/Poliswag diff HEAD -- cogs/scheduled.py modules/quest_exporter.py)",
+      "Bash(git rm *)",
+      "Bash(pytest -q)",
+      "Bash(python -c \"import discord\")",
+      "Bash(python3 -c \"import discord\")",
+      "Bash(python3 -m pip list)",
+      "Bash(pip install *)",
+      "Bash(pytest tests/modules/test_quest_search.py::TestGenerateQuestSlugForImage -v)",
+      "Bash(pytest tests/modules/test_quest_search.py -q)",
+      "Bash(pytest tests/modules/test_account_monitor.py::TestUpdateChannelAccountsStats -v)",
+      "Bash(pytest tests/modules/test_database_connector.py::TestExecuteQueryErrors -v)",
+      "Bash(black --check .)",
+      "Bash(black .)",
+      "Bash(vulture . --min-confidence 70)"
+    ],
+    "additionalDirectories": [
+      "/root/reactmap/.git/info"
     ]
   }
 }

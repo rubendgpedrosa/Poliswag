@@ -1,13 +1,12 @@
 from discord.ext import commands
-import os
 
-OWNER_ID = int(os.getenv("MY_ID"))
+from modules.config import Config
 
 
 class ContainerManagerCog(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.SCANNER_CONTAINER_NAME = os.getenv("SCANNER_CONTAINER_NAME")
+        self.SCANNER_CONTAINER_NAME = Config.SCANNER_CONTAINER_NAME
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
@@ -16,7 +15,7 @@ class ContainerManagerCog(commands.Cog):
         print(f"{self.__class__.__name__} unloaded!")
 
     def cog_check(self, ctx):
-        return ctx.author.id == OWNER_ID
+        return ctx.author.id == Config.MY_ID
 
     @commands.group(name="container", invoke_without_command=True)
     async def container(self, ctx):
@@ -56,39 +55,19 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(error_message, "ERROR")
             await ctx.send(error_message)
 
-    @container.error
-    async def container_error(self, ctx, error):
+    async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             await ctx.send("You are not authorized to use this command.")
-        elif isinstance(error, commands.CommandNotFound):
+            return
+        if isinstance(error, commands.CommandNotFound):
             await ctx.send(
                 "Invalid container command. Use `container start` or `container stop`."
             )
-        else:
-            error_message = f"An error occurred: {error}"
-            print(error_message)
-            self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send(error_message)
-
-    @start_container.error
-    async def start_container_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send("You are not authorized to use this command.")
-        else:
-            error_message = f"An error occurred: {error}"
-            print(error_message)
-            self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send(error_message)
-
-    @stop_container.error
-    async def stop_container_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send("You are not authorized to use this command.")
-        else:
-            error_message = f"An error occurred: {error}"
-            print(error_message)
-            self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send(error_message)
+            return
+        error_message = f"An error occurred: {error}"
+        print(error_message)
+        self.poliswag.utility.log_to_file(error_message, "ERROR")
+        await ctx.send(error_message)
 
 
 async def setup(bot):

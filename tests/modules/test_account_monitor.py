@@ -240,19 +240,16 @@ class TestUpdateChannelAccountsStats:
         existing.edit.assert_awaited_once()
         channel.send.assert_not_called()
 
-    async def test_deletes_extra_messages_and_keeps_first(
-        self, account_monitor, mocker
-    ):
+    async def test_leaves_extra_messages_untouched(self, account_monitor, mocker):
         msg_keep = MagicMock()
-        msg_delete = MagicMock()
-        msg_delete.delete = AsyncMock()
         msg_other = MagicMock()
         msg_other.delete = AsyncMock()
         await self._setup_channel(
-            account_monitor, existing_messages=[msg_keep, msg_delete, msg_other]
+            account_monitor, existing_messages=[msg_keep, msg_other]
         )
         msg_keep.author = account_monitor.poliswag.user
         msg_keep.edit = AsyncMock()
+        msg_other.author = MagicMock()
         mocker.patch(
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
@@ -261,9 +258,8 @@ class TestUpdateChannelAccountsStats:
             AsyncMock(return_value=b"PNG")
         )
         await account_monitor.update_channel_accounts_stats()
-        msg_delete.delete.assert_awaited_once()
-        msg_other.delete.assert_awaited_once()
         msg_keep.edit.assert_awaited_once()
+        msg_other.delete.assert_not_called()
 
     async def test_bails_early_when_image_missing(self, account_monitor, mocker):
         channel = await self._setup_channel(account_monitor, existing_messages=[])

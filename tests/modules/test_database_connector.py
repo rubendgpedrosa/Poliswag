@@ -107,11 +107,13 @@ class TestExecuteQueryErrors:
 
     def test_gone_away_triggers_reconnect_then_exhaustion(self, mocker):
         cursor = _FakeCursor(
-            execute_side_effect=pymysql.MySQLError("MySQL server has gone away")
+            execute_side_effect=pymysql.MySQLError(2006, "MySQL server has gone away")
         )
         dc, _ = _make_db(cursor)
         # Patch reconnect so it returns a fresh conn whose cursor still throws.
         reconnect = mocker.patch.object(dc, "connect_to_db", return_value=dc.db)
+        # Patch sleep to avoid slow tests.
+        mocker.patch("modules.database_connector.time.sleep")
         with pytest.raises(RuntimeError, match="Exceeded maximum retry"):
             dc.get_data_from_database("SELECT 1", retries=2)
         # Both attempts executed; reconnect called for each failure.
@@ -120,12 +122,15 @@ class TestExecuteQueryErrors:
 
     def test_reconnect_failure_is_swallowed_then_retry_continues(self, mocker):
         cursor = _FakeCursor(
-            execute_side_effect=pymysql.MySQLError("Lost connection to server")
+            execute_side_effect=pymysql.MySQLError(2013, "Lost connection to server")
         )
         dc, _ = _make_db(cursor)
         reconnect = mocker.patch.object(
-            dc, "connect_to_db", side_effect=RuntimeError("cannot reconnect")
+            dc,
+            "connect_to_db",
+            side_effect=pymysql.MySQLError(2003, "cannot reconnect"),
         )
+        mocker.patch("modules.database_connector.time.sleep")
         with pytest.raises(RuntimeError, match="Exceeded maximum retry"):
             dc.get_data_from_database("SELECT 1", retries=2)
         assert reconnect.call_count == 2

@@ -4,6 +4,28 @@ import os
 from modules.config import Config
 
 
+_shared_session: aiohttp.ClientSession | None = None
+
+
+def _get_session() -> aiohttp.ClientSession:
+    """Lazy-init a single aiohttp session so we reuse the TCP/DNS pool.
+
+    Per-request ``ClientSession()`` instances burn a fresh connection every
+    tick. Reusing one across the bot's lifetime is measurably cheaper.
+    """
+    global _shared_session
+    if _shared_session is None or _shared_session.closed:
+        _shared_session = aiohttp.ClientSession()
+    return _shared_session
+
+
+async def close_session() -> None:
+    global _shared_session
+    if _shared_session and not _shared_session.closed:
+        await _shared_session.close()
+    _shared_session = None
+
+
 async def fetch_data(endpoint_key, log_fn=None, timeout=20, method="GET", data=None):
     """
     Fetch data from a named endpoint defined in Config.ENDPOINTS.
@@ -38,38 +60,38 @@ async def fetch_data(endpoint_key, log_fn=None, timeout=20, method="GET", data=N
         _log(f"No URL defined for endpoint: {endpoint_key}")
         return None
 
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.request(
-                method,
-                endpoint_url,
-                json=data,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as response:
-                response.raise_for_status()
-                content_type = response.headers.get("Content-Type", "")
+    session = _get_session()
+    try:
+        async with session.request(
+            method,
+            endpoint_url,
+            json=data,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as response:
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "")
 
-                if "application/json" in content_type:
-                    return await response.json()
+            if "application/json" in content_type:
+                return await response.json()
 
-                text = await response.text()
-                if not text.strip():
-                    _log(f"Empty response from {endpoint_key}")
-                    return None
+            text = await response.text()
+            if not text.strip():
+                _log(f"Empty response from {endpoint_key}")
+                return None
 
-                try:
-                    return json.loads(text)
-                except json.JSONDecodeError:
-                    if endpoint_key == "events" and text:
-                        return text
-                    _log(
-                        f"Error decoding JSON from {endpoint_key}. Content-Type: {content_type}"
-                    )
-                    return None
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                if endpoint_key == "events" and text:
+                    return text
+                _log(
+                    f"Error decoding JSON from {endpoint_key}. Content-Type: {content_type}"
+                )
+                return None
 
-        except aiohttp.ClientResponseError as e:
-            _log(f"HTTP error from {endpoint_key}: {e.status} - {e.message}")
-            return None
-        except Exception as e:
-            _log(f"Error fetching data from {endpoint_key}: {e}")
-            return None
+    except aiohttp.ClientResponseError as e:
+        _log(f"HTTP error from {endpoint_key}: {e.status} - {e.message}")
+        return None
+    except Exception as e:
+        _log(f"Error fetching data from {endpoint_key}: {e}")
+        return None
