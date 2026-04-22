@@ -1,22 +1,55 @@
-import os
 import discord
 import requests
 from datetime import datetime, timedelta
 import json
+from modules.config import Config
 from modules.database_connector import DatabaseConnector
-from sklearn.cluster import KMeans
-import numpy as np
-import math
 import logging
+
+
+HTTP_TIMEOUT_SECONDS = 15
+
+
+def _cache_fresh(entry, max_age: timedelta) -> bool:
+    if not entry:
+        return False
+    return datetime.now() - datetime.fromisoformat(entry["date"]) < max_age
+
+
+_QUEST_FIELD_NAMES = (
+    "title",
+    "target",
+    "reward_type",
+    "reward_amount",
+    "pokemon_id",
+    "item_id",
+)
+
+
+def _quest_fields(quest: dict) -> dict:
+    """Return a normalized view of quest fields regardless of AR/standard schema.
+
+    Each column is checked independently: a row may have ``alternative_quest_*``
+    for some fields and ``quest_*`` for others, so we pick per-field whether the
+    alternative key is present.
+    """
+    out = {}
+    for name in _QUEST_FIELD_NAMES:
+        alt_key = f"alternative_quest_{name}"
+        key = alt_key if alt_key in quest else f"quest_{name}"
+        out[name] = quest.get(key)
+    if out["title"] is None:
+        out["title"] = ""
+    return out
 
 
 class QuestSearch:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.db = DatabaseConnector(os.environ.get("DB_SCANNER_NAME"))
-        self.POKEMON_NAME_FILE = os.environ.get("POKEMON_NAME_FILE")
-        self.ITEM_NAME_FILE = os.environ.get("ITEM_NAME_FILE")
-        self.UI_ICONS_URL = os.environ.get("UI_ICONS_URL")
+        self.db = DatabaseConnector(Config.DB_SCANNER_NAME)
+        self.POKEMON_NAME_FILE = Config.POKEMON_NAME_FILE
+        self.ITEM_NAME_FILE = Config.ITEM_NAME_FILE
+        self.UI_ICONS_URL = Config.UI_ICONS_URL
 
         self.masterfile_data = None
         self.translationfile_data = None
@@ -30,14 +63,14 @@ class QuestSearch:
         self.generate_pokemon_item_name_map()
 
     def load_translation_data(self):
-        if self.translationfile_data and datetime.now() - datetime.fromisoformat(
-            self.translationfile_data["date"]
-        ) < timedelta(hours=24):
+        if _cache_fresh(self.translationfile_data, timedelta(hours=24)):
             return self.translationfile_data
 
         try:
-            response = requests.get(os.environ.get("TRANSLATIONFILE_ENDPOINT"))
-            response.raise_for_status()  # Raise an exception for bad status codes
+            response = requests.get(
+                Config.TRANSLATIONFILE_ENDPOINT, timeout=HTTP_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
 
             translation_data = response.json().get("data", [])
             translated_dict = {
@@ -54,13 +87,13 @@ class QuestSearch:
             return None
 
     def load_masterfile_data(self):
-        if self.masterfile_data and datetime.now() - datetime.fromisoformat(
-            self.masterfile_data["date"]
-        ) < timedelta(hours=24):
+        if _cache_fresh(self.masterfile_data, timedelta(hours=24)):
             return False
 
         try:
-            response = requests.get(os.environ.get("MASTERFILE_ENDPOINT"))
+            response = requests.get(
+                Config.MASTERFILE_ENDPOINT, timeout=HTTP_TIMEOUT_SECONDS
+            )
             response.raise_for_status()
 
             masterfile_json = response.json()
@@ -218,37 +251,12 @@ class QuestSearch:
     def is_quest_relevant(
         self, quest, search, mapped_pokemon_ids, mapped_item_ids, is_leiria
     ):
-        title_field = (
-            "alternative_quest_title"
-            if "alternative_quest_title" in quest
-            else "quest_title"
-        )
-        pokemon_id_field = (
-            "alternative_quest_pokemon_id"
-            if "alternative_quest_pokemon_id" in quest
-            else "quest_pokemon_id"
-        )
-        item_id_field = (
-            "alternative_quest_item_id"
-            if "alternative_quest_item_id" in quest
-            else "quest_item_id"
-        )
-        target_field = (
-            "alternative_quest_target"
-            if "alternative_quest_target" in quest
-            else "quest_target"
-        )
-        reward_type_field = (
-            "alternative_quest_reward_type"
-            if "alternative_quest_reward_type" in quest
-            else "quest_reward_type"
-        )
-
-        quest_title = quest.get(title_field, "").lower()
-        quest_pokemon_id = str(quest.get(pokemon_id_field, ""))
-        quest_item_id = str(quest.get(item_id_field, ""))
-        quest_target = str(quest.get(target_field, ""))
-        quest_reward_type = quest.get(reward_type_field, "")
+        fields = _quest_fields(quest)
+        quest_title = (fields["title"] or "").lower()
+        quest_pokemon_id = str(fields["pokemon_id"] or "")
+        quest_item_id = str(fields["item_id"] or "")
+        quest_target = str(fields["target"] or "")
+        quest_reward_type = fields["reward_type"] or ""
 
         if self.translationfile_data is None:
             logging.warning("Translation data is not available.")
@@ -278,21 +286,10 @@ class QuestSearch:
         )
 
     def add_quest_to_found_quests(self, found_quests, quest):
-        title_field = (
-            "alternative_quest_title"
-            if "alternative_quest_title" in quest
-            else "quest_title"
-        )
-        target_field = (
-            "alternative_quest_target"
-            if "alternative_quest_target" in quest
-            else "quest_target"
-        )
+        fields = _quest_fields(quest)
+        quest_title = (fields["title"] or "").lower()
+        quest_target = fields["target"]
 
-        quest_title = quest.get(title_field, "").lower()
-        quest_target = quest.get(target_field, "")
-
-        # Convert quest_target to string if it's not already one
         quest_target_str = str(quest_target) if quest_target is not None else ""
 
         if self.translationfile_data is None:
@@ -313,31 +310,11 @@ class QuestSearch:
 
     def generate_quest_slug_for_image(self, quest):
         """Generate a quest slug for image URLs."""
-        reward_type_field = (
-            "alternative_quest_reward_type"
-            if "alternative_quest_reward_type" in quest
-            else "quest_reward_type"
-        )
-        reward_amount_field = (
-            "alternative_quest_reward_amount"
-            if "alternative_quest_reward_amount" in quest
-            else "quest_reward_amount"
-        )
-        pokemon_id_field = (
-            "alternative_quest_pokemon_id"
-            if "alternative_quest_pokemon_id" in quest
-            else "quest_pokemon_id"
-        )
-        item_id_field = (
-            "alternative_quest_item_id"
-            if "alternative_quest_item_id" in quest
-            else "quest_item_id"
-        )
-
-        quest_reward_type = quest.get(reward_type_field)
-        quest_reward_amount = quest.get(reward_amount_field)
-        quest_pokemon_id = quest.get(pokemon_id_field)
-        quest_item_id = quest.get(item_id_field)
+        fields = _quest_fields(quest)
+        quest_reward_type = fields["reward_type"]
+        quest_reward_amount = fields["reward_amount"]
+        quest_pokemon_id = fields["pokemon_id"]
+        quest_item_id = fields["item_id"]
 
         if self.masterfile_data is None:
             logging.warning("Masterfile data is not available.")
@@ -368,26 +345,24 @@ class QuestSearch:
                 return "reward/unknown/0.png"
 
     def group_pokestops_geographically(self, pokestops, max_per_group=10):
+        """Bucket pokestops by ~1km lat/lon grid, then chunk to max_per_group.
+
+        The scan area (Leiria + Marinha Grande) is tight enough that flooring
+        coordinates at 2 decimals puts neighbours in the same cell. This gives
+        visually coherent groupings without the sklearn dependency.
+        """
         if len(pokestops) <= max_per_group:
             return [pokestops]
 
-        coordinates = np.array(
-            [[float(stop["lat"]), float(stop["lon"])] for stop in pokestops]
-        )
-        num_clusters = math.ceil(len(pokestops) / max_per_group)
-        kmeans = KMeans(n_clusters=num_clusters, random_state=0, n_init="auto").fit(
-            coordinates
-        )
-
-        grouped_pokestops = [[] for _ in range(num_clusters)]
-        for i, stop in enumerate(pokestops):
-            grouped_pokestops[kmeans.labels_[i]].append(stop)
+        buckets: dict[tuple[int, int], list] = {}
+        for stop in pokestops:
+            key = (int(float(stop["lat"]) * 100), int(float(stop["lon"]) * 100))
+            buckets.setdefault(key, []).append(stop)
 
         result = []
-        for group in grouped_pokestops:
+        for group in buckets.values():
             for i in range(0, len(group), max_per_group):
                 result.append(group[i : i + max_per_group])
-
         return result
 
     def create_quest_embed(
@@ -428,104 +403,73 @@ class QuestSearch:
                     reward_groups[reward_slug] = {"title": quest_title, "pokestops": []}
                 reward_groups[reward_slug]["pokestops"].append(pokestop)
 
-        for reward_slug, group_data in reward_groups.items():
+        for group_data in reward_groups.values():
             pokestops = group_data["pokestops"]
-            if pokestops and len(pokestops) > 0:
-                sample = pokestops[0]
-                reward_type_field = (
-                    "alternative_quest_reward_type"
-                    if "alternative_quest_reward_type" in sample
-                    else "quest_reward_type"
-                )
-                reward_amount_field = (
-                    "alternative_quest_reward_amount"
-                    if "alternative_quest_reward_amount" in sample
-                    else "quest_reward_amount"
-                )
-                pokemon_id_field = (
-                    "alternative_quest_pokemon_id"
-                    if "alternative_quest_pokemon_id" in sample
-                    else "quest_pokemon_id"
-                )
-                item_id_field = (
-                    "alternative_quest_item_id"
-                    if "alternative_quest_item_id" in sample
-                    else "quest_item_id"
-                )
+            if not pokestops:
+                continue
+            fields = _quest_fields(pokestops[0])
+            reward_type = fields["reward_type"]
+            amount = fields["reward_amount"] or ""
+            pokemon_id = fields["pokemon_id"] or ""
+            item_id = fields["item_id"] or ""
 
-                reward_type = sample.get(reward_type_field)
+            if reward_type == 2:  # Item
+                if amount and item_id and "items" in self.masterfile_data:
+                    item_data = self.masterfile_data["items"].get(str(item_id), None)
+                    if isinstance(item_data, dict) and "name" in item_data:
+                        item_name = item_data["name"]
+                    elif isinstance(item_data, str):
+                        item_name = item_data
+                    else:
+                        item_name = ""
+                    if item_name:
+                        group_data["reward_text"] = f"{amount}x {item_name}"
 
-                if reward_type == 2:  # Item
-                    amount = sample.get(reward_amount_field, "")
-                    item_id = sample.get(item_id_field, "")
-                    if amount and item_id and "items" in self.masterfile_data:
-                        item_data = self.masterfile_data["items"].get(
-                            str(item_id), None
+            elif reward_type == 3:  # Stardust
+                if amount:
+                    group_data["reward_text"] = f"{amount} Stardust"
+
+            elif reward_type == 4:  # Candies
+                if amount and pokemon_id and "pokemon" in self.masterfile_data:
+                    pokemon_data = self.masterfile_data["pokemon"].get(
+                        str(pokemon_id), None
+                    )
+                    if isinstance(pokemon_data, dict) and "name" in pokemon_data:
+                        group_data["reward_text"] = (
+                            f"{amount} {pokemon_data['name']} Candy"
                         )
-                        if isinstance(item_data, dict) and "name" in item_data:
-                            item_name = item_data["name"]
-                        elif isinstance(item_data, str):
-                            item_name = item_data
-                        else:
-                            item_name = ""
+                    elif isinstance(pokemon_data, str):
+                        group_data["reward_text"] = f"{amount} Candy"
 
-                        if item_name:
-                            group_data["reward_text"] = f"{amount}x {item_name}"
-                            group_data["title"] = f"{group_data['title']}"
+            elif reward_type == 7:  # Pokemon
+                if pokemon_id and "pokemon" in self.masterfile_data:
+                    pokemon_data = self.masterfile_data["pokemon"].get(
+                        str(pokemon_id), None
+                    )
+                    if isinstance(pokemon_data, dict) and "name" in pokemon_data:
+                        group_data["reward_text"] = pokemon_data["name"]
+                    elif isinstance(pokemon_data, str):
+                        group_data["reward_text"] = pokemon_data
 
-                elif reward_type == 3:  # Stardust
-                    amount = sample.get(reward_amount_field, "")
-                    if amount:
-                        group_data["reward_text"] = f"{amount} Stardust"
-                        group_data["title"] = f"{group_data['title']}"
-
-                elif reward_type == 4:  # Candies
-                    amount = sample.get(reward_amount_field, "")
-                    pokemon_id = sample.get(pokemon_id_field, "")
-                    if amount and pokemon_id and "pokemon" in self.masterfile_data:
-                        pokemon_data = self.masterfile_data["pokemon"].get(
-                            str(pokemon_id), None
+            elif reward_type == 12:  # Mega Energy
+                if amount and pokemon_id and "pokemon" in self.masterfile_data:
+                    pokemon_data = self.masterfile_data["pokemon"].get(
+                        str(pokemon_id), None
+                    )
+                    if isinstance(pokemon_data, dict) and "name" in pokemon_data:
+                        pokemon_name = pokemon_data["name"]
+                    elif isinstance(pokemon_data, str):
+                        pokemon_name = pokemon_data
+                    else:
+                        pokemon_name = ""
+                    if pokemon_name:
+                        group_data["reward_text"] = (
+                            f"{amount} {pokemon_name} Mega Energy"
                         )
-                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
-                            pokemon_name = pokemon_data["name"]
-                            group_data["reward_text"] = f"{amount} {pokemon_name} Candy"
-                        elif isinstance(pokemon_data, str):
-                            group_data["reward_text"] = f"{amount} Candy"
 
-                elif reward_type == 7:  # Pokemon
-                    pokemon_id = sample.get(pokemon_id_field, "")
-                    if pokemon_id and "pokemon" in self.masterfile_data:
-                        pokemon_data = self.masterfile_data["pokemon"].get(
-                            str(pokemon_id), None
-                        )
-                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
-                            group_data["reward_text"] = pokemon_data["name"]
-                        elif isinstance(pokemon_data, str):
-                            group_data["reward_text"] = pokemon_data
-
-                elif reward_type == 12:  # Mega Energy
-                    amount = sample.get(reward_amount_field, "")
-                    pokemon_id = sample.get(pokemon_id_field, "")
-                    if amount and pokemon_id and "pokemon" in self.masterfile_data:
-                        pokemon_data = self.masterfile_data["pokemon"].get(
-                            str(pokemon_id), None
-                        )
-                        if isinstance(pokemon_data, dict) and "name" in pokemon_data:
-                            pokemon_name = pokemon_data["name"]
-                        elif isinstance(pokemon_data, str):
-                            pokemon_name = pokemon_data
-                        else:
-                            pokemon_name = ""
-
-                        if pokemon_name:
-                            group_data["reward_text"] = (
-                                f"{amount} {pokemon_name} Mega Energy"
-                            )
-
-                elif reward_type == 1:  # Experience
-                    amount = sample.get(reward_amount_field, "")
-                    if amount:
-                        group_data["reward_text"] = f"{amount} XP"
+            elif reward_type == 1:  # Experience
+                if amount:
+                    group_data["reward_text"] = f"{amount} XP"
 
         return reward_groups
 

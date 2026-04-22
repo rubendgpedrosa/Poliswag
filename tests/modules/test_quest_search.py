@@ -462,9 +462,6 @@ class TestLoadTranslationData:
             "data": {"old": "value"},
             "date": (datetime.now() - timedelta(hours=48)).isoformat(),
         }
-        mocker.patch.dict(
-            "os.environ", {"TRANSLATIONFILE_ENDPOINT": "https://example/tr"}
-        )
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "data": ['"key1"', '"value1"', "key2", "value2"]
@@ -476,9 +473,6 @@ class TestLoadTranslationData:
 
     def test_request_exception_logs_and_returns_none(self, qs, mocker):
         qs.translationfile_data = None
-        mocker.patch.dict(
-            "os.environ", {"TRANSLATIONFILE_ENDPOINT": "https://example/tr"}
-        )
         mocker.patch(
             "modules.quest_search.requests.get",
             side_effect=requests.exceptions.ConnectionError("down"),
@@ -500,7 +494,6 @@ class TestLoadMasterfileData:
             "pokemon": {},
             "date": (datetime.now() - timedelta(days=2)).isoformat(),
         }
-        mocker.patch.dict("os.environ", {"MASTERFILE_ENDPOINT": "https://example/mf"})
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "pokemon": {"25": {"name": "Pikachu"}},
@@ -516,7 +509,6 @@ class TestLoadMasterfileData:
 
     def test_request_exception_returns_false(self, qs, mocker):
         qs.masterfile_data = None
-        mocker.patch.dict("os.environ", {"MASTERFILE_ENDPOINT": "https://example/mf"})
         mocker.patch(
             "modules.quest_search.requests.get",
             side_effect=requests.exceptions.ConnectionError("down"),

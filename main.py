@@ -1,7 +1,5 @@
 #!/usr/bin/python
-import os
 import discord
-from dotenv import load_dotenv
 from discord.ext import commands
 
 from modules.role_manager import RoleManager
@@ -15,6 +13,7 @@ from modules.event_manager import EventManager
 from modules.quest_exporter import QuestExporter
 from modules.account_monitor import AccountMonitor
 from modules.config import Config
+from modules.http_client import close_session
 
 
 class Poliswag(commands.Bot):
@@ -22,8 +21,6 @@ class Poliswag(commands.Bot):
         intents = discord.Intents.all()
         intents.messages = True
         super().__init__(command_prefix="!", intents=intents)
-
-        load_dotenv()
 
         self.db = DatabaseConnector()
         self.role_manager = RoleManager()
@@ -48,6 +45,10 @@ class Poliswag(commands.Bot):
     async def on_ready(self):
         await self.get_channels()
 
+    async def close(self):
+        await close_session()
+        await super().close()
+
     async def setup_hook(self):
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")
@@ -59,23 +60,25 @@ class Poliswag(commands.Bot):
         await self.tree.sync()
 
     async def get_channels(self):
-        self.QUEST_CHANNEL = await self.fetch_channel(
-            int(os.environ.get("QUEST_CHANNEL_ID"))
-        )
-        self.CONVIVIO_CHANNEL = await self.fetch_channel(
-            int(os.environ.get("CONVIVIO_CHANNEL_ID"))
-        )
-        self.MOD_CHANNEL = await self.fetch_channel(
-            int(os.environ.get("MOD_CHANNEL_ID"))
-        )
-        self.ACCOUNTS_CHANNEL = await self.fetch_channel(
-            int(os.environ.get("ACCOUNTS_CHANNEL_ID"))
-        )
+        channels = {
+            "QUEST_CHANNEL": Config.QUEST_CHANNEL_ID,
+            "CONVIVIO_CHANNEL": Config.CONVIVIO_CHANNEL_ID,
+            "MOD_CHANNEL": Config.MOD_CHANNEL_ID,
+            "ACCOUNTS_CHANNEL": Config.ACCOUNTS_CHANNEL_ID,
+        }
+        for attr, channel_id in channels.items():
+            if not channel_id:
+                self.utility.log_to_file(
+                    f"{attr}_ID is unset or 0; channel will not be resolved",
+                    "ERROR",
+                )
+                continue
+            setattr(self, attr, await self.fetch_channel(channel_id))
 
 
 def main():
     poliswag = Poliswag()
-    poliswag.run(os.environ.get("DISCORD_API_KEY"))
+    poliswag.run(Config.DISCORD_API_KEY)
 
 
 if __name__ == "__main__":
