@@ -1,6 +1,12 @@
+import time
+
 import pymysql
 import logging
 from modules.config import Config
+
+# pymysql error codes that indicate a lost/broken connection that may recover
+# on reconnect. 2006 = "MySQL server has gone away", 2013 = "Lost connection".
+_RECONNECT_ERRNOS = {2006, 2013}
 
 
 class DatabaseConnector:
@@ -52,15 +58,14 @@ class DatabaseConnector:
                         return affected_rows
             except pymysql.MySQLError as e:
                 last_error = e
+                errno = e.args[0] if e.args else None
                 logging.error(f"Database error on attempt {attempt + 1}: {e}")
-                if (
-                    "server has gone away" in str(e).lower()
-                    or "lost connection" in str(e).lower()
-                ):
+                if errno in _RECONNECT_ERRNOS:
                     try:
                         self.db = self.connect_to_db()
-                    except Exception:
-                        pass  # will retry or raise at end
+                    except pymysql.MySQLError as reconnect_err:
+                        logging.error(f"Reconnect failed: {reconnect_err}")
+                    time.sleep(0.25 * (attempt + 1))
                 else:
                     raise
             except Exception as e:

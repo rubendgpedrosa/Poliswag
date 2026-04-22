@@ -28,10 +28,10 @@ class ScannerStatus:
 
     async def get_voice_channel(self, channelName):
         try:
-            channel_env_var = f"VOICE_CHANNEL_{channelName.upper()}_ID"
-            import os
-
-            channel_id = int(os.environ.get(channel_env_var))
+            channel_id = Config.VOICE_CHANNELS.get(channelName.lower())
+            if not channel_id:
+                self._log(f"No voice channel configured for '{channelName}'")
+                return None
             return await self.poliswag.fetch_channel(channel_id)
         except Exception as e:
             self._log(f"Error fetching {channelName} channel: {e}")

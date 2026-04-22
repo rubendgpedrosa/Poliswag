@@ -48,11 +48,10 @@ class AccountMonitor:
             return
         try:
             existing_message = None
-            async for message in self.poliswag.ACCOUNTS_CHANNEL.history(limit=None):
-                if message.author == self.poliswag.user and not existing_message:
+            async for message in self.poliswag.ACCOUNTS_CHANNEL.history(limit=50):
+                if message.author == self.poliswag.user:
                     existing_message = message
-                else:
-                    await message.delete()
+                    break
 
             account_data = await self.get_account_stats()
             device_status = await self.is_device_connected()

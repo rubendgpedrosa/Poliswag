@@ -45,6 +45,7 @@ class Utility:
 
         self.error_logger = logging.getLogger("poliswag.error")
         self.error_logger.setLevel(logging.ERROR)
+        self.error_logger.propagate = False
 
         if self.error_logger.handlers:
             self.error_logger.handlers.clear()
@@ -157,4 +158,6 @@ class Utility:
             return None
 
     def format_datetime_string(self, dt_string):
-        return dt_string.replace("Z", "").split(".")[0].replace("T", " ")
+        return datetime.fromisoformat(dt_string.replace("Z", "+00:00")).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )

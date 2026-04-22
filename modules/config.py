@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 class Config:
     # Discord
@@ -40,6 +44,17 @@ class Config:
     UI_ICONS_URL = os.environ.get("UI_ICONS_URL")
     NIANTIC_FORCED_VERSION_ENDPOINT = os.environ.get("NIANTIC_FORCED_VERSION_ENDPOINT")
 
+    # Image generation
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+    TEMPLATE_HTML_DIR = os.environ.get("TEMPLATE_HTML_DIR")
+    FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = os.environ.get(
+        "FOLLOWED_EVENTS_TEMPLATE_HTML_FILE"
+    )
+    ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
+
+    # Voice channels keyed by scan area name
+    VOICE_CHANNELS: dict[str, int] = {}
+
     # PWA export
     QUEST_JSON_OUTPUT = os.environ.get("QUEST_JSON_OUTPUT", "/pogo-public/quests.json")
 
@@ -58,3 +73,9 @@ class Config:
     # UI
     EMBED_COLOR = 0x4169E1
     MOCK_DATA_DIR = "mock_data"
+
+
+Config.VOICE_CHANNELS = {
+    "leiria": Config.VOICE_CHANNEL_LEIRIA_ID,
+    "marinha": Config.VOICE_CHANNEL_MARINHA_ID,
+}
