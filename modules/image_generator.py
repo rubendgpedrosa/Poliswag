@@ -1,19 +1,20 @@
 import asyncio
-import os
 import imgkit
 from jinja2 import Environment, FileSystemLoader
+
+from modules.config import Config
 
 
 class ImageGenerator:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.google_api_key = os.environ.get("GOOGLE_API_KEY")
-        self.TEMPLATE_HTML_DIR = os.environ.get("TEMPLATE_HTML_DIR")
-        self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = os.environ.get(
-            "FOLLOWED_EVENTS_TEMPLATE_HTML_FILE"
+        self.google_api_key = Config.GOOGLE_API_KEY
+        self.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = (
+            Config.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE
         )
-        self.ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
-        self.QUEST_ICON_BASE_URL = os.environ.get("UI_ICONS_URL")
+        self.ACCOUNTS_TEMPLATE_HTML_FILE = Config.ACCOUNTS_TEMPLATE_HTML_FILE
+        self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
 
     async def generate_image_from_quest_data(
         self, quests_leiria, quests_marinha, has_leiria, has_marinha

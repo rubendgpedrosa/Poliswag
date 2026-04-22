@@ -1,14 +1,22 @@
+import time
 from datetime import datetime, timedelta
 import json
 import random
 import re
 from modules.http_client import fetch_data
+from modules.locale_pt import MONTH_NAMES, PT_MONTHS_SHORT
+
+
+# LeekDuck's scraped source rarely changes within a 15-minute window; hitting
+# it every minute is wasted load on both our DB and their CDN.
+FETCH_EVENTS_INTERVAL_SECONDS = 900
 
 
 class EventManager:
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.events = None
+        self._last_events_fetch = 0.0
         self.event_colors = {
             "community-day": 0xFF9D00,  # Orange
             "spotlight-hour": 0xFFD700,  # Gold
@@ -18,26 +26,13 @@ class EventManager:
             "season": 0x32CD32,  # Lime Green
             "default": 0x3498DB,  # Blue
         }
-        self.feature_emojis = {
-            "shiny": "✨",
-            "raid": "🛡️",
-            "research": "🔍",
-            "egg": "🥚",
-            "stardust": "💫",
-            "candy": "🍬",
-            "xp": "📈",
-            "evolution": "⚡",
-            "trade": "🔄",
-            "battle": "⚔️",
-            "catch": "🎯",
-            "hatch": "🐣",
-            "walk": "👣",
-            "friend": "👫",
-            "item": "🎒",
-            "default": "🎮",
-        }
 
     async def fetch_events(self):
+        now = time.time()
+        if now - self._last_events_fetch < FETCH_EVENTS_INTERVAL_SECONDS:
+            return
+        self._last_events_fetch = now
+
         response = await fetch_data("events", log_fn=self.poliswag.utility.log_to_file)
         if response is None:
             self.poliswag.utility.log_to_file(
@@ -199,24 +194,13 @@ class EventManager:
         return {"started": started, "ended": ended}
 
     def format_end_time(self, end_time, verb="Termina"):
-        PT_MONTHS = {
-            1: "Jan",
-            2: "Fev",
-            3: "Mar",
-            4: "Abr",
-            5: "Mai",
-            6: "Jun",
-            7: "Jul",
-            8: "Ago",
-            9: "Set",
-            10: "Out",
-            11: "Nov",
-            12: "Dez",
-        }
         now = datetime.now()
         if end_time.date() == now.date():
             return f"{verb} às {end_time.strftime('%H:%M')}"
-        return f"{verb} a {end_time.day:02d} {PT_MONTHS[end_time.month]} - {end_time.strftime('%H:%M')}"
+        return (
+            f"{verb} a {end_time.day:02d} {PT_MONTHS_SHORT[end_time.month]} "
+            f"- {end_time.strftime('%H:%M')}"
+        )
 
     def build_upsert_query(self, name, start, end, image, event_type, link, event):
         extra = json.dumps(event)
@@ -275,44 +259,23 @@ class EventManager:
             return "season"
         return "default"
 
-    def get_event_emoji(self, event_type, parsed_content):
+    def get_event_emoji(self, event_type):
         event_type = event_type.lower()
 
         if "community" in event_type:
             return "🌟"
-        elif "spotlight" in event_type:
+        if "spotlight" in event_type:
             return "🔦"
-        elif "raid" in event_type:
+        if "raid" in event_type:
             return "🛡️"
-        elif "battle" in event_type:
+        if "battle" in event_type:
             return "⚔️"
-        elif "research" in event_type:
+        if "research" in event_type:
             return "🔍"
-        elif "season" in event_type:
+        if "season" in event_type:
             return "🍂"
 
-        if parsed_content:
-            features = []
-            if parsed_content.get("special_features"):
-                if isinstance(parsed_content["special_features"], list):
-                    features.extend(parsed_content["special_features"])
-                else:
-                    features.append(parsed_content["special_features"])
-
-            if parsed_content.get("bonuses"):
-                if isinstance(parsed_content["bonuses"], list):
-                    features.extend(parsed_content["bonuses"])
-                else:
-                    features.append(parsed_content["bonuses"])
-
-            feature_text = " ".join(features).lower()
-
-            for keyword, emoji in self.feature_emojis.items():
-                if keyword in feature_text:
-                    return emoji
-
-        pokemon_emojis = ["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"]
-        return random.choice(pokemon_emojis)
+        return random.choice(["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"])
 
     def get_weekly_events(self):
         now = datetime.now()
@@ -336,35 +299,9 @@ class EventManager:
                 week_end.strftime("%Y-%m-%d %H:%M:%S"),
             ),
         )
-        PT_MONTHS = {
-            "janeiro",
-            "fevereiro",
-            "março",
-            "abril",
-            "maio",
-            "junho",
-            "julho",
-            "agosto",
-            "setembro",
-            "outubro",
-            "novembro",
-            "dezembro",
-            "january",
-            "february",
-            "march",
-            "april",
-            "may",
-            "june",
-            "july",
-            "august",
-            "september",
-            "october",
-            "november",
-            "december",
-        }
 
         def is_generic_name(name):
-            return any(word in PT_MONTHS for word in name.lower().split())
+            return any(word in MONTH_NAMES for word in name.lower().split())
 
         # Deduplicate by exact name first
         by_name = {}

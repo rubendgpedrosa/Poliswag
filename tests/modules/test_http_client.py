@@ -35,7 +35,7 @@ def _install_aiohttp_mock(
     content_type="application/json",
     raise_exc=None,
 ):
-    """Replace aiohttp.ClientSession in the http_client module with a mock chain.
+    """Replace the shared aiohttp session getter with a mocked chain.
 
     Returns the response mock so tests can make additional assertions on it.
     """
@@ -51,10 +51,7 @@ def _install_aiohttp_mock(
     session = MagicMock()
     session.request = MagicMock(return_value=_async_cm(response))
 
-    mocker.patch(
-        "modules.http_client.aiohttp.ClientSession",
-        return_value=_async_cm(session),
-    )
+    mocker.patch("modules.http_client._get_session", return_value=session)
     return response
 
 

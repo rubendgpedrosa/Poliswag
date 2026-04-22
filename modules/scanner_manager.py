@@ -1,11 +1,12 @@
 import docker
-import os
+
+from modules.config import Config
 
 
 class ScannerManager:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.SCANNER_CONTAINER_NAME = os.getenv("SCANNER_CONTAINER_NAME")
+        self.SCANNER_CONTAINER_NAME = Config.SCANNER_CONTAINER_NAME
 
     def start_pokestop_scan(self):
         self.update_last_scanned_date(self.poliswag.utility.time_now())

@@ -2,10 +2,11 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+from modules.config import Config
 
 
 ITEM_EMOJI: dict[int, str] = {
@@ -23,9 +24,7 @@ ITEM_EMOJI: dict[int, str] = {
 class QuestExporter:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.output_path = os.environ.get(
-            "QUEST_JSON_OUTPUT", "/pogo-public/quests.json"
-        )
+        self.output_path = Config.QUEST_JSON_OUTPUT
 
     async def export(self):
         qs = self.poliswag.quest_search
@@ -114,9 +113,14 @@ class QuestExporter:
 
         output = Path(self.output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"quests": quests, "generatedAt": datetime.utcnow().isoformat() + "Z"}
+        generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        payload = {"quests": quests, "generatedAt": generated_at}
         with open(output, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
+
+        meta_path = output.with_name("quests-meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"generatedAt": generated_at}, f, ensure_ascii=False)
 
         logging.info(f"QuestExporter: wrote {len(quests)} quests → {output}")
 

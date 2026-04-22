@@ -4,11 +4,14 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 
+from modules.locale_pt import PT_DAYS_SHORT
+
 
 class Scheduled(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._last_weekly_digest_monday = self._load_digest_date()
+        self._last_progress_embed_state = None
 
     def _load_digest_date(self):
         try:
@@ -155,7 +158,10 @@ class Scheduled(commands.Cog):
         if quest_completed is None:
             return
 
-        if quest_completed["leiriaCompleted"] and quest_completed["marinhaCompleted"]:
+        is_complete = (
+            quest_completed["leiriaCompleted"] and quest_completed["marinhaCompleted"]
+        )
+        if is_complete:
             embed = self.poliswag.utility.build_embed_object_title_description(
                 "✅ SCAN DE QUESTS CONCLUÍDO!",
                 (
@@ -173,7 +179,18 @@ class Scheduled(commands.Cog):
             )
             await self.poliswag.quest_exporter.export()
             self.poliswag.scanner_manager.update_quest_scanning_state()
+            self._last_progress_embed_state = None
         else:
+            state = (
+                quest_completed["leiriaScanned"],
+                quest_completed["marinhaScanned"],
+            )
+            if (
+                self._last_progress_embed_state == state
+                and self.poliswag.quest_scanning_message is not None
+            ):
+                return
+            self._last_progress_embed_state = state
             embed = self._build_progress_embed(quest_completed)
 
         if self.poliswag.quest_scanning_message:
@@ -227,29 +244,30 @@ class Scheduled(commands.Cog):
             for event in changed["ended"]:
                 await channel.send(embed=self._build_event_embed(event, is_ended=True))
         if changed["started"]:
-            await channel.send(content="**EVENTOS A COMEÇAR**")
+            await channel.send(content="**NOVOS EVENTOS**")
             for event in changed["started"]:
                 await channel.send(embed=self._build_event_embed(event))
 
     def _build_event_embed(self, event, is_ended=False):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
-        emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"], None)
+        emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
         event_link = self.poliswag.event_manager.get_event_link(event)
         event_type_key = self.poliswag.event_manager.get_event_type_key(
             event["event_type"]
         )
         color = self.poliswag.event_manager.event_colors.get(event_type_key, 0x3498DB)
-        verb = "Terminou" if is_ended else "Termina"
         embed = discord.Embed(
             title=f"{emoji} {event['name']}",
             url=event_link,
-            description=self.poliswag.event_manager.format_end_time(
-                event_end, verb=verb
+            description=(
+                None
+                if is_ended
+                else self.poliswag.event_manager.format_end_time(event_end)
             ),
             color=color,
         )
         if event.get("image"):
-            embed.set_image(url=event["image"])
+            embed.set_thumbnail(url=event["image"])
         return embed
 
     async def _check_workers(self):
@@ -263,7 +281,6 @@ class Scheduled(commands.Cog):
         await self.poliswag.account_monitor.update_channel_accounts_stats()
 
     async def _send_weekly_digest(self, channel=None) -> bool:
-        PT_DAYS = {0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui", 4: "Sex", 5: "Sáb", 6: "Dom"}
         now = datetime.datetime.now()
         today = now.date()
         events = self.poliswag.event_manager.get_weekly_events()
@@ -287,9 +304,7 @@ class Scheduled(commands.Cog):
             event_end = datetime.datetime.strptime(
                 str(event["end"]), "%Y-%m-%d %H:%M:%S"
             )
-            emoji = self.poliswag.event_manager.get_event_emoji(
-                event["event_type"], None
-            )
+            emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
 
             if event_start <= now:
                 ongoing.append(
@@ -299,7 +314,7 @@ class Scheduled(commands.Cog):
                 day_key = (
                     f"HOJE {event_start.strftime('%d/%m')}"
                     if event_start.date() == today
-                    else f"{PT_DAYS[event_start.weekday()]} {event_start.strftime('%d/%m')}"
+                    else f"{PT_DAYS_SHORT[event_start.weekday()]} {event_start.strftime('%d/%m')}"
                 )
                 if day_key not in upcoming_by_day:
                     upcoming_by_day[day_key] = []
@@ -339,10 +354,13 @@ class Scheduled(commands.Cog):
         return True
 
     async def _check_weekly_digest(self):
-        today = datetime.datetime.now().date()
+        now = datetime.datetime.now()
+        today = now.date()
         if today.weekday() != 0:
             return
         if self._last_weekly_digest_monday == today:
+            return
+        if now.hour < 9:
             return
         self._last_weekly_digest_monday = today
         self._save_digest_date(today)

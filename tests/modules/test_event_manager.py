@@ -45,40 +45,26 @@ class TestGetEventTypeKey:
 
 class TestGetEventEmoji:
     def test_community_returns_star(self, em):
-        assert em.get_event_emoji("Community Day", None) == "🌟"
+        assert em.get_event_emoji("Community Day") == "🌟"
 
     def test_spotlight_returns_flashlight(self, em):
-        assert em.get_event_emoji("Spotlight Hour", None) == "🔦"
+        assert em.get_event_emoji("Spotlight Hour") == "🔦"
 
     def test_raid_returns_shield(self, em):
-        assert em.get_event_emoji("Raid Day", None) == "🛡️"
+        assert em.get_event_emoji("Raid Day") == "🛡️"
 
     def test_battle_returns_crossed_swords(self, em):
-        assert em.get_event_emoji("Battle League", None) == "⚔️"
+        assert em.get_event_emoji("Battle League") == "⚔️"
 
     def test_research_returns_magnifier(self, em):
-        assert em.get_event_emoji("Research", None) == "🔍"
+        assert em.get_event_emoji("Research") == "🔍"
 
     def test_season_returns_leaf(self, em):
-        assert em.get_event_emoji("Season Of Light", None) == "🍂"
-
-    def test_feature_emoji_match_from_parsed_content(self, em):
-        parsed = {"special_features": ["Shiny Pikachu"], "bonuses": []}
-        assert em.get_event_emoji("Misc", parsed) == "✨"
-
-    def test_feature_emoji_bonus_string_form(self, em):
-        parsed = {"special_features": [], "bonuses": "2x stardust"}
-        assert em.get_event_emoji("Misc", parsed) == "💫"
+        assert em.get_event_emoji("Season Of Light") == "🍂"
 
     def test_falls_back_to_random_pokemon_emoji(self, em, mocker):
         mocker.patch("modules.event_manager.random.choice", return_value="🎮")
-        assert (
-            em.get_event_emoji("Misc", {"special_features": [], "bonuses": []}) == "🎮"
-        )
-
-    def test_empty_parsed_content_falls_back(self, em, mocker):
-        mocker.patch("modules.event_manager.random.choice", return_value="🎨")
-        assert em.get_event_emoji("Misc", None) == "🎨"
+        assert em.get_event_emoji("Misc") == "🎮"
 
 
 class TestFormatEndTime:

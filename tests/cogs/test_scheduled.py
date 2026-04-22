@@ -439,7 +439,7 @@ class TestSendEventChangeNotifications:
 
 
 class TestBuildEventEmbed:
-    def test_ended_event_without_image(self, cog):
+    def test_ended_event_omits_description(self, cog):
         event = {
             "event_type": "Community Day",
             "name": "Test",
@@ -449,11 +449,10 @@ class TestBuildEventEmbed:
         embed = cog._build_event_embed(event, is_ended=True)
         assert isinstance(embed, discord.Embed)
         assert "Test" in embed.title
-        cog.poliswag.event_manager.format_end_time.assert_called_once()
-        assert (
-            cog.poliswag.event_manager.format_end_time.call_args.kwargs["verb"]
-            == "Terminou"
-        )
+        # Ended notifications are sent *at* the end time, so repeating
+        # "Terminou às HH:MM" in the body would duplicate the message timestamp.
+        assert embed.description in (None, "")
+        cog.poliswag.event_manager.format_end_time.assert_not_called()
 
     def test_started_event_with_image(self, cog):
         event = {
@@ -463,10 +462,9 @@ class TestBuildEventEmbed:
             "image": "http://img",
         }
         embed = cog._build_event_embed(event, is_ended=False)
-        assert embed.image.url == "http://img"
-        assert (
-            cog.poliswag.event_manager.format_end_time.call_args.kwargs["verb"]
-            == "Termina"
+        assert embed.thumbnail.url == "http://img"
+        cog.poliswag.event_manager.format_end_time.assert_called_once_with(
+            real_datetime.datetime(2026, 4, 7, 20, 0)
         )
 
 
@@ -630,6 +628,15 @@ class TestCheckWeeklyDigest:
             await cog._check_weekly_digest()
         cog._send_weekly_digest.assert_not_called()
 
+    async def test_monday_before_9am_skips(self, cog):
+        early_mon = real_datetime.datetime(2026, 4, 6, 8, 59)
+        cog._last_weekly_digest_monday = None
+        cog._send_weekly_digest = AsyncMock()
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = early_mon
+            await cog._check_weekly_digest()
+        cog._send_weekly_digest.assert_not_called()
+
     async def test_monday_same_day_skips(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = mon.date()
@@ -639,7 +646,7 @@ class TestCheckWeeklyDigest:
             await cog._check_weekly_digest()
         cog._send_weekly_digest.assert_not_called()
 
-    async def test_new_monday_sends_and_persists(self, cog):
+    async def test_new_monday_after_9am_sends_and_persists(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = None
         cog._send_weekly_digest = AsyncMock()

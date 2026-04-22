@@ -360,7 +360,11 @@ class TestGetWorkersWithIssues:
 
 class TestGetVoiceChannel:
     async def test_returns_channel_on_success(self, scanner_status, mocker):
-        mocker.patch.dict("os.environ", {"VOICE_CHANNEL_LEIRIA_ID": "12345"})
+        mocker.patch.dict(
+            "modules.config.Config.VOICE_CHANNELS",
+            {"leiria": 12345},
+            clear=True,
+        )
         expected = MagicMock(name="channel")
         scanner_status.poliswag.fetch_channel = AsyncMock(return_value=expected)
         result = await scanner_status.get_voice_channel("leiria")
@@ -368,14 +372,18 @@ class TestGetVoiceChannel:
         scanner_status.poliswag.fetch_channel.assert_called_once_with(12345)
 
     async def test_returns_none_and_logs_on_missing_env(self, scanner_status, mocker):
-        mocker.patch.dict("os.environ", {}, clear=True)
+        mocker.patch.dict("modules.config.Config.VOICE_CHANNELS", {}, clear=True)
         scanner_status.poliswag.fetch_channel = AsyncMock()
         result = await scanner_status.get_voice_channel("leiria")
         assert result is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_returns_none_when_fetch_channel_raises(self, scanner_status, mocker):
-        mocker.patch.dict("os.environ", {"VOICE_CHANNEL_LEIRIA_ID": "12345"})
+        mocker.patch.dict(
+            "modules.config.Config.VOICE_CHANNELS",
+            {"leiria": 12345},
+            clear=True,
+        )
         scanner_status.poliswag.fetch_channel = AsyncMock(
             side_effect=RuntimeError("boom")
         )

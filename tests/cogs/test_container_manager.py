@@ -1,9 +1,7 @@
 """Tests for cogs.container_manager.ContainerManagerCog.
 
-The module reads ``MY_ID`` and ``SCANNER_CONTAINER_NAME`` from env at import
-time, so we seed them before the import. Command callbacks are invoked
-directly; error handlers are called with synthetic ``commands.CheckFailure``
-and generic Exception instances.
+The module reads ``MY_ID`` and ``SCANNER_CONTAINER_NAME`` from env via Config at
+import time, so we seed them before importing anything from the project.
 """
 
 import os
@@ -16,7 +14,8 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 import pytest  # noqa: E402
 from discord.ext import commands  # noqa: E402
 
-from cogs.container_manager import ContainerManagerCog, OWNER_ID  # noqa: E402
+from cogs.container_manager import ContainerManagerCog  # noqa: E402
+from modules.config import Config  # noqa: E402
 
 
 @pytest.fixture
@@ -25,7 +24,9 @@ def cog():
     return ContainerManagerCog(poliswag)
 
 
-def make_ctx(author_id=OWNER_ID):
+def make_ctx(author_id=None):
+    if author_id is None:
+        author_id = Config.MY_ID
     ctx = MagicMock()
     ctx.author.id = author_id
     ctx.send = AsyncMock()
@@ -34,7 +35,7 @@ def make_ctx(author_id=OWNER_ID):
 
 class TestCogCheck:
     def test_owner_passes(self, cog):
-        assert cog.cog_check(make_ctx(author_id=OWNER_ID)) is True
+        assert cog.cog_check(make_ctx(author_id=Config.MY_ID)) is True
 
     def test_non_owner_rejected(self, cog):
         assert cog.cog_check(make_ctx(author_id=999)) is False
@@ -64,7 +65,6 @@ class TestStartContainer:
         )
         await ContainerManagerCog.start_container.callback(cog, ctx)
         cog.poliswag.utility.log_to_file.assert_called()
-        # Attempt-message + error-message = 2 sends
         assert ctx.send.await_count == 2
 
 
@@ -87,51 +87,25 @@ class TestStopContainer:
         assert ctx.send.await_count == 2
 
 
-class TestContainerErrorHandler:
+class TestCogCommandError:
     async def test_check_failure_sends_unauthorized(self, cog):
         ctx = make_ctx()
         err = commands.CheckFailure("no")
-        await cog.container_error(ctx, err)
+        await cog.cog_command_error(ctx, err)
         ctx.send.assert_awaited_once_with("You are not authorized to use this command.")
 
     async def test_command_not_found_sends_help(self, cog):
         ctx = make_ctx()
         err = commands.CommandNotFound("huh")
-        await cog.container_error(ctx, err)
+        await cog.cog_command_error(ctx, err)
         assert "Invalid container command" in ctx.send.call_args.args[0]
 
     async def test_other_error_logs_and_sends(self, cog):
         ctx = make_ctx()
         err = RuntimeError("explosion")
-        await cog.container_error(ctx, err)
+        await cog.cog_command_error(ctx, err)
         cog.poliswag.utility.log_to_file.assert_called()
         ctx.send.assert_awaited_once()
-
-
-class TestStartStopContainerErrorHandlers:
-    async def test_start_check_failure(self, cog):
-        ctx = make_ctx()
-        err = commands.CheckFailure("no")
-        await cog.start_container_error(ctx, err)
-        ctx.send.assert_awaited_once_with("You are not authorized to use this command.")
-
-    async def test_start_other_error(self, cog):
-        ctx = make_ctx()
-        err = RuntimeError("kaboom")
-        await cog.start_container_error(ctx, err)
-        cog.poliswag.utility.log_to_file.assert_called()
-
-    async def test_stop_check_failure(self, cog):
-        ctx = make_ctx()
-        err = commands.CheckFailure("no")
-        await cog.stop_container_error(ctx, err)
-        ctx.send.assert_awaited_once_with("You are not authorized to use this command.")
-
-    async def test_stop_other_error(self, cog):
-        ctx = make_ctx()
-        err = RuntimeError("kaboom")
-        await cog.stop_container_error(ctx, err)
-        cog.poliswag.utility.log_to_file.assert_called()
 
 
 class TestLifecycle:
