@@ -11,7 +11,7 @@ repos:
         description: "Ruff: fast Python linter (catches unused imports, dead code, etc.)"
 
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 26.3.1
     hooks:
       - id: black
         language_version: python3
