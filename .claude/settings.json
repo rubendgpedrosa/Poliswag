@@ -28,10 +28,35 @@
       "Bash(pytest tests/modules/test_database_connector.py::TestExecuteQueryErrors -v)",
       "Bash(black --check .)",
       "Bash(black .)",
-      "Bash(vulture . --min-confidence 70)"
+      "Bash(vulture . --min-confidence 70)",
+      "Read(//opt/**)",
+      "Bash(python3 -m json.tool)",
+      "Bash(docker image *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/root/poracle/config/local.json'\\)\\); print\\(json.dumps\\(d.get\\('database', {}\\), indent=2\\)[:500]\\)\")",
+      "Bash(docker compose *)",
+      "Bash(docker run *)",
+      "Read(//tmp/poracleng-app/**)",
+      "Bash(node scripts/migrate-from-poracle.js)",
+      "Bash(curl -sf http://localhost:3030/health)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(getent hosts *)",
+      "Bash(echo \"host exit: $?\")",
+      "Bash(nslookup casasaoromao.pt 8.8.8.8)",
+      "Bash(nslookup casasaoromao.duckdns.org 8.8.8.8)",
+      "Bash(docker restart *)",
+      "Bash(xargs -n1 basename)",
+      "Bash(grep -hrB 0 -A 2 \"@commands\\\\.command\" /root/Poliswag/cogs)",
+      "Bash(pip-audit -r requirements.txt --disable-pip)",
+      "Bash(pip-audit -r requirements.txt)",
+      "Bash(apt install *)",
+      "Bash(pip index *)",
+      "Bash(git -C /root/Poliswag status --short)",
+      "Bash(git -C /root/Poliswag diff --stat)"
     ],
     "additionalDirectories": [
-      "/root/reactmap/.git/info"
+      "/root/reactmap/.git/info",
+      "/root/poracleng",
+      "/tmp/poracleng-app"
     ]
   }
 }

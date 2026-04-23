@@ -8,7 +8,6 @@ from pathlib import Path
 
 from modules.config import Config
 
-
 ITEM_EMOJI: dict[int, str] = {
     1: "⚪",
     2: "🔵",
