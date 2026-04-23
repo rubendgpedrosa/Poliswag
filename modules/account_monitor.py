@@ -3,7 +3,6 @@ import datetime
 import discord
 from modules.http_client import fetch_data
 
-
 DISABLED_STATUSES = [
     "banned",
     "invalid",

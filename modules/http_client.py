@@ -3,7 +3,6 @@ import json
 import os
 from modules.config import Config
 
-
 _shared_session: aiohttp.ClientSession | None = None
 
 
