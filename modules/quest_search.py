@@ -6,7 +6,6 @@ from modules.config import Config
 from modules.database_connector import DatabaseConnector
 import logging
 
-
 HTTP_TIMEOUT_SECONDS = 15
 
 
@@ -190,12 +189,10 @@ class QuestSearch:
         ) < timedelta(hours=1):
             return self.quest_data
 
-        quest_data = self.db.get_data_from_database(
-            """
+        quest_data = self.db.get_data_from_database("""
             SELECT name, lat, lon, url, quest_title, quest_pokemon_id, quest_reward_type, quest_item_id, quest_reward_amount, quest_target
             FROM pokestop WHERE quest_reward_type IS NOT NULL;
-        """
-        )
+        """)
         self.quest_data = {"data": quest_data, "date": datetime.now().isoformat()}
         return self.quest_data
 
@@ -205,12 +202,10 @@ class QuestSearch:
         ) < timedelta(hours=1):
             return self.alternative_quest_data
 
-        alternative_quest_data = self.db.get_data_from_database(
-            """
+        alternative_quest_data = self.db.get_data_from_database("""
             SELECT name, lat, lon, url, alternative_quest_title, alternative_quest_pokemon_id, alternative_quest_reward_type, alternative_quest_item_id, alternative_quest_reward_amount, alternative_quest_target
             FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL;
-        """
-        )
+        """)
         self.alternative_quest_data = {
             "data": alternative_quest_data,
             "date": datetime.now().isoformat(),

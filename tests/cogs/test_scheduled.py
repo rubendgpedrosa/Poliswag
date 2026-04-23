@@ -20,7 +20,6 @@ import pytest
 
 from cogs.scheduled import Scheduled
 
-
 # --- fixtures -----------------------------------------------------------------
 
 

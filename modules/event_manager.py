@@ -6,7 +6,6 @@ import re
 from modules.http_client import fetch_data
 from modules.locale_pt import MONTH_NAMES, PT_MONTHS_SHORT
 
-
 # LeekDuck's scraped source rarely changes within a 15-minute window; hitting
 # it every minute is wasted load on both our DB and their CDN.
 FETCH_EVENTS_INTERVAL_SECONDS = 900
