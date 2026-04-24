@@ -12,6 +12,7 @@ from modules.quest_search import QuestSearch
 from modules.event_manager import EventManager
 from modules.quest_exporter import QuestExporter
 from modules.account_monitor import AccountMonitor
+from modules.poracle_client import PoracleClient
 from modules.config import Config
 from modules.http_client import close_session
 
@@ -32,6 +33,7 @@ class Poliswag(commands.Bot):
         self.event_manager = EventManager(self)
         self.quest_exporter = QuestExporter(self)
         self.account_monitor = AccountMonitor(self)
+        self.poracle = PoracleClient(self)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
@@ -47,6 +49,7 @@ class Poliswag(commands.Bot):
 
     async def close(self):
         await close_session()
+        await self.poracle.close()
         await super().close()
 
     async def setup_hook(self):
@@ -56,6 +59,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.event")
         await self.load_extension("cogs.container_manager")
         await self.load_extension("cogs.moderation")
+        await self.load_extension("cogs.notifications")
         await self.load_extension("cogs.scheduled")
         await self.tree.sync()
 

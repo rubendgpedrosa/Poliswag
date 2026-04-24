@@ -70,6 +70,10 @@ class Config:
         "scan_quest_all": os.environ.get("SCAN_QUESTS_ALL_ENDPOINT"),
     }
 
+    # Poracle API (for the notifications cog)
+    PORACLE_API_URL = os.environ.get("PORACLE_API_URL", "http://poracle:3030")
+    PORACLE_API_SECRET = os.environ.get("PORACLE_API_SECRET", "")
+
     # UI
     EMBED_COLOR = 0x4169E1
     MOCK_DATA_DIR = "mock_data"
