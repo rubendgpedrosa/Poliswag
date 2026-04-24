@@ -60,6 +60,15 @@ Selected via `ENV=` in `.env`:
 - `!weeklydigest` *(admin)* — post the weekly event summary
 - `!testevent HH:MM` *(admin)* — dry-run the event dispatcher at a given time
 
+### Notifications (Poracle) *(admin)*
+- `!notify channels` — list Discord channels registered in Poracle
+- `!notify list <#channel>` — show tracked pokémon rules for a channel
+- `!notify add <#channel> <name> [min_iv] [min_cp]` — add a pokémon rule
+- `!notify remove <#channel> <uid>` — delete a rule by UID
+- `!notify register <#channel>` — register a channel as a Poracle target
+- `!notify test <#channel>` — fire a sample notification to verify delivery
+- `!notify reload` — reload Poracle's in-memory rules
+
 ### Operations
 - `!accounts` — render the current account-pool status as an image
 - `!container start|stop` *(admin)* — control the scanner container
@@ -86,6 +95,7 @@ Poliswag talks to the scanner stack via URLs in `.env`:
 - **Dragonite admin** (`/status`, `/accounts/stats`, `/quest/all/start`, `/status/quest-area/<id>`) — worker health, account pool, quest scan control.
 - **Rotom** (`/api/status`) — device connectivity.
 - **Home Assistant webhook** (`ALL_DOWN_ENDPOINT`) — alerts when the scanner pipeline degrades.
+- **Poracle-NG** (`PORACLE_API_URL` + `PORACLE_API_SECRET`) — pokémon alert rules per Discord channel, managed via the `!notify` commands.
 - **Golbat DB** — read-only queries for spawn/quest data.
 - **ScrapedDuck events feed** — upstream event calendar.
 - **PokeMiners masterfile** — Pokémon / move name translations.
