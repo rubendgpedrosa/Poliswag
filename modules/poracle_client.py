@@ -48,12 +48,13 @@ class PoracleClient:
                     body = await resp.text()
                     self._log(f"Poracle {method} {path} -> {resp.status}: {body[:200]}")
                     raise PoracleError(f"{resp.status}: {body[:200]}")
-                if resp.status == 204 or not resp.content_length:
+                if resp.status == 204:
                     return None
                 ctype = resp.headers.get("Content-Type", "")
                 if "application/json" in ctype:
                     return await resp.json()
-                return await resp.text()
+                text = await resp.text()
+                return text if text else None
         except aiohttp.ClientError as e:
             self._log(f"Poracle {method} {path} failed: {e}")
             raise PoracleError(str(e)) from e
@@ -86,6 +87,9 @@ class PoracleClient:
 
     async def list_pokemon_tracking(self, human_id: str | int) -> list[dict]:
         data = await self._request("GET", f"/api/tracking/pokemon/{human_id}")
+        if isinstance(data, dict):
+            rules = data.get("pokemon", [])
+            return rules if isinstance(rules, list) else []
         return data if isinstance(data, list) else []
 
     async def add_pokemon_tracking(
