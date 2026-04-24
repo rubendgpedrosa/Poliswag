@@ -111,12 +111,20 @@ class TestHumans:
 
 
 class TestPokemonTracking:
-    async def test_list_returns_list(self, client):
+    async def test_list_unwraps_poracle_envelope(self, client):
+        _install_session(
+            client,
+            _response(json_data={"pokemon": [{"uid": 1}], "status": "ok"}),
+        )
+        out = await client.list_pokemon_tracking(123)
+        assert out == [{"uid": 1}]
+
+    async def test_list_returns_bare_list(self, client):
         _install_session(client, _response(json_data=[{"uid": 1}]))
         out = await client.list_pokemon_tracking(123)
         assert out == [{"uid": 1}]
 
-    async def test_list_non_list_coerced_to_empty(self, client):
+    async def test_list_envelope_without_pokemon_key_empty(self, client):
         _install_session(client, _response(json_data={"unexpected": True}))
         out = await client.list_pokemon_tracking(123)
         assert out == []

@@ -61,12 +61,16 @@ Selected via `ENV=` in `.env`:
 - `!testevent HH:MM` *(admin)* — dry-run the event dispatcher at a given time
 
 ### Notifications (Poracle) *(admin)*
+
+Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a full channel name (e.g. `alertas-level5`), or a **category suffix** (`raros`, `100iv`, `0iv`, `uteis`) that fans out to both `leiria-<suffix>` and `marinha-<suffix>`.
+
 - `!notify channels` — list Discord channels registered in Poracle
-- `!notify list <#channel>` — show tracked pokémon rules for a channel
-- `!notify add <#channel> <name> [min_iv] [min_cp]` — add a pokémon rule
-- `!notify remove <#channel> <uid>` — delete a rule by UID
+- `!notify list <ref>` — show tracked pokémon rules
+- `!notify add <ref> <name> [min_iv] [min_cp]` — add a rule (fan-outs when ref is a category)
+- `!notify remove <uid>` — delete a rule by UID (uid is unique and self-locating)
+- `!notify enable <ref>` / `!notify disable <ref>` — toggle notification delivery without touching rules
 - `!notify register <#channel>` — register a channel as a Poracle target
-- `!notify test <#channel>` — fire a sample notification to verify delivery
+- `!notify test <ref>` — fire a sample notification to verify delivery
 - `!notify reload` — reload Poracle's in-memory rules
 
 ### Operations
