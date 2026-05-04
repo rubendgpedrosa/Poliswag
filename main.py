@@ -13,6 +13,7 @@ from modules.event_manager import EventManager
 from modules.quest_exporter import QuestExporter
 from modules.account_monitor import AccountMonitor
 from modules.poracle_client import PoracleClient
+from modules.device_manager import DeviceManager
 from modules.config import Config
 from modules.http_client import close_session
 
@@ -21,7 +22,10 @@ class Poliswag(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
         intents.messages = True
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(
+            command_prefix=commands.when_mentioned_or("!"),
+            intents=intents,
+        )
 
         self.db = DatabaseConnector()
         self.role_manager = RoleManager()
@@ -34,6 +38,7 @@ class Poliswag(commands.Bot):
         self.quest_exporter = QuestExporter(self)
         self.account_monitor = AccountMonitor(self)
         self.poracle = PoracleClient(self)
+        self.device_manager = DeviceManager(self)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None

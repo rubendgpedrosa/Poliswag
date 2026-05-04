@@ -841,12 +841,13 @@ DROP TABLE IF EXISTS `poliswag`;
 CREATE TABLE `poliswag` (
   `scanned` tinyint(4) DEFAULT NULL,
   `version` varchar(10) DEFAULT NULL,
-  `last_scanned_date` datetime DEFAULT NULL
+  `last_scanned_date` datetime DEFAULT NULL,
+  `auto_reboot_enabled` tinyint(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 LOCK TABLES `poliswag` WRITE;
 INSERT INTO `poliswag` VALUES
-(1,'0.349.1','2025-03-01 00:00:00');
+(1,'0.349.1','2025-03-01 00:00:00',1);
 UNLOCK TABLES;
 
 
