@@ -22,15 +22,29 @@ make up                  # ENV=DEVELOPMENT by default, PRODUCTION via .env
 
 | Target | What it does |
 |---|---|
-| `make up` | Build + start the stack |
+| `make up` | Build + start the stack (runs migrations automatically in dev) |
+| `make watch` | Like `make up` but restarts the bot on every saved `.py` file |
 | `make down` | Stop + remove containers and volumes |
 | `make stop` | Stop without removing |
 | `make reload` | Restart the bot and truncate log files |
 | `make logs` | Tail the container logs |
 | `make test` | Run `pytest` inside the container |
+| `make test-local` | Run `pytest` locally (no Docker needed — requires `pip install -r requirements-dev.txt`) |
+| `make check` | Run all quality gates (format, lint, tests) |
 | `make format` / `make format-check` | `black` in write / check mode |
 | `make lint` | Run all pre-commit hooks |
 | `make dead-code` | `vulture` scan |
+| `make migrate` | Apply SQL migrations in `migrations/` to the dev DB |
+| `make mock-data` | Refresh `mock_data/` timestamps (run after a long dev gap) |
+
+## Local test runs (no Docker)
+
+```bash
+pip install -r requirements-dev.txt
+make test-local
+```
+
+Tests never open real DB connections — a `pytest` autouse fixture in `tests/conftest.py` patches `pymysql.connect` globally. `.env.test` is loaded automatically if no `DISCORD_API_KEY` is set.
 
 ## Environments
 
@@ -106,7 +120,8 @@ Poliswag talks to the scanner stack via URLs in `.env`:
 ## Tests
 
 ```bash
-make test
+make test          # inside Docker
+make test-local    # locally (requires pip install -r requirements-dev.txt)
 ```
 
 Tests live under `tests/` and cover the scanner status logic, account monitor, event manager, quest tracker, HTTP client, and image generation.
