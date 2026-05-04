@@ -62,12 +62,12 @@ class TestGetStatusMessage:
 
     def test_boundary_exact_40_percent_is_yellow(self, scanner_status):
         # 2/5 = exactly 0.4 → boundary (≤ 0.4 → yellow)
-        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
+        scanner_status.defaultExpectedWorkers["Leiria"] = 5
         assert scanner_status.get_status_message(2, "LEIRIA") == "LEIRIA: 🟡"
 
     def test_boundary_exact_80_percent_is_orange(self, scanner_status):
         # 4/5 = exactly 0.8 → boundary (≤ 0.8 → orange)
-        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
+        scanner_status.defaultExpectedWorkers["Leiria"] = 5
         assert scanner_status.get_status_message(4, "LEIRIA") == "LEIRIA: 🟠"
 
     def test_unknown_region_falls_into_leiria_branch(self, scanner_status):
@@ -149,7 +149,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(4)],
                     )
                 ]
@@ -169,7 +169,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(stale) for _ in range(4)],
                     )
                 ]
@@ -186,7 +186,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [
                             _worker(now),
                             _worker(now),
@@ -209,7 +209,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [
                             _worker(now, connection_status="Idle"),
                             _worker(now, connection_status="Executing Worker"),
@@ -233,7 +233,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [
                             _worker(None),
                             _worker(now),
@@ -255,7 +255,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(4)],
                         expected_workers=6,
                     )
@@ -274,7 +274,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(10)],
                     )
                 ]
@@ -305,7 +305,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now), _worker(now), _worker(stale), _worker(stale)],
                     ),
                     _area("MarinhaGrande", [_worker(stale)]),
@@ -327,12 +327,12 @@ class TestGetWorkersWithIssues:
                         "name": "UnknownArea",
                         "worker_managers": [{"workers": [_worker(now)]}],
                     },
-                    _area("LeiriaBigger", [_worker(now) for _ in range(4)]),
+                    _area("Leiria", [_worker(now) for _ in range(4)]),
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        # Unknown area contributes nothing; LeiriaBigger is parsed normally.
+        # Unknown area contributes nothing; Leiria is parsed normally.
         assert result == {"downDevicesLeiria": 0, "downDevicesMarinha": None}
 
     async def test_unknown_area_never_leaks_into_known_counters(
@@ -340,7 +340,7 @@ class TestGetWorkersWithIssues:
     ):
         # Even when the payload supplies an expected_workers override for an
         # unknown area (so the area IS processed rather than skipped), its
-        # downDevices value must not leak into LeiriaBigger/MarinhaGrande.
+        # downDevices value must not leak into Leiria/MarinhaGrande.
         now = time.time()
         _make_fetch_mock(
             mocker,
@@ -392,8 +392,41 @@ class TestGetVoiceChannel:
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
 
+class TestGetSecondsSinceLastPokemon:
+    def test_returns_seconds_from_db(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"seconds_ago": 42}
+        ]
+        assert scanner_status._get_seconds_since_last_pokemon() == 42
+
+    def test_returns_none_when_table_empty(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"seconds_ago": None}
+        ]
+        assert scanner_status._get_seconds_since_last_pokemon() is None
+
+    def test_returns_none_on_db_error(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+            RuntimeError("db gone")
+        )
+        assert scanner_status._get_seconds_since_last_pokemon() is None
+        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    def test_queries_correct_column(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"seconds_ago": 5}
+        ]
+        scanner_status._get_seconds_since_last_pokemon()
+        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+            0
+        ]
+        assert "MAX(updated)" in sql
+        assert "seconds_ago" in sql
+        assert "pokemon" in sql
+
+
 class TestTriggerAllDownAction:
-    async def test_sends_dev_log_when_not_production(self, scanner_status, mocker):
+    def _setup(self, scanner_status, mocker, *, seconds_ago=30):
         scanner_status.last_all_down_request_time = 0
         scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
             return_value=True
@@ -401,6 +434,12 @@ class TestTriggerAllDownAction:
         scanner_status.poliswag.account_monitor.get_account_stats = AsyncMock(
             return_value={"good": 5}
         )
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=seconds_ago
+        )
+
+    async def test_sends_dev_log_when_not_production(self, scanner_status, mocker):
+        self._setup(scanner_status, mocker)
         mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", False)
         fetch_mock = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
         await scanner_status.trigger_all_down_action()
@@ -411,7 +450,7 @@ class TestTriggerAllDownAction:
         assert "accounts" in msg
 
     async def test_posts_to_endpoint_in_production(self, scanner_status, mocker):
-        scanner_status.last_all_down_request_time = 0
+        self._setup(scanner_status, mocker, seconds_ago=42)
         scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
             return_value=False
         )
@@ -429,6 +468,21 @@ class TestTriggerAllDownAction:
         assert payload["type"] == "map_status"
         assert payload["value"]["accounts"] == 2
         assert payload["value"]["device_status"] is False
+        assert payload["value"]["last_pokemon_seconds_ago"] == 42
+        assert (
+            payload["value"]["last_pokemon_message"] == "Last pokemon scanned 42s ago"
+        )
+
+    async def test_payload_message_when_seconds_unknown(self, scanner_status, mocker):
+        self._setup(scanner_status, mocker, seconds_ago=None)
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", True)
+        fetch_mock = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        await scanner_status.trigger_all_down_action()
+        payload = fetch_mock.call_args.kwargs["data"]
+        assert payload["value"]["last_pokemon_seconds_ago"] is None
+        assert (
+            payload["value"]["last_pokemon_message"] == "Last pokemon scan time unknown"
+        )
 
     async def test_cooldown_skips_subsequent_triggers(self, scanner_status, mocker):
         scanner_status.last_all_down_request_time = time.time()
@@ -445,6 +499,9 @@ class TestTriggerAllDownAction:
             side_effect=RuntimeError("boom")
         )
         scanner_status.poliswag.account_monitor.get_account_stats = AsyncMock()
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=10
+        )
         await scanner_status.trigger_all_down_action()
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
         msg = scanner_status.poliswag.utility.log_to_file.call_args.args[0]
@@ -452,30 +509,60 @@ class TestTriggerAllDownAction:
 
 
 class TestRenameVoiceChannels:
-    async def test_both_regions_all_down_triggers_all_down_action(
-        self, scanner_status, mocker
-    ):
+    def _patch_fresh(self, scanner_status, mocker, *, seconds_ago=1):
+        """Patch trigger + voice channel + pokemon staleness for a clean test."""
         trigger = mocker.patch.object(
             scanner_status, "trigger_all_down_action", new=AsyncMock()
         )
         mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=None)
         )
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=seconds_ago
+        )
+        return trigger
+
+    async def test_stale_pokemon_triggers_all_down_regardless_of_worker_count(
+        self, scanner_status, mocker
+    ):
+        # Workers all down AND pokemon stale → webhook fires.
+        trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=660)
         await scanner_status.rename_voice_channels(4, 1)
         trigger.assert_awaited_once()
 
+    async def test_stale_pokemon_triggers_even_when_workers_appear_healthy(
+        self, scanner_status, mocker
+    ):
+        # Workers look fine (0 down) but pokemon table is 11 minutes stale.
+        trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=660)
+        await scanner_status.rename_voice_channels(0, 0)
+        trigger.assert_awaited_once()
+
+    async def test_all_workers_down_but_fresh_pokemon_does_not_trigger(
+        self, scanner_status, mocker
+    ):
+        # Workers all down, but pokemon was seen 5 seconds ago — no webhook.
+        trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=5)
+        await scanner_status.rename_voice_channels(4, 1)
+        trigger.assert_not_called()
+
+    async def test_fresh_pokemon_and_workers_up_does_not_trigger(
+        self, scanner_status, mocker
+    ):
+        trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=1)
+        await scanner_status.rename_voice_channels(0, 0)
+        trigger.assert_not_called()
+
     async def test_none_counters_do_not_trigger_all_down(self, scanner_status, mocker):
-        trigger = mocker.patch.object(
-            scanner_status, "trigger_all_down_action", new=AsyncMock()
-        )
-        mocker.patch.object(
-            scanner_status, "get_voice_channel", new=AsyncMock(return_value=None)
-        )
+        trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=1)
         await scanner_status.rename_voice_channels(None, None)
         trigger.assert_not_called()
 
     async def test_updates_channel_name_when_cache_stale(self, scanner_status, mocker):
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
         channel = MagicMock()
         channel.edit = AsyncMock()
         mocker.patch.object(
@@ -488,6 +575,9 @@ class TestRenameVoiceChannels:
 
     async def test_skips_edit_when_status_unchanged(self, scanner_status, mocker):
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
         now = time.time()
         scanner_status.channelCache["leiria"] = {
             "name": "LEIRIA: 🟢",
@@ -507,6 +597,9 @@ class TestRenameVoiceChannels:
         import discord
 
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
         channel = MagicMock()
         exc = discord.errors.HTTPException(
             MagicMock(status=429, reason=""), {"message": "rate limited", "code": 429}

@@ -26,9 +26,7 @@ class Moderation(commands.Cog):
             "Valor",
             "Instinct",
         ]:
-            await self.poliswag.role_manager.restart_response_user_role_selection(
-                interaction
-            )
+            await self.poliswag.role_manager.response_user_role_selection(interaction)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
