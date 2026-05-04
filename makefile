@@ -14,7 +14,7 @@ endif
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test test-local reload install-hooks lint format format-check dead-code
+.PHONY: all help up down build logs install run stop test test-local mock-data reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -98,3 +98,8 @@ test-local: ## Run pytest locally (no Docker required)
 	@echo "Running tests locally..."
 	pytest
 	@echo "Tests finished."
+
+mock-data: ## Refresh mock_data/ JSON timestamps (run after long gaps)
+	@echo "Refreshing mock data timestamps..."
+	python3 mock_data/refresh.py
+	@echo "Done. Commit the updated JSON files."
