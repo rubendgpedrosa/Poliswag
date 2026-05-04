@@ -875,5 +875,46 @@ CREATE TABLE `excluded_event_type`(
     type VARCHAR(50) NOT NULL PRIMARY KEY COMMENT 'Primary Key for event type'
 );
 
+-- ============================================================
+-- Poracle-NG database (mirrors the schema used by Notifications cog)
+-- ============================================================
+CREATE DATABASE IF NOT EXISTS poracle;
+USE poracle;
+
+CREATE TABLE IF NOT EXISTS `humans` (
+  `id`      varchar(50)  NOT NULL,
+  `name`    varchar(100) NOT NULL DEFAULT '',
+  `type`    varchar(30)  NOT NULL DEFAULT 'discord:channel',
+  `enabled` tinyint(1)   NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `monsters` (
+  `uid`        int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `id`         varchar(50)      NOT NULL,
+  `pokemon_id` smallint(5)      NOT NULL DEFAULT 0,
+  `min_iv`     tinyint(3)       NOT NULL DEFAULT 0,
+  `max_iv`     tinyint(3)       NOT NULL DEFAULT 100,
+  `min_cp`     smallint(5)      NOT NULL DEFAULT 0,
+  `max_cp`     smallint(5)      NOT NULL DEFAULT 9000,
+  PRIMARY KEY (`uid`),
+  KEY `ix_monsters_id` (`id`),
+  KEY `ix_monsters_pokemon` (`id`, `pokemon_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed: two paired channels (leiria-raros + marinha-raros) for dev smoke tests
+INSERT INTO `humans` (`id`, `name`, `type`, `enabled`) VALUES
+  ('111111111111111111', 'leiria-raros',  'discord:channel', 1),
+  ('222222222222222222', 'marinha-raros', 'discord:channel', 1),
+  ('333333333333333333', 'leiria-100iv',  'discord:channel', 1),
+  ('444444444444444444', 'marinha-100iv', 'discord:channel', 1);
+
+-- Seed: one tracking rule per paired channel (Tyranitar, any IV)
+INSERT INTO `monsters` (`id`, `pokemon_id`, `min_iv`, `max_iv`, `min_cp`, `max_cp`) VALUES
+  ('111111111111111111', 248, 0, 100, 0, 9000),
+  ('222222222222222222', 248, 0, 100, 0, 9000),
+  ('333333333333333333',   0, 100, 100, 0, 9000),
+  ('444444444444444444',   0, 100, 100, 0, 9000);
+
 GRANT ALL PRIVILEGES ON *.* TO 'poliswag'@'%' IDENTIFIED BY 'poliswag';
 FLUSH PRIVILEGES;
