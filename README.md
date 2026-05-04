@@ -65,13 +65,12 @@ Selected via `ENV=` in `.env`:
 Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a full channel name (e.g. `alertas-level5`), or a **category suffix** (`raros`, `100iv`, `0iv`, `uteis`) that fans out to both `leiria-<suffix>` and `marinha-<suffix>`.
 
 - `!notify channels` — list Discord channels registered in Poracle
-- `!notify list <ref>` — show tracked pokémon rules
-- `!notify add <ref> <name> [min_iv] [min_cp]` — add a rule (fan-outs when ref is a category)
-- `!notify remove <uid>` — delete a rule by UID (uid is unique and self-locating)
+- `!notify list [ref]` — tracked pokémon rules (all channels if no ref)
+- `!notify add <ref> <name[,name…]> [min_iv] [min_cp]` — add rule(s); accepts comma-separated names and fans out across the ref
+- `!notify remove <ref> <name[,name…]|uid>` — delete rule(s); by name (or names, comma-separated) fans out, by UID is exact
 - `!notify enable <ref>` / `!notify disable <ref>` — toggle notification delivery without touching rules
 - `!notify register <#channel>` — register a channel as a Poracle target
-- `!notify test <ref>` — fire a sample notification to verify delivery
-- `!notify reload` — reload Poracle's in-memory rules
+- `!notify test <ref|dm> <pokemon>` — fire a sample notification (100% IV, CP 3000) to a channel or your own DM
 
 ### Operations
 - `!accounts` — render the current account-pool status as an image

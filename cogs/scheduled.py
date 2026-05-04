@@ -276,6 +276,7 @@ class Scheduled(commands.Cog):
             workers_status["downDevicesLeiria"],
             workers_status["downDevicesMarinha"],
         )
+        await self.poliswag.device_manager.auto_reboot_if_offline()
 
     async def _update_accounts_display(self):
         await self.poliswag.account_monitor.update_channel_accounts_stats()

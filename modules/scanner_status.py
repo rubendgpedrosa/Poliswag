@@ -15,13 +15,14 @@ class ScannerStatus:
         }
 
         self.defaultExpectedWorkers = {
-            "LeiriaBigger": 4,
+            "Leiria": 4,
             "MarinhaGrande": 1,
         }
 
         self.last_all_down_request_time = 0
         self.UPDATE_THRESHOLD = 3600  # 1 hour
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
+        self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
@@ -40,12 +41,14 @@ class ScannerStatus:
     async def rename_voice_channels(self, leiriaDownCounter, marinhaDownCounter):
         current_time = time.time()
 
-        if (
-            leiriaDownCounter is not None
-            and marinhaDownCounter is not None
-            and leiriaDownCounter >= self.defaultExpectedWorkers["LeiriaBigger"]
-            and marinhaDownCounter >= self.defaultExpectedWorkers["MarinhaGrande"]
-        ):
+        # Webhook fires only when pokemon data has gone stale — worker count
+        # alone is not a reliable signal (workers can appear "running" but stuck).
+        seconds_since_pokemon = self._get_seconds_since_last_pokemon()
+        pokemon_stale = (
+            seconds_since_pokemon is not None
+            and seconds_since_pokemon >= self.STALE_POKEMON_THRESHOLD
+        )
+        if pokemon_stale:
             await self.trigger_all_down_action()
 
         for channel_key, counter, region in [
@@ -101,9 +104,6 @@ class ScannerStatus:
                     if expectedWorkersFromResponse is not None:
                         expectedWorkers = expectedWorkersFromResponse
 
-                # Skip areas we have no baseline for — without an expected worker
-                # count there is nothing to decrement, and the down-count cannot
-                # be expressed meaningfully.
                 if expectedWorkers is None:
                     continue
 
@@ -125,7 +125,7 @@ class ScannerStatus:
                         if isWorkerUp:
                             downDevices -= 1
 
-                if areaName == "LeiriaBigger":
+                if areaName == "Leiria":
                     downDevicesLeiria = (
                         max(downDevices, 0) if downDevices is not None else None
                     )
@@ -139,6 +139,18 @@ class ScannerStatus:
             "downDevicesMarinha": downDevicesMarinha,
         }
 
+    def _get_seconds_since_last_pokemon(self) -> int | None:
+        """Return how many seconds have passed since the newest pokemon row was updated."""
+        try:
+            rows = self.poliswag.quest_search.db.get_data_from_database(
+                "SELECT UNIX_TIMESTAMP() - MAX(updated) AS seconds_ago FROM pokemon"
+            )
+            if rows and rows[0]["seconds_ago"] is not None:
+                return int(rows[0]["seconds_ago"])
+        except Exception as e:
+            self._log(f"Error querying last pokemon timestamp: {e}")
+        return None
+
     async def trigger_all_down_action(self):
         current_time = time.time()
         if (
@@ -151,11 +163,18 @@ class ScannerStatus:
                     await self.poliswag.account_monitor.is_device_connected()
                 )
                 account_data = await self.poliswag.account_monitor.get_account_stats()
+                seconds_ago = self._get_seconds_since_last_pokemon()
+                if seconds_ago is not None:
+                    last_pokemon_msg = f"Last pokemon scanned {seconds_ago}s ago"
+                else:
+                    last_pokemon_msg = "Last pokemon scan time unknown"
                 payload = {
                     "type": "map_status",
                     "value": {
                         "accounts": account_data.get("good"),
                         "device_status": device_status,
+                        "last_pokemon_seconds_ago": seconds_ago,
+                        "last_pokemon_message": last_pokemon_msg,
                     },
                 }
 
@@ -178,7 +197,7 @@ class ScannerStatus:
         if region == "MARINHA":
             return f"{region}: {'🟢' if downCounter == 0 else '🔴'}"
         else:
-            expected_workers = self.defaultExpectedWorkers.get("LeiriaBigger", 5)
+            expected_workers = self.defaultExpectedWorkers.get("Leiria", 5)
             down_percentage = (
                 (downCounter / expected_workers) if expected_workers > 0 else 0
             )
@@ -193,6 +212,60 @@ class ScannerStatus:
                 status_indicator = "🔴"
 
             return f"{region}: {status_indicator}"
+
+    async def get_full_status(self) -> dict:
+        """Collect a diagnostic snapshot from all scanner sources.
+
+        Returns a dict with keys:
+          last_pokemon_seconds_ago  int | None
+          devices                   list[dict]   — from Rotom
+          workers                   list[dict]   — from Dragonite
+          accounts                  dict         — from Dragonite account pool
+        """
+        now = time.time()
+
+        seconds_ago = self._get_seconds_since_last_pokemon()
+
+        device_data = await fetch_data("device_status", log_fn=self._log) or {}
+        raw_devices = device_data.get("devices", [])
+        devices = []
+        for d in raw_devices:
+            last_ms = d.get("dateLastMessageReceived", 0)
+            last_sec = (now * 1000 - last_ms) / 1000 if last_ms else None
+            devices.append(
+                {
+                    "origin": d.get("origin", d.get("deviceId", "?")),
+                    "is_alive": d.get("isAlive", False),
+                    "last_msg_seconds_ago": (
+                        int(last_sec) if last_sec is not None else None
+                    ),
+                }
+            )
+
+        scanner_data = await fetch_data("scanner_status", log_fn=self._log) or {}
+        workers = []
+        for area in scanner_data.get("areas", []):
+            for wm in area.get("worker_managers", []):
+                for w in wm.get("workers", []):
+                    last_data = w.get("last_data")
+                    age = int(now - last_data) if last_data else None
+                    workers.append(
+                        {
+                            "worker_id": w.get("worker_id", "?"),
+                            "area": area.get("name", "?"),
+                            "status": w.get("connection_status", "?"),
+                            "last_data_seconds_ago": age,
+                        }
+                    )
+
+        accounts = await self.poliswag.account_monitor.get_account_stats()
+
+        return {
+            "last_pokemon_seconds_ago": seconds_ago,
+            "devices": devices,
+            "workers": workers,
+            "accounts": accounts,
+        }
 
     async def is_quest_scanning_complete(self):
         current_time = datetime.datetime.now()
