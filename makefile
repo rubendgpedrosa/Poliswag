@@ -14,7 +14,7 @@ endif
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test reload install-hooks lint format format-check dead-code
+.PHONY: all help up down build logs install run stop test test-local reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -93,3 +93,8 @@ install-hooks: ## Install pre-commit hooks
 
 lint: ## Run pre-commit hooks on all files
 	pre-commit run --all-files
+
+test-local: ## Run pytest locally (no Docker required)
+	@echo "Running tests locally..."
+	pytest
+	@echo "Tests finished."
