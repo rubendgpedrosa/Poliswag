@@ -252,3 +252,20 @@ class TestLogFnOptional:
         mocker.patch.object(http_client.Config, "ENDPOINTS", {})
         # Must not raise.
         assert await http_client.fetch_data("scanner_status") is None
+
+
+def test_scanner_status_mock_timestamps_are_recent():
+    """Mock data must have last_data within the last hour, or workers appear dead."""
+    import time
+
+    with open("mock_data/scanner_status.json") as f:
+        data = json.load(f)
+    now = int(time.time())
+    for area in data.get("areas", []):
+        for wm in area.get("worker_managers", []):
+            for worker in wm.get("workers", []):
+                age = now - worker["last_data"]
+                assert age < 3600, (
+                    f"Worker {worker['worker_id']} last_data is {age}s old — "
+                    "run `make mock-data` to refresh timestamps"
+                )
