@@ -109,6 +109,24 @@ class TestHumans:
         _, kwargs = session.request.call_args
         assert kwargs["json"] == ["leiria"]
 
+    async def test_start_sends_silent_by_default(self, client):
+        session = _install_session(client, _response(status=204, content_length=0))
+        await client.start(123)
+        _, kwargs = session.request.call_args
+        assert kwargs["params"] == {"silent": "true"}
+
+    async def test_stop_sends_silent_by_default(self, client):
+        session = _install_session(client, _response(status=204, content_length=0))
+        await client.stop(123)
+        _, kwargs = session.request.call_args
+        assert kwargs["params"] == {"silent": "true"}
+
+    async def test_start_can_be_non_silent(self, client):
+        session = _install_session(client, _response(status=204, content_length=0))
+        await client.start(123, silent=False)
+        _, kwargs = session.request.call_args
+        assert kwargs["params"] is None
+
 
 class TestPokemonTracking:
     async def test_list_unwraps_poracle_envelope(self, client):
@@ -142,12 +160,19 @@ class TestPokemonTracking:
         _, kwargs = session.request.call_args
         assert kwargs["json"] == rules
 
+    async def test_add_sends_silent_by_default(self, client):
+        session = _install_session(client, _response(json_data={"ok": True}))
+        await client.add_pokemon_tracking(123, {"pokemon_id": 25})
+        _, kwargs = session.request.call_args
+        assert kwargs["params"] == {"silent": "true"}
+
     async def test_delete_hits_by_uid_path(self, client):
         session = _install_session(client, _response(status=204, content_length=0))
         await client.delete_pokemon_tracking_uid(123, "abc")
-        args, _ = session.request.call_args
+        args, kwargs = session.request.call_args
         assert args[0] == "DELETE"
         assert args[1] == "http://poracle.test:3030/api/tracking/pokemon/123/byUid/abc"
+        assert kwargs["params"] == {"silent": "true"}
 
 
 class TestMisc:

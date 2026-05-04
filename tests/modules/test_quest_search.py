@@ -227,8 +227,20 @@ class TestAddQuestToFoundQuests:
 
     def test_merges_into_existing_group_by_title(self, qs):
         found = []
-        q1 = {"quest_title": "quest_catch_pokemon", "quest_target": "5"}
-        q2 = {"quest_title": "quest_catch_pokemon", "quest_target": "5"}
+        q1 = {
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "name": "Stop A",
+            "lat": 39.7,
+            "lon": -8.8,
+        }
+        q2 = {
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "name": "Stop B",
+            "lat": 39.8,
+            "lon": -8.9,
+        }
         qs.add_quest_to_found_quests(found, q1)
         qs.add_quest_to_found_quests(found, q2)
         assert len(found) == 1
@@ -268,7 +280,17 @@ class TestGroupPokestopsGeographically:
             {"lat": "39.8", "lon": "-8.8", "name": "B"},
         ]
         result = qs.group_pokestops_geographically(pokestops, max_per_group=10)
-        assert result == [pokestops]
+        assert len(result) == 1
+        assert {s["name"] for s in result[0]} == {"A", "B"}
+
+    def test_small_group_sorted_northernmost_first(self, qs):
+        # NN starts from the highest-latitude stop.
+        pokestops = [
+            {"lat": "39.7", "lon": "-8.8", "name": "South"},
+            {"lat": "39.8", "lon": "-8.8", "name": "North"},
+        ]
+        result = qs.group_pokestops_geographically(pokestops, max_per_group=10)
+        assert result[0][0]["name"] == "North"
 
     def test_exact_threshold_returns_single_cluster(self, qs):
         pokestops = [{"lat": "39.7", "lon": "-8.8", "name": f"S{i}"} for i in range(10)]
@@ -288,6 +310,19 @@ class TestGroupPokestopsGeographically:
         # Every stop must land in exactly one group.
         total = sum(len(g) for g in result)
         assert total == 20
+
+    def test_nn_keeps_nearby_stops_together(self, qs):
+        # A tight cluster and one distant outlier: NN should group cluster first.
+        cluster = [
+            {"lat": "39.700", "lon": "-8.800", "name": f"C{i}"} for i in range(3)
+        ]
+        outlier = [{"lat": "40.500", "lon": "-7.500", "name": "Far"}]
+        result = qs.group_pokestops_geographically(cluster + outlier, max_per_group=10)
+        assert len(result) == 1
+        names = [s["name"] for s in result[0]]
+        # Outlier should be last since NN starts from northernmost (Far, lat=40.5)
+        # then jumps to the cluster; either way all in one group.
+        assert set(names) == {"C0", "C1", "C2", "Far"}
 
 
 class TestGroupPokestopsByReward:
@@ -669,6 +704,8 @@ class TestCreateQuestEmbed:
         assert embed.color == discord.Color.blue()
         assert embed.thumbnail.url == "https://icons.example/reward/item/1.png"
         assert len(embed.fields) == 1
+        # Field name carries the letter label and the stop name
+        assert "A" in embed.fields[0].name
         assert "Stop A" in embed.fields[0].name
 
     def test_marinha_embed_is_green(self, qs):
@@ -678,9 +715,24 @@ class TestCreateQuestEmbed:
         assert "Marinha" in embed.description
         assert embed.color == discord.Color.green()
 
+    def test_embed_labels_are_sequential_letters(self, qs):
+        stops = [
+            {"lat": 39.7, "lon": -8.8, "name": f"Stop {c}", "quest_slug": "x.png"}
+            for c in "XYZ"
+        ]
+        embed = qs.create_quest_embed("T", stops, is_leiria=True)
+        assert embed.fields[0].name.startswith("A")
+        assert embed.fields[1].name.startswith("B")
+        assert embed.fields[2].name.startswith("C")
+
     def test_pagination_footer(self, qs):
         embed = qs.create_quest_embed("T", [], is_leiria=True, page=2, total_pages=5)
         assert "Página 2/5" in embed.footer.text
+
+    def test_description_shows_stop_count(self, qs):
+        stops = [{"lat": 39.7, "lon": -8.8, "name": f"S{i}"} for i in range(3)]
+        embed = qs.create_quest_embed("T", stops, is_leiria=True)
+        assert "3 paragens" in embed.description
 
     def test_no_thumbnail_when_stops_lack_slug(self, qs):
         embed = qs.create_quest_embed(

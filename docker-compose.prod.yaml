@@ -11,6 +11,7 @@ services:
       - .:/app
       - ./logs:/app/logs
       - /root/PoGoLeiria/public:/pogo-public
+      - /root/.android:/root/.android:ro
     env_file:
       - .env
     networks:
