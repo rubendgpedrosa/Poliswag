@@ -20,6 +20,9 @@ class Quests(commands.Cog):
         try:
             await self.poliswag.quest_exporter.export()
             await msg.edit(content="✅ Quests exportadas com sucesso!")
+            self.poliswag.utility.log_to_file(
+                f"[QUEST] @{ctx.author} ({ctx.author.id}): exported quests to PWA"
+            )
         except Exception as e:
             await msg.edit(content=f"❌ Erro ao exportar quests: {e}")
 
@@ -35,6 +38,9 @@ class Quests(commands.Cog):
         if request is not None:
             await ctx.send("Scan de quests iniciado!")
             self.poliswag.scanner_manager.update_quest_scanning_state(0)
+            self.poliswag.utility.log_to_file(
+                f"[QUEST] @{ctx.author} ({ctx.author.id}): triggered quest scan"
+            )
         else:
             await ctx.send("Erro ao iniciar o scan de quests!")
 
@@ -53,6 +59,7 @@ class Quests(commands.Cog):
             return
 
         is_leiria = ctx.invoked_with == "questleiria"
+        area = "Leiria" if is_leiria else "Marinha"
         found_quests = self.poliswag.quest_search.find_quest_by_search_keyword(
             search.lower(), is_leiria
         )
@@ -60,7 +67,13 @@ class Quests(commands.Cog):
             await ctx.send(
                 f"{user.mention}, não foram encontradas quests {'em Leiria' if is_leiria else 'na Marinha'} para '{search}'!"
             )
+            self.poliswag.utility.log_to_file(
+                f"[QUEST] @{user} ({user.id}): searched '{search}' in {area} → 0 results"
+            )
             return
+        self.poliswag.utility.log_to_file(
+            f"[QUEST] @{user} ({user.id}): searched '{search}' in {area} → found results"
+        )
 
         processing_msg = await ctx.send(
             f"{user.mention}, a processar resultados para '{search}'..."
@@ -70,8 +83,11 @@ class Quests(commands.Cog):
         )
 
         for reward_slug, group_data in reward_groups.items():
+            reward_text = group_data.get("reward_text", "")
             reward_title = (
-                group_data["title"] + " - " + group_data.get("reward_text", "")
+                f"{group_data['title']} — {reward_text}"
+                if reward_text
+                else group_data["title"]
             )
             all_pokestops = group_data["pokestops"]
             pokestop_groups = self.poliswag.quest_search.group_pokestops_geographically(
@@ -84,6 +100,7 @@ class Quests(commands.Cog):
                     is_leiria,
                     page,
                     len(pokestop_groups),
+                    total_stops=len(all_pokestops),
                 )
                 map_url = self.poliswag.image_generator.generate_static_map_for_group_of_quests(
                     pokestop_group
