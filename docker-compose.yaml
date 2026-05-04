@@ -35,6 +35,21 @@ services:
       - .env
     command: >
       sh -c "pip install -q -r requirements-dev.txt && python main.py"
+    develop:
+      watch:
+        - action: sync+restart
+          path: .
+          target: /app
+          ignore:
+            - .git/
+            - __pycache__/
+            - "*.pyc"
+            - logs/
+            - mock_database/
+            - mock_data/
+            - data/
+            - .env
+            - .env.test
     logging:
       driver: json-file
       options:
