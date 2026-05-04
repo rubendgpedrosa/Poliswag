@@ -14,7 +14,7 @@ endif
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test test-local mock-data watch reload install-hooks lint format format-check dead-code
+.PHONY: all help up down build logs install run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -28,11 +28,9 @@ up: ## Start the full application
 	docker compose -f $(DOCKER_COMPOSE_FILE) up -d --build
 	@echo "Creating log files..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "mkdir -p /app/logs && touch /app/logs/actions.log && touch /app/logs/error.log"
-ifneq ($(ENV),PRODUCTION) ## Extras for development environment, logs are automatically started once container is built
+ifneq ($(ENV),PRODUCTION)
 	@sleep 5
-	@echo "Initializing database..."
-	@mkdir -p $(MOCK_DATA_DIR)
-	@cp -n mock_data/*.json $(MOCK_DATA_DIR) || true
+	$(MAKE) migrate
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
 endif
 	@echo "Poliswag started successfully in $(ENV) environment."
@@ -107,3 +105,21 @@ mock-data: ## Refresh mock_data/ JSON timestamps (run after long gaps)
 watch: ## Start dev stack with file-watching auto-restart
 	@echo "Starting Poliswag in watch mode..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) up --build --watch
+
+check: ## Run all quality checks (format, lint, tests) — CI equivalent
+	@echo "==> Format check"
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) black --check .
+	@echo "==> Lint"
+	pre-commit run --all-files
+	@echo "==> Tests"
+	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) pytest
+	@echo "All checks passed."
+
+migrate: ## Apply all SQL migrations in migrations/ to the dev database
+	@echo "Applying migrations..."
+	@for f in migrations/*.sql; do \
+	  echo "  applying $$f..."; \
+	  docker compose -f $(DOCKER_COMPOSE_FILE) exec -T db \
+	    mysql -upoliswag -ppoliswag poliswag < $$f; \
+	done
+	@echo "Migrations applied."
