@@ -33,7 +33,7 @@
                 "loginListener": 0,
                 "origin": "MITM-PoGoLeiria",
                 "workerId": "PoGoLeiria-001",
-                "workerName": "LeiriaBigger_01/WORKER_1"
+                "workerName": "Leiria_01/WORKER_1"
             },
             "isAllocated": true,
             "worker": {
@@ -64,7 +64,7 @@
                 "loginListener": 0,
                 "origin": "MITM-PoGoLeiria",
                 "workerId": "PoGoLeiria-002",
-                "workerName": "LeiriaBigger_02/WORKER_2"
+                "workerName": "Leiria_02/WORKER_2"
             },
             "isAllocated": true,
             "worker": {
@@ -126,7 +126,7 @@
                 "loginListener": 0,
                 "origin": "MITM-PoGoLeiria",
                 "workerId": "PoGoLeiria-004",
-                "workerName": "LeiriaBigger_03/WORKER_4"
+                "workerName": "Leiria_03/WORKER_4"
             },
             "isAllocated": true,
             "worker": {

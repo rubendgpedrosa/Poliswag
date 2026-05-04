@@ -37,12 +37,24 @@ class PoracleClient:
             await self._session.close()
         self._session = None
 
-    async def _request(self, method: str, path: str, *, json=None, timeout: int = 15):
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json=None,
+        params: dict | None = None,
+        timeout: int = 15,
+    ):
         url = f"{self.base_url}{path}"
         session = self._get_session()
         try:
             async with session.request(
-                method, url, json=json, timeout=aiohttp.ClientTimeout(total=timeout)
+                method,
+                url,
+                json=json,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=timeout),
             ) as resp:
                 if resp.status >= 400:
                     body = await resp.text()
@@ -74,11 +86,19 @@ class PoracleClient:
             json={"id": str(channel_id), "name": name, "type": "discord:channel"},
         )
 
-    async def start(self, human_id: str | int) -> None:
-        await self._request("POST", f"/api/humans/{human_id}/start")
+    async def start(self, human_id: str | int, *, silent: bool = True) -> None:
+        await self._request(
+            "POST",
+            f"/api/humans/{human_id}/start",
+            params={"silent": "true"} if silent else None,
+        )
 
-    async def stop(self, human_id: str | int) -> None:
-        await self._request("POST", f"/api/humans/{human_id}/stop")
+    async def stop(self, human_id: str | int, *, silent: bool = True) -> None:
+        await self._request(
+            "POST",
+            f"/api/humans/{human_id}/stop",
+            params={"silent": "true"} if silent else None,
+        )
 
     async def set_areas(self, human_id: str | int, areas: list[str]) -> None:
         await self._request("POST", f"/api/humans/{human_id}/setAreas", json=areas)
@@ -93,17 +113,24 @@ class PoracleClient:
         return data if isinstance(data, list) else []
 
     async def add_pokemon_tracking(
-        self, human_id: str | int, rules: list[dict] | dict
+        self, human_id: str | int, rules: list[dict] | dict, *, silent: bool = True
     ) -> dict | list:
         body = rules if isinstance(rules, list) else [rules]
         return await self._request(
-            "POST", f"/api/tracking/pokemon/{human_id}", json=body
+            "POST",
+            f"/api/tracking/pokemon/{human_id}",
+            json=body,
+            params={"silent": "true"} if silent else None,
         )
 
     async def delete_pokemon_tracking_uid(
-        self, human_id: str | int, uid: str | int
+        self, human_id: str | int, uid: str | int, *, silent: bool = True
     ) -> None:
-        await self._request("DELETE", f"/api/tracking/pokemon/{human_id}/byUid/{uid}")
+        await self._request(
+            "DELETE",
+            f"/api/tracking/pokemon/{human_id}/byUid/{uid}",
+            params={"silent": "true"} if silent else None,
+        )
 
     # ---- Misc ---------------------------------------------------------------
 

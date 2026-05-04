@@ -7,6 +7,7 @@ from modules.database_connector import DatabaseConnector
 import logging
 
 HTTP_TIMEOUT_SECONDS = 15
+_MARINHA_LON_MAX = -8.9  # stops at or west of this longitude are in Marinha Grande
 
 
 def _cache_fresh(entry, max_age: timedelta) -> bool:
@@ -274,11 +275,12 @@ class QuestSearch:
         return False
 
     def is_location_relevant(self, quest, is_leiria):
-        return (
-            ("-8.9" not in str(quest["lon"]))
-            if is_leiria
-            else ("-8.9" in str(quest["lon"]))
-        )
+        try:
+            lon = float(quest["lon"])
+        except (TypeError, ValueError):
+            return False
+        in_marinha = lon <= _MARINHA_LON_MAX
+        return not in_marinha if is_leiria else in_marinha
 
     def add_quest_to_found_quests(self, found_quests, quest):
         fields = _quest_fields(quest)
@@ -297,9 +299,15 @@ class QuestSearch:
                 .replace("{0}", quest_target_str)
             )
 
+        stop_key = (quest.get("name"), quest.get("lat"), quest.get("lon"))
         for found_quest in found_quests:
             if found_quest["quest_title"] == quest_title_translated:
-                found_quest["quests"].append(quest)
+                existing = {
+                    (s.get("name"), s.get("lat"), s.get("lon"))
+                    for s in found_quest["quests"]
+                }
+                if stop_key not in existing:
+                    found_quest["quests"].append(quest)
                 return
         found_quests.append({"quest_title": quest_title_translated, "quests": [quest]})
 
@@ -339,51 +347,92 @@ class QuestSearch:
                 )
                 return "reward/unknown/0.png"
 
-    def group_pokestops_geographically(self, pokestops, max_per_group=10):
-        """Bucket pokestops by ~1km lat/lon grid, then chunk to max_per_group.
+    def _sort_nearest_neighbor(self, stops: list) -> list:
+        """Return stops sorted into a greedy nearest-neighbor walk.
 
-        The scan area (Leiria + Marinha Grande) is tight enough that flooring
-        coordinates at 2 decimals puts neighbours in the same cell. This gives
-        visually coherent groupings without the sklearn dependency.
+        Starts from the northernmost stop (highest lat) for a consistent
+        anchor, then repeatedly picks the closest unvisited stop.
         """
-        if len(pokestops) <= max_per_group:
-            return [pokestops]
-
-        buckets: dict[tuple[int, int], list] = {}
-        for stop in pokestops:
-            key = (int(float(stop["lat"]) * 100), int(float(stop["lon"]) * 100))
-            buckets.setdefault(key, []).append(stop)
-
-        result = []
-        for group in buckets.values():
-            for i in range(0, len(group), max_per_group):
-                result.append(group[i : i + max_per_group])
+        if len(stops) <= 1:
+            return list(stops)
+        remaining = list(stops)
+        current = max(remaining, key=lambda s: float(s["lat"]))
+        remaining.remove(current)
+        result = [current]
+        while remaining:
+            nearest = min(
+                remaining,
+                key=lambda s: (
+                    (float(s["lat"]) - float(current["lat"])) ** 2
+                    + (float(s["lon"]) - float(current["lon"])) ** 2
+                ),
+            )
+            remaining.remove(nearest)
+            result.append(nearest)
+            current = nearest
         return result
 
+    def group_pokestops_geographically(self, pokestops, max_per_group=10):
+        """Sort pokestops into a walkable nearest-neighbor route, then chunk.
+
+        Splits at the largest geographic gap within a ±3-stop window of each
+        target boundary, so page breaks fall at natural cluster edges rather
+        than arbitrary stop counts.
+        """
+        sorted_stops = self._sort_nearest_neighbor(pokestops)
+        n = len(sorted_stops)
+        if n <= max_per_group:
+            return [sorted_stops]
+
+        def dist_sq(a, b):
+            return (float(a["lat"]) - float(b["lat"])) ** 2 + (
+                float(a["lon"]) - float(b["lon"])
+            ) ** 2
+
+        gaps = [dist_sq(sorted_stops[i], sorted_stops[i + 1]) for i in range(n - 1)]
+
+        chunks = []
+        start = 0
+        while n - start > max_per_group:
+            target = start + max_per_group
+            window_lo = max(start + 1, target - 3)
+            window_hi = min(n - 1, target)
+            best_split = max(range(window_lo, window_hi + 1), key=lambda i: gaps[i - 1])
+            chunks.append(sorted_stops[start:best_split])
+            start = best_split
+        chunks.append(sorted_stops[start:])
+        return chunks
+
     def create_quest_embed(
-        self, quest_title, pokestops, is_leiria, page=1, total_pages=1
+        self, quest_title, pokestops, is_leiria, page=1, total_pages=1, total_stops=None
     ):
         location_name = "Leiria" if is_leiria else "Marinha Grande"
         color = discord.Color.blue() if is_leiria else discord.Color.green()
+        stop_count = total_stops if total_stops is not None else len(pokestops)
+        description = f"Encontrados em {location_name} · {stop_count} paragens"
         embed = discord.Embed(
             title=quest_title,
-            description=f"Encontrados em {location_name}",
+            description=description,
             color=color,
         )
 
         if pokestops and "quest_slug" in pokestops[0]:
             embed.set_thumbnail(url=f"{self.UI_ICONS_URL}{pokestops[0]['quest_slug']}")
 
-        for stop in pokestops:
+        for idx, stop in enumerate(pokestops):
             lat, lon = stop["lat"], stop["lon"]
             maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            label = chr(65 + idx)  # A, B, C … matches the static map markers
             embed.add_field(
-                name=f"📍 {stop['name']}",
+                name=f"{label} · {stop['name']}",
                 value=f"[Abrir no mapa]({maps_url})",
                 inline=False,
             )
 
-        embed.set_footer(text=f"Página {page}/{total_pages}")
+        footer = f"Página {page}/{total_pages}"
+        if total_pages > 1:
+            footer += f" · {len(pokestops)} paragens nesta página"
+        embed.set_footer(text=footer)
         return embed
 
     def group_pokestops_by_reward(self, found_quests):
