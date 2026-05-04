@@ -14,7 +14,7 @@ endif
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test test-local mock-data reload install-hooks lint format format-check dead-code
+.PHONY: all help up down build logs install run stop test test-local mock-data watch reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -103,3 +103,7 @@ mock-data: ## Refresh mock_data/ JSON timestamps (run after long gaps)
 	@echo "Refreshing mock data timestamps..."
 	python3 mock_data/refresh.py
 	@echo "Done. Commit the updated JSON files."
+
+watch: ## Start dev stack with file-watching auto-restart
+	@echo "Starting Poliswag in watch mode..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) up --build --watch
