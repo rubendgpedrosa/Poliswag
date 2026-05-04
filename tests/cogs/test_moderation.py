@@ -22,7 +22,7 @@ def cog():
     poliswag.QUEST_CHANNEL = MagicMock()
     poliswag.QUEST_CHANNEL.id = 2
     poliswag.user = MagicMock(name="bot_user")
-    poliswag.role_manager.restart_response_user_role_selection = AsyncMock()
+    poliswag.role_manager.response_user_role_selection = AsyncMock()
     return Moderation(poliswag)
 
 
@@ -31,19 +31,19 @@ class TestOnInteraction:
         interaction = MagicMock()
         interaction.data = None
         await cog.on_interaction(interaction)
-        cog.poliswag.role_manager.restart_response_user_role_selection.assert_not_called()
+        cog.poliswag.role_manager.response_user_role_selection.assert_not_called()
 
     async def test_missing_custom_id_returns_early(self, cog):
         interaction = MagicMock()
         interaction.data = {"other": "x"}
         await cog.on_interaction(interaction)
-        cog.poliswag.role_manager.restart_response_user_role_selection.assert_not_called()
+        cog.poliswag.role_manager.response_user_role_selection.assert_not_called()
 
     async def test_alertas_prefix_triggers_role_manager(self, cog):
         interaction = MagicMock()
         interaction.data = {"custom_id": "AlertasLeiria"}
         await cog.on_interaction(interaction)
-        cog.poliswag.role_manager.restart_response_user_role_selection.assert_awaited_once_with(
+        cog.poliswag.role_manager.response_user_role_selection.assert_awaited_once_with(
             interaction
         )
 
@@ -54,13 +54,13 @@ class TestOnInteraction:
         interaction = MagicMock()
         interaction.data = {"custom_id": custom_id}
         await cog.on_interaction(interaction)
-        cog.poliswag.role_manager.restart_response_user_role_selection.assert_awaited_once()
+        cog.poliswag.role_manager.response_user_role_selection.assert_awaited_once()
 
     async def test_unrelated_custom_id_ignored(self, cog):
         interaction = MagicMock()
         interaction.data = {"custom_id": "UnrelatedButton"}
         await cog.on_interaction(interaction)
-        cog.poliswag.role_manager.restart_response_user_role_selection.assert_not_called()
+        cog.poliswag.role_manager.response_user_role_selection.assert_not_called()
 
 
 class TestOnMessageDelete:
