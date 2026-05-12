@@ -8,16 +8,15 @@ class DeviceManager:
     """Manages ADB interactions with the configured Android device."""
 
     # How long the device must be continuously offline before an auto-reboot fires.
-    OFFLINE_BEFORE_REBOOT = 300  # 5 minutes offline before acting
+    OFFLINE_BEFORE_REBOOT = 900  # 15 minutes offline before acting
     # Minimum gap between reboots — long enough for the device to fully boot + reconnect.
     AUTO_REBOOT_COOLDOWN = 1800  # 30 minutes between reboots
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._last_auto_reboot: float = 0
-        self._offline_since: float | None = (
-            None  # timestamp when device first went offline
-        )
+        self._offline_since: float | None = None
+        self._last_notification_time: float = 0
 
     @property
     def auto_reboot_enabled(self) -> bool:
@@ -119,16 +118,19 @@ class DeviceManager:
         except RuntimeError:
             return False
 
+    def _next_notify_interval(self, offline_duration: float) -> float:
+        """Escalating gap between repeated offline notifications."""
+        if offline_duration < 6 * 3600:
+            return 3600  # every 1 h for the first 6 h offline
+        return 6 * 3600  # every 6 h after that
+
     async def auto_reboot_if_offline(self) -> bool:
         """Reboot the device if Rotom reports it offline long enough.
 
-        Guards:
-        - Device must be offline for at least OFFLINE_BEFORE_REBOOT seconds
-          (gives it time to self-recover after a transient glitch).
-        - At least AUTO_REBOOT_COOLDOWN seconds must have passed since the last
-          reboot (prevents reboot loops while the device is still booting).
-
-        Returns True if a reboot was triggered.
+        Notification cadence:
+        - First alert at OFFLINE_BEFORE_REBOOT (15 min).
+        - Repeated every 1 h while offline < 6 h, then every 6 h.
+        Reboot attempts respect AUTO_REBOOT_COOLDOWN (30 min) independently.
         """
         if not Config.ADB_DEVICE or not self.auto_reboot_enabled:
             return False
@@ -137,43 +139,53 @@ class DeviceManager:
         now = time.time()
 
         if device_alive:
-            self._offline_since = None  # reset the offline timer
+            self._offline_since = None
+            self._last_notification_time = 0
             return False
 
-        # Device is offline — start or continue the offline timer
         if self._offline_since is None:
             self._offline_since = now
             return False
 
         offline_duration = now - self._offline_since
-        since_last_reboot = now - self._last_auto_reboot
 
         if offline_duration < self.OFFLINE_BEFORE_REBOOT:
-            return False  # hasn't been offline long enough yet
+            return False
 
-        if since_last_reboot < self.AUTO_REBOOT_COOLDOWN:
-            return False  # too soon since last reboot — still booting
-
-        self._log(
-            f"Device offline for {int(offline_duration)}s — triggering auto ADB reboot",
-            "INFO",
-        )
-        rebooted = await self.reboot()
-        if rebooted:
+        # Attempt reboot if cooldown allows
+        since_last_reboot = now - self._last_auto_reboot
+        if since_last_reboot >= self.AUTO_REBOOT_COOLDOWN:
+            self._log(
+                f"Device offline for {int(offline_duration)}s — triggering auto ADB reboot",
+                "INFO",
+            )
+            rebooted = await self.reboot()
             self._last_auto_reboot = now
-            self._offline_since = None  # reset; will re-arm if still offline after boot
-            self._log("Auto ADB reboot sent successfully", "INFO")
-            await self._notify(
-                f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
-                f"reboot automático via ADB enviado para `{Config.ADB_DEVICE}`."
-            )
-        else:
-            self._log("Auto ADB reboot command failed")
-            await self._notify(
-                f"⚠️ Dispositivo offline há **{int(offline_duration // 60)} min** — "
-                f"tentativa de reboot ADB **falhou**. Intervenção manual necessária."
-            )
-        return rebooted
+            if rebooted:
+                self._offline_since = None
+                self._last_notification_time = 0
+                self._log("Auto ADB reboot sent successfully", "INFO")
+                await self._notify(
+                    f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
+                    f"reboot automático via ADB enviado para `{Config.ADB_DEVICE}`."
+                )
+                return True
+
+        # Notify with escalating throttle (first notification fires immediately)
+        since_last_notify = now - self._last_notification_time
+        if (
+            self._last_notification_time > 0
+            and since_last_notify < self._next_notify_interval(offline_duration)
+        ):
+            return False
+
+        self._last_notification_time = now
+        self._log("Auto ADB reboot command failed")
+        await self._notify(
+            f"⚠️ Dispositivo offline há **{int(offline_duration // 60)} min** — "
+            f"tentativa de reboot ADB **falhou**. Intervenção manual necessária."
+        )
+        return False
 
     async def _notify(self, message: str) -> None:
         """Send a plain message to the mod channel if it's available."""
