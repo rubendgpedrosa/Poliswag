@@ -617,7 +617,36 @@ class TestRenameVoiceChannels:
         assert any("Rate limited" in m for m in logged)
 
 
+def _db_rows(total, scanned):
+    """Helper: scanner DB result for one area."""
+    return [{"total": total, "scanned": scanned}]
+
+
 class TestIsQuestScanningComplete:
+    def _setup(self, scanner_status, mocker, *, leiria=None, marinha=None):
+        """Patch datetime to a safe non-midnight hour and configure DB mocks.
+
+        ``leiria`` / ``marinha`` are (total, scanned) tuples for the scanner DB.
+        Passing ``None`` means that DB call raises (simulates DB failure).
+        """
+        import datetime as _dt
+
+        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
+        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
+
+        # Poliswag DB: scanning not yet finished (scanned=0 → empty result)
+        scanner_status.poliswag.db.get_data_from_database.return_value = []
+
+        if leiria is not None and marinha is not None:
+            scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
+                _db_rows(*leiria),
+                _db_rows(*marinha),
+            ]
+        elif leiria is None and marinha is None:
+            scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = RuntimeError(
+                "db error"
+            )
+
     async def test_returns_none_near_midnight(self, scanner_status, mocker):
         fake_now = MagicMock()
         fake_now.hour = 0
@@ -637,52 +666,22 @@ class TestIsQuestScanningComplete:
         ]
         assert await scanner_status.is_quest_scanning_complete() is None
 
-    async def test_returns_none_when_fetch_data_empty(self, scanner_status, mocker):
-        import datetime as _dt
-
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        mocker.patch(
-            "modules.scanner_status.fetch_data",
-            new=AsyncMock(side_effect=[None, {"ar_quests": 5, "total": 10}]),
-        )
+    async def test_returns_none_when_scanned_count_is_zero(
+        self, scanner_status, mocker
+    ):
+        # Neither area has any scanned stops yet — scanning not started.
+        self._setup(scanner_status, mocker, leiria=(100, 0), marinha=(50, 0))
         assert await scanner_status.is_quest_scanning_complete() is None
 
-    async def test_returns_none_when_ar_quests_zero(self, scanner_status, mocker):
-        import datetime as _dt
-
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        mocker.patch(
-            "modules.scanner_status.fetch_data",
-            new=AsyncMock(
-                side_effect=[
-                    {"ar_quests": 0, "total": 10},
-                    {"ar_quests": 5, "total": 10},
-                ]
-            ),
-        )
+    async def test_returns_none_when_one_area_not_started(self, scanner_status, mocker):
+        # Leiria has stops scanned but Marinha has not started.
+        self._setup(scanner_status, mocker, leiria=(100, 80), marinha=(50, 0))
         assert await scanner_status.is_quest_scanning_complete() is None
 
     async def test_returns_completion_dict_when_fully_scanned(
         self, scanner_status, mocker
     ):
-        import datetime as _dt
-
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        mocker.patch(
-            "modules.scanner_status.fetch_data",
-            new=AsyncMock(
-                side_effect=[
-                    {"ar_quests": 100, "total": 100},
-                    {"ar_quests": 50, "total": 50},
-                ]
-            ),
-        )
+        self._setup(scanner_status, mocker, leiria=(100, 100), marinha=(50, 50))
         result = await scanner_status.is_quest_scanning_complete()
         assert result["leiriaCompleted"] is True
         assert result["marinhaCompleted"] is True
@@ -694,33 +693,29 @@ class TestIsQuestScanningComplete:
     async def test_reports_incomplete_when_below_threshold(
         self, scanner_status, mocker
     ):
-        import datetime as _dt
-
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        mocker.patch(
-            "modules.scanner_status.fetch_data",
-            new=AsyncMock(
-                side_effect=[
-                    {"ar_quests": 50, "total": 100},
-                    {"ar_quests": 49, "total": 50},
-                ]
-            ),
-        )
+        # 50/100 = 50% in Leiria, 49/50 = 98% (exact threshold) in Marinha.
+        self._setup(scanner_status, mocker, leiria=(100, 50), marinha=(50, 49))
         result = await scanner_status.is_quest_scanning_complete()
         assert result["leiriaCompleted"] is False
         assert result["leiriaPercentage"] == 50
 
-    async def test_returns_none_on_exception(self, scanner_status, mocker):
-        import datetime as _dt
+    async def test_98_percent_threshold_triggers_completion(
+        self, scanner_status, mocker
+    ):
+        # 98/100 = exactly 98% → completed (≥ 98% threshold).
+        self._setup(scanner_status, mocker, leiria=(100, 98), marinha=(50, 49))
+        result = await scanner_status.is_quest_scanning_complete()
+        assert result["leiriaCompleted"] is True
+        assert result["marinhaCompleted"] is True
 
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        mocker.patch(
-            "modules.scanner_status.fetch_data",
-            new=AsyncMock(side_effect=RuntimeError("boom")),
-        )
+    async def test_total_reflects_live_db_count(self, scanner_status, mocker):
+        # Totals come from the DB, not a fixed config value.
+        self._setup(scanner_status, mocker, leiria=(543, 530), marinha=(112, 110))
+        result = await scanner_status.is_quest_scanning_complete()
+        assert result["leiriaTotal"] == 543
+        assert result["marinhaTotal"] == 112
+
+    async def test_returns_none_on_exception(self, scanner_status, mocker):
+        self._setup(scanner_status, mocker)  # both None → raises
         assert await scanner_status.is_quest_scanning_complete() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
