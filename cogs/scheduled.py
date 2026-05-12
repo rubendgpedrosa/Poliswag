@@ -103,6 +103,7 @@ class Scheduled(commands.Cog):
                 await asyncio.to_thread(
                     self.poliswag.quest_search.generate_pokemon_item_name_map
                 )
+                await asyncio.to_thread(self.poliswag.mega_exporter.export)
             await self.poliswag.event_manager.fetch_events()
 
             await self._check_version_update()
