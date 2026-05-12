@@ -192,7 +192,7 @@ class QuestSearch:
 
         quest_data = self.db.get_data_from_database("""
             SELECT name, lat, lon, url, quest_title, quest_pokemon_id, quest_reward_type, quest_item_id, quest_reward_amount, quest_target
-            FROM pokestop WHERE quest_reward_type IS NOT NULL;
+            FROM pokestop WHERE quest_reward_type IS NOT NULL AND deleted = 0;
         """)
         self.quest_data = {"data": quest_data, "date": datetime.now().isoformat()}
         return self.quest_data
@@ -205,7 +205,7 @@ class QuestSearch:
 
         alternative_quest_data = self.db.get_data_from_database("""
             SELECT name, lat, lon, url, alternative_quest_title, alternative_quest_pokemon_id, alternative_quest_reward_type, alternative_quest_item_id, alternative_quest_reward_amount, alternative_quest_target
-            FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL;
+            FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0;
         """)
         self.alternative_quest_data = {
             "data": alternative_quest_data,
