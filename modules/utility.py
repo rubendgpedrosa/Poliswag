@@ -143,13 +143,15 @@ class Utility:
         if channel is None:
             return None
         try:
-            today = datetime.now().date()
+            from datetime import timezone, timedelta
+
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=25)
             async for message in channel.history(limit=100):
                 if (
                     message.author == self.poliswag.user
                     and message.embeds
                     and "SCAN DE QUESTS" in message.embeds[0].title.upper()
-                    and message.created_at.date() == today
+                    and message.created_at >= cutoff
                 ):
                     return message
             return None

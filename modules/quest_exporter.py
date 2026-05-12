@@ -45,7 +45,9 @@ class QuestExporter:
             SELECT name, lat, lon, url,
                    quest_title, quest_target, quest_reward_type,
                    quest_item_id, quest_pokemon_id, quest_reward_amount
-            FROM pokestop WHERE quest_reward_type IS NOT NULL
+            FROM pokestop
+            WHERE quest_reward_type IS NOT NULL AND deleted = 0
+              AND quest_expiry > UNIX_TIMESTAMP()
             """,
         )
         ar_rows = await asyncio.to_thread(
@@ -58,7 +60,9 @@ class QuestExporter:
                    alternative_quest_item_id       AS quest_item_id,
                    alternative_quest_pokemon_id    AS quest_pokemon_id,
                    alternative_quest_reward_amount AS quest_reward_amount
-            FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL
+            FROM pokestop
+            WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0
+              AND alternative_quest_expiry > UNIX_TIMESTAMP()
             """,
         )
 

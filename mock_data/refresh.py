@@ -92,20 +92,9 @@ def refresh_account_status() -> None:
     write("account_status.json", data)
 
 
-def refresh_quest_status() -> None:
-    for fname in ("leiria_quest_scanning.json", "marinha_quest_scanning.json"):
-        path = ROOT / fname
-        try:
-            data = json.loads(path.read_text())
-        except (FileNotFoundError, json.JSONDecodeError):
-            data = {}
-        write(fname, data)
-
-
 if __name__ == "__main__":
     print("Refreshing mock_data/ timestamps...")
     refresh_scanner_status()
     refresh_device_status()
     refresh_account_status()
-    refresh_quest_status()
     print("Done.")

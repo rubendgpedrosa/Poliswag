@@ -58,14 +58,14 @@ class Config:
 
     # PWA export
     QUEST_JSON_OUTPUT = os.environ.get("QUEST_JSON_OUTPUT", "/pogo-public/quests.json")
+    MEGA_JSON_OUTPUT = os.environ.get("MEGA_JSON_OUTPUT", "/dex-public/megas.json")
+    MEGA_SPRITES_DIR = os.environ.get("MEGA_SPRITES_DIR", "/dex-public/sprites/mega")
 
     # API endpoints
     ENDPOINTS = {
         "scanner_status": os.environ.get("SCANNER_STATUS_ENDPOINT"),
         "device_status": os.environ.get("DEVICE_STATUS_ENDPOINT"),
         "account_status": os.environ.get("SCANNER_ACCOUNTS_STATUS_ENDPOINT"),
-        "leiria_quest_scanning": os.environ.get("LEIRIA_QUEST_SCANNING_ENDPOINT"),
-        "marinha_quest_scanning": os.environ.get("MARINHA_QUEST_SCANNING_ENDPOINT"),
         "all_down": os.environ.get("ALL_DOWN_ENDPOINT"),
         "events": os.environ.get("EVENTS_ENDPOINT"),
         "scan_quest_all": os.environ.get("SCAN_QUESTS_ALL_ENDPOINT"),
