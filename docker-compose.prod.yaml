@@ -10,7 +10,8 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
-      - /root/PoGoLeiria/public:/pogo-public
+      - /root/PoGoLeiria/apps/quests/public:/pogo-public
+      - /root/PoGoLeiria/apps/dex/public:/dex-public
       - /root/.android:/root/.android:ro
     env_file:
       - .env
