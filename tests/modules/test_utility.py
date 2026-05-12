@@ -239,13 +239,15 @@ class TestFindQuestScanningMessage:
         assert await util.find_quest_scanning_message(None) is None
 
     async def test_finds_matching_message_from_today(self, util, mocker):
-        today = datetime.now().date()
+        from datetime import timezone, timedelta
+
         embed = MagicMock()
         embed.title = "SCAN DE QUESTS — Leiria"
         match = MagicMock()
         match.author = util.poliswag.user
         match.embeds = [embed]
-        match.created_at = datetime.combine(today, datetime.min.time())
+        # created_at must be timezone-aware (as Discord always provides) and within 25 h
+        match.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
         channel = MagicMock()
         channel.history = MagicMock(return_value=_AsyncMessageIter([match]))
         result = await util.find_quest_scanning_message(channel)

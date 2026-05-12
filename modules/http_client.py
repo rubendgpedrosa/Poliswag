@@ -41,8 +41,6 @@ async def fetch_data(endpoint_key, log_fn=None, timeout=20, method="GET", data=N
             "scanner_status": "scanner_status.json",
             "device_status": "device_status.json",
             "account_status": "account_status.json",
-            "leiria_quest_scanning": "leiria_quest_scanning.json",
-            "marinha_quest_scanning": "marinha_quest_scanning.json",
         }
         try:
             file_path = os.path.join(
