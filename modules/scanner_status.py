@@ -4,6 +4,8 @@ import discord
 from modules.http_client import fetch_data
 from modules.config import Config
 
+_MARINHA_LON_MAX = -8.9  # pokestops at or west of this longitude are in Marinha Grande
+
 
 class ScannerStatus:
     def __init__(self, poliswag):
@@ -280,36 +282,51 @@ class ScannerStatus:
             return None
 
         try:
-            leiria_data = await fetch_data("leiria_quest_scanning", log_fn=self._log)
-            marinha_data = await fetch_data("marinha_quest_scanning", log_fn=self._log)
+            db = self.poliswag.quest_search.db
+            leiria_rows = db.get_data_from_database(
+                """
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(CASE WHEN quest_expiry > UNIX_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS scanned
+                FROM pokestop WHERE deleted = 0 AND lon > %s AND quest_timestamp IS NOT NULL
+                """,
+                params=(_MARINHA_LON_MAX,),
+            )
+            marinha_rows = db.get_data_from_database(
+                """
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(CASE WHEN quest_expiry > UNIX_TIMESTAMP() THEN 1 ELSE 0 END), 0) AS scanned
+                FROM pokestop WHERE deleted = 0 AND lon <= %s AND quest_timestamp IS NOT NULL
+                """,
+                params=(_MARINHA_LON_MAX,),
+            )
 
-            if not leiria_data or not marinha_data:
+            if not leiria_rows or not marinha_rows:
                 return None
 
-            if leiria_data.get("ar_quests") == 0 or marinha_data.get("ar_quests") == 0:
-                return None
+            leiria_total = leiria_rows[0]["total"] or 0
+            leiria_scanned = leiria_rows[0]["scanned"] or 0
+            marinha_total = marinha_rows[0]["total"] or 0
+            marinha_scanned = marinha_rows[0]["scanned"] or 0
 
-            leiria_total = leiria_data.get("total") or 0
-            leiria_ar_quests = leiria_data.get("ar_quests") or 0
-            marinha_total = marinha_data.get("total") or 0
-            marinha_ar_quests = marinha_data.get("ar_quests") or 0
+            if leiria_scanned == 0 or marinha_scanned == 0:
+                return None
 
             leiria_percentage = (
-                (leiria_ar_quests / leiria_total * 100) if leiria_total > 0 else 0
+                (leiria_scanned / leiria_total * 100) if leiria_total > 0 else 0
             )
             marinha_percentage = (
-                (marinha_ar_quests / marinha_total * 100) if marinha_total > 0 else 0
+                (marinha_scanned / marinha_total * 100) if marinha_total > 0 else 0
             )
 
             leiria_threshold = leiria_total * 0.98
             marinha_threshold = marinha_total * 0.98
             return {
-                "leiriaCompleted": leiria_ar_quests >= leiria_threshold,
-                "marinhaCompleted": marinha_ar_quests >= marinha_threshold,
+                "leiriaCompleted": leiria_scanned >= leiria_threshold,
+                "marinhaCompleted": marinha_scanned >= marinha_threshold,
                 "leiriaTotal": leiria_total,
-                "leiriaScanned": leiria_ar_quests,
+                "leiriaScanned": leiria_scanned,
                 "marinhaTotal": marinha_total,
-                "marinhaScanned": marinha_ar_quests,
+                "marinhaScanned": marinha_scanned,
                 "leiriaPercentage": leiria_percentage,
                 "marinhaPercentage": marinha_percentage,
             }

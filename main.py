@@ -11,6 +11,7 @@ from modules.image_generator import ImageGenerator
 from modules.quest_search import QuestSearch
 from modules.event_manager import EventManager
 from modules.quest_exporter import QuestExporter
+from modules.mega_exporter import MegaExporter
 from modules.account_monitor import AccountMonitor
 from modules.poracle_client import PoracleClient
 from modules.device_manager import DeviceManager
@@ -36,6 +37,7 @@ class Poliswag(commands.Bot):
         self.quest_search = QuestSearch(self)
         self.event_manager = EventManager(self)
         self.quest_exporter = QuestExporter(self)
+        self.mega_exporter = MegaExporter(self)
         self.account_monitor = AccountMonitor(self)
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
