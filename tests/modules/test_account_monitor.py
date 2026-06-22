@@ -160,6 +160,32 @@ class TestIsDeviceConnected:
         _mock_fetch(mocker, {"devices": [{"name": "scanner-01"}]})
         assert await account_monitor.is_device_connected() is False
 
+    # --- RotomNG payload shape (snake_case `is_connected`) ------------------
+
+    async def test_ng_connected_device_returns_true(self, account_monitor, mocker):
+        # RotomNG reports connectivity via `is_connected`, not `isAlive`.
+        _mock_fetch(mocker, {"devices": [{"is_connected": True}]})
+        assert await account_monitor.is_device_connected() is True
+
+    async def test_ng_all_disconnected_returns_false(self, account_monitor, mocker):
+        _mock_fetch(
+            mocker,
+            {"devices": [{"is_connected": False}, {"is_connected": False}]},
+        )
+        assert await account_monitor.is_device_connected() is False
+
+    async def test_ng_any_connected_device_returns_true(self, account_monitor, mocker):
+        _mock_fetch(
+            mocker,
+            {
+                "devices": [
+                    {"is_connected": False},
+                    {"is_connected": True},
+                ]
+            },
+        )
+        assert await account_monitor.is_device_connected() is True
+
 
 class TestDisabledStatusesConstant:
     """Regression guards for the canonical list of disabled account statuses."""

@@ -11,6 +11,11 @@ else
     DOCKER_COMPOSE_FILE := docker-compose.yaml
 endif
 
+# Database credentials (read from .env so migrate works in any environment)
+DB_USER := $(shell grep -s '^DB_USER=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ')
+DB_PASSWORD := $(shell grep -s '^DB_PASSWORD=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ')
+DB_NAME := $(shell grep -s '^DB_NAME=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ')
+
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
@@ -115,11 +120,11 @@ check: ## Run all quality checks (format, lint, tests) — CI equivalent
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) pytest
 	@echo "All checks passed."
 
-migrate: ## Apply all SQL migrations in migrations/ to the dev database
+migrate: ## Apply all SQL migrations in migrations/ to the database
 	@echo "Applying migrations..."
 	@for f in migrations/*.sql; do \
 	  echo "  applying $$f..."; \
-	  docker compose -f $(DOCKER_COMPOSE_FILE) exec -T db \
-	    mysql -upoliswag -ppoliswag poliswag < $$f; \
+	  docker exec -i db \
+	    mysql -u$(DB_USER) -p$(DB_PASSWORD) $(DB_NAME) < $$f; \
 	done
 	@echo "Migrations applied."
