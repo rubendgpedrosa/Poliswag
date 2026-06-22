@@ -98,3 +98,9 @@ class TestUseLure:
         cog.lure_manager.adjust_lure_count.assert_called_once_with("free_low", 1)
         desc = be.call_args.args[1]
         assert "1 lure adicionada" in desc
+
+    async def test_zero_delta_sends_error_and_skips_adjust(self, cog):
+        ctx = make_ctx()
+        await Lures.uselure.callback(cog, ctx, username="free_low", number="0")
+        cog.lure_manager.adjust_lure_count.assert_not_called()
+        assert "diferente de zero" in ctx.send.call_args.args[0]
