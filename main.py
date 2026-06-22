@@ -15,6 +15,7 @@ from modules.mega_exporter import MegaExporter
 from modules.account_monitor import AccountMonitor
 from modules.poracle_client import PoracleClient
 from modules.device_manager import DeviceManager
+from modules.lure_manager import LureManager
 from modules.config import Config
 from modules.http_client import close_session
 
@@ -41,6 +42,7 @@ class Poliswag(commands.Bot):
         self.account_monitor = AccountMonitor(self)
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
+        self.lure_manager = LureManager(self)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
@@ -68,6 +70,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.moderation")
         await self.load_extension("cogs.notifications")
         await self.load_extension("cogs.scheduled")
+        await self.load_extension("cogs.lures")
         await self.tree.sync()
 
     async def get_channels(self):
