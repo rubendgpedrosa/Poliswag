@@ -26,6 +26,7 @@ class Config:
     DB_PASSWORD = os.environ.get("DB_PASSWORD")
     DB_POLISWAG = os.environ.get("DB_POLISWAG")
     DB_SCANNER_NAME = os.environ.get("DB_SCANNER_NAME")
+    DB_DRAGONITE = os.environ.get("DB_DRAGONITE", "dragonite")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
