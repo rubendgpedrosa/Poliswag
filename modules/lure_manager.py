@@ -28,8 +28,12 @@ class LureManager:
         return self.dragonite_db.get_data_from_database(_AVAILABLE_ACCOUNTS_SQL)
 
     def _seed_missing(self, usernames):
+        if not usernames:
+            return
+        placeholders = ", ".join(["%s"] * len(usernames))
         existing_rows = self.db.get_data_from_database(
-            "SELECT username FROM account_lure"
+            f"SELECT username FROM account_lure WHERE username IN ({placeholders})",
+            params=tuple(usernames),
         )
         existing = {row["username"] for row in existing_rows}
         for username in usernames:
@@ -51,8 +55,8 @@ class LureManager:
         rows = self.db.get_data_from_database(
             "SELECT username, nb_lures FROM account_lure "
             f"WHERE username IN ({placeholders}) AND nb_lures > 0 "
-            f"ORDER BY nb_lures ASC LIMIT {MAX_LISTED}",
-            params=tuple(passwords.keys()),
+            "ORDER BY nb_lures ASC LIMIT %s",
+            params=tuple(passwords.keys()) + (MAX_LISTED,),
         )
         return [
             {

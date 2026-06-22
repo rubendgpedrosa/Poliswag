@@ -60,7 +60,27 @@ class TestSeeding:
             [{"username": "free_low", "nb_lures": 2}],  # selection
         ]
         manager.list_available_with_lures()
+        seed_sql = manager.db.get_data_from_database.call_args_list[0].args[0]
+        assert "WHERE username IN" in seed_sql
         manager.db.execute_query_to_database.assert_not_called()
+
+    def test_seeds_multiple_missing_usernames(self, manager):
+        manager.dragonite_db.get_data_from_database.return_value = [
+            {"username": "free_new1", "password": "pw1"},
+            {"username": "free_new2", "password": "pw2"},
+        ]
+        manager.db.get_data_from_database.side_effect = [
+            [],
+            [],
+        ]  # none existing, then empty selection
+        manager.list_available_with_lures()
+        seeded = [
+            c.kwargs["params"][0]
+            for c in manager.db.execute_query_to_database.call_args_list
+        ]
+        assert seeded == ["free_new1", "free_new2"]
+        for c in manager.db.execute_query_to_database.call_args_list:
+            assert c.kwargs["params"][1] == DEFAULT_LURE_COUNT
 
 
 class TestListing:
@@ -85,7 +105,9 @@ class TestListing:
         sel_sql = manager.db.get_data_from_database.call_args.args[0]
         assert "nb_lures > 0" in sel_sql
         assert "ORDER BY nb_lures ASC" in sel_sql
-        assert f"LIMIT {MAX_LISTED}" in sel_sql
+        assert "LIMIT %s" in sel_sql
+        sel_params = manager.db.get_data_from_database.call_args.kwargs["params"]
+        assert sel_params[-1] == MAX_LISTED
 
     def test_returns_empty_when_no_available_accounts(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = []
