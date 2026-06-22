@@ -40,7 +40,12 @@ class AccountMonitor:
         device_status = await fetch_data("device_status", log_fn=self._log)
         if not device_status or "devices" not in device_status:
             return False
-        return any(device.get("isAlive", False) for device in device_status["devices"])
+        # RotomNG exposes connectivity as `is_connected`; the legacy Node Rotom
+        # used `isAlive`. Accept either so this survives the cutover + rollback.
+        return any(
+            device.get("is_connected", device.get("isAlive", False))
+            for device in device_status["devices"]
+        )
 
     async def update_channel_accounts_stats(self):
         if self.poliswag.ACCOUNTS_CHANNEL is None:

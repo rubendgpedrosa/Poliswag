@@ -136,6 +136,7 @@ class Scheduled(commands.Cog):
     async def _check_quest_scan_progress(self):
         day_changed = self.poliswag.scanner_manager.is_day_change()
         if day_changed:
+            self.poliswag.scanner_status.reset_quest_plateau()
             self.poliswag.quest_scanning_message = (
                 await self.poliswag.QUEST_CHANNEL.send(
                     embed=self.poliswag.utility.build_embed_object_title_description(
@@ -180,6 +181,9 @@ class Scheduled(commands.Cog):
             )
             await self.poliswag.quest_exporter.export()
             self.poliswag.scanner_manager.update_quest_scanning_state()
+            self.poliswag.scanner_status.record_quest_scan_completion(
+                quest_completed["leiriaScanned"], quest_completed["marinhaScanned"]
+            )
             self._last_progress_embed_state = None
         else:
             state = (

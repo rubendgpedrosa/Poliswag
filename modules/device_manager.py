@@ -41,30 +41,13 @@ class DeviceManager:
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
 
-    async def run(self, *args, timeout: int = 15) -> tuple[str, str, int]:
-        """Connect to the configured ADB device and run a command.
+    async def _adb(self, *args, timeout: int = 15) -> tuple[str, str, int]:
+        """Run a raw ``adb`` invocation. Returns (stdout, stderr, returncode).
 
-        Returns (stdout, stderr, returncode).
-        Raises RuntimeError if ADB_DEVICE is not configured or adb is unavailable.
+        Raises RuntimeError if the command exceeds ``timeout``.
         """
-        device = Config.ADB_DEVICE
-        if not device:
-            raise RuntimeError("ADB_DEVICE não está configurado no .env")
-
-        # connect is idempotent — safe on every call
-        conn = await asyncio.create_subprocess_exec(
-            "adb",
-            "connect",
-            device,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await conn.communicate()
-
         proc = await asyncio.create_subprocess_exec(
             "adb",
-            "-s",
-            device,
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -74,8 +57,61 @@ class DeviceManager:
         except asyncio.TimeoutError:
             proc.kill()
             raise RuntimeError(f"Comando ADB expirou após {timeout}s")
-
         return stdout.decode().strip(), stderr.decode().strip(), proc.returncode
+
+    async def _device_state(self, device: str) -> str:
+        """adb's reported state for ``device`` ('device', 'unauthorized',
+        'offline'), or '' when it can't be determined. Never raises."""
+        try:
+            stdout, _, rc = await self._adb("-s", device, "get-state", timeout=8)
+        except RuntimeError:
+            return ""
+        return stdout if rc == 0 else ""
+
+    async def _recover_session(self, device: str) -> None:
+        """Clear a stale/unauthorized adb session and re-handshake.
+
+        A device that flaps its connection commonly lingers as
+        'unauthorized'/'offline'; a plain ``adb connect`` won't clear that, but
+        the full ``disconnect → kill-server → start-server → connect`` cycle
+        reliably promotes it back to 'device'. Best-effort: individual step
+        failures are logged, not raised, so ``run`` can still attempt the
+        command afterwards.
+        """
+        self._log(f"ADB session for {device} not ready — re-handshaking", "INFO")
+        for cmd in (
+            ("disconnect", device),
+            ("kill-server",),
+            ("start-server",),
+            ("connect", device),
+        ):
+            try:
+                await self._adb(*cmd, timeout=10)
+            except RuntimeError as e:
+                self._log(f"ADB recovery step '{' '.join(cmd)}' failed: {e}")
+
+    async def run(self, *args, timeout: int = 15) -> tuple[str, str, int]:
+        """Connect to the configured ADB device and run a command.
+
+        Returns (stdout, stderr, returncode).
+        Raises RuntimeError if ADB_DEVICE is not configured or adb is unavailable.
+
+        If the device is reachable but its session is stale ('unauthorized' /
+        'offline' — the usual aftermath of the device flapping its connection),
+        a one-shot re-handshake is attempted before running the command, so a
+        recoverable session never blocks an auto-reboot.
+        """
+        device = Config.ADB_DEVICE
+        if not device:
+            raise RuntimeError("ADB_DEVICE não está configurado no .env")
+
+        # connect is idempotent — safe on every call
+        await self._adb("connect", device, timeout=10)
+
+        if await self._device_state(device) != "device":
+            await self._recover_session(device)
+
+        return await self._adb("-s", device, *args, timeout=timeout)
 
     async def is_reachable(self) -> bool:
         """Return True if the device responds to a basic shell command."""
