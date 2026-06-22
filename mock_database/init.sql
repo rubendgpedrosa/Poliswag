@@ -880,6 +880,21 @@ CREATE TABLE `excluded_event_type`(
     type VARCHAR(50) NOT NULL PRIMARY KEY COMMENT 'Primary Key for event type'
 );
 
+
+DROP TABLE IF EXISTS `account_lure`;
+CREATE TABLE `account_lure` (
+  `username` varchar(50) NOT NULL,
+  `nb_lures` int(11) NOT NULL DEFAULT 12,
+  PRIMARY KEY (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+LOCK TABLES `account_lure` WRITE;
+INSERT INTO `account_lure` (`username`, `nb_lures`) VALUES
+  ('free_low', 2),
+  ('free_mid', 7),
+  ('free_zero', 0);
+UNLOCK TABLES;
+
 -- ============================================================
 -- Poracle-NG database (mirrors the schema used by Notifications cog)
 -- ============================================================
@@ -920,6 +935,41 @@ INSERT INTO `monsters` (`id`, `pokemon_id`, `min_iv`, `max_iv`, `min_cp`, `max_c
   ('222222222222222222', 248, 0, 100, 0, 9000),
   ('333333333333333333',   0, 100, 100, 0, 9000),
   ('444444444444444444',   0, 100, 100, 0, 9000);
+
+-- ============================================================
+-- Dragonite database (account management)
+-- ============================================================
+DROP DATABASE IF EXISTS dragonite;
+CREATE DATABASE IF NOT EXISTS dragonite;
+USE dragonite;
+
+DROP TABLE IF EXISTS `account`;
+CREATE TABLE `account` (
+  `username` varchar(64) NOT NULL,
+  `password` varchar(64) NOT NULL,
+  `warn` tinyint(1) unsigned DEFAULT 0,
+  `suspended` tinyint(1) unsigned DEFAULT 0,
+  `banned` tinyint(1) unsigned DEFAULT 0,
+  `invalid` tinyint(1) NOT NULL DEFAULT 0,
+  `auth_banned` int(11) unsigned NOT NULL DEFAULT 0,
+  `last_selected` int(11) DEFAULT NULL,
+  `last_released` int(11) DEFAULT NULL,
+  `next_available_time` int(11) DEFAULT NULL,
+  PRIMARY KEY (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+LOCK TABLES `account` WRITE;
+INSERT INTO `account`
+  (`username`,`password`,`warn`,`suspended`,`banned`,`invalid`,`auth_banned`,`last_selected`,`last_released`,`next_available_time`)
+VALUES
+  ('free_low','pw_low',0,0,0,0,0,100,200,NULL),
+  ('free_mid','pw_mid',0,0,0,0,0,100,200,NULL),
+  ('free_zero','pw_zero',0,0,0,0,0,100,200,NULL),
+  ('free_new','pw_new',0,0,0,0,0,NULL,NULL,NULL),
+  ('busy_cooldown','pw_cd',0,0,0,0,0,100,200,2000000000),
+  ('busy_selected','pw_sel',0,0,0,0,0,300,200,NULL),
+  ('bad_invalid','pw_bad',0,0,0,1,0,100,200,NULL);
+UNLOCK TABLES;
 
 GRANT ALL PRIVILEGES ON *.* TO 'poliswag'@'%' IDENTIFIED BY 'poliswag';
 FLUSH PRIVILEGES;

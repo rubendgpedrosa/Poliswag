@@ -26,6 +26,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `account_monitor.py` | Polls Dragonite `/accounts/stats`. Aggregates disabled statuses. Posts account image to `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | `PoracleClient` — async REST client for Poracle-NG (`X-Poracle-Secret` header). Methods: `get_channels`, `get_pokemon`, `add_pokemon`, `delete_pokemon`, `set_enabled`, `register_channel`, `send_test`. Raises `PoracleError` on non-2xx. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward` table. |
+| `lure_manager.py` | `LureManager` — owns a read-only `DatabaseConnector(DB_DRAGONITE)`. `list_available_with_lures()` reads available+healthy accounts from `dragonite.account` (not banned/suspended/warned/invalid/auth_banned, off cooldown, `last_released >= last_selected`), seeds new usernames into `account_lure` at 12, returns up to 5 fewest-first with `{username, password, nb_lures}`. `adjust_lure_count(username, delta)` → `GREATEST(nb_lures+delta, 0)` UPDATE. Writes only `poliswag.account_lure`; dragonite is read-only. |
 | `role_manager.py` | Handles Discord role button interactions (team + notification roles). |
 | `image_generator.py` | `imgkit` + Jinja2 → PNG bytes. Two templates: `followed_events.html` (quest map) and `accounts.html`. |
 | `embeds.py` | Shared embed builders (`build_embed`, `build_tracked_list_embed`, `build_excluded_list_embed`). Discord limits: 25 fields, 256 field name, 1024 field value, 4096 description. |
@@ -44,6 +45,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `container_manager.py` | `!container start\|stop`, `!status` | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete` | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute | admin-only |
+| `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
 
 ## Database schema (Poliswag DB)
 
@@ -58,11 +60,15 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 
 **`event`** — event calendar rows (type, name, start/end timestamps, etc.)
 
+**`account_lure`** — `username VARCHAR(50)` PK, `nb_lures INT DEFAULT 12`. Per-account lure budget for `!lures`/`!uselure` (managed by `lure_manager.py`). Migration `004`.
+
 **Scanner DB** (`DB_SCANNER_NAME`) — read-only. Key table:
 
 `pokestop` — lat/lon, quest fields (`quest_type`, `quest_title`, `quest_target`, `quest_reward_type`, `quest_item_id`, `quest_pokemon_id`, `quest_reward_amount`) plus `alternative_quest_*` mirrors for AR quests (generated columns). Area split by `lon ≤ −8.9` for Marinha Grande.
 
 **Poracle DB** (`DatabaseConnector("poracle")`) — `humans` table: `id`, `name`, `type='discord:channel'`, `enabled`.
+
+**Dragonite DB** (`DatabaseConnector(DB_DRAGONITE)`, default `dragonite`) — read-only. `account` table: `username`, `password`, health flags (`banned`, `suspended`, `warn`, `invalid`, `auth_banned`), and scheduler timestamps (`last_selected`, `last_released`, `next_available_time`). Read by `lure_manager.py` to find free+healthy accounts.
 
 ## External integrations
 
@@ -82,7 +88,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 DISCORD_API_KEY, ADMIN_USERS_IDS (comma-sep), MY_ID
 QUEST_CHANNEL_ID, CONVIVIO_CHANNEL_ID, MOD_CHANNEL_ID, ACCOUNTS_CHANNEL_ID
 VOICE_CHANNEL_LEIRIA_ID, VOICE_CHANNEL_MARINHA_ID
-DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME, DB_DRAGONITE
 SCANNER_CONTAINER_NAME
 ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
 PORACLE_API_URL, PORACLE_API_SECRET
