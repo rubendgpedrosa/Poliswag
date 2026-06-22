@@ -62,12 +62,12 @@ class TestGetStatusMessage:
 
     def test_boundary_exact_40_percent_is_yellow(self, scanner_status):
         # 2/5 = exactly 0.4 → boundary (≤ 0.4 → yellow)
-        scanner_status.defaultExpectedWorkers["Leiria"] = 5
+        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
         assert scanner_status.get_status_message(2, "LEIRIA") == "LEIRIA: 🟡"
 
     def test_boundary_exact_80_percent_is_orange(self, scanner_status):
         # 4/5 = exactly 0.8 → boundary (≤ 0.8 → orange)
-        scanner_status.defaultExpectedWorkers["Leiria"] = 5
+        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
         assert scanner_status.get_status_message(4, "LEIRIA") == "LEIRIA: 🟠"
 
     def test_unknown_region_falls_into_leiria_branch(self, scanner_status):
@@ -149,7 +149,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [_worker(now) for _ in range(4)],
                     )
                 ]
@@ -169,7 +169,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [_worker(stale) for _ in range(4)],
                     )
                 ]
@@ -186,7 +186,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [
                             _worker(now),
                             _worker(now),
@@ -209,7 +209,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [
                             _worker(now, connection_status="Idle"),
                             _worker(now, connection_status="Executing Worker"),
@@ -233,7 +233,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [
                             _worker(None),
                             _worker(now),
@@ -255,7 +255,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [_worker(now) for _ in range(4)],
                         expected_workers=6,
                     )
@@ -274,7 +274,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [_worker(now) for _ in range(10)],
                     )
                 ]
@@ -305,7 +305,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "Leiria",
+                        "LeiriaBigger",
                         [_worker(now), _worker(now), _worker(stale), _worker(stale)],
                     ),
                     _area("MarinhaGrande", [_worker(stale)]),
@@ -327,7 +327,7 @@ class TestGetWorkersWithIssues:
                         "name": "UnknownArea",
                         "worker_managers": [{"workers": [_worker(now)]}],
                     },
-                    _area("Leiria", [_worker(now) for _ in range(4)]),
+                    _area("LeiriaBigger", [_worker(now) for _ in range(4)]),
                 ]
             },
         )
@@ -356,6 +356,98 @@ class TestGetWorkersWithIssues:
         )
         result = await scanner_status.get_workers_with_issues()
         assert result == {"downDevicesLeiria": None, "downDevicesMarinha": None}
+
+
+class TestGetFullStatusDevices:
+    """get_full_status parses the Rotom /api/status `devices` array.
+
+    Covers both the RotomNG (snake_case) payload and the legacy Node Rotom
+    (camelCase) payload, so the bot survives the rotom→rotom-ng cutover and a
+    rollback. Only the device branch is exercised here; worker/account branches
+    are mocked out.
+    """
+
+    def _prime(self, scanner_status, mocker, device_payload, *, now=1_000_000):
+        # First fetch_data call is device_status, second is scanner_status.
+        mocker.patch(
+            "modules.scanner_status.fetch_data",
+            new=AsyncMock(side_effect=[device_payload, {"areas": []}]),
+        )
+        mocker.patch("modules.scanner_status.time.time", return_value=now)
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=0
+        )
+        scanner_status.poliswag.account_monitor.get_account_stats = AsyncMock(
+            return_value={"good": 1}
+        )
+
+    async def test_parses_ng_device(self, scanner_status, mocker):
+        now = 1_000_000
+        self._prime(
+            scanner_status,
+            mocker,
+            {
+                "devices": [
+                    {
+                        "id": "Redmi",
+                        "origin": "PokemodAegis-Redmi",
+                        "is_connected": True,
+                        "last_seen_at_ms": (now - 30) * 1000,
+                    }
+                ]
+            },
+            now=now,
+        )
+        result = await scanner_status.get_full_status()
+        assert result["devices"] == [
+            {
+                "origin": "PokemodAegis-Redmi",
+                "is_alive": True,
+                "last_msg_seconds_ago": 30,
+            }
+        ]
+
+    async def test_ng_device_falls_back_to_id_when_no_origin(
+        self, scanner_status, mocker
+    ):
+        now = 1_000_000
+        self._prime(
+            scanner_status,
+            mocker,
+            {"devices": [{"id": "Redmi", "is_connected": False}]},
+            now=now,
+        )
+        result = await scanner_status.get_full_status()
+        assert result["devices"][0]["origin"] == "Redmi"
+        assert result["devices"][0]["is_alive"] is False
+        assert result["devices"][0]["last_msg_seconds_ago"] is None
+
+    async def test_parses_legacy_device(self, scanner_status, mocker):
+        # Rollback safety: the old Node Rotom camelCase shape must still parse.
+        now = 1_000_000
+        self._prime(
+            scanner_status,
+            mocker,
+            {
+                "devices": [
+                    {
+                        "deviceId": "Redmi",
+                        "origin": "PokemodAegis-Redmi",
+                        "isAlive": True,
+                        "dateLastMessageReceived": (now - 45) * 1000,
+                    }
+                ]
+            },
+            now=now,
+        )
+        result = await scanner_status.get_full_status()
+        assert result["devices"] == [
+            {
+                "origin": "PokemodAegis-Redmi",
+                "is_alive": True,
+                "last_msg_seconds_ago": 45,
+            }
+        ]
 
 
 class TestGetVoiceChannel:
@@ -617,35 +709,75 @@ class TestRenameVoiceChannels:
         assert any("Rate limited" in m for m in logged)
 
 
-def _db_rows(total, scanned):
-    """Helper: scanner DB result for one area."""
-    return [{"total": total, "scanned": scanned}]
+def _poliswag_db_handler(*, scanning_ongoing=False, expected=(371, 109)):
+    """Side-effect for the poliswag DB mock, routing by the SQL it receives.
+
+    Two distinct reads hit poliswag.db during a completion check: the
+    ``scanned = 1`` guard and the expected-totals lookup.
+    """
+
+    def _handler(sql, *args, **kwargs):
+        if "scanned = 1" in sql:
+            return [{"scanned": 1}] if scanning_ongoing else []
+        if "quest_expected" in sql:
+            return [
+                {
+                    "quest_expected_leiria": expected[0],
+                    "quest_expected_marinha": expected[1],
+                }
+            ]
+        return []
+
+    return _handler
 
 
 class TestIsQuestScanningComplete:
-    def _setup(self, scanner_status, mocker, *, leiria=None, marinha=None):
-        """Patch datetime to a safe non-midnight hour and configure DB mocks.
+    """The completion detector is plateau-based: it fires only after the live
+    quest count stops growing for ``PLATEAU_TICKS`` checks, is past the floor,
+    and the scanner is alive. Tests drive it tick-by-tick."""
 
-        ``leiria`` / ``marinha`` are (total, scanned) tuples for the scanner DB.
-        Passing ``None`` means that DB call raises (simulates DB failure).
-        """
+    def _prime(
+        self,
+        scanner_status,
+        mocker,
+        *,
+        expected=(371, 109),
+        scanning_ongoing=False,
+        alive=True,
+    ):
         import datetime as _dt
 
         mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
         mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
+        scanner_status.poliswag.db.get_data_from_database.side_effect = (
+            _poliswag_db_handler(scanning_ongoing=scanning_ongoing, expected=expected)
+        )
+        mocker.patch.object(
+            scanner_status, "_is_scanner_alive", new=AsyncMock(return_value=alive)
+        )
 
-        # Poliswag DB: scanning not yet finished (scanned=0 → empty result)
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
+    async def _tick(self, scanner_status, leiria, marinha):
+        """One minute-check with the given per-area live quest counts."""
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
+            [{"scanned": leiria}],
+            [{"scanned": marinha}],
+        ]
+        return await scanner_status.is_quest_scanning_complete()
 
-        if leiria is not None and marinha is not None:
-            scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
-                _db_rows(*leiria),
-                _db_rows(*marinha),
-            ]
-        elif leiria is None and marinha is None:
-            scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = RuntimeError(
-                "db error"
-            )
+    async def _tick_until_plateau(self, scanner_status, leiria, marinha):
+        """Hold both counts flat through the full plateau window; return the
+        final-tick result and the result one tick before it should fire."""
+        result = None
+        for _ in range(scanner_status.PLATEAU_TICKS):
+            result = await self._tick(scanner_status, leiria, marinha)
+        before = result
+        after = await self._tick(scanner_status, leiria, marinha)
+        return before, after
+
+    def _complete(self, result):
+        return bool(result and result["leiriaCompleted"] and result["marinhaCompleted"])
+
+    # --- early-exit guards -------------------------------------------------
 
     async def test_returns_none_near_midnight(self, scanner_status, mocker):
         fake_now = MagicMock()
@@ -657,65 +789,178 @@ class TestIsQuestScanningComplete:
         assert await scanner_status.is_quest_scanning_complete() is None
 
     async def test_returns_none_when_scanning_ongoing(self, scanner_status, mocker):
-        import datetime as _dt
-
-        mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
-        mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
-        scanner_status.poliswag.db.get_data_from_database.return_value = [
-            {"scanned": 1}
-        ]
-        assert await scanner_status.is_quest_scanning_complete() is None
-
-    async def test_returns_none_when_scanned_count_is_zero(
-        self, scanner_status, mocker
-    ):
-        # Neither area has any scanned stops yet — scanning not started.
-        self._setup(scanner_status, mocker, leiria=(100, 0), marinha=(50, 0))
-        assert await scanner_status.is_quest_scanning_complete() is None
-
-    async def test_returns_none_when_one_area_not_started(self, scanner_status, mocker):
-        # Leiria has stops scanned but Marinha has not started.
-        self._setup(scanner_status, mocker, leiria=(100, 80), marinha=(50, 0))
-        assert await scanner_status.is_quest_scanning_complete() is None
-
-    async def test_returns_completion_dict_when_fully_scanned(
-        self, scanner_status, mocker
-    ):
-        self._setup(scanner_status, mocker, leiria=(100, 100), marinha=(50, 50))
-        result = await scanner_status.is_quest_scanning_complete()
-        assert result["leiriaCompleted"] is True
-        assert result["marinhaCompleted"] is True
-        assert result["leiriaPercentage"] == 100
-        assert result["marinhaPercentage"] == 100
-        assert result["leiriaTotal"] == 100
-        assert result["marinhaScanned"] == 50
-
-    async def test_reports_incomplete_when_below_threshold(
-        self, scanner_status, mocker
-    ):
-        # 50/100 = 50% in Leiria, 49/50 = 98% (exact threshold) in Marinha.
-        self._setup(scanner_status, mocker, leiria=(100, 50), marinha=(50, 49))
-        result = await scanner_status.is_quest_scanning_complete()
-        assert result["leiriaCompleted"] is False
-        assert result["leiriaPercentage"] == 50
-
-    async def test_98_percent_threshold_triggers_completion(
-        self, scanner_status, mocker
-    ):
-        # 98/100 = exactly 98% → completed (≥ 98% threshold).
-        self._setup(scanner_status, mocker, leiria=(100, 98), marinha=(50, 49))
-        result = await scanner_status.is_quest_scanning_complete()
-        assert result["leiriaCompleted"] is True
-        assert result["marinhaCompleted"] is True
-
-    async def test_total_reflects_live_db_count(self, scanner_status, mocker):
-        # Totals come from the DB, not a fixed config value.
-        self._setup(scanner_status, mocker, leiria=(543, 530), marinha=(112, 110))
-        result = await scanner_status.is_quest_scanning_complete()
-        assert result["leiriaTotal"] == 543
-        assert result["marinhaTotal"] == 112
+        self._prime(scanner_status, mocker, scanning_ongoing=True)
+        assert await self._tick(scanner_status, 371, 109) is None
 
     async def test_returns_none_on_exception(self, scanner_status, mocker):
-        self._setup(scanner_status, mocker)  # both None → raises
+        self._prime(scanner_status, mocker)
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+            RuntimeError("db error")
+        )
         assert await scanner_status.is_quest_scanning_complete() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    # --- plateau behaviour -------------------------------------------------
+
+    async def test_completes_after_flat_plateau_above_floor(
+        self, scanner_status, mocker
+    ):
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
+        before, after = await self._tick_until_plateau(scanner_status, 100, 50)
+        assert self._complete(before) is False  # still inside the window
+        assert self._complete(after) is True
+        assert after["leiriaPercentage"] == 100
+        assert after["marinhaScanned"] == 50
+
+    async def test_never_completes_while_count_is_zero(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker, expected=(100, 50))
+        _, after = await self._tick_until_plateau(scanner_status, 0, 0)
+        assert self._complete(after) is False
+
+    async def test_never_completes_below_floor(self, scanner_status, mocker):
+        # 80/100 = 80% in Leiria, under the 90% floor — a stall, not a finish.
+        self._prime(scanner_status, mocker, expected=(100, 50))
+        _, after = await self._tick_until_plateau(scanner_status, 80, 48)
+        assert self._complete(after) is False
+        assert after["leiriaCompleted"] is False
+
+    async def test_not_complete_until_both_areas_plateau(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
+        # Leiria flat at ceiling, Marinha still climbing → resets each tick.
+        result = None
+        for marinha in range(40, 40 + scanner_status.PLATEAU_TICKS + 2):
+            result = await self._tick(scanner_status, 100, marinha)
+        assert self._complete(result) is False
+        # Marinha now flattens for a full window → completes.
+        _, after = await self._tick_until_plateau(scanner_status, 100, 50)
+        assert self._complete(after) is True
+
+    async def test_straggler_just_below_ceiling_still_completes(
+        self, scanner_status, mocker
+    ):
+        # 1-2 stuck stops: 369/371 and 108/109 are both >= 90% floor.
+        self._prime(scanner_status, mocker, expected=(371, 109), alive=True)
+        _, after = await self._tick_until_plateau(scanner_status, 369, 108)
+        assert self._complete(after) is True
+
+    async def test_self_heals_when_plateau_stuck_below_floor(
+        self, scanner_status, mocker
+    ):
+        # Radius reduction: the real ceiling (80) is now permanently below the
+        # stale expected's floor (90). The fast path can never fire, so after a
+        # longer STUCK_TICKS window the plateau is accepted as the new ceiling.
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
+        result = None
+        for _ in range(scanner_status.STUCK_TICKS + 1):
+            result = await self._tick(scanner_status, 80, 48)
+        assert self._complete(result) is True
+
+    async def test_stuck_below_floor_still_blocked_by_dark_scanner(
+        self, scanner_status, mocker
+    ):
+        # The self-heal path is still gated by scanner-alive: a long plateau
+        # while the scanner is dark (e.g. crashed) must not falsely complete.
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=False)
+        result = None
+        for _ in range(scanner_status.STUCK_TICKS + 1):
+            result = await self._tick(scanner_status, 80, 48)
+        assert self._complete(result) is False
+
+    async def test_new_stops_cap_percentage_at_100(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker, expected=(100, 50))
+        result = await self._tick(scanner_status, 110, 55)
+        assert result["leiriaPercentage"] == 100
+        assert result["marinhaPercentage"] == 100
+
+    # --- scanner-health gate ----------------------------------------------
+
+    async def test_dark_scanner_blocks_completion_at_plateau(
+        self, scanner_status, mocker
+    ):
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=False)
+        _, after = await self._tick_until_plateau(scanner_status, 100, 50)
+        assert self._complete(after) is False
+        # Once workers come back, the held plateau fires immediately.
+        scanner_status._is_scanner_alive = AsyncMock(return_value=True)
+        result = await self._tick(scanner_status, 100, 50)
+        assert self._complete(result) is True
+
+
+class TestQuestPlateauHelpers:
+    """Unit tests for the supporting plateau / expected-total helpers."""
+
+    async def test_is_scanner_alive_true_when_one_area_has_workers(
+        self, scanner_status, mocker
+    ):
+        mocker.patch.object(
+            scanner_status,
+            "get_workers_with_issues",
+            new=AsyncMock(
+                return_value={"downDevicesLeiria": 4, "downDevicesMarinha": 0}
+            ),
+        )
+        assert await scanner_status._is_scanner_alive() is True
+
+    async def test_is_scanner_alive_false_when_all_dark(self, scanner_status, mocker):
+        mocker.patch.object(
+            scanner_status,
+            "get_workers_with_issues",
+            new=AsyncMock(
+                return_value={"downDevicesLeiria": 4, "downDevicesMarinha": 1}
+            ),
+        )
+        assert await scanner_status._is_scanner_alive() is False
+
+    async def test_is_scanner_alive_false_when_status_unavailable(
+        self, scanner_status, mocker
+    ):
+        mocker.patch.object(
+            scanner_status,
+            "get_workers_with_issues",
+            new=AsyncMock(
+                return_value={"downDevicesLeiria": None, "downDevicesMarinha": None}
+            ),
+        )
+        assert await scanner_status._is_scanner_alive() is False
+
+    def test_count_valid_quests_coerces_decimal_to_int(self, scanner_status):
+        # MariaDB SUM(CASE ...) returns a decimal.Decimal; if it leaks through,
+        # _coverage_pct yields a Decimal that crashes _build_progress_embed's
+        # Decimal + float math. Counts must come back as plain ints.
+        from decimal import Decimal
+
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"scanned": Decimal("330")}
+        ]
+        count = scanner_status._count_valid_quests(
+            scanner_status.poliswag.quest_search.db, leiria=True
+        )
+        assert count == 330
+        assert type(count) is int
+        # And the derived percentage must be a plain float (addable to a float).
+        pct = scanner_status._coverage_pct(count, 371)
+        assert isinstance(pct, float)
+        assert pct + 50.0  # would raise TypeError if pct were a Decimal
+
+    def test_expected_totals_fall_back_to_defaults(self, scanner_status):
+        scanner_status.poliswag.db.get_data_from_database.return_value = []
+        assert scanner_status._get_expected_totals() == (371, 109)
+
+    def test_expected_totals_read_from_db(self, scanner_status):
+        scanner_status.poliswag.db.get_data_from_database.return_value = [
+            {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
+        ]
+        assert scanner_status._get_expected_totals() == (400, 120)
+
+    def test_record_completion_persists_and_resets(self, scanner_status):
+        scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
+        scanner_status.record_quest_scan_completion(371, 109)
+        scanner_status.poliswag.db.execute_query_to_database.assert_called_once()
+        params = scanner_status.poliswag.db.execute_query_to_database.call_args.kwargs[
+            "params"
+        ]
+        assert params == (371, 109)
+        assert scanner_status._quest_plateau["leiria"] == {
+            "prev_count": -1,
+            "flat_streak": 0,
+        }
