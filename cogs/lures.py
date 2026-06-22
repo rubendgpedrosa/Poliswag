@@ -46,7 +46,9 @@ class Lures(commands.Cog):
         help="Utilização: uselure USERNAME NUMERO. NUMERO positivo adiciona "
         "lures, negativo remove (mínimo 0).",
     )
-    async def uselure(self, ctx, username: str = None, number: str = None):
+    async def uselure(
+        self, ctx, username: str | None = None, number: str | None = None
+    ):
         if username is None or number is None:
             await ctx.send("Utilização: `!uselure USERNAME NUMERO`")
             return
@@ -56,6 +58,10 @@ class Lures(commands.Cog):
             await ctx.send(
                 "NUMERO tem de ser um inteiro. Utilização: `!uselure USERNAME NUMERO`"
             )
+            return
+
+        if delta == 0:
+            await ctx.send("NUMERO tem de ser diferente de zero.")
             return
 
         affected = self.lure_manager.adjust_lure_count(username, delta)
