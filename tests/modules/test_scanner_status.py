@@ -782,13 +782,14 @@ class TestRenameVoiceChannels:
         await scanner_status.rename_voice_channels(4, 1)
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
 
-    async def test_device_down_is_not_a_stack_recovery_case(
+    async def test_device_down_all_red_still_feeds_stack_recovery(
         self, scanner_status, mocker
     ):
-        # Fully red but device offline → ❌ path, not container recreation.
+        # ❌ is only a display distinction — the recovery ladder runs either
+        # way (containers first, device reboot if red persists).
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=False)
         await scanner_status.rename_voice_channels(4, 1)
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
 
     async def test_partial_red_is_not_all_red(self, scanner_status, mocker):
         # Leiria red but Marinha green → no stack recovery trigger.
