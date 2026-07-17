@@ -86,9 +86,20 @@ Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a 
 - `!notify register <#channel>` — register a channel as a Poracle target
 - `!notify test <ref|dm> <pokemon>` — fire a sample notification (100% IV, CP 3000) to a channel or your own DM
 
+### Lures *(admin)*
+- `!lures` — list up to 5 free, healthy accounts with lures available
+- `!uselure <username> <n>` — adjust an account's lure count (positive adds, negative removes)
+
 ### Operations
 - `!accounts` — render the current account-pool status as an image
+- `!status` *(admin)* — live diagnostic snapshot: last pokémon seen, Rotom devices, Dragonite workers, account pool
 - `!container start|stop` *(admin)* — control the scanner container
+- `!device status` *(admin)* — check ADB connectivity to the device
+- `!device logcat [lines]` *(admin)* — last N logcat lines filtered by aegis/poke
+- `!device autoreboot on|off` *(admin)* — toggle automatic ADB reboot when the device goes offline
+- `!device reboot` *(admin)* — reboot the device via ADB
+
+Voice channels mirror scanner health per region: 🟢 all workers up, 🟡/🟠 partially down (Leiria), 🔴 all workers down but device connected (account problem), ❌ device offline, ❓ status unknown.
 
 ## Project layout
 
@@ -100,7 +111,6 @@ data/        Static + persistent JSON (events, pokemon/item name maps)
 mock_data/   Fixture responses used in DEVELOPMENT
 mock_database/data.sql  Seed data for the dev DB
 migrations/  SQL migrations for the poliswag table
-scripts/     One-off utilities
 tests/       pytest suite
 logs/        actions.log (activity) + error.log (errors)
 ```
