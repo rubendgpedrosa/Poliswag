@@ -81,3 +81,115 @@ class TestDeviceState:
     async def test_empty_on_timeout(self, device_manager):
         device_manager._adb = AsyncMock(side_effect=RuntimeError("timeout"))
         assert await device_manager._device_state("d") == ""
+
+
+class TestRestartApp:
+    async def test_force_stop_then_start(self, device_manager, mocker):
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        assert await device_manager.restart_app() is True
+        calls = device_manager.run.await_args_list
+        assert calls[0].args == (
+            "shell",
+            "am",
+            "force-stop",
+            DeviceManager.POGO_PACKAGE,
+        )
+        assert calls[1].args == (
+            "shell",
+            "am",
+            "start",
+            "-n",
+            DeviceManager.POGO_ACTIVITY,
+        )
+
+    async def test_failed_force_stop_short_circuits(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.restart_app() is False
+        assert device_manager.run.await_count == 1
+
+    async def test_runtime_error_returns_false(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.restart_app() is False
+
+
+class TestTieredAutoReboot:
+    """auto_reboot_if_offline: app restart first, reboot only after the grace."""
+
+    def _prime(self, device_manager, mocker, *, now, offline_since):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+        mocker.patch.object(
+            type(device_manager),
+            "auto_reboot_enabled",
+            new_callable=mocker.PropertyMock,
+            return_value=True,
+        )
+        device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=False
+        )
+        device_manager.poliswag.MOD_CHANNEL = None
+        device_manager._offline_since = offline_since
+        mocker.patch("modules.device_manager.time.time", return_value=now)
+
+    async def test_tier1_restarts_app_not_device(self, device_manager, mocker):
+        # 16 min offline, no app restart attempted yet → tier 1 fires.
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 960)
+        device_manager.restart_app = AsyncMock(return_value=True)
+        device_manager.reboot = AsyncMock()
+
+        assert await device_manager.auto_reboot_if_offline() is True
+
+        device_manager.restart_app.assert_awaited_once()
+        device_manager.reboot.assert_not_called()
+        assert device_manager._app_restart_time == 10_000
+
+    async def test_tier2_waits_out_the_grace(self, device_manager, mocker):
+        # App restarted 5 min ago (grace is 10) → nothing happens yet.
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 1500)
+        device_manager._app_restart_time = 10_000 - 300
+        device_manager.restart_app = AsyncMock()
+        device_manager.reboot = AsyncMock()
+
+        assert await device_manager.auto_reboot_if_offline() is False
+
+        device_manager.restart_app.assert_not_called()
+        device_manager.reboot.assert_not_called()
+
+    async def test_tier2_reboots_after_grace(self, device_manager, mocker):
+        # App restarted 11 min ago and still offline → full reboot.
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 2000)
+        device_manager._app_restart_time = 10_000 - 660
+        device_manager.restart_app = AsyncMock()
+        device_manager.reboot = AsyncMock(return_value=True)
+
+        assert await device_manager.auto_reboot_if_offline() is True
+
+        device_manager.restart_app.assert_not_called()
+        device_manager.reboot.assert_awaited_once()
+        # successful reboot resets the episode tracking
+        assert device_manager._offline_since is None
+        assert device_manager._app_restart_time is None
+
+    async def test_failed_app_restart_escalates_immediately(
+        self, device_manager, mocker
+    ):
+        # Tier 1 fails → no grace period, reboot fires in the same tick.
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 960)
+        device_manager.restart_app = AsyncMock(return_value=False)
+        device_manager.reboot = AsyncMock(return_value=True)
+
+        assert await device_manager.auto_reboot_if_offline() is True
+
+        device_manager.restart_app.assert_awaited_once()
+        device_manager.reboot.assert_awaited_once()
+
+    async def test_device_back_online_resets_tiers(self, device_manager, mocker):
+        self._prime(device_manager, mocker, now=10_000, offline_since=9_000)
+        device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=True
+        )
+        device_manager._app_restart_time = 9_500
+
+        assert await device_manager.auto_reboot_if_offline() is False
+
+        assert device_manager._offline_since is None
+        assert device_manager._app_restart_time is None

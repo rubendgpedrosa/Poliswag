@@ -16,6 +16,7 @@ from modules.account_monitor import AccountMonitor
 from modules.poracle_client import PoracleClient
 from modules.device_manager import DeviceManager
 from modules.lure_manager import LureManager
+from modules.stack_recovery import StackRecovery
 from modules.config import Config
 from modules.http_client import close_session
 
@@ -43,6 +44,7 @@ class Poliswag(commands.Bot):
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
         self.lure_manager = LureManager(self)
+        self.stack_recovery = StackRecovery(self)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
