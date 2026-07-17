@@ -94,12 +94,17 @@ Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a 
 - `!accounts` — render the current account-pool status as an image
 - `!status` *(admin)* — live diagnostic snapshot: last pokémon seen, Rotom devices, Dragonite workers, account pool
 - `!container start|stop` *(admin)* — control the scanner container
+- `!container recreate` *(admin)* — force-recreate the scanner containers (dragonite + rotom-ng)
+- `!container autorecreate on|off` *(admin)* — toggle the automatic red-map recovery ladder
 - `!device status` *(admin)* — check ADB connectivity to the device
+- `!device restartapp` *(admin)* — force-stop and relaunch Pokémon GO via ADB
 - `!device logcat [lines]` *(admin)* — last N logcat lines filtered by aegis/poke
 - `!device autoreboot on|off` *(admin)* — toggle automatic ADB reboot when the device goes offline
 - `!device reboot` *(admin)* — reboot the device via ADB
 
 Voice channels mirror scanner health per region: 🟢 all workers up, 🟡/🟠 partially down (Leiria), 🔴 all workers down but device connected (account problem), ❌ device offline, ❓ status unknown.
+
+When both regions go red, the recovery ladder kicks in automatically: dragonite + rotom-ng are force-recreated immediately; if the map is still red 15 minutes later the device is rebooted via ADB (30 min reboot cooldown, shared with the offline watchdog).
 
 ## Project layout
 
