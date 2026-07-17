@@ -11,8 +11,6 @@ class DeviceManager:
     OFFLINE_BEFORE_REBOOT = 900  # 15 minutes offline before acting
     # Minimum gap between reboots — long enough for the device to fully boot + reconnect.
     AUTO_REBOOT_COOLDOWN = 1800  # 30 minutes between reboots
-    # Tier 1: restart the app first; only reboot if it's still down this much later.
-    APP_RESTART_GRACE = 600  # 10 minutes for the app restart to take effect
 
     POGO_PACKAGE = "com.nianticlabs.pokemongo"
     POGO_ACTIVITY = (
@@ -25,7 +23,6 @@ class DeviceManager:
         self._last_auto_reboot: float = 0
         self._offline_since: float | None = None
         self._last_notification_time: float = 0
-        self._app_restart_time: float | None = None
 
     @property
     def auto_reboot_enabled(self) -> bool:
@@ -163,6 +160,20 @@ class DeviceManager:
         except RuntimeError:
             return False
 
+    async def reboot_with_cooldown(self) -> bool:
+        """Reboot, but only if auto-reboot is enabled and the cooldown passed.
+
+        Shared by every automatic path (offline watchdog, red-map ladder) so
+        they can't stack reboots on top of each other.
+        """
+        if not Config.ADB_DEVICE or not self.auto_reboot_enabled:
+            return False
+        now = time.time()
+        if now - self._last_auto_reboot < self.AUTO_REBOOT_COOLDOWN:
+            return False
+        self._last_auto_reboot = now
+        return await self.reboot()
+
     async def restart_app(self) -> bool:
         """Force-stop and relaunch Pokémon GO. Much lighter than a reboot.
 
@@ -189,12 +200,12 @@ class DeviceManager:
         return 6 * 3600  # every 6 h after that
 
     async def auto_reboot_if_offline(self) -> bool:
-        """Recover the device if Rotom reports it offline long enough.
+        """Reboot the device if Rotom reports it offline long enough.
 
-        Tiered: at OFFLINE_BEFORE_REBOOT (15 min) the app is restarted first —
-        an app-level wedge is the common case and costs ~30s instead of a full
-        boot. If the device is still offline APP_RESTART_GRACE (10 min) after
-        that, the device is rebooted, respecting AUTO_REBOOT_COOLDOWN (30 min).
+        The red-map ladder (StackRecovery) is the primary self-healing path;
+        this watchdog covers the case where the worker-status endpoint is
+        unreachable (no red signal) but the device itself is gone. Reboots go
+        through reboot_with_cooldown, sharing the cooldown with that ladder.
 
         Notification cadence:
         - First alert at OFFLINE_BEFORE_REBOOT (15 min).
@@ -209,7 +220,6 @@ class DeviceManager:
         if device_alive:
             self._offline_since = None
             self._last_notification_time = 0
-            self._app_restart_time = None
             return False
 
         if self._offline_since is None:
@@ -221,50 +231,16 @@ class DeviceManager:
         if offline_duration < self.OFFLINE_BEFORE_REBOOT:
             return False
 
-        # Tier 1: one app restart per offline episode, before any reboot.
-        if self._app_restart_time is None:
-            self._log(
-                f"Device offline for {int(offline_duration)}s — restarting the app first",
-                "INFO",
+        rebooted = await self.reboot_with_cooldown()
+        if rebooted:
+            self._offline_since = None
+            self._last_notification_time = 0
+            self._log("Auto ADB reboot sent successfully", "INFO")
+            await self._notify(
+                f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
+                f"reboot automático via ADB enviado para `{Config.ADB_DEVICE}`."
             )
-            restarted = await self.restart_app()
-            if restarted:
-                self._app_restart_time = now
-                await self._notify(
-                    f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
-                    f"app reiniciada via ADB (tier 1). Reboot completo em "
-                    f"{self.APP_RESTART_GRACE // 60} min se continuar em baixo."
-                )
-                return True
-            # Failed restart gets no grace period — escalate to reboot now.
-            self._app_restart_time = now - self.APP_RESTART_GRACE
-            self._log("Tier 1 app restart failed — falling through to reboot")
-
-        # Tier 2: full reboot once the app restart had its grace period.
-        if (
-            self._app_restart_time is not None
-            and now - self._app_restart_time < self.APP_RESTART_GRACE
-        ):
-            return False
-
-        since_last_reboot = now - self._last_auto_reboot
-        if since_last_reboot >= self.AUTO_REBOOT_COOLDOWN:
-            self._log(
-                f"Device offline for {int(offline_duration)}s — triggering auto ADB reboot",
-                "INFO",
-            )
-            rebooted = await self.reboot()
-            self._last_auto_reboot = now
-            if rebooted:
-                self._offline_since = None
-                self._last_notification_time = 0
-                self._app_restart_time = None
-                self._log("Auto ADB reboot sent successfully", "INFO")
-                await self._notify(
-                    f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
-                    f"reboot automático via ADB enviado para `{Config.ADB_DEVICE}`."
-                )
-                return True
+            return True
 
         # Notify with escalating throttle (first notification fires immediately)
         since_last_notify = now - self._last_notification_time

@@ -88,9 +88,10 @@ class ScannerStatus:
         if "🔴" in indicators:
             device_connected = await self.poliswag.account_monitor.is_device_connected()
 
-        # Fully red with the device still connected = stuck account/session
-        # state; StackRecovery recreates the scanner containers if it persists.
-        all_red = indicators == ("🔴", "🔴") and device_connected
+        # Fully red — regardless of the device flag (❌ is only a display
+        # distinction) — feeds the StackRecovery ladder: containers first,
+        # device reboot if red persists.
+        all_red = indicators == ("🔴", "🔴")
         await self.poliswag.stack_recovery.observe(all_red)
 
         for channel_key, counter, region in [

@@ -6,20 +6,22 @@ from modules.config import Config
 
 
 class StackRecovery:
-    """Recreates the scanner-side containers when the map goes fully red.
+    """Escalation ladder for a fully red map (every region all-workers-down).
 
-    "Red" here means every region reports all workers down while the MITM
-    device is still connected — the signature of an exhausted/stuck account
-    pool rather than a device problem. Experience shows a fresh dragonite
-    (and rotom-ng) container clears it, so after the red state persists past
-    RED_BEFORE_RECREATE the affected services are force-recreated via docker
-    compose. The db/golbat/map containers are deliberately left alone.
+    Rung 1 — first red tick: force-recreate the scanner containers (dragonite
+    + rotom-ng) via docker compose. Red already implies ~10 min of dead
+    workers (the liveness window), so no extra debounce is needed. The
+    db/golbat/map containers are deliberately left alone.
+
+    Rung 2 — red persists past DEVICE_REBOOT_AFTER: reboot the phone via ADB
+    (through DeviceManager, sharing its reboot cooldown so the offline path
+    can't double-reboot).
     """
 
-    # How long the full-red state must persist before acting.
-    RED_BEFORE_RECREATE = 600  # 10 minutes
     # Minimum gap between recreations — enough for a full account warm-up.
-    RECREATE_COOLDOWN = 2700  # 45 minutes
+    RECREATE_COOLDOWN = 1800  # 30 minutes
+    # Red persisting this long after rung 1 escalates to a device reboot.
+    DEVICE_REBOOT_AFTER = 900  # 15 minutes
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
 
@@ -52,10 +54,10 @@ class StackRecovery:
             self._log(f"Failed to persist auto_recreate_enabled: {e}")
 
     async def observe(self, all_red: bool) -> bool:
-        """Track the red state across ticks; recreate once it persists.
+        """Advance the red escalation ladder one tick.
 
         Called every scheduler tick from the voice-channel status pass.
-        Returns True when a recreation was triggered this tick.
+        Returns True when an action (recreate or reboot) was taken.
         """
         now = time.time()
 
@@ -65,39 +67,46 @@ class StackRecovery:
 
         if self._red_since is None:
             self._red_since = now
-            return False
-
-        red_duration = now - self._red_since
-        if red_duration < self.RED_BEFORE_RECREATE:
-            return False
 
         if not self.auto_recreate_enabled:
             return False
 
-        if now - self._last_recreate < self.RECREATE_COOLDOWN:
-            return False
+        red_duration = now - self._red_since
 
-        self._last_recreate = now
-        self._log(
-            f"Map fully red for {int(red_duration)}s with device connected — "
-            f"recreating {Config.RECREATE_SERVICES}",
-            "INFO",
-        )
-        ok = await self.recreate_services()
-        minutes = int(red_duration // 60)
-        if ok:
-            await self._notify(
-                f"🔄 Mapa em baixo há **{minutes} min** com o dispositivo ligado — "
-                f"containers `{Config.RECREATE_SERVICES}` recriados automaticamente."
+        # Rung 1: fresh containers, immediately on red.
+        if now - self._last_recreate >= self.RECREATE_COOLDOWN:
+            self._last_recreate = now
+            self._log(
+                f"Map fully red — recreating {Config.RECREATE_SERVICES}",
+                "INFO",
             )
-            # Fresh containers need time to come up; restart the red clock.
-            self._red_since = None
-        else:
-            await self._notify(
-                f"⚠️ Mapa em baixo há **{minutes} min** — recriação automática dos "
-                f"containers **falhou**. Intervenção manual necessária."
-            )
-        return ok
+            ok = await self.recreate_services()
+            if ok:
+                await self._notify(
+                    f"🔄 Mapa em baixo — containers `{Config.RECREATE_SERVICES}` "
+                    f"recriados automaticamente. Reboot do dispositivo em "
+                    f"{self.DEVICE_REBOOT_AFTER // 60} min se continuar em baixo."
+                )
+            else:
+                await self._notify(
+                    "⚠️ Mapa em baixo — recriação automática dos containers "
+                    "**falhou**. Intervenção manual necessária."
+                )
+            return ok
+
+        # Rung 2: red survived the fresh containers — reboot the phone.
+        if red_duration >= self.DEVICE_REBOOT_AFTER:
+            rebooted = await self.poliswag.device_manager.reboot_with_cooldown()
+            if rebooted:
+                await self._notify(
+                    f"📵 Mapa em baixo há **{int(red_duration // 60)} min** apesar dos "
+                    f"containers novos — reboot do dispositivo enviado via ADB."
+                )
+                # Give the phone a full boot cycle before judging red again.
+                self._red_since = None
+                return True
+
+        return False
 
     async def recreate_services(self) -> bool:
         """Run docker compose up -d --force-recreate on the scanner services."""
