@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 
 from modules.config import Config
@@ -114,9 +115,18 @@ class StackRecovery:
             self._log(f"[DEV] Would run: {' '.join(cmd)}", "INFO")
             return True
 
+        # The stack's compose file interpolates ${PWD} in its bind-mount
+        # sources. cwd alone doesn't update the PWD env var for a subprocess,
+        # so set both — otherwise a recreate mounts blank paths and dragonite
+        # comes up without its config.
+        stack_dir = os.path.dirname(Config.UNOWNHASH_COMPOSE_FILE)
+        env = {**os.environ, "PWD": stack_dir}
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                cwd=stack_dir,
+                env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
