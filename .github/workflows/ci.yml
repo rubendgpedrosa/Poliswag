@@ -26,13 +26,16 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install -r requirements-dev.txt
 
     # First, check code formatting
     - name: Lint code with Black
       run: |
         pip install black
         black --check .
+
+    - name: Refresh mock data timestamps
+      run: python3 mock_data/refresh.py
 
     - name: Run tests
       run: pytest
