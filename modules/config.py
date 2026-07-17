@@ -31,6 +31,10 @@ class Config:
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
     ADB_DEVICE = os.environ.get("ADB_DEVICE", "")  # e.g. "192.168.1.222:5555"
+    UNOWNHASH_COMPOSE_FILE = os.environ.get(
+        "UNOWNHASH_COMPOSE_FILE", "/root/unonwhash/docker-compose.yml"
+    )
+    RECREATE_SERVICES = os.environ.get("RECREATE_SERVICES", "dragonite rotom-ng")
     ENV = os.environ.get("ENV", "DEV")
     IS_PRODUCTION = ENV == "PRODUCTION"
 

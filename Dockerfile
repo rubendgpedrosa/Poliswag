@@ -17,6 +17,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+# Standalone docker compose v2 binary — used by StackRecovery to force-recreate
+# the scanner containers over the host's docker.sock (mounted in prod compose)
+ADD https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 /usr/local/bin/docker-compose
+RUN chmod +x /usr/local/bin/docker-compose
+
 WORKDIR /app
 
 # Cached pip layer: only invalidated when requirements.txt changes
