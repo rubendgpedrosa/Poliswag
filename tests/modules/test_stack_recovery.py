@@ -119,6 +119,11 @@ class TestRecreateServices:
             "--force-recreate",
         )
         assert args[6:] == ("dragonite", "rotom-ng")
+        # ${PWD} interpolation in the stack compose file: both cwd and the PWD
+        # env var must point at the stack dir or bind mounts resolve blank.
+        kwargs = create.await_args.kwargs
+        assert kwargs["cwd"] == "/root/unonwhash"
+        assert kwargs["env"]["PWD"] == "/root/unonwhash"
 
     async def test_nonzero_exit_returns_false(self, stack_recovery, mocker):
         mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
