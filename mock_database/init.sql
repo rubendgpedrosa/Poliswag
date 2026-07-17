@@ -844,6 +844,7 @@ CREATE TABLE `poliswag` (
   `last_scanned_date` datetime DEFAULT NULL,
   `last_weekly_digest_date` date DEFAULT NULL,
   `auto_reboot_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `auto_recreate_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `quest_expected_leiria` int(11) NOT NULL DEFAULT 371,
   `quest_expected_marinha` int(11) NOT NULL DEFAULT 109
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
