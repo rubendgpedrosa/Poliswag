@@ -12,9 +12,12 @@ def scanner_status():
 
     The _log helper routes through poliswag.utility.log_to_file, which the
     MagicMock swallows silently — letting us exercise error paths without
-    touching the real logger.
+    touching the real logger. stack_recovery.observe is awaited from
+    rename_voice_channels, so it needs to be a real AsyncMock.
     """
-    return ScannerStatus(poliswag=MagicMock())
+    poliswag = MagicMock()
+    poliswag.stack_recovery.observe = AsyncMock()
+    return ScannerStatus(poliswag=poliswag)
 
 
 class TestGetStatusMessage:
@@ -771,6 +774,27 @@ class TestRenameVoiceChannels:
         is_connected = scanner_status.poliswag.account_monitor.is_device_connected
         await scanner_status.rename_voice_channels(0, 0)
         is_connected.assert_not_called()
+
+    async def test_all_red_with_device_up_reported_to_stack_recovery(
+        self, scanner_status, mocker
+    ):
+        self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
+        await scanner_status.rename_voice_channels(4, 1)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
+
+    async def test_device_down_is_not_a_stack_recovery_case(
+        self, scanner_status, mocker
+    ):
+        # Fully red but device offline → ❌ path, not container recreation.
+        self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=False)
+        await scanner_status.rename_voice_channels(4, 1)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+
+    async def test_partial_red_is_not_all_red(self, scanner_status, mocker):
+        # Leiria red but Marinha green → no stack recovery trigger.
+        self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
+        await scanner_status.rename_voice_channels(4, 0)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
 
     async def test_rate_limit_is_logged_not_raised(self, scanner_status, mocker):
         import discord
