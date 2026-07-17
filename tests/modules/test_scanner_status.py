@@ -74,6 +74,39 @@ class TestGetStatusMessage:
         # Any non-MARINHA region is treated by the percentage rule.
         assert scanner_status.get_status_message(0, "SINTRA") == "SINTRA: 🟢"
 
+    # --- device_connected: splits the red state into 🔴 (accounts) / ❌ (device) ---
+
+    def test_red_with_device_down_becomes_cross(self, scanner_status):
+        assert (
+            scanner_status.get_status_message(4, "LEIRIA", device_connected=False)
+            == "LEIRIA: ❌"
+        )
+        assert (
+            scanner_status.get_status_message(1, "MARINHA", device_connected=False)
+            == "MARINHA: ❌"
+        )
+
+    def test_red_with_device_up_stays_red(self, scanner_status):
+        assert (
+            scanner_status.get_status_message(4, "LEIRIA", device_connected=True)
+            == "LEIRIA: 🔴"
+        )
+
+    def test_non_red_states_ignore_device_flag(self, scanner_status):
+        # Only red is ambiguous; green/yellow/orange/unknown never turn into ❌.
+        assert (
+            scanner_status.get_status_message(0, "LEIRIA", device_connected=False)
+            == "LEIRIA: 🟢"
+        )
+        assert (
+            scanner_status.get_status_message(1, "LEIRIA", device_connected=False)
+            == "LEIRIA: 🟡"
+        )
+        assert (
+            scanner_status.get_status_message(None, "LEIRIA", device_connected=False)
+            == "LEIRIA: ❓"
+        )
+
 
 class TestShouldUpdateChannel:
     """Cache invalidation logic for voice channel renames."""
@@ -601,7 +634,9 @@ class TestTriggerAllDownAction:
 
 
 class TestRenameVoiceChannels:
-    def _patch_fresh(self, scanner_status, mocker, *, seconds_ago=1):
+    def _patch_fresh(
+        self, scanner_status, mocker, *, seconds_ago=1, device_connected=True
+    ):
         """Patch trigger + voice channel + pokemon staleness for a clean test."""
         trigger = mocker.patch.object(
             scanner_status, "trigger_all_down_action", new=AsyncMock()
@@ -611,6 +646,9 @@ class TestRenameVoiceChannels:
         )
         mocker.patch.object(
             scanner_status, "_get_seconds_since_last_pokemon", return_value=seconds_ago
+        )
+        scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=device_connected
         )
         return trigger
 
@@ -684,6 +722,55 @@ class TestRenameVoiceChannels:
         )
         await scanner_status.rename_voice_channels(0, 0)
         get_channel.assert_not_called()
+
+    async def test_device_down_renames_red_regions_to_cross(
+        self, scanner_status, mocker
+    ):
+        # All workers down AND device offline → ❌ on both channels, not 🔴.
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=False
+        )
+        channel = MagicMock()
+        channel.edit = AsyncMock()
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        await scanner_status.rename_voice_channels(4, 1)
+        assert scanner_status.channelCache["leiria"]["name"] == "LEIRIA: ❌"
+        assert scanner_status.channelCache["marinha"]["name"] == "MARINHA: ❌"
+
+    async def test_device_up_keeps_red_when_all_workers_down(
+        self, scanner_status, mocker
+    ):
+        # All workers down but device connected → account problem → 🔴 stays.
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=True
+        )
+        channel = MagicMock()
+        channel.edit = AsyncMock()
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        await scanner_status.rename_voice_channels(4, 1)
+        assert scanner_status.channelCache["leiria"]["name"] == "LEIRIA: 🔴"
+        assert scanner_status.channelCache["marinha"]["name"] == "MARINHA: 🔴"
+
+    async def test_device_check_skipped_when_no_region_is_red(
+        self, scanner_status, mocker
+    ):
+        # Healthy counters → the extra device_status fetch never happens.
+        self._patch_fresh(scanner_status, mocker, seconds_ago=1)
+        is_connected = scanner_status.poliswag.account_monitor.is_device_connected
+        await scanner_status.rename_voice_channels(0, 0)
+        is_connected.assert_not_called()
 
     async def test_rate_limit_is_logged_not_raised(self, scanner_status, mocker):
         import discord

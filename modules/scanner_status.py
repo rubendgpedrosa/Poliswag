@@ -75,12 +75,24 @@ class ScannerStatus:
         if pokemon_stale:
             await self.trigger_all_down_action()
 
+        # The red state alone is ambiguous: workers can be down because the
+        # MITM device dropped off Rotom, or because the device is fine but the
+        # account pool is exhausted. Only when a region would show red do we
+        # pay for the device lookup, so ❌ (device offline) can be told apart
+        # from 🔴 (device up, accounts/workers down).
+        device_connected = True
+        if "🔴" in (
+            self._get_status_indicator(leiriaDownCounter, "LEIRIA"),
+            self._get_status_indicator(marinhaDownCounter, "MARINHA"),
+        ):
+            device_connected = await self.poliswag.account_monitor.is_device_connected()
+
         for channel_key, counter, region in [
             ("leiria", leiriaDownCounter, "LEIRIA"),
             ("marinha", marinhaDownCounter, "MARINHA"),
         ]:
-            if self.should_update_channel(channel_key, counter):
-                status = self.get_status_message(counter, region)
+            if self.should_update_channel(channel_key, counter, device_connected):
+                status = self.get_status_message(counter, region, device_connected)
                 if status != self.channelCache[channel_key]["name"]:
                     channel = await self.get_voice_channel(channel_key)
                     if channel:
@@ -98,7 +110,7 @@ class ScannerStatus:
                             else:
                                 self._log(f"Error updating {channel_key} channel: {e}")
 
-    def should_update_channel(self, channelType, counter):
+    def should_update_channel(self, channelType, counter, device_connected=True):
         current_time = time.time()
         cacheEntry = self.channelCache[channelType]
 
@@ -108,7 +120,9 @@ class ScannerStatus:
         ):
             return True
 
-        new_status = self.get_status_message(counter, channelType.upper())
+        new_status = self.get_status_message(
+            counter, channelType.upper(), device_connected
+        )
         return new_status != cacheEntry["name"]
 
     async def get_workers_with_issues(self):
@@ -214,28 +228,33 @@ class ScannerStatus:
             except Exception as e:
                 self._log(f"Error sending all-down notification: {e}")
 
-    def get_status_message(self, downCounter, region):
+    def _get_status_indicator(self, downCounter, region):
         if downCounter is None:
-            return f"{region}: ❓"
+            return "❓"
 
         if region == "MARINHA":
-            return f"{region}: {'🟢' if downCounter == 0 else '🔴'}"
-        else:
-            expected_workers = self.defaultExpectedWorkers.get("LeiriaBigger", 5)
-            down_percentage = (
-                (downCounter / expected_workers) if expected_workers > 0 else 0
-            )
+            return "🟢" if downCounter == 0 else "🔴"
 
-            if down_percentage == 0:
-                status_indicator = "🟢"
-            elif down_percentage <= 0.4:
-                status_indicator = "🟡"
-            elif down_percentage <= 0.8:
-                status_indicator = "🟠"
-            else:
-                status_indicator = "🔴"
+        expected_workers = self.defaultExpectedWorkers.get("LeiriaBigger", 5)
+        down_percentage = (
+            (downCounter / expected_workers) if expected_workers > 0 else 0
+        )
 
-            return f"{region}: {status_indicator}"
+        if down_percentage == 0:
+            return "🟢"
+        elif down_percentage <= 0.4:
+            return "🟡"
+        elif down_percentage <= 0.8:
+            return "🟠"
+        return "🔴"
+
+    def get_status_message(self, downCounter, region, device_connected=True):
+        status_indicator = self._get_status_indicator(downCounter, region)
+        # ❌ only ever replaces red: a healthy-looking region stays green even
+        # if the device flag momentarily reads disconnected.
+        if status_indicator == "🔴" and not device_connected:
+            status_indicator = "❌"
+        return f"{region}: {status_indicator}"
 
     async def get_full_status(self) -> dict:
         """Collect a diagnostic snapshot from all scanner sources.
