@@ -81,11 +81,17 @@ class ScannerStatus:
         # pay for the device lookup, so ❌ (device offline) can be told apart
         # from 🔴 (device up, accounts/workers down).
         device_connected = True
-        if "🔴" in (
+        indicators = (
             self._get_status_indicator(leiriaDownCounter, "LEIRIA"),
             self._get_status_indicator(marinhaDownCounter, "MARINHA"),
-        ):
+        )
+        if "🔴" in indicators:
             device_connected = await self.poliswag.account_monitor.is_device_connected()
+
+        # Fully red with the device still connected = stuck account/session
+        # state; StackRecovery recreates the scanner containers if it persists.
+        all_red = indicators == ("🔴", "🔴") and device_connected
+        await self.poliswag.stack_recovery.observe(all_red)
 
         for channel_key, counter, region in [
             ("leiria", leiriaDownCounter, "LEIRIA"),

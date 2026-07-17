@@ -86,7 +86,8 @@ class ContainerManagerCog(commands.Cog):
     @commands.group(name="container", invoke_without_command=True)
     async def container(self, ctx):
         await ctx.send(
-            "Invalid container command. Use `container start` or `container stop`."
+            "Invalid container command. Use `container start`, `container stop`, "
+            "`container recreate` or `container autorecreate on|off`."
         )
 
     @container.command(name="start")
@@ -127,6 +128,48 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(error_message, "ERROR")
             await ctx.send(error_message)
 
+    @container.command(name="recreate")
+    async def recreate_containers(self, ctx):
+        msg = await ctx.send(f"⏳ A recriar containers `{Config.RECREATE_SERVICES}`…")
+        ok = await self.poliswag.stack_recovery.recreate_services()
+        if ok:
+            await msg.edit(
+                content=f"✅ Containers `{Config.RECREATE_SERVICES}` recriados."
+            )
+            self.poliswag.utility.log_to_file(
+                f"[CONTAINER] @{ctx.author} ({ctx.author.id}): recreated "
+                f"'{Config.RECREATE_SERVICES}'"
+            )
+        else:
+            await msg.edit(content="❌ Falha ao recriar containers. Verifica os logs.")
+            self.poliswag.utility.log_to_file(
+                f"[CONTAINER] @{ctx.author} ({ctx.author.id}): recreate FAILED",
+                "ERROR",
+            )
+
+    @container.command(name="autorecreate")
+    async def container_autorecreate(self, ctx, state: str = None):
+        if state is None:
+            current = self.poliswag.stack_recovery.auto_recreate_enabled
+            status = "activada 🟢" if current else "desactivada 🔴"
+            await ctx.send(f"Recriação automática: **{status}**. Usa `on` ou `off`.")
+            return
+        state = state.lower()
+        if state in ("on", "enable", "1", "true"):
+            self.poliswag.stack_recovery.auto_recreate_enabled = True
+            await ctx.send("✅ Recriação automática de containers **activada**.")
+            self.poliswag.utility.log_to_file(
+                f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate ENABLED"
+            )
+        elif state in ("off", "disable", "0", "false"):
+            self.poliswag.stack_recovery.auto_recreate_enabled = False
+            await ctx.send("🔕 Recriação automática de containers **desactivada**.")
+            self.poliswag.utility.log_to_file(
+                f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate DISABLED"
+            )
+        else:
+            await ctx.send("Estado inválido. Usa `on` ou `off`.")
+
     # ---- !device command group --------------------------------------------
 
     @commands.group(name="device", invoke_without_command=True)
@@ -135,8 +178,27 @@ class ContainerManagerCog(commands.Cog):
             "`!device status` — verifica ligação ADB\n"
             "`!device logcat [linhas]` — últimas N linhas filtradas por aegis/poke (padrão 10)\n"
             "`!device autoreboot on|off` — activa/desactiva reboot automático\n"
+            "`!device restartapp` — reinicia a app Pokémon GO via ADB\n"
             "`!device reboot` — reinicia o dispositivo via ADB"
         )
+
+    @device.command(name="restartapp", brief="Reinicia a app Pokémon GO via ADB")
+    async def device_restartapp(self, ctx):
+        msg = await ctx.send("⏳ A reiniciar a app…")
+        ok = await self.poliswag.device_manager.restart_app()
+        if ok:
+            await msg.edit(content="✅ App Pokémon GO reiniciada via ADB.")
+            self.poliswag.utility.log_to_file(
+                f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual app restart sent"
+            )
+        else:
+            await msg.edit(
+                content="❌ Falha ao reiniciar a app. Verifica `!device status`."
+            )
+            self.poliswag.utility.log_to_file(
+                f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual app restart FAILED",
+                "ERROR",
+            )
 
     @device.command(name="status", brief="Verifica ligação ADB ao dispositivo")
     async def device_status(self, ctx):

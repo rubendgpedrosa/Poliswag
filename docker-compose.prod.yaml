@@ -13,6 +13,11 @@ services:
       - /root/PoGoLeiria/apps/quests/public:/pogo-public
       - /root/PoGoLeiria/apps/dex/public:/dex-public
       - /root/.android:/root/.android:ro
+      # StackRecovery: recreate scanner containers when the map goes fully red.
+      # The stack dir is mounted at its host path so compose resolves the
+      # project name and relative bind mounts identically to a host-side run.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/unonwhash:/root/unonwhash:ro
     env_file:
       - .env
     networks:
