@@ -8,17 +8,17 @@
           "workers": [
             {
               "worker_id": "leiria-worker-1",
-              "last_data": 1778232408,
+              "last_data": 1784279497,
               "connection_status": "Executing Worker"
             },
             {
               "worker_id": "leiria-worker-2",
-              "last_data": 1778232408,
+              "last_data": 1784279497,
               "connection_status": "Executing Worker"
             },
             {
               "worker_id": "leiria-worker-3",
-              "last_data": 1778232408,
+              "last_data": 1784279497,
               "connection_status": "Executing Worker"
             }
           ]
@@ -33,7 +33,7 @@
           "workers": [
             {
               "worker_id": "marinha-worker-1",
-              "last_data": 1778232408,
+              "last_data": 1784279497,
               "connection_status": "Executing Worker"
             }
           ]
