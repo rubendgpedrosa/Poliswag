@@ -21,128 +21,127 @@ def scanner_status():
 
 
 class TestGetStatusMessage:
-    """Pure-logic tests for the status-indicator state machine."""
+    """Pure-logic tests for the combined status-indicator state machine.
 
-    def test_none_counter_returns_question_mark(self, scanner_status):
-        assert scanner_status.get_status_message(None, "LEIRIA") == "LEIRIA: ❓"
-        assert scanner_status.get_status_message(None, "MARINHA") == "MARINHA: ❓"
+    Leiria and Marinha share one device/stack, so all four inputs (down count
+    + expected count per area, both read live from Dragonite on every tick —
+    see TestGetWorkersWithIssues) feed one indicator. Production values are
+    currently 7 (LeiriaBigger) + 1 (MarinhaGrande) = 8 total, but nothing here
+    hardcodes that — it's just what's passed in.
+    """
 
-    # --- MARINHA: binary green/red ---
+    def test_missing_input_renders_as_cross(self, scanner_status):
+        # Any of the four being None — Dragonite unreachable, or an area
+        # absent from its response — still means the map isn't being scanned,
+        # so it displays the same ❌ as a confirmed device-offline red. This
+        # is a display choice only: rename_voice_channels keeps this out of
+        # all_red so a data outage never triggers the recovery ladder (see
+        # TestRenameVoiceChannels.test_dragonite_unreachable_renders_as_cross).
+        assert scanner_status.get_status_message(None, 0, 7, 1) == "MAPA: ❌"
+        assert scanner_status.get_status_message(0, None, 7, 1) == "MAPA: ❌"
+        assert scanner_status.get_status_message(0, 0, None, 1) == "MAPA: ❌"
+        assert scanner_status.get_status_message(0, 0, 7, None) == "MAPA: ❌"
+        assert scanner_status.get_status_message(None, None, None, None) == "MAPA: ❌"
 
-    def test_marinha_zero_down_is_green(self, scanner_status):
-        assert scanner_status.get_status_message(0, "MARINHA") == "MARINHA: 🟢"
+    def test_zero_down_is_green(self, scanner_status):
+        assert scanner_status.get_status_message(0, 0, 7, 1) == "MAPA: 🟢"
 
-    @pytest.mark.parametrize("down_count", [1, 2, 5, 100])
-    def test_marinha_any_down_is_red(self, scanner_status, down_count):
-        assert scanner_status.get_status_message(down_count, "MARINHA") == "MARINHA: 🔴"
+    def test_one_of_eight_is_yellow(self, scanner_status):
+        # 1/8 = 0.125 ≤ 0.4 → yellow
+        assert scanner_status.get_status_message(1, 0, 7, 1) == "MAPA: 🟡"
 
-    # --- LEIRIA: four-level threshold (defaultExpectedWorkers = 4) ---
+    def test_four_of_eight_is_orange(self, scanner_status):
+        # 4/8 = 0.5 ∈ (0.4, 0.8] → orange
+        assert scanner_status.get_status_message(3, 1, 7, 1) == "MAPA: 🟠"
 
-    def test_leiria_zero_down_is_green(self, scanner_status):
-        assert scanner_status.get_status_message(0, "LEIRIA") == "LEIRIA: 🟢"
+    def test_all_down_is_red(self, scanner_status):
+        # 8/8 = 1.0 > 0.8 → red
+        assert scanner_status.get_status_message(7, 1, 7, 1) == "MAPA: 🔴"
 
-    def test_leiria_one_of_four_is_yellow(self, scanner_status):
-        # 1/4 = 0.25 ≤ 0.4 → yellow
-        assert scanner_status.get_status_message(1, "LEIRIA") == "LEIRIA: 🟡"
+    def test_more_than_expected_is_still_red(self, scanner_status):
+        # 11/8 = 1.375 > 0.8 → red; percentage saturates, no overflow
+        assert scanner_status.get_status_message(9, 2, 7, 1) == "MAPA: 🔴"
 
-    def test_leiria_two_of_four_is_orange(self, scanner_status):
-        # 2/4 = 0.5 ∈ (0.4, 0.8] → orange
-        assert scanner_status.get_status_message(2, "LEIRIA") == "LEIRIA: 🟠"
-
-    def test_leiria_three_of_four_is_orange(self, scanner_status):
-        # 3/4 = 0.75 ∈ (0.4, 0.8] → orange
-        assert scanner_status.get_status_message(3, "LEIRIA") == "LEIRIA: 🟠"
-
-    def test_leiria_four_of_four_is_red(self, scanner_status):
-        # 4/4 = 1.0 > 0.8 → red
-        assert scanner_status.get_status_message(4, "LEIRIA") == "LEIRIA: 🔴"
-
-    def test_leiria_more_than_expected_is_still_red(self, scanner_status):
-        # 10/4 = 2.5 > 0.8 → red; percentage saturates, no overflow
-        assert scanner_status.get_status_message(10, "LEIRIA") == "LEIRIA: 🔴"
-
-    # --- Boundary conditions: force exact ratios by adjusting expected workers ---
+    # --- Boundary conditions: pick expected totals with exact ratios ---
 
     def test_boundary_exact_40_percent_is_yellow(self, scanner_status):
         # 2/5 = exactly 0.4 → boundary (≤ 0.4 → yellow)
-        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
-        assert scanner_status.get_status_message(2, "LEIRIA") == "LEIRIA: 🟡"
+        assert scanner_status.get_status_message(2, 0, 4, 1) == "MAPA: 🟡"
 
     def test_boundary_exact_80_percent_is_orange(self, scanner_status):
         # 4/5 = exactly 0.8 → boundary (≤ 0.8 → orange)
-        scanner_status.defaultExpectedWorkers["LeiriaBigger"] = 5
-        assert scanner_status.get_status_message(4, "LEIRIA") == "LEIRIA: 🟠"
-
-    def test_unknown_region_falls_into_leiria_branch(self, scanner_status):
-        # Any non-MARINHA region is treated by the percentage rule.
-        assert scanner_status.get_status_message(0, "SINTRA") == "SINTRA: 🟢"
+        assert scanner_status.get_status_message(4, 0, 4, 1) == "MAPA: 🟠"
 
     # --- device_connected: splits the red state into 🔴 (accounts) / ❌ (device) ---
 
     def test_red_with_device_down_becomes_cross(self, scanner_status):
         assert (
-            scanner_status.get_status_message(4, "LEIRIA", device_connected=False)
-            == "LEIRIA: ❌"
-        )
-        assert (
-            scanner_status.get_status_message(1, "MARINHA", device_connected=False)
-            == "MARINHA: ❌"
+            scanner_status.get_status_message(7, 1, 7, 1, device_connected=False)
+            == "MAPA: ❌"
         )
 
     def test_red_with_device_up_stays_red(self, scanner_status):
         assert (
-            scanner_status.get_status_message(4, "LEIRIA", device_connected=True)
-            == "LEIRIA: 🔴"
+            scanner_status.get_status_message(7, 1, 7, 1, device_connected=True)
+            == "MAPA: 🔴"
         )
 
     def test_non_red_states_ignore_device_flag(self, scanner_status):
-        # Only red is ambiguous; green/yellow/orange/unknown never turn into ❌.
+        # Only a real red reading is ambiguous; green/yellow/orange never
+        # turn into ❌ just because the device flag happens to read False.
         assert (
-            scanner_status.get_status_message(0, "LEIRIA", device_connected=False)
-            == "LEIRIA: 🟢"
+            scanner_status.get_status_message(0, 0, 7, 1, device_connected=False)
+            == "MAPA: 🟢"
         )
         assert (
-            scanner_status.get_status_message(1, "LEIRIA", device_connected=False)
-            == "LEIRIA: 🟡"
+            scanner_status.get_status_message(1, 0, 7, 1, device_connected=False)
+            == "MAPA: 🟡"
+        )
+
+    def test_missing_input_becomes_cross_regardless_of_device_flag(
+        self, scanner_status
+    ):
+        # Missing data short-circuits to ❌ before the device flag is even
+        # consulted — there's no percentage to compute, so device_connected
+        # is irrelevant here (unlike the real-red case above).
+        assert (
+            scanner_status.get_status_message(None, 0, 7, 1, device_connected=False)
+            == "MAPA: ❌"
         )
         assert (
-            scanner_status.get_status_message(None, "LEIRIA", device_connected=False)
-            == "LEIRIA: ❓"
+            scanner_status.get_status_message(None, 0, 7, 1, device_connected=True)
+            == "MAPA: ❌"
         )
 
 
 class TestShouldUpdateChannel:
-    """Cache invalidation logic for voice channel renames."""
+    """Cache invalidation logic for the merged voice channel rename."""
 
     def test_empty_cache_triggers_update(self, scanner_status):
         # Default cache has name=None → always update
-        assert scanner_status.should_update_channel("leiria", 0) is True
+        assert scanner_status.should_update_channel("MAPA: 🟢") is True
 
     def test_stale_cache_triggers_update(self, scanner_status, mocker):
-        scanner_status.channelCache["leiria"] = {
-            "name": "LEIRIA: 🟢",
-            "last_update": 0,
-        }
+        scanner_status.channelCache = {"name": "MAPA: 🟢", "last_update": 0}
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
         # 10_000 - 0 = 10_000 ≥ UPDATE_THRESHOLD (3600) → stale → update
-        assert scanner_status.should_update_channel("leiria", 0) is True
+        assert scanner_status.should_update_channel("MAPA: 🟢") is True
 
     def test_fresh_cache_same_status_skips_update(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
-        scanner_status.channelCache["leiria"] = {
-            "name": "LEIRIA: 🟢",  # matches get_status_message(0, 'LEIRIA')
+        scanner_status.channelCache = {
+            "name": "MAPA: 🟢",
             "last_update": 9_500,  # 500s ago, well under UPDATE_THRESHOLD
         }
-        assert scanner_status.should_update_channel("leiria", 0) is False
+        assert scanner_status.should_update_channel("MAPA: 🟢") is False
 
     def test_fresh_cache_different_status_triggers_update(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
-        scanner_status.channelCache["leiria"] = {
-            "name": "LEIRIA: 🟢",  # cached as green
+        scanner_status.channelCache = {
+            "name": "MAPA: 🟢",  # cached as green
             "last_update": 9_500,
         }
-        # counter=4 → red, diverges from cached green → update
-        assert scanner_status.should_update_channel("leiria", 4) is True
+        assert scanner_status.should_update_channel("MAPA: 🔴") is True
 
 
 def _make_fetch_mock(mocker, return_value):
@@ -163,20 +162,33 @@ def _area(name, workers, expected_workers=None):
     return {"name": name, "worker_managers": [manager]}
 
 
+_NO_WORKER_DATA = {
+    "downDevicesLeiria": None,
+    "downDevicesMarinha": None,
+    "expectedWorkersLeiria": None,
+    "expectedWorkersMarinha": None,
+}
+
+
 class TestGetWorkersWithIssues:
-    """Parses the scanner_status HTTP payload into per-region down counters."""
+    """Parses the scanner_status HTTP payload into per-region down counters
+    and the expected_workers Dragonite reported alongside them (the live
+    source of truth rename_voice_channels uses instead of a hardcoded total).
+    """
 
     async def test_none_response_returns_none_counters(self, scanner_status, mocker):
+        # This is what a fully unreachable Dragonite looks like — fetch_data
+        # returns None on any connection/HTTP failure (see http_client.py).
         _make_fetch_mock(mocker, None)
         result = await scanner_status.get_workers_with_issues()
-        assert result == {"downDevicesLeiria": None, "downDevicesMarinha": None}
+        assert result == _NO_WORKER_DATA
 
     async def test_response_missing_areas_returns_none_counters(
         self, scanner_status, mocker
     ):
         _make_fetch_mock(mocker, {"unrelated": "payload"})
         result = await scanner_status.get_workers_with_issues()
-        assert result == {"downDevicesLeiria": None, "downDevicesMarinha": None}
+        assert result == _NO_WORKER_DATA
 
     async def test_all_leiria_workers_healthy(self, scanner_status, mocker):
         now = time.time()
@@ -186,15 +198,17 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [_worker(now) for _ in range(4)],
+                        [_worker(now) for _ in range(7)],
                     )
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        # 4 expected, 4 up → 0 down
+        # 7 expected (fallback default, no override in payload), 7 up → 0 down
         assert result["downDevicesLeiria"] == 0
+        assert result["expectedWorkersLeiria"] == 7
         assert result["downDevicesMarinha"] is None
+        assert result["expectedWorkersMarinha"] is None
 
     async def test_all_leiria_workers_stale_counts_all_down(
         self, scanner_status, mocker
@@ -206,13 +220,14 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [_worker(stale) for _ in range(4)],
+                        [_worker(stale) for _ in range(7)],
                     )
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result["downDevicesLeiria"] == 4
+        assert result["downDevicesLeiria"] == 7
+        assert result["expectedWorkersLeiria"] == 7
 
     async def test_leiria_partial_down_count(self, scanner_status, mocker):
         now = time.time()
@@ -223,18 +238,16 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [
-                            _worker(now),
-                            _worker(now),
-                            _worker(stale),
-                            _worker(stale),
-                        ],
+                        [_worker(now) for _ in range(5)]
+                        + [_worker(stale) for _ in range(2)],
                     )
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
+        # 7 expected, 5 up → 2 down
         assert result["downDevicesLeiria"] == 2
+        assert result["expectedWorkersLeiria"] == 7
 
     async def test_worker_with_wrong_connection_status_counted_as_down(
         self, scanner_status, mocker
@@ -246,18 +259,17 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [
-                            _worker(now, connection_status="Idle"),
-                            _worker(now, connection_status="Executing Worker"),
-                            _worker(now, connection_status="Executing Worker"),
-                            _worker(now, connection_status="Executing Worker"),
+                        [_worker(now, connection_status="Idle")]
+                        + [
+                            _worker(now, connection_status="Executing Worker")
+                            for _ in range(6)
                         ],
                     )
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        # 3 executing + 1 idle → 1 down
+        # 6 executing + 1 idle → 1 down
         assert result["downDevicesLeiria"] == 1
 
     async def test_worker_with_no_last_data_counted_as_down(
@@ -270,12 +282,7 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [
-                            _worker(None),
-                            _worker(now),
-                            _worker(now),
-                            _worker(now),
-                        ],
+                        [_worker(None)] + [_worker(now) for _ in range(6)],
                     )
                 ]
             },
@@ -285,7 +292,7 @@ class TestGetWorkersWithIssues:
 
     async def test_expected_workers_override_from_payload(self, scanner_status, mocker):
         now = time.time()
-        # Override says 6 expected even though default is 4
+        # Override says 6 expected even though the fallback default is 7
         _make_fetch_mock(
             mocker,
             {
@@ -301,6 +308,7 @@ class TestGetWorkersWithIssues:
         result = await scanner_status.get_workers_with_issues()
         # 6 expected, 4 up → 2 down
         assert result["downDevicesLeiria"] == 2
+        assert result["expectedWorkersLeiria"] == 6
 
     async def test_down_counter_never_negative(self, scanner_status, mocker):
         now = time.time()
@@ -331,7 +339,9 @@ class TestGetWorkersWithIssues:
         )
         result = await scanner_status.get_workers_with_issues()
         assert result["downDevicesMarinha"] == 0
+        assert result["expectedWorkersMarinha"] == 1
         assert result["downDevicesLeiria"] is None
+        assert result["expectedWorkersLeiria"] is None
 
     async def test_both_areas_populated(self, scanner_status, mocker):
         now = time.time()
@@ -342,14 +352,20 @@ class TestGetWorkersWithIssues:
                 "areas": [
                     _area(
                         "LeiriaBigger",
-                        [_worker(now), _worker(now), _worker(stale), _worker(stale)],
+                        [_worker(now) for _ in range(5)]
+                        + [_worker(stale) for _ in range(2)],
                     ),
                     _area("MarinhaGrande", [_worker(stale)]),
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result == {"downDevicesLeiria": 2, "downDevicesMarinha": 1}
+        assert result == {
+            "downDevicesLeiria": 2,
+            "downDevicesMarinha": 1,
+            "expectedWorkersLeiria": 7,
+            "expectedWorkersMarinha": 1,
+        }
 
     async def test_unknown_area_with_workers_is_skipped(self, scanner_status, mocker):
         # Regression: previously crashed with TypeError because expectedWorkers
@@ -363,13 +379,18 @@ class TestGetWorkersWithIssues:
                         "name": "UnknownArea",
                         "worker_managers": [{"workers": [_worker(now)]}],
                     },
-                    _area("LeiriaBigger", [_worker(now) for _ in range(4)]),
+                    _area("LeiriaBigger", [_worker(now) for _ in range(7)]),
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
         # Unknown area contributes nothing; Leiria is parsed normally.
-        assert result == {"downDevicesLeiria": 0, "downDevicesMarinha": None}
+        assert result == {
+            "downDevicesLeiria": 0,
+            "downDevicesMarinha": None,
+            "expectedWorkersLeiria": 7,
+            "expectedWorkersMarinha": None,
+        }
 
     async def test_unknown_area_never_leaks_into_known_counters(
         self, scanner_status, mocker
@@ -391,7 +412,7 @@ class TestGetWorkersWithIssues:
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result == {"downDevicesLeiria": None, "downDevicesMarinha": None}
+        assert result == _NO_WORKER_DATA
 
 
 class TestGetFullStatusDevices:
@@ -488,34 +509,26 @@ class TestGetFullStatusDevices:
 
 class TestGetVoiceChannel:
     async def test_returns_channel_on_success(self, scanner_status, mocker):
-        mocker.patch.dict(
-            "modules.config.Config.VOICE_CHANNELS",
-            {"leiria": 12345},
-            clear=True,
-        )
+        mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
         expected = MagicMock(name="channel")
         scanner_status.poliswag.fetch_channel = AsyncMock(return_value=expected)
-        result = await scanner_status.get_voice_channel("leiria")
+        result = await scanner_status.get_voice_channel()
         assert result is expected
         scanner_status.poliswag.fetch_channel.assert_called_once_with(12345)
 
     async def test_returns_none_and_logs_on_missing_env(self, scanner_status, mocker):
-        mocker.patch.dict("modules.config.Config.VOICE_CHANNELS", {}, clear=True)
+        mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 0)
         scanner_status.poliswag.fetch_channel = AsyncMock()
-        result = await scanner_status.get_voice_channel("leiria")
+        result = await scanner_status.get_voice_channel()
         assert result is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_returns_none_when_fetch_channel_raises(self, scanner_status, mocker):
-        mocker.patch.dict(
-            "modules.config.Config.VOICE_CHANNELS",
-            {"leiria": 12345},
-            clear=True,
-        )
+        mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
         scanner_status.poliswag.fetch_channel = AsyncMock(
             side_effect=RuntimeError("boom")
         )
-        result = await scanner_status.get_voice_channel("leiria")
+        result = await scanner_status.get_voice_channel()
         assert result is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
@@ -636,6 +649,16 @@ class TestTriggerAllDownAction:
         assert "Error sending all-down" in msg
 
 
+def _ws(leiria_down, marinha_down, leiria_expected=7, marinha_expected=1):
+    """Build a get_workers_with_issues()-shaped dict for rename_voice_channels."""
+    return {
+        "downDevicesLeiria": leiria_down,
+        "downDevicesMarinha": marinha_down,
+        "expectedWorkersLeiria": leiria_expected,
+        "expectedWorkersMarinha": marinha_expected,
+    }
+
+
 class TestRenameVoiceChannels:
     def _patch_fresh(
         self, scanner_status, mocker, *, seconds_ago=1, device_connected=True
@@ -660,7 +683,7 @@ class TestRenameVoiceChannels:
     ):
         # Workers all down AND pokemon stale → webhook fires.
         trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=660)
-        await scanner_status.rename_voice_channels(4, 1)
+        await scanner_status.rename_voice_channels(_ws(7, 1))
         trigger.assert_awaited_once()
 
     async def test_stale_pokemon_triggers_even_when_workers_appear_healthy(
@@ -668,7 +691,7 @@ class TestRenameVoiceChannels:
     ):
         # Workers look fine (0 down) but pokemon table is 11 minutes stale.
         trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=660)
-        await scanner_status.rename_voice_channels(0, 0)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
         trigger.assert_awaited_once()
 
     async def test_all_workers_down_but_fresh_pokemon_does_not_trigger(
@@ -676,19 +699,19 @@ class TestRenameVoiceChannels:
     ):
         # Workers all down, but pokemon was seen 5 seconds ago — no webhook.
         trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=5)
-        await scanner_status.rename_voice_channels(4, 1)
+        await scanner_status.rename_voice_channels(_ws(7, 1))
         trigger.assert_not_called()
 
     async def test_fresh_pokemon_and_workers_up_does_not_trigger(
         self, scanner_status, mocker
     ):
         trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=1)
-        await scanner_status.rename_voice_channels(0, 0)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
         trigger.assert_not_called()
 
     async def test_none_counters_do_not_trigger_all_down(self, scanner_status, mocker):
         trigger = self._patch_fresh(scanner_status, mocker, seconds_ago=1)
-        await scanner_status.rename_voice_channels(None, None)
+        await scanner_status.rename_voice_channels(_ws(None, None, None, None))
         trigger.assert_not_called()
 
     async def test_updates_channel_name_when_cache_stale(self, scanner_status, mocker):
@@ -701,10 +724,9 @@ class TestRenameVoiceChannels:
         mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
-        await scanner_status.rename_voice_channels(0, 0)
-        assert channel.edit.await_count == 2
-        assert scanner_status.channelCache["leiria"]["name"] == "LEIRIA: 🟢"
-        assert scanner_status.channelCache["marinha"]["name"] == "MARINHA: 🟢"
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        assert channel.edit.await_count == 1
+        assert scanner_status.channelCache["name"] == "MAPA: 🟢"
 
     async def test_skips_edit_when_status_unchanged(self, scanner_status, mocker):
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
@@ -712,24 +734,15 @@ class TestRenameVoiceChannels:
             scanner_status, "_get_seconds_since_last_pokemon", return_value=1
         )
         now = time.time()
-        scanner_status.channelCache["leiria"] = {
-            "name": "LEIRIA: 🟢",
-            "last_update": now,
-        }
-        scanner_status.channelCache["marinha"] = {
-            "name": "MARINHA: 🟢",
-            "last_update": now,
-        }
+        scanner_status.channelCache = {"name": "MAPA: 🟢", "last_update": now}
         get_channel = mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock()
         )
-        await scanner_status.rename_voice_channels(0, 0)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
         get_channel.assert_not_called()
 
-    async def test_device_down_renames_red_regions_to_cross(
-        self, scanner_status, mocker
-    ):
-        # All workers down AND device offline → ❌ on both channels, not 🔴.
+    async def test_device_down_renames_red_to_cross(self, scanner_status, mocker):
+        # All workers down AND device offline → ❌, not 🔴.
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
         mocker.patch.object(
             scanner_status, "_get_seconds_since_last_pokemon", return_value=1
@@ -742,9 +755,8 @@ class TestRenameVoiceChannels:
         mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
-        await scanner_status.rename_voice_channels(4, 1)
-        assert scanner_status.channelCache["leiria"]["name"] == "LEIRIA: ❌"
-        assert scanner_status.channelCache["marinha"]["name"] == "MARINHA: ❌"
+        await scanner_status.rename_voice_channels(_ws(7, 1))
+        assert scanner_status.channelCache["name"] == "MAPA: ❌"
 
     async def test_device_up_keeps_red_when_all_workers_down(
         self, scanner_status, mocker
@@ -762,24 +774,21 @@ class TestRenameVoiceChannels:
         mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
-        await scanner_status.rename_voice_channels(4, 1)
-        assert scanner_status.channelCache["leiria"]["name"] == "LEIRIA: 🔴"
-        assert scanner_status.channelCache["marinha"]["name"] == "MARINHA: 🔴"
+        await scanner_status.rename_voice_channels(_ws(7, 1))
+        assert scanner_status.channelCache["name"] == "MAPA: 🔴"
 
-    async def test_device_check_skipped_when_no_region_is_red(
-        self, scanner_status, mocker
-    ):
+    async def test_device_check_skipped_when_not_red(self, scanner_status, mocker):
         # Healthy counters → the extra device_status fetch never happens.
         self._patch_fresh(scanner_status, mocker, seconds_ago=1)
         is_connected = scanner_status.poliswag.account_monitor.is_device_connected
-        await scanner_status.rename_voice_channels(0, 0)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
         is_connected.assert_not_called()
 
     async def test_all_red_with_device_up_reported_to_stack_recovery(
         self, scanner_status, mocker
     ):
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
-        await scanner_status.rename_voice_channels(4, 1)
+        await scanner_status.rename_voice_channels(_ws(7, 1))
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
 
     async def test_device_down_all_red_still_feeds_stack_recovery(
@@ -788,13 +797,34 @@ class TestRenameVoiceChannels:
         # ❌ is only a display distinction — the recovery ladder runs either
         # way (containers first, device reboot if red persists).
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=False)
-        await scanner_status.rename_voice_channels(4, 1)
+        await scanner_status.rename_voice_channels(_ws(7, 1))
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
 
-    async def test_partial_red_is_not_all_red(self, scanner_status, mocker):
-        # Leiria red but Marinha green → no stack recovery trigger.
+    async def test_partial_down_is_not_all_red(self, scanner_status, mocker):
+        # 4/8 down = 50% → orange, not red → no stack recovery trigger.
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
-        await scanner_status.rename_voice_channels(4, 0)
+        await scanner_status.rename_voice_channels(_ws(4, 0))
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+
+    async def test_dragonite_unreachable_renders_as_cross(self, scanner_status, mocker):
+        # get_workers_with_issues() returns all-None when the Dragonite fetch
+        # fails entirely — that renders as ❌ (it still means the map isn't
+        # being scanned), but critically must NOT feed the recovery ladder.
+        # Otherwise a transient status-endpoint hiccup would trigger container
+        # recreates / a device reboot for no real reason.
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        is_connected = scanner_status.poliswag.account_monitor.is_device_connected
+        channel = MagicMock()
+        channel.edit = AsyncMock()
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        await scanner_status.rename_voice_channels(_ws(None, None, None, None))
+        assert scanner_status.channelCache["name"] == "MAPA: ❌"
+        is_connected.assert_not_called()
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
 
     async def test_rate_limit_is_logged_not_raised(self, scanner_status, mocker):
@@ -813,7 +843,7 @@ class TestRenameVoiceChannels:
         mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
-        await scanner_status.rename_voice_channels(0, 0)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
         logged = [
             c.args[0]
             for c in scanner_status.poliswag.utility.log_to_file.call_args_list
@@ -1007,9 +1037,7 @@ class TestQuestPlateauHelpers:
         mocker.patch.object(
             scanner_status,
             "get_workers_with_issues",
-            new=AsyncMock(
-                return_value={"downDevicesLeiria": 4, "downDevicesMarinha": 0}
-            ),
+            new=AsyncMock(return_value=_ws(4, 0)),
         )
         assert await scanner_status._is_scanner_alive() is True
 
@@ -1017,9 +1045,7 @@ class TestQuestPlateauHelpers:
         mocker.patch.object(
             scanner_status,
             "get_workers_with_issues",
-            new=AsyncMock(
-                return_value={"downDevicesLeiria": 4, "downDevicesMarinha": 1}
-            ),
+            new=AsyncMock(return_value=_ws(7, 1)),
         )
         assert await scanner_status._is_scanner_alive() is False
 
@@ -1029,9 +1055,7 @@ class TestQuestPlateauHelpers:
         mocker.patch.object(
             scanner_status,
             "get_workers_with_issues",
-            new=AsyncMock(
-                return_value={"downDevicesLeiria": None, "downDevicesMarinha": None}
-            ),
+            new=AsyncMock(return_value=_ws(None, None, None, None)),
         )
         assert await scanner_status._is_scanner_alive() is False
 
