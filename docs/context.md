@@ -17,7 +17,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `config.py` | Single `Config` class reading all env vars via `dotenv`. Source of truth for all settings. |
 | `database_connector.py` | `DatabaseConnector(database?)` — pymysql wrapper with retry (3 attempts), auto-reconnect on errno 2006/2013, returns `list[dict]` from `cursor.description`. Default DB = `Config.DB_POLISWAG`; scanner DB passed explicitly. |
 | `http_client.py` | `fetch_data(endpoint_key, …)` — single shared `aiohttp.ClientSession`, reads from `Config.ENDPOINTS[key]`. In DEV (`not IS_PRODUCTION`) returns mock JSON from `mock_data/` for infra endpoints. |
-| `scanner_status.py` | `ScannerStatus` — polls Dragonite (`/status`) + Rotom (`/api/status`) + Golbat DB. Renames Discord voice channels, fires HA webhook when scanner is fully down (15 min cooldown). Tracks per-area worker expectations (`LeiriaBigger`=4, `MarinhaGrande`=1). |
+| `scanner_status.py` | `ScannerStatus` — polls Dragonite (`/status`) + Rotom (`/api/status`) + Golbat DB. Renames a single `MAPA` Discord voice channel with a combined down/expected-worker indicator (expected counts read live from Dragonite per area, not hardcoded), fires HA webhook when scanner is fully down (15 min cooldown). Missing/unreachable data renders as ❌ but is excluded from the recovery-ladder trigger. |
 | `scanner_manager.py` | Docker control (via `docker-py`) + `poliswag` table state (`last_scanned_date`, `scanned` flag). `is_day_change()` triggers a new scan cycle. |
 | `quest_search.py` | `QuestSearch` — owns scanner DB connection. Loads pokemon/item name maps + masterfile. `find_quest_by_search_keyword(term, is_leiria)` queries `pokestop` table. Area split: Marinha Grande = lon ≤ −8.9. Handles AR/standard quest field duality via `_quest_fields()`. |
 | `quest_exporter.py` | `QuestExporter.export(force=False)` — reads `pokestop` and writes a JSON file to `QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) for the PWA. Skips the write when quest content is unchanged (md5 hash stored as `contentHash` in `quests-meta.json`); returns `True` only when rewritten. `force=True` always rewrites. Triggered on scan completion, every 30 min by `scheduled.py` as a safety net, and via `!exportquests`. |
@@ -87,7 +87,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 ```
 DISCORD_API_KEY, ADMIN_USERS_IDS (comma-sep), MY_ID
 QUEST_CHANNEL_ID, CONVIVIO_CHANNEL_ID, MOD_CHANNEL_ID, ACCOUNTS_CHANNEL_ID
-VOICE_CHANNEL_LEIRIA_ID, VOICE_CHANNEL_MARINHA_ID
+VOICE_CHANNEL_LEIRIA_ID  (combined MAPA status channel; var name kept for continuity)
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME, DB_DRAGONITE
 SCANNER_CONTAINER_NAME
 ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
