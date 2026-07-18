@@ -11,13 +11,13 @@ class ScannerStatus:
     def __init__(self, poliswag):
         self.poliswag = poliswag
 
-        self.channelCache = {
-            "leiria": {"name": None, "last_update": 0},
-            "marinha": {"name": None, "last_update": 0},
-        }
+        self.channelCache = {"name": None, "last_update": 0}
 
+        # Fallback only: get_workers_with_issues() prefers the live
+        # expected_workers Dragonite reports per area on every call, so this
+        # is just what's used on the rare response that omits the field.
         self.defaultExpectedWorkers = {
-            "LeiriaBigger": 4,
+            "LeiriaBigger": 7,
             "MarinhaGrande": 1,
         }
 
@@ -51,19 +51,23 @@ class ScannerStatus:
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
 
-    async def get_voice_channel(self, channelName):
+    async def get_voice_channel(self):
         try:
-            channel_id = Config.VOICE_CHANNELS.get(channelName.lower())
+            channel_id = Config.VOICE_CHANNEL_ID
             if not channel_id:
-                self._log(f"No voice channel configured for '{channelName}'")
+                self._log("No voice channel configured for the combined map status")
                 return None
             return await self.poliswag.fetch_channel(channel_id)
         except Exception as e:
-            self._log(f"Error fetching {channelName} channel: {e}")
+            self._log(f"Error fetching status channel: {e}")
             return None
 
-    async def rename_voice_channels(self, leiriaDownCounter, marinhaDownCounter):
+    async def rename_voice_channels(self, workers_status):
         current_time = time.time()
+        leiriaDownCounter = workers_status.get("downDevicesLeiria")
+        marinhaDownCounter = workers_status.get("downDevicesMarinha")
+        leiriaExpected = workers_status.get("expectedWorkersLeiria")
+        marinhaExpected = workers_status.get("expectedWorkersMarinha")
 
         # Webhook fires only when pokemon data has gone stale — worker count
         # alone is not a reliable signal (workers can appear "running" but stuck).
@@ -75,51 +79,58 @@ class ScannerStatus:
         if pokemon_stale:
             await self.trigger_all_down_action()
 
+        # Leiria and Marinha share one device and one stack, so a single
+        # combined indicator (down workers / total expected workers across
+        # both areas, both read live from Dragonite rather than a hardcoded
+        # guess) is more honest than two independently-labeled channels that
+        # would always move in lockstep anyway. Any of the four inputs being
+        # None (Dragonite unreachable, or an area missing from its response)
+        # makes this None too — see _get_combined_status_indicator.
+        indicator = self._get_combined_status_indicator(
+            leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
+        )
+
         # The red state alone is ambiguous: workers can be down because the
         # MITM device dropped off Rotom, or because the device is fine but the
-        # account pool is exhausted. Only when a region would show red do we
-        # pay for the device lookup, so ❌ (device offline) can be told apart
-        # from 🔴 (device up, accounts/workers down).
+        # account pool is exhausted. Only when it would show red do we pay for
+        # the device lookup, so ❌ (device offline) can be told apart from 🔴
+        # (device up, accounts/workers down).
         device_connected = True
-        indicators = (
-            self._get_status_indicator(leiriaDownCounter, "LEIRIA"),
-            self._get_status_indicator(marinhaDownCounter, "MARINHA"),
-        )
-        if "🔴" in indicators:
+        if indicator == "🔴":
             device_connected = await self.poliswag.account_monitor.is_device_connected()
 
         # Fully red — regardless of the device flag (❌ is only a display
         # distinction) — feeds the StackRecovery ladder: containers first,
-        # device reboot if red persists.
-        all_red = indicators == ("🔴", "🔴")
+        # device reboot if red persists. indicator is None (Dragonite
+        # unreachable or missing data) deliberately does NOT count as red,
+        # even though get_status_message below will also render it as ❌ —
+        # a status-endpoint hiccup must never itself trigger container
+        # recreates or a device reboot.
+        all_red = indicator == "🔴"
         await self.poliswag.stack_recovery.observe(all_red)
 
-        for channel_key, counter, region in [
-            ("leiria", leiriaDownCounter, "LEIRIA"),
-            ("marinha", marinhaDownCounter, "MARINHA"),
-        ]:
-            if self.should_update_channel(channel_key, counter, device_connected):
-                status = self.get_status_message(counter, region, device_connected)
-                if status != self.channelCache[channel_key]["name"]:
-                    channel = await self.get_voice_channel(channel_key)
-                    if channel:
-                        try:
-                            await channel.edit(name=status)
-                            self.channelCache[channel_key] = {
-                                "name": status,
-                                "last_update": current_time,
-                            }
-                        except discord.errors.HTTPException as e:
-                            if e.code == 429:
-                                self._log(
-                                    f"Rate limited while updating {channel_key} channel: {e}"
-                                )
-                            else:
-                                self._log(f"Error updating {channel_key} channel: {e}")
+        status = self.get_status_message(
+            leiriaDownCounter,
+            marinhaDownCounter,
+            leiriaExpected,
+            marinhaExpected,
+            device_connected,
+        )
+        if self.should_update_channel(status) and status != self.channelCache["name"]:
+            channel = await self.get_voice_channel()
+            if channel:
+                try:
+                    await channel.edit(name=status)
+                    self.channelCache = {"name": status, "last_update": current_time}
+                except discord.errors.HTTPException as e:
+                    if e.code == 429:
+                        self._log(f"Rate limited while updating status channel: {e}")
+                    else:
+                        self._log(f"Error updating status channel: {e}")
 
-    def should_update_channel(self, channelType, counter, device_connected=True):
+    def should_update_channel(self, new_status):
         current_time = time.time()
-        cacheEntry = self.channelCache[channelType]
+        cacheEntry = self.channelCache
 
         if (
             cacheEntry["name"] is None
@@ -127,15 +138,14 @@ class ScannerStatus:
         ):
             return True
 
-        new_status = self.get_status_message(
-            counter, channelType.upper(), device_connected
-        )
         return new_status != cacheEntry["name"]
 
     async def get_workers_with_issues(self):
         workerStatus = await fetch_data("scanner_status", log_fn=self._log)
         downDevicesLeiria = None
         downDevicesMarinha = None
+        expectedWorkersLeiria = None
+        expectedWorkersMarinha = None
 
         if workerStatus and "areas" in workerStatus:
             for area in workerStatus["areas"]:
@@ -174,14 +184,18 @@ class ScannerStatus:
                     downDevicesLeiria = (
                         max(downDevices, 0) if downDevices is not None else None
                     )
+                    expectedWorkersLeiria = expectedWorkers
                 elif areaName == "MarinhaGrande":
                     downDevicesMarinha = (
                         max(downDevices, 0) if downDevices is not None else None
                     )
+                    expectedWorkersMarinha = expectedWorkers
 
         return {
             "downDevicesLeiria": downDevicesLeiria,
             "downDevicesMarinha": downDevicesMarinha,
+            "expectedWorkersLeiria": expectedWorkersLeiria,
+            "expectedWorkersMarinha": expectedWorkersMarinha,
         }
 
     def _get_seconds_since_last_pokemon(self) -> int | None:
@@ -235,17 +249,25 @@ class ScannerStatus:
             except Exception as e:
                 self._log(f"Error sending all-down notification: {e}")
 
-    def _get_status_indicator(self, downCounter, region):
-        if downCounter is None:
-            return "❓"
+    def _get_combined_status_indicator(
+        self, leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
+    ):
+        # Any missing input — Dragonite unreachable, or an area absent from
+        # its response — means we can't compute a percentage at all. Return
+        # None (rather than guessing) so the caller can render it as down
+        # without treating it as a confirmed red reading — see
+        # get_status_message and rename_voice_channels.
+        if None in (
+            leiriaDownCounter,
+            marinhaDownCounter,
+            leiriaExpected,
+            marinhaExpected,
+        ):
+            return None
 
-        if region == "MARINHA":
-            return "🟢" if downCounter == 0 else "🔴"
-
-        expected_workers = self.defaultExpectedWorkers.get("LeiriaBigger", 5)
-        down_percentage = (
-            (downCounter / expected_workers) if expected_workers > 0 else 0
-        )
+        expected_total = leiriaExpected + marinhaExpected
+        down_total = leiriaDownCounter + marinhaDownCounter
+        down_percentage = (down_total / expected_total) if expected_total > 0 else 0
 
         if down_percentage == 0:
             return "🟢"
@@ -255,13 +277,29 @@ class ScannerStatus:
             return "🟠"
         return "🔴"
 
-    def get_status_message(self, downCounter, region, device_connected=True):
-        status_indicator = self._get_status_indicator(downCounter, region)
-        # ❌ only ever replaces red: a healthy-looking region stays green even
-        # if the device flag momentarily reads disconnected.
+    def get_status_message(
+        self,
+        leiriaDownCounter,
+        marinhaDownCounter,
+        leiriaExpected,
+        marinhaExpected,
+        device_connected=True,
+    ):
+        status_indicator = self._get_combined_status_indicator(
+            leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
+        )
+        # No data (Dragonite unreachable, or an area missing from its
+        # response) still reads as down from an operator's point of view —
+        # show ❌ rather than a wishy-washy "unknown". This is a display
+        # choice only: rename_voice_channels keys all_red off the raw
+        # indicator, not this string, so a data outage never triggers the
+        # recovery ladder even though it looks the same as a confirmed
+        # device-offline red.
+        if status_indicator is None:
+            return "MAPA: ❌"
         if status_indicator == "🔴" and not device_connected:
             status_indicator = "❌"
-        return f"{region}: {status_indicator}"
+        return f"MAPA: {status_indicator}"
 
     async def get_full_status(self) -> dict:
         """Collect a diagnostic snapshot from all scanner sources.
@@ -446,13 +484,17 @@ class ScannerStatus:
         workers = await self.get_workers_with_issues()
         down_leiria = workers["downDevicesLeiria"]
         down_marinha = workers["downDevicesMarinha"]
+        expected_leiria = workers["expectedWorkersLeiria"]
+        expected_marinha = workers["expectedWorkersMarinha"]
         leiria_alive = (
             down_leiria is not None
-            and down_leiria < self.defaultExpectedWorkers.get("LeiriaBigger", 4)
+            and expected_leiria is not None
+            and down_leiria < expected_leiria
         )
         marinha_alive = (
             down_marinha is not None
-            and down_marinha < self.defaultExpectedWorkers.get("MarinhaGrande", 1)
+            and expected_marinha is not None
+            and down_marinha < expected_marinha
         )
         return leiria_alive or marinha_alive
 

@@ -16,8 +16,10 @@ class Config:
     CONVIVIO_CHANNEL_ID = int(os.environ.get("CONVIVIO_CHANNEL_ID", "0"))
     MOD_CHANNEL_ID = int(os.environ.get("MOD_CHANNEL_ID", "0"))
     ACCOUNTS_CHANNEL_ID = int(os.environ.get("ACCOUNTS_CHANNEL_ID", "0"))
-    VOICE_CHANNEL_LEIRIA_ID = int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID", "0"))
-    VOICE_CHANNEL_MARINHA_ID = int(os.environ.get("VOICE_CHANNEL_MARINHA_ID", "0"))
+    # Combined Leiria+Marinha map status channel — reuses the old Leiria-only
+    # env var name since Leiria's Discord channel is the one that survived
+    # the merge (Marinha's separate channel was deleted).
+    VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID", "0"))
 
     # Database
     DB_HOST = os.environ.get("DB_HOST")
@@ -58,9 +60,6 @@ class Config:
     )
     ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
 
-    # Voice channels keyed by scan area name
-    VOICE_CHANNELS: dict[str, int] = {}
-
     # PWA export
     QUEST_JSON_OUTPUT = os.environ.get("QUEST_JSON_OUTPUT", "/pogo-public/quests.json")
     MEGA_JSON_OUTPUT = os.environ.get("MEGA_JSON_OUTPUT", "/dex-public/megas.json")
@@ -83,9 +82,3 @@ class Config:
     # UI
     EMBED_COLOR = 0x4169E1
     MOCK_DATA_DIR = "mock_data"
-
-
-Config.VOICE_CHANNELS = {
-    "leiria": Config.VOICE_CHANNEL_LEIRIA_ID,
-    "marinha": Config.VOICE_CHANNEL_MARINHA_ID,
-}
