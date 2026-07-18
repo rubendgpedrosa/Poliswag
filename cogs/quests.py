@@ -18,10 +18,17 @@ class Quests(commands.Cog):
             return
         msg = await ctx.send("A exportar quests...")
         try:
-            await self.poliswag.quest_exporter.export()
-            await msg.edit(content="✅ Quests exportadas com sucesso!")
+            wrote = await self.poliswag.quest_exporter.export()
+            await msg.edit(
+                content=(
+                    "✅ Quests exportadas com sucesso!"
+                    if wrote
+                    else "✅ Sem alterações nas quests — nada para exportar."
+                )
+            )
             self.poliswag.utility.log_to_file(
-                f"[QUEST] @{ctx.author} ({ctx.author.id}): exported quests to PWA"
+                f"[QUEST] @{ctx.author} ({ctx.author.id}): "
+                f"{'exported quests to PWA' if wrote else 'export skipped (no changes)'}"
             )
         except Exception as e:
             await msg.edit(content=f"❌ Erro ao exportar quests: {e}")
