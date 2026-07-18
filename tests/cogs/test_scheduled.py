@@ -209,6 +209,7 @@ class TestScheduledTasksLoop:
     async def test_happy_path_calls_all_helpers(self, cog):
         cog._check_version_update = AsyncMock()
         cog._check_quest_scan_progress = AsyncMock()
+        cog._check_quest_export = AsyncMock()
         cog._check_events = AsyncMock()
         cog._check_workers = AsyncMock()
         cog._update_accounts_display = AsyncMock()
@@ -216,6 +217,7 @@ class TestScheduledTasksLoop:
         await cog.scheduled_tasks.coro(cog)
         cog._check_version_update.assert_awaited_once()
         cog._check_quest_scan_progress.assert_awaited_once()
+        cog._check_quest_export.assert_awaited_once()
         cog._check_events.assert_awaited_once()
         cog._check_workers.assert_awaited_once()
         cog._update_accounts_display.assert_awaited_once()
@@ -238,6 +240,26 @@ class TestScheduledTasksLoop:
         cog.poliswag.utility.log_to_file.assert_called()
         out = capsys.readouterr().out
         assert "CRASH" in out
+
+
+class TestCheckQuestExport:
+    async def test_exports_on_first_run(self, cog):
+        cog._last_quest_export = None
+        await cog._check_quest_export()
+        cog.poliswag.quest_exporter.export.assert_awaited_once()
+        assert cog._last_quest_export is not None
+
+    async def test_skips_when_within_interval(self, cog):
+        cog._last_quest_export = real_datetime.datetime.now()
+        await cog._check_quest_export()
+        cog.poliswag.quest_exporter.export.assert_not_awaited()
+
+    async def test_exports_after_interval_elapsed(self, cog):
+        cog._last_quest_export = real_datetime.datetime.now() - real_datetime.timedelta(
+            minutes=31
+        )
+        await cog._check_quest_export()
+        cog.poliswag.quest_exporter.export.assert_awaited_once()
 
 
 class TestBeforeScheduledTasks:
