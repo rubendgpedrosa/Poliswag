@@ -335,6 +335,85 @@ class TestExport:
         assert all(s["done"] is False for s in standard_quest["pokestops"])
         assert isinstance(standard_quest["pokestops"][0]["location"]["lat"], float)
 
+    @staticmethod
+    def _make_exporter(tmp_path, rows):
+        from unittest.mock import MagicMock
+        from modules.quest_exporter import QuestExporter
+
+        poliswag = MagicMock()
+        qs = poliswag.quest_search
+        qs.translationfile_data = {"data": {}}
+        qs.masterfile_data = {"pokemon": {}, "items": {}}
+
+        def fake_get_data(query):
+            # Standard rows only; AR query returns nothing.
+            return [] if "alternative_quest_reward_type" in query else rows
+
+        qs.db.get_data_from_database.side_effect = fake_get_data
+
+        exporter = QuestExporter(poliswag=poliswag)
+        exporter.output_path = str(tmp_path / "quests.json")
+        return exporter
+
+    @staticmethod
+    def _row(name, reward_amount):
+        return {
+            "name": name,
+            "lat": 39.75,
+            "lon": -8.80,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 5,
+            "quest_reward_type": 1,  # xp
+            "quest_item_id": None,
+            "quest_pokemon_id": None,
+            "quest_reward_amount": reward_amount,
+        }
+
+    async def test_skips_rewrite_when_content_unchanged(self, tmp_path):
+        import json
+
+        rows = [self._row("Fonte", 500)]
+        exporter = self._make_exporter(tmp_path, rows)
+        output = tmp_path / "quests.json"
+
+        assert await exporter.export() is True
+        first = json.loads(output.read_text())
+
+        # Second export with identical DB content must not rewrite the file.
+        assert await exporter.export() is False
+        second = json.loads(output.read_text())
+        assert first["generatedAt"] == second["generatedAt"]
+
+    async def test_rewrites_when_quest_content_changes(self, tmp_path):
+        rows = [self._row("Fonte", 500)]
+        exporter = self._make_exporter(tmp_path, rows)
+
+        assert await exporter.export() is True
+        assert await exporter.export() is False
+
+        # Mutate the DB content → next export must rewrite.
+        rows.append(self._row("Praça", 1000))
+        assert await exporter.export() is True
+
+    async def test_force_rewrites_even_when_unchanged(self, tmp_path):
+        rows = [self._row("Fonte", 500)]
+        exporter = self._make_exporter(tmp_path, rows)
+
+        assert await exporter.export() is True
+        assert await exporter.export(force=True) is True
+
+    async def test_meta_file_stores_content_hash(self, tmp_path):
+        import json
+
+        rows = [self._row("Fonte", 500)]
+        exporter = self._make_exporter(tmp_path, rows)
+        await exporter.export()
+
+        meta = json.loads((tmp_path / "quests-meta.json").read_text())
+        assert "contentHash" in meta
+        assert "generatedAt" in meta
+
     async def test_handles_missing_translations_and_masterfile(self, tmp_path):
         from unittest.mock import MagicMock
         from modules.quest_exporter import QuestExporter
