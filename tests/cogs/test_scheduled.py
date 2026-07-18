@@ -472,16 +472,19 @@ class TestBuildEventEmbed:
 
 class TestCheckWorkers:
     async def test_passes_worker_status_to_rename(self, cog):
+        workers_status = {
+            "downDevicesLeiria": ["a"],
+            "downDevicesMarinha": ["b"],
+            "expectedWorkersLeiria": 7,
+            "expectedWorkersMarinha": 1,
+        }
         cog.poliswag.scanner_status.get_workers_with_issues = AsyncMock(
-            return_value={
-                "downDevicesLeiria": ["a"],
-                "downDevicesMarinha": ["b"],
-            }
+            return_value=workers_status
         )
         cog.poliswag.device_manager.auto_reboot_if_offline = AsyncMock()
         await cog._check_workers()
         cog.poliswag.scanner_status.rename_voice_channels.assert_awaited_once_with(
-            ["a"], ["b"]
+            workers_status
         )
 
 
