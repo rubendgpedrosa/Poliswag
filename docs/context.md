@@ -20,7 +20,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `scanner_status.py` | `ScannerStatus` — polls Dragonite (`/status`) + Rotom (`/api/status`) + Golbat DB. Renames Discord voice channels, fires HA webhook when scanner is fully down (15 min cooldown). Tracks per-area worker expectations (`LeiriaBigger`=4, `MarinhaGrande`=1). |
 | `scanner_manager.py` | Docker control (via `docker-py`) + `poliswag` table state (`last_scanned_date`, `scanned` flag). `is_day_change()` triggers a new scan cycle. |
 | `quest_search.py` | `QuestSearch` — owns scanner DB connection. Loads pokemon/item name maps + masterfile. `find_quest_by_search_keyword(term, is_leiria)` queries `pokestop` table. Area split: Marinha Grande = lon ≤ −8.9. Handles AR/standard quest field duality via `_quest_fields()`. |
-| `quest_exporter.py` | `QuestExporter.export()` — reads `pokestop` and writes a JSON file to `QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) for the PWA. |
+| `quest_exporter.py` | `QuestExporter.export(force=False)` — reads `pokestop` and writes a JSON file to `QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) for the PWA. Skips the write when quest content is unchanged (md5 hash stored as `contentHash` in `quests-meta.json`); returns `True` only when rewritten. `force=True` always rewrites. Triggered on scan completion, every 30 min by `scheduled.py` as a safety net, and via `!exportquests`. |
 | `event_manager.py` | Fetches events from ScrapedDuck (15 min cache). Stores/updates `event` table. Dispatches embed notifications to `CONVIVIO_CHANNEL` when events start/end, respecting `excluded_event_type`. Weekly digest on Mondays. |
 | `event_store.py` | Thin DB wrapper for `excluded_event_type` and `event` tables. |
 | `account_monitor.py` | Polls Dragonite `/accounts/stats`. Aggregates disabled statuses. Posts account image to `ACCOUNTS_CHANNEL`. |
@@ -44,7 +44,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `accounts.py` | `!accounts` | open |
 | `container_manager.py` | `!container start\|stop`, `!status` | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete` | — |
-| `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute | admin-only |
+| `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
 
 ## Database schema (Poliswag DB)

@@ -25,7 +25,16 @@ class QuestExporter:
         self.poliswag = poliswag
         self.output_path = Config.QUEST_JSON_OUTPUT
 
-    async def export(self):
+    async def export(self, force: bool = False) -> bool:
+        """Build the quests payload and write it to disk.
+
+        The write is skipped when the quest content is unchanged since the last
+        export (compared via a content hash stored in the meta file), so this is
+        cheap to call on a timer. Pass ``force=True`` to always rewrite.
+
+        Returns ``True`` when the files were (re)written, ``False`` when the
+        content was unchanged and the write was skipped.
+        """
         qs = self.poliswag.quest_search
 
         translations = (qs.translationfile_data or {}).get("data", {})
@@ -115,17 +124,41 @@ class QuestExporter:
         quests.sort(key=lambda q: q["title"].lower())
 
         output = Path(self.output_path)
+        meta_path = output.with_name("quests-meta.json")
+        content_hash = hashlib.md5(
+            json.dumps(quests, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+
+        if not force and self._read_stored_hash(meta_path) == content_hash:
+            logging.info(
+                f"QuestExporter: quest content unchanged ({len(quests)} quests), "
+                "skipping write"
+            )
+            return False
+
         output.parent.mkdir(parents=True, exist_ok=True)
         generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         payload = {"quests": quests, "generatedAt": generated_at}
         with open(output, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
 
-        meta_path = output.with_name("quests-meta.json")
         with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump({"generatedAt": generated_at}, f, ensure_ascii=False)
+            json.dump(
+                {"generatedAt": generated_at, "contentHash": content_hash},
+                f,
+                ensure_ascii=False,
+            )
 
         logging.info(f"QuestExporter: wrote {len(quests)} quests → {output}")
+        return True
+
+    @staticmethod
+    def _read_stored_hash(meta_path: Path) -> str | None:
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                return json.load(f).get("contentHash")
+        except (OSError, json.JSONDecodeError):
+            return None
 
     @staticmethod
     def _translate_title(key: str, target, translations: dict) -> str:
