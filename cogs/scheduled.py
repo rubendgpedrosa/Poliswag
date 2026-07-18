@@ -12,6 +12,7 @@ class Scheduled(commands.Cog):
         self.poliswag = poliswag
         self._last_weekly_digest_monday = self._load_digest_date()
         self._last_progress_embed_state = None
+        self._last_quest_export = None
 
     def _load_digest_date(self):
         try:
@@ -108,6 +109,7 @@ class Scheduled(commands.Cog):
 
             await self._check_version_update()
             await self._check_quest_scan_progress()
+            await self._check_quest_export()
             await self._check_events()
             await self._check_workers()
             await self._update_accounts_display()
@@ -180,6 +182,7 @@ class Scheduled(commands.Cog):
                 self.poliswag.CONVIVIO_CHANNEL
             )
             await self.poliswag.quest_exporter.export()
+            self._last_quest_export = datetime.datetime.now()
             self.poliswag.scanner_manager.update_quest_scanning_state()
             self.poliswag.scanner_status.record_quest_scan_completion(
                 quest_completed["leiriaScanned"], quest_completed["marinhaScanned"]
@@ -204,6 +207,20 @@ class Scheduled(commands.Cog):
             self.poliswag.quest_scanning_message = (
                 await self.poliswag.QUEST_CHANNEL.send(embed=embed)
             )
+
+    async def _check_quest_export(self):
+        """Periodic safety-net export so quests.json never goes stale even when the
+        scan-completion trigger is missed (also runs once on startup). The exporter
+        itself skips the write when the quest content is unchanged, so this is cheap
+        to run on a timer."""
+        now = datetime.datetime.now()
+        if (
+            self._last_quest_export is not None
+            and now - self._last_quest_export < datetime.timedelta(minutes=30)
+        ):
+            return
+        self._last_quest_export = now
+        await self.poliswag.quest_exporter.export()
 
     def _build_progress_embed(self, quest_completed):
         bar_length = 20
