@@ -296,10 +296,10 @@ class ScannerStatus:
         # recovery ladder even though it looks the same as a confirmed
         # device-offline red.
         if status_indicator is None:
-            return "MAPA: ❌"
+            return "STATUS: ❌"
         if status_indicator == "🔴" and not device_connected:
             status_indicator = "❌"
-        return f"MAPA: {status_indicator}"
+        return f"STATUS: {status_indicator}"
 
     async def get_full_status(self) -> dict:
         """Collect a diagnostic snapshot from all scanner sources.

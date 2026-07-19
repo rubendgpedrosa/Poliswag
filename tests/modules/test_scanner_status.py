@@ -37,53 +37,53 @@ class TestGetStatusMessage:
         # is a display choice only: rename_voice_channels keeps this out of
         # all_red so a data outage never triggers the recovery ladder (see
         # TestRenameVoiceChannels.test_dragonite_unreachable_renders_as_cross).
-        assert scanner_status.get_status_message(None, 0, 7, 1) == "MAPA: ❌"
-        assert scanner_status.get_status_message(0, None, 7, 1) == "MAPA: ❌"
-        assert scanner_status.get_status_message(0, 0, None, 1) == "MAPA: ❌"
-        assert scanner_status.get_status_message(0, 0, 7, None) == "MAPA: ❌"
-        assert scanner_status.get_status_message(None, None, None, None) == "MAPA: ❌"
+        assert scanner_status.get_status_message(None, 0, 7, 1) == "STATUS: ❌"
+        assert scanner_status.get_status_message(0, None, 7, 1) == "STATUS: ❌"
+        assert scanner_status.get_status_message(0, 0, None, 1) == "STATUS: ❌"
+        assert scanner_status.get_status_message(0, 0, 7, None) == "STATUS: ❌"
+        assert scanner_status.get_status_message(None, None, None, None) == "STATUS: ❌"
 
     def test_zero_down_is_green(self, scanner_status):
-        assert scanner_status.get_status_message(0, 0, 7, 1) == "MAPA: 🟢"
+        assert scanner_status.get_status_message(0, 0, 7, 1) == "STATUS: 🟢"
 
     def test_one_of_eight_is_yellow(self, scanner_status):
         # 1/8 = 0.125 ≤ 0.4 → yellow
-        assert scanner_status.get_status_message(1, 0, 7, 1) == "MAPA: 🟡"
+        assert scanner_status.get_status_message(1, 0, 7, 1) == "STATUS: 🟡"
 
     def test_four_of_eight_is_orange(self, scanner_status):
         # 4/8 = 0.5 ∈ (0.4, 0.8] → orange
-        assert scanner_status.get_status_message(3, 1, 7, 1) == "MAPA: 🟠"
+        assert scanner_status.get_status_message(3, 1, 7, 1) == "STATUS: 🟠"
 
     def test_all_down_is_red(self, scanner_status):
         # 8/8 = 1.0 > 0.8 → red
-        assert scanner_status.get_status_message(7, 1, 7, 1) == "MAPA: 🔴"
+        assert scanner_status.get_status_message(7, 1, 7, 1) == "STATUS: 🔴"
 
     def test_more_than_expected_is_still_red(self, scanner_status):
         # 11/8 = 1.375 > 0.8 → red; percentage saturates, no overflow
-        assert scanner_status.get_status_message(9, 2, 7, 1) == "MAPA: 🔴"
+        assert scanner_status.get_status_message(9, 2, 7, 1) == "STATUS: 🔴"
 
     # --- Boundary conditions: pick expected totals with exact ratios ---
 
     def test_boundary_exact_40_percent_is_yellow(self, scanner_status):
         # 2/5 = exactly 0.4 → boundary (≤ 0.4 → yellow)
-        assert scanner_status.get_status_message(2, 0, 4, 1) == "MAPA: 🟡"
+        assert scanner_status.get_status_message(2, 0, 4, 1) == "STATUS: 🟡"
 
     def test_boundary_exact_80_percent_is_orange(self, scanner_status):
         # 4/5 = exactly 0.8 → boundary (≤ 0.8 → orange)
-        assert scanner_status.get_status_message(4, 0, 4, 1) == "MAPA: 🟠"
+        assert scanner_status.get_status_message(4, 0, 4, 1) == "STATUS: 🟠"
 
     # --- device_connected: splits the red state into 🔴 (accounts) / ❌ (device) ---
 
     def test_red_with_device_down_becomes_cross(self, scanner_status):
         assert (
             scanner_status.get_status_message(7, 1, 7, 1, device_connected=False)
-            == "MAPA: ❌"
+            == "STATUS: ❌"
         )
 
     def test_red_with_device_up_stays_red(self, scanner_status):
         assert (
             scanner_status.get_status_message(7, 1, 7, 1, device_connected=True)
-            == "MAPA: 🔴"
+            == "STATUS: 🔴"
         )
 
     def test_non_red_states_ignore_device_flag(self, scanner_status):
@@ -91,11 +91,11 @@ class TestGetStatusMessage:
         # turn into ❌ just because the device flag happens to read False.
         assert (
             scanner_status.get_status_message(0, 0, 7, 1, device_connected=False)
-            == "MAPA: 🟢"
+            == "STATUS: 🟢"
         )
         assert (
             scanner_status.get_status_message(1, 0, 7, 1, device_connected=False)
-            == "MAPA: 🟡"
+            == "STATUS: 🟡"
         )
 
     def test_missing_input_becomes_cross_regardless_of_device_flag(
@@ -106,11 +106,11 @@ class TestGetStatusMessage:
         # is irrelevant here (unlike the real-red case above).
         assert (
             scanner_status.get_status_message(None, 0, 7, 1, device_connected=False)
-            == "MAPA: ❌"
+            == "STATUS: ❌"
         )
         assert (
             scanner_status.get_status_message(None, 0, 7, 1, device_connected=True)
-            == "MAPA: ❌"
+            == "STATUS: ❌"
         )
 
 
@@ -119,29 +119,29 @@ class TestShouldUpdateChannel:
 
     def test_empty_cache_triggers_update(self, scanner_status):
         # Default cache has name=None → always update
-        assert scanner_status.should_update_channel("MAPA: 🟢") is True
+        assert scanner_status.should_update_channel("STATUS: 🟢") is True
 
     def test_stale_cache_triggers_update(self, scanner_status, mocker):
-        scanner_status.channelCache = {"name": "MAPA: 🟢", "last_update": 0}
+        scanner_status.channelCache = {"name": "STATUS: 🟢", "last_update": 0}
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
         # 10_000 - 0 = 10_000 ≥ UPDATE_THRESHOLD (3600) → stale → update
-        assert scanner_status.should_update_channel("MAPA: 🟢") is True
+        assert scanner_status.should_update_channel("STATUS: 🟢") is True
 
     def test_fresh_cache_same_status_skips_update(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
         scanner_status.channelCache = {
-            "name": "MAPA: 🟢",
+            "name": "STATUS: 🟢",
             "last_update": 9_500,  # 500s ago, well under UPDATE_THRESHOLD
         }
-        assert scanner_status.should_update_channel("MAPA: 🟢") is False
+        assert scanner_status.should_update_channel("STATUS: 🟢") is False
 
     def test_fresh_cache_different_status_triggers_update(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.time.time", return_value=10_000)
         scanner_status.channelCache = {
-            "name": "MAPA: 🟢",  # cached as green
+            "name": "STATUS: 🟢",  # cached as green
             "last_update": 9_500,
         }
-        assert scanner_status.should_update_channel("MAPA: 🔴") is True
+        assert scanner_status.should_update_channel("STATUS: 🔴") is True
 
 
 def _make_fetch_mock(mocker, return_value):
@@ -726,7 +726,7 @@ class TestRenameVoiceChannels:
         )
         await scanner_status.rename_voice_channels(_ws(0, 0))
         assert channel.edit.await_count == 1
-        assert scanner_status.channelCache["name"] == "MAPA: 🟢"
+        assert scanner_status.channelCache["name"] == "STATUS: 🟢"
 
     async def test_skips_edit_when_status_unchanged(self, scanner_status, mocker):
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
@@ -734,7 +734,7 @@ class TestRenameVoiceChannels:
             scanner_status, "_get_seconds_since_last_pokemon", return_value=1
         )
         now = time.time()
-        scanner_status.channelCache = {"name": "MAPA: 🟢", "last_update": now}
+        scanner_status.channelCache = {"name": "STATUS: 🟢", "last_update": now}
         get_channel = mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock()
         )
@@ -756,7 +756,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        assert scanner_status.channelCache["name"] == "MAPA: ❌"
+        assert scanner_status.channelCache["name"] == "STATUS: ❌"
 
     async def test_device_up_keeps_red_when_all_workers_down(
         self, scanner_status, mocker
@@ -775,7 +775,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        assert scanner_status.channelCache["name"] == "MAPA: 🔴"
+        assert scanner_status.channelCache["name"] == "STATUS: 🔴"
 
     async def test_device_check_skipped_when_not_red(self, scanner_status, mocker):
         # Healthy counters → the extra device_status fetch never happens.
@@ -823,7 +823,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(None, None, None, None))
-        assert scanner_status.channelCache["name"] == "MAPA: ❌"
+        assert scanner_status.channelCache["name"] == "STATUS: ❌"
         is_connected.assert_not_called()
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
 
