@@ -7,13 +7,15 @@ fast and isolated from the filesystem.
 """
 
 import logging
+import logging.handlers
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
 
-from modules.utility import Utility
+from modules.config import Config
+from modules.utility import LOG_BACKUP_COUNT, LOG_MAX_BYTES, Utility
 
 
 @pytest.fixture
@@ -25,6 +27,65 @@ def util():
     u.logger = MagicMock(spec=logging.Logger)
     u.error_logger = MagicMock(spec=logging.Logger)
     return u
+
+
+class TestInit:
+    """Exercises the real __init__ (bypassed everywhere else in this file)
+    against tmp_path, so the actual logging setup — including the
+    RotatingFileHandler config — gets verified end-to-end at least once."""
+
+    def _configure(self, tmp_path, mocker):
+        log_file = tmp_path / "logs" / "actions.log"
+        error_file = tmp_path / "logs" / "error.log"
+        mocker.patch.object(Config, "LOG_FILE", str(log_file))
+        mocker.patch.object(Config, "ERROR_LOG_FILE", str(error_file))
+        return log_file, error_file
+
+    def test_creates_directories_and_files(self, tmp_path, mocker):
+        log_file, error_file = self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+        assert log_file.exists()
+        assert error_file.exists()
+        assert u.LOG_FILE == log_file
+        assert u.ERROR_LOG_FILE == error_file
+
+    def test_configures_rotating_handlers(self, tmp_path, mocker):
+        self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+
+        info_handlers = [
+            h
+            for h in u.logger.handlers
+            if isinstance(h, logging.handlers.RotatingFileHandler)
+        ]
+        assert len(info_handlers) == 1
+        assert info_handlers[0].maxBytes == LOG_MAX_BYTES
+        assert info_handlers[0].backupCount == LOG_BACKUP_COUNT
+        assert u.logger.level == logging.INFO
+
+        error_handlers = [
+            h
+            for h in u.error_logger.handlers
+            if isinstance(h, logging.handlers.RotatingFileHandler)
+        ]
+        assert len(error_handlers) == 1
+        assert u.error_logger.level == logging.ERROR
+        assert u.error_logger.propagate is False
+
+    def test_log_to_file_writes_through_to_disk(self, tmp_path, mocker):
+        log_file, error_file = self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+        u.log_to_file("hello world", "INFO")
+        u.log_to_file("boom", "ERROR")
+        assert "hello world" in log_file.read_text()
+        assert "boom" in error_file.read_text()
+
+    def test_reinitializing_does_not_duplicate_handlers(self, tmp_path, mocker):
+        self._configure(tmp_path, mocker)
+        Utility(poliswag=MagicMock())
+        u2 = Utility(poliswag=MagicMock())
+        assert len(u2.logger.handlers) == 2  # rotating file + console
+        assert len(u2.error_logger.handlers) == 1
 
 
 class TestLogToFile:
@@ -219,6 +280,18 @@ class TestSendEmbedToChannel:
         await util.send_embed_to_channel(channel, "EMBED")
         util.error_logger.error.assert_called_once()
         assert "Failed to send embed" in util.error_logger.error.call_args.args[0]
+
+    async def test_logs_on_forbidden(self, util):
+        channel = MagicMock()
+        channel.name = "general"
+
+        async def raise_forbidden(*, embed):
+            raise discord.errors.Forbidden(MagicMock(status=403, reason=""), "nope")
+
+        channel.send = raise_forbidden
+        await util.send_embed_to_channel(channel, "EMBED")
+        util.error_logger.error.assert_called_once()
+        assert "No permission" in util.error_logger.error.call_args.args[0]
 
 
 class _AsyncMessageIter:
