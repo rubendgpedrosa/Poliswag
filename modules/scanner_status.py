@@ -76,7 +76,7 @@ class ScannerStatus:
 
         # Webhook fires only when pokemon data has gone stale — worker count
         # alone is not a reliable signal (workers can appear "running" but stuck).
-        seconds_since_pokemon = self._get_seconds_since_last_pokemon()
+        seconds_since_pokemon = await self._get_seconds_since_last_pokemon()
         pokemon_stale = (
             seconds_since_pokemon is not None
             and seconds_since_pokemon >= self.STALE_POKEMON_THRESHOLD
@@ -203,10 +203,10 @@ class ScannerStatus:
             "expectedWorkersMarinha": expectedWorkersMarinha,
         }
 
-    def _get_seconds_since_last_pokemon(self) -> int | None:
+    async def _get_seconds_since_last_pokemon(self) -> int | None:
         """Return how many seconds have passed since the newest pokemon row was updated."""
         try:
-            rows = self.poliswag.quest_search.db.get_data_from_database(
+            rows = await self.poliswag.quest_search.db.get_data_from_database(
                 "SELECT UNIX_TIMESTAMP() - MAX(updated) AS seconds_ago FROM pokemon"
             )
             if rows and rows[0]["seconds_ago"] is not None:
@@ -227,7 +227,7 @@ class ScannerStatus:
                     await self.poliswag.account_monitor.is_device_connected()
                 )
                 account_data = await self.poliswag.account_monitor.get_account_stats()
-                seconds_ago = self._get_seconds_since_last_pokemon()
+                seconds_ago = await self._get_seconds_since_last_pokemon()
                 if seconds_ago is not None:
                     last_pokemon_msg = f"Last pokemon scanned {seconds_ago}s ago"
                 else:
@@ -317,7 +317,7 @@ class ScannerStatus:
         """
         now = time.time()
 
-        seconds_ago = self._get_seconds_since_last_pokemon()
+        seconds_ago = await self._get_seconds_since_last_pokemon()
 
         device_data = await fetch_data("device_status", log_fn=self._log) or {}
         raw_devices = device_data.get("devices", [])
@@ -368,7 +368,7 @@ class ScannerStatus:
         if current_time.hour == 0 and current_time.minute < 2:
             return None
 
-        quest_scanning_ongoing = self.poliswag.db.get_data_from_database(
+        quest_scanning_ongoing = await self.poliswag.db.get_data_from_database(
             "SELECT scanned FROM poliswag WHERE scanned = 1;"
         )
 
@@ -377,12 +377,12 @@ class ScannerStatus:
 
         try:
             db = self.poliswag.quest_search.db
-            leiria_scanned = self._count_valid_quests(db, leiria=True)
-            marinha_scanned = self._count_valid_quests(db, leiria=False)
+            leiria_scanned = await self._count_valid_quests(db, leiria=True)
+            marinha_scanned = await self._count_valid_quests(db, leiria=False)
             if leiria_scanned is None or marinha_scanned is None:
                 return None
 
-            expected_leiria, expected_marinha = self._get_expected_totals()
+            expected_leiria, expected_marinha = await self._get_expected_totals()
 
             leiria_plateaued = self._update_plateau(
                 "leiria", leiria_scanned, expected_leiria
@@ -416,7 +416,7 @@ class ScannerStatus:
             self._log(f"Error in quest scanning check: {e}")
             return None
 
-    def _count_valid_quests(self, db, *, leiria):
+    async def _count_valid_quests(self, db, *, leiria):
         """Count pokestops in an area whose quest (AR or standard) is still valid.
 
         The area split is by longitude (Marinha Grande is at or west of
@@ -426,7 +426,7 @@ class ScannerStatus:
         scan progresses. Returns ``None`` if the query yields no row.
         """
         op = ">" if leiria else "<="
-        rows = db.get_data_from_database(
+        rows = await db.get_data_from_database(
             f"""
             SELECT COALESCE(SUM(CASE WHEN quest_expiry > UNIX_TIMESTAMP()
                                        OR alternative_quest_expiry > UNIX_TIMESTAMP()
@@ -503,7 +503,7 @@ class ScannerStatus:
         )
         return leiria_alive or marinha_alive
 
-    def _get_expected_totals(self):
+    async def _get_expected_totals(self):
         """Read the adaptive per-area expected totals from the poliswag table.
 
         Falls back to the seeded defaults if the columns are missing/NULL or the
@@ -515,7 +515,7 @@ class ScannerStatus:
         if self._expected_totals is not None:
             return self._expected_totals
         try:
-            rows = self.poliswag.db.get_data_from_database(
+            rows = await self.poliswag.db.get_data_from_database(
                 "SELECT quest_expected_leiria, quest_expected_marinha FROM poliswag"
             )
             if rows:
@@ -533,12 +533,12 @@ class ScannerStatus:
             self.DEFAULT_EXPECTED_TOTALS["marinha"],
         )
 
-    def record_quest_scan_completion(self, leiria_count, marinha_count):
+    async def record_quest_scan_completion(self, leiria_count, marinha_count):
         """Persist the observed finish counts as the new expected totals and
         reset the in-memory plateau trackers. Called once a scan completes so the
         floor adapts as pokestops are added or removed over time."""
         try:
-            self.poliswag.db.execute_query_to_database(
+            await self.poliswag.db.execute_query_to_database(
                 "UPDATE poliswag SET quest_expected_leiria = %s, quest_expected_marinha = %s",
                 params=(leiria_count, marinha_count),
             )

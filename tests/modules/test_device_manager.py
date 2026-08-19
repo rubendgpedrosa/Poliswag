@@ -15,33 +15,38 @@ def device_manager():
 class TestAutoRebootEnabledCache:
     """Cache is invalidate-on-write: a DB miss caches, a set updates the cache."""
 
-    def test_second_read_does_not_hit_db_again(self, device_manager):
+    async def test_second_read_does_not_hit_db_again(self, device_manager):
+        device_manager.poliswag.db = AsyncMock()
         device_manager.poliswag.db.get_data_from_database.return_value = [
             {"auto_reboot_enabled": 1}
         ]
 
-        assert device_manager.auto_reboot_enabled is True
-        assert device_manager.auto_reboot_enabled is True
+        assert await device_manager.get_auto_reboot_enabled() is True
+        assert await device_manager.get_auto_reboot_enabled() is True
 
         device_manager.poliswag.db.get_data_from_database.assert_called_once()
 
-    def test_failed_read_is_not_cached(self, device_manager):
+    async def test_failed_read_is_not_cached(self, device_manager):
+        device_manager.poliswag.db = AsyncMock()
         device_manager.poliswag.db.get_data_from_database.side_effect = Exception(
             "db down"
         )
 
-        assert device_manager.auto_reboot_enabled is True  # fails open
-        assert device_manager.auto_reboot_enabled is True
+        assert await device_manager.get_auto_reboot_enabled() is True  # fails open
+        assert await device_manager.get_auto_reboot_enabled() is True
 
         assert device_manager.poliswag.db.get_data_from_database.call_count == 2
 
-    def test_set_updates_cache_without_a_read(self, device_manager):
-        device_manager.auto_reboot_enabled = False
+    async def test_set_updates_cache_without_a_read(self, device_manager):
+        device_manager.poliswag.db = AsyncMock()
 
-        assert device_manager.auto_reboot_enabled is False
+        await device_manager.set_auto_reboot_enabled(False)
+
+        assert await device_manager.get_auto_reboot_enabled() is False
         device_manager.poliswag.db.get_data_from_database.assert_not_called()
 
-    def test_failed_write_does_not_update_cache(self, device_manager):
+    async def test_failed_write_does_not_update_cache(self, device_manager):
+        device_manager.poliswag.db = AsyncMock()
         device_manager.poliswag.db.get_data_from_database.return_value = [
             {"auto_reboot_enabled": 1}
         ]
@@ -49,10 +54,10 @@ class TestAutoRebootEnabledCache:
             "db down"
         )
 
-        device_manager.auto_reboot_enabled = False
+        await device_manager.set_auto_reboot_enabled(False)
 
         # setter failed to persist, so the next read still goes to the DB
-        assert device_manager.auto_reboot_enabled is True
+        assert await device_manager.get_auto_reboot_enabled() is True
         device_manager.poliswag.db.get_data_from_database.assert_called_once()
 
 
@@ -162,10 +167,9 @@ class TestAlertIfOffline:
     def _prime(self, device_manager, mocker, *, now, offline_since):
         mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
         mocker.patch.object(
-            type(device_manager),
-            "auto_reboot_enabled",
-            new_callable=mocker.PropertyMock,
-            return_value=True,
+            device_manager,
+            "get_auto_reboot_enabled",
+            new=AsyncMock(return_value=True),
         )
         device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
             return_value=False
