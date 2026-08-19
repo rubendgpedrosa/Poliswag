@@ -27,13 +27,13 @@ class EventExclusion(commands.Cog):
     async def exclude_event(self, ctx, *, event_type):
         event_type = event_type.lower()
 
-        if self.event_store.is_excluded(event_type):
+        if await self.event_store.is_excluded(event_type):
             await ctx.send(
                 f"O tipo de evento '{event_type}' já está na lista de exclusão."
             )
             return
 
-        self.event_store.add_excluded(event_type)
+        await self.event_store.add_excluded(event_type)
 
         confirm_embed = discord.Embed(
             title="Tipo de Evento Excluído",
@@ -56,7 +56,7 @@ class EventExclusion(commands.Cog):
     )
     async def include_event(self, ctx, *, event_type):
         event_type = event_type.lower()
-        affected_rows = self.event_store.remove_excluded(event_type)
+        affected_rows = await self.event_store.remove_excluded(event_type)
 
         if affected_rows == 0:
             await ctx.send(f"O tipo de evento '{event_type}' não estava excluído.")
@@ -81,7 +81,7 @@ class EventExclusion(commands.Cog):
         help="Remove todos os tipos de eventos da lista de exclusão.",
     )
     async def exclude_clear_all_events(self, ctx):
-        count = self.event_store.clear_excluded()
+        count = await self.event_store.clear_excluded()
 
         confirm_embed = discord.Embed(
             title="Todos os Tipos de Eventos Incluídos",
@@ -105,7 +105,7 @@ class EventExclusion(commands.Cog):
         help="Mostra uma lista de todos os tipos de eventos que estão registados na base de dados.",
     )
     async def event_types(self, ctx):
-        event_types = self.event_store.get_all_event_types()
+        event_types = await self.event_store.get_all_event_types()
 
         if not event_types:
             await ctx.send("Não foram encontrados tipos de eventos.")
