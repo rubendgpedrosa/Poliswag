@@ -47,6 +47,11 @@ class ScannerStatus:
             "leiria": {"prev_count": -1, "flat_streak": 0},
             "marinha": {"prev_count": -1, "flat_streak": 0},
         }
+        # Cached adaptive totals — refetched only on a cache miss, updated on
+        # every successful write (record_quest_scan_completion), so it never
+        # goes stale but avoids a DB round trip on every scheduler tick while
+        # a scan is in progress.
+        self._expected_totals: tuple[int, int] | None = None
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
@@ -503,18 +508,24 @@ class ScannerStatus:
 
         Falls back to the seeded defaults if the columns are missing/NULL or the
         query fails, so completion detection keeps working pre-migration.
+        Cached after a successful read; the cache is refreshed whenever
+        record_quest_scan_completion persists a new pair, so it never goes
+        stale but avoids a DB round trip on every tick during a scan.
         """
+        if self._expected_totals is not None:
+            return self._expected_totals
         try:
             rows = self.poliswag.db.get_data_from_database(
                 "SELECT quest_expected_leiria, quest_expected_marinha FROM poliswag"
             )
             if rows:
-                return (
+                self._expected_totals = (
                     rows[0].get("quest_expected_leiria")
                     or self.DEFAULT_EXPECTED_TOTALS["leiria"],
                     rows[0].get("quest_expected_marinha")
                     or self.DEFAULT_EXPECTED_TOTALS["marinha"],
                 )
+                return self._expected_totals
         except Exception as e:
             self._log(f"Error reading expected quest totals: {e}")
         return (
@@ -531,6 +542,7 @@ class ScannerStatus:
                 "UPDATE poliswag SET quest_expected_leiria = %s, quest_expected_marinha = %s",
                 params=(leiria_count, marinha_count),
             )
+            self._expected_totals = (leiria_count, marinha_count)
         except Exception as e:
             self._log(f"Error updating expected quest totals: {e}")
         self.reset_quest_plateau()
