@@ -42,11 +42,20 @@ class ScannerStatus:
         # record_quest_scan_completion re-baseline the expected. Still gated by the
         # scanner-alive check, so a crash-induced stall never self-completes.
         self.STUCK_TICKS = 30  # ~30 min flat below the floor => treat as new ceiling
+        # Right after a plateau reset (day-change, or a bot restart shortly after
+        # midnight) yesterday's pokestop.quest_expiry rows can still read as valid
+        # for a bit — the external scanner takes real time to clear/re-scan them.
+        # Ignore plateau signals for this long after any reset so a flat, stale
+        # leftover count from yesterday can never be mistaken for today's scan.
+        self.PLATEAU_RESET_QUIET_PERIOD = 120  # seconds
         self.DEFAULT_EXPECTED_TOTALS = {"leiria": 371, "marinha": 109}
         self._quest_plateau = {
             "leiria": {"prev_count": -1, "flat_streak": 0},
             "marinha": {"prev_count": -1, "flat_streak": 0},
         }
+        # Also starts the quiet period on bot startup — a restart shortly after
+        # midnight must not trust a plateau signal any sooner than a live reset.
+        self._plateau_reset_at = time.time()
         # Cached adaptive totals — refetched only on a cache miss, updated on
         # every successful write (record_quest_scan_completion), so it never
         # goes stale but avoids a DB round trip on every scheduler tick while
@@ -364,8 +373,7 @@ class ScannerStatus:
         }
 
     async def is_quest_scanning_complete(self):
-        current_time = datetime.datetime.now()
-        if current_time.hour == 0 and current_time.minute < 2:
+        if time.time() - self._plateau_reset_at < self.PLATEAU_RESET_QUIET_PERIOD:
             return None
 
         quest_scanning_ongoing = await self.poliswag.db.get_data_from_database(
@@ -552,3 +560,4 @@ class ScannerStatus:
         for state in self._quest_plateau.values():
             state["prev_count"] = -1
             state["flat_streak"] = 0
+        self._plateau_reset_at = time.time()
