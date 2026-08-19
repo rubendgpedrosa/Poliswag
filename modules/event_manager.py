@@ -62,13 +62,13 @@ class EventManager:
         # Remove future events from DB that are no longer in the API response
         # (covers renames: old name disappears, new name gets upserted below)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        future_db_events = self.poliswag.db.get_data_from_database(
+        future_db_events = await self.poliswag.db.get_data_from_database(
             "SELECT name FROM event WHERE start > %s",
             params=(now,),
         )
         for db_event in future_db_events:
             if db_event["name"] not in api_names:
-                self.poliswag.db.execute_query_to_database(
+                await self.poliswag.db.execute_query_to_database(
                     "DELETE FROM event WHERE name = %s AND start > %s",
                     params=(db_event["name"], now),
                 )
@@ -91,7 +91,7 @@ class EventManager:
                 query, params = self.build_upsert_query(
                     name, start, end, image, event_type, link, event
                 )
-                self.poliswag.db.execute_query_to_database(query, params=params)
+                await self.poliswag.db.execute_query_to_database(query, params=params)
             except Exception as e:
                 self.poliswag.utility.log_to_file(
                     f"Error storing event {event.get('name', 'unknown')}: {str(e)}",
@@ -100,10 +100,10 @@ class EventManager:
 
     async def check_current_events_changes(self, at_time=None, dry_run=False):
         if dry_run and at_time is not None:
-            return self._dry_run_changes(at_time)
+            return await self._dry_run_changes(at_time)
 
         current_time = (at_time or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        events = self.poliswag.db.get_data_from_database(
+        events = await self.poliswag.db.get_data_from_database(
             """
             SELECT name, start, end, event_type, image, link, notification_date, notification_end_date,
                 CASE
@@ -146,14 +146,14 @@ class EventManager:
                     and event.get("notification_date") is None
                 ):
                     if not dry_run:
-                        self.mark_event_notified(event, event_start, is_end=False)
+                        await self.mark_event_notified(event, event_start, is_end=False)
                     started.append(event)
                 elif (
                     event["event_status"] == "ended"
                     and event.get("notification_end_date") is None
                 ):
                     if not dry_run:
-                        self.mark_event_notified(event, event_end, is_end=True)
+                        await self.mark_event_notified(event, event_end, is_end=True)
                     ended.append(event)
             except Exception as e:
                 self.poliswag.utility.log_to_file(
@@ -165,12 +165,12 @@ class EventManager:
             return None
         return {"started": started, "ended": ended}
 
-    def _dry_run_changes(self, at_time):
+    async def _dry_run_changes(self, at_time):
         """Find events that transitioned within the minute starting at at_time.
         Ignores notification state — for debugging via !testevent HH:MM."""
         window_start = at_time.strftime("%Y-%m-%d %H:%M:00")
         window_end = (at_time + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:00")
-        started = self.poliswag.db.get_data_from_database(
+        started = await self.poliswag.db.get_data_from_database(
             """
             SELECT e.name, e.start, e.end, e.event_type, e.image, e.link FROM event e
             LEFT JOIN excluded_event_type ext ON ext.type = e.event_type
@@ -179,7 +179,7 @@ class EventManager:
             """,
             params=(window_start, window_end),
         )
-        ended = self.poliswag.db.get_data_from_database(
+        ended = await self.poliswag.db.get_data_from_database(
             """
             SELECT e.name, e.start, e.end, e.event_type, e.image, e.link FROM event e
             LEFT JOIN excluded_event_type ext ON ext.type = e.event_type
@@ -228,12 +228,12 @@ class EventManager:
             ),
         )
 
-    def mark_event_notified(self, event, event_date, is_end=False):
+    async def mark_event_notified(self, event, event_date, is_end=False):
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         field_name = "notification_end_date" if is_end else "notification_date"
         date_field = "end" if is_end else "start"
 
-        self.poliswag.db.execute_query_to_database(
+        await self.poliswag.db.execute_query_to_database(
             f"UPDATE event SET {field_name} = %s WHERE name = %s AND {date_field} = %s",
             params=(
                 current_time,
@@ -276,13 +276,13 @@ class EventManager:
 
         return random.choice(["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"])
 
-    def get_weekly_events(self):
+    async def get_weekly_events(self):
         now = datetime.now()
         week_start = (now - timedelta(days=now.weekday())).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-        rows = self.poliswag.db.get_data_from_database(
+        rows = await self.poliswag.db.get_data_from_database(
             """
             SELECT e.name, MIN(e.start) AS start, MAX(e.end) AS end, e.image, e.event_type, e.link
             FROM event e
