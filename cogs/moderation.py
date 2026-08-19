@@ -1,6 +1,14 @@
 import discord
 from discord.ext import commands
 
+_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
+def _is_image_attachment(attachment):
+    if attachment.content_type and attachment.content_type.startswith("image/"):
+        return True
+    return attachment.filename.lower().endswith(_IMAGE_EXTENSIONS)
+
 
 class Moderation(commands.Cog):
     def __init__(self, poliswag):
@@ -44,8 +52,29 @@ class Moderation(commands.Cog):
         embed = discord.Embed(
             title=f"[{message.channel}] Mensagem removida", color=0x7B83B4
         )
-        embed.add_field(name=message.author, value=message.content, inline=False)
-        await mod_channel.send(embed=embed)
+        embed.add_field(
+            name=str(message.author),
+            value=message.content or "*(sem texto)*",
+            inline=False,
+        )
+
+        image_attachment = next(
+            (a for a in message.attachments if _is_image_attachment(a)), None
+        )
+        if image_attachment:
+            embed.set_image(url=image_attachment.url)
+
+        other_attachments = [
+            a for a in message.attachments if a is not image_attachment
+        ]
+        if other_attachments:
+            embed.add_field(
+                name="Anexos",
+                value="\n".join(f"[{a.filename}]({a.url})" for a in other_attachments),
+                inline=False,
+            )
+
+        await self.poliswag.utility.send_embed_to_channel(mod_channel, embed)
 
 
 async def setup(poliswag):

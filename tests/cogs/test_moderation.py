@@ -19,6 +19,7 @@ def cog():
     poliswag.MOD_CHANNEL = MagicMock()
     poliswag.MOD_CHANNEL.id = 1
     poliswag.MOD_CHANNEL.send = AsyncMock()
+    poliswag.utility.send_embed_to_channel = AsyncMock()
     poliswag.QUEST_CHANNEL = MagicMock()
     poliswag.QUEST_CHANNEL.id = 2
     poliswag.user = MagicMock(name="bot_user")
@@ -70,9 +71,18 @@ class TestOnMessageDelete:
         message.channel.id = channel_id
         message.author = MagicMock()
         message.author.id = author_id
+        message.content = ""
+        message.attachments = []
         if author_is_bot:
             message.author = MagicMock()  # distinct from poliswag.user
         return message
+
+    def _attachment(self, filename, url, content_type=None):
+        a = MagicMock()
+        a.filename = filename
+        a.url = url
+        a.content_type = content_type
+        return a
 
     async def test_none_mod_channel_skips(self, cog):
         cog.poliswag.MOD_CHANNEL = None
@@ -85,29 +95,75 @@ class TestOnMessageDelete:
 
     async def test_message_in_mod_channel_skipped(self, cog):
         await cog.on_message_delete(self._msg(1, 123))
-        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
     async def test_message_in_quest_channel_skipped(self, cog):
         await cog.on_message_delete(self._msg(2, 123))
-        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
     async def test_admin_deletion_skipped(self, cog):
         await cog.on_message_delete(self._msg(5, 999))
-        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
     async def test_bot_own_deletion_skipped(self, cog):
         msg = self._msg(5, 123)
         msg.author = cog.poliswag.user
         await cog.on_message_delete(msg)
-        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
     async def test_regular_deletion_sends_audit_embed(self, cog):
         msg = self._msg(5, 123)
         msg.content = "hey"
         await cog.on_message_delete(msg)
-        cog.poliswag.MOD_CHANNEL.send.assert_awaited_once()
-        _, kwargs = cog.poliswag.MOD_CHANNEL.send.call_args
-        assert "embed" in kwargs
+        cog.poliswag.utility.send_embed_to_channel.assert_awaited_once()
+        channel, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert channel is cog.poliswag.MOD_CHANNEL
+        assert embed.fields[0].value == "hey"
+
+    async def test_empty_content_uses_placeholder_text(self, cog):
+        msg = self._msg(5, 123)
+        msg.content = ""
+        await cog.on_message_delete(msg)
+        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert embed.fields[0].value == "*(sem texto)*"
+
+    async def test_image_attachment_is_set_as_embed_image(self, cog):
+        msg = self._msg(5, 123)
+        msg.attachments = [
+            self._attachment("photo.png", "https://cdn/photo.png", "image/png")
+        ]
+        await cog.on_message_delete(msg)
+        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert embed.image.url == "https://cdn/photo.png"
+
+    async def test_image_detected_by_extension_when_content_type_missing(self, cog):
+        msg = self._msg(5, 123)
+        msg.attachments = [self._attachment("photo.jpeg", "https://cdn/photo.jpeg")]
+        await cog.on_message_delete(msg)
+        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert embed.image.url == "https://cdn/photo.jpeg"
+
+    async def test_non_image_attachment_listed_as_field_not_embedded(self, cog):
+        msg = self._msg(5, 123)
+        msg.attachments = [
+            self._attachment("report.pdf", "https://cdn/report.pdf", "application/pdf")
+        ]
+        await cog.on_message_delete(msg)
+        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert embed.image.url is None
+        assert "report.pdf" in embed.fields[1].value
+
+    async def test_mixed_attachments_embeds_image_and_lists_the_rest(self, cog):
+        msg = self._msg(5, 123)
+        msg.attachments = [
+            self._attachment("report.pdf", "https://cdn/report.pdf", "application/pdf"),
+            self._attachment("photo.png", "https://cdn/photo.png", "image/png"),
+        ]
+        await cog.on_message_delete(msg)
+        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert embed.image.url == "https://cdn/photo.png"
+        assert "report.pdf" in embed.fields[1].value
+        assert "photo.png" not in embed.fields[1].value
 
 
 class TestLifecycle:

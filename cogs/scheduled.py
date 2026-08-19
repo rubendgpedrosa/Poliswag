@@ -4,6 +4,7 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 
+from modules.config import Config
 from modules.locale_pt import PT_DAYS_SHORT
 
 
@@ -342,10 +343,11 @@ class Scheduled(commands.Cog):
             return
         for stop in new_lures:
             maps_url = f"https://www.google.com/maps?q={stop['lat']},{stop['lon']}"
-            embed = self.poliswag.utility.build_embed_object_title_description(
-                f"🌸 {stop['lure_name']} colada na PokéStop {stop['name']}",
-                f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
+            embed = discord.Embed(
+                title=f"🌸 {stop['lure_name']} colocada na PokéStop {stop['name']}",
+                description=f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
                 f"[Ver no mapa]({maps_url})",
+                color=Config.EMBED_COLOR,
             )
             await self.poliswag.CONVIVIO_CHANNEL.send(embed=embed)
 
