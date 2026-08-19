@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import logging
@@ -48,8 +47,7 @@ class QuestExporter:
             for k, v in masterfile.get("items", {}).items()
         }
 
-        standard_rows = await asyncio.to_thread(
-            qs.db.get_data_from_database,
+        standard_rows = await qs.db.get_data_from_database(
             """
             SELECT name, lat, lon, url,
                    quest_title, quest_target, quest_reward_type,
@@ -59,8 +57,7 @@ class QuestExporter:
               AND quest_expiry > UNIX_TIMESTAMP()
             """,
         )
-        ar_rows = await asyncio.to_thread(
-            qs.db.get_data_from_database,
+        ar_rows = await qs.db.get_data_from_database(
             """
             SELECT name, lat, lon, url,
                    alternative_quest_title         AS quest_title,
