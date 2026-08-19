@@ -23,6 +23,51 @@ def _at(mocker, now):
     mocker.patch("modules.stack_recovery.time.time", return_value=now)
 
 
+class TestAutoRecreateEnabledCache:
+    """Cache is invalidate-on-write: a DB miss caches, a set updates the cache."""
+
+    def test_second_read_does_not_hit_db_again(self):
+        sr = StackRecovery(poliswag=MagicMock())
+        sr.poliswag.db.get_data_from_database.return_value = [
+            {"auto_recreate_enabled": 1}
+        ]
+
+        assert sr.auto_recreate_enabled is True
+        assert sr.auto_recreate_enabled is True
+
+        sr.poliswag.db.get_data_from_database.assert_called_once()
+
+    def test_failed_read_is_not_cached(self):
+        sr = StackRecovery(poliswag=MagicMock())
+        sr.poliswag.db.get_data_from_database.side_effect = Exception("db down")
+
+        assert sr.auto_recreate_enabled is True  # fails open
+        assert sr.auto_recreate_enabled is True
+
+        assert sr.poliswag.db.get_data_from_database.call_count == 2
+
+    def test_set_updates_cache_without_a_read(self):
+        sr = StackRecovery(poliswag=MagicMock())
+
+        sr.auto_recreate_enabled = False
+
+        assert sr.auto_recreate_enabled is False
+        sr.poliswag.db.get_data_from_database.assert_not_called()
+
+    def test_failed_write_does_not_update_cache(self):
+        sr = StackRecovery(poliswag=MagicMock())
+        sr.poliswag.db.get_data_from_database.return_value = [
+            {"auto_recreate_enabled": 1}
+        ]
+        sr.poliswag.db.execute_query_to_database.side_effect = Exception("db down")
+
+        sr.auto_recreate_enabled = False
+
+        # setter failed to persist, so the next read still goes to the DB
+        assert sr.auto_recreate_enabled is True
+        sr.poliswag.db.get_data_from_database.assert_called_once()
+
+
 class TestObserve:
     """Red ladder: recreate at 10 min and 45 min into red, then stop — never reboots."""
 

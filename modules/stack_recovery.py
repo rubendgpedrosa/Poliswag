@@ -28,17 +28,26 @@ class StackRecovery:
         self._red_since: float | None = None
         # Recreate attempts used in the current red episode (0..len(RECREATE_THRESHOLDS)).
         self._recreate_attempts: int = 0
+        # Cached toggle — refetched only on a cache miss, updated on every
+        # successful write, so it never goes stale but avoids a DB round
+        # trip on every scheduler tick.
+        self._auto_recreate_enabled: bool | None = None
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
 
     @property
     def auto_recreate_enabled(self) -> bool:
+        if self._auto_recreate_enabled is not None:
+            return self._auto_recreate_enabled
         try:
             rows = self.poliswag.db.get_data_from_database(
                 "SELECT auto_recreate_enabled FROM poliswag LIMIT 1"
             )
-            return bool(rows[0]["auto_recreate_enabled"]) if rows else True
+            self._auto_recreate_enabled = (
+                bool(rows[0]["auto_recreate_enabled"]) if rows else True
+            )
+            return self._auto_recreate_enabled
         except Exception:
             return True
 
@@ -49,6 +58,7 @@ class StackRecovery:
                 "UPDATE poliswag SET auto_recreate_enabled = %s",
                 params=(1 if value else 0,),
             )
+            self._auto_recreate_enabled = value
         except Exception as e:
             self._log(f"Failed to persist auto_recreate_enabled: {e}")
 
