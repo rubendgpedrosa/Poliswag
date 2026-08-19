@@ -20,6 +20,9 @@ def ig():
     g.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = "quests.html"
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
     g.QUEST_ICON_BASE_URL = "https://icons/"
+    g._env = None
+    g._quest_template = None
+    g._accounts_template = None
     return g
 
 
@@ -123,3 +126,27 @@ class TestGenerateImageFromAccountStats:
         result = await ig.generate_image_from_account_stats({}, False)
         assert result == b"IMG"
         assert "0" in captured["html"]
+
+    async def test_template_is_loaded_once_and_reused(self, ig, mocker, tmp_path):
+        ig.TEMPLATE_HTML_DIR = str(tmp_path)
+        (tmp_path / "accounts.html").write_text("<html>{{ good }}-v1</html>")
+        captured = []
+
+        def fake_from_string(html, out, options):
+            captured.append(html)
+            return b"IMG"
+
+        mocker.patch(
+            "modules.image_generator.imgkit.from_string", side_effect=fake_from_string
+        )
+
+        await ig.generate_image_from_account_stats({"good": 1}, True)
+
+        # Rewrite the template on disk before the second call — if the
+        # template were being reloaded per call, this render would pick up
+        # "v2". It should not: the cached Template object from the first
+        # call is reused.
+        (tmp_path / "accounts.html").write_text("<html>{{ good }}-v2</html>")
+        await ig.generate_image_from_account_stats({"good": 2}, True)
+
+        assert captured == ["<html>1-v1</html>", "<html>2-v1</html>"]
