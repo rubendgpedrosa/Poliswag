@@ -1,0 +1,2 @@
+ALTER TABLE poliswag
+  ADD COLUMN IF NOT EXISTS trap_ban_count INT NOT NULL DEFAULT 0;
