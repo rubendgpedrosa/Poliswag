@@ -14,6 +14,7 @@ class Scheduled(commands.Cog):
         self._last_weekly_digest_monday = None
         self._last_progress_embed_state = None
         self._last_quest_export = None
+        self._last_error_digest_at = None
 
     async def _load_digest_date(self):
         try:
@@ -39,9 +40,34 @@ class Scheduled(commands.Cog):
             params=(str(date),),
         )
 
+    async def _load_error_digest_at(self):
+        try:
+            rows = await self.poliswag.db.get_data_from_database(
+                "SELECT last_error_digest_at FROM poliswag"
+            )
+            if rows and rows[0]["last_error_digest_at"]:
+                val = rows[0]["last_error_digest_at"]
+                return (
+                    val
+                    if isinstance(val, datetime.datetime)
+                    else datetime.datetime.fromisoformat(str(val))
+                )
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Failed to load last_error_digest_at: {e}"
+            )
+        return None
+
+    async def _save_error_digest_at(self, when):
+        await self.poliswag.db.execute_query_to_database(
+            "UPDATE poliswag SET last_error_digest_at = %s",
+            params=(when.strftime("%Y-%m-%d %H:%M:%S"),),
+        )
+
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
         self._last_weekly_digest_monday = await self._load_digest_date()
+        self._last_error_digest_at = await self._load_error_digest_at()
         self.scheduled_tasks.start()
 
     async def cog_unload(self):
@@ -118,6 +144,7 @@ class Scheduled(commands.Cog):
             await self._check_workers()
             await self._update_accounts_display()
             await self._check_weekly_digest()
+            await self._check_daily_error_digest()
         except Exception as e:
             print("CRASH ---", e)
             traceback.print_exc()
@@ -396,6 +423,38 @@ class Scheduled(commands.Cog):
         self._last_weekly_digest_monday = today
         await self._save_digest_date(today)
         await self._send_weekly_digest()
+
+    async def _check_daily_error_digest(self):
+        """Once a day, if anything new landed in error.log, summarize it in
+        MOD_CHANNEL. Silent when there is nothing new to report."""
+        now = datetime.datetime.now()
+        if (
+            self._last_error_digest_at
+            and self._last_error_digest_at.date() == now.date()
+        ):
+            return
+        if now.hour < 9:
+            return
+
+        since = self._last_error_digest_at or (now - datetime.timedelta(days=1))
+        entries = self.poliswag.utility.read_new_error_entries(since)
+
+        self._last_error_digest_at = now
+        await self._save_error_digest_at(now)
+
+        if not entries or not self.poliswag.MOD_CHANNEL:
+            return
+
+        preview = entries[:10]
+        description = "\n".join(f"• {entry}" for entry in preview)
+        if len(entries) > len(preview):
+            description += f"\n… e mais {len(entries) - len(preview)}."
+
+        embed = self.poliswag.utility.build_embed_object_title_description(
+            f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
+            description[:4000],
+        )
+        await self.poliswag.MOD_CHANNEL.send(embed=embed)
 
 
 async def setup(poliswag):
