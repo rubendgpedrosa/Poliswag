@@ -18,7 +18,6 @@ from modules.lure_watcher import LureWatcher
 def watcher():
     w = LureWatcher(poliswag=MagicMock())
     w.poliswag.quest_search.db = AsyncMock()
-    w.poliswag.quest_search.masterfile_data = None
     return w
 
 
@@ -43,27 +42,20 @@ class TestInit:
 
 
 class TestLureName:
-    def test_falls_back_to_hardcoded_name_when_no_masterfile(self, watcher):
-        watcher.poliswag.quest_search.masterfile_data = None
-        assert watcher._lure_name(505) == "Lure Chuvoso"
+    def test_known_lure_id_returns_in_game_english_name(self, watcher):
+        assert watcher._lure_name(505) == "Rainy Lure"
 
     def test_unknown_id_falls_back_to_generic_lure(self, watcher):
-        watcher.poliswag.quest_search.masterfile_data = None
         assert watcher._lure_name(999) == "Lure"
 
-    def test_prefers_masterfile_dict_entry(self, watcher):
-        watcher.poliswag.quest_search.masterfile_data = {
-            "items": {"505": {"name": "Chuva Mágica"}}
-        }
-        assert watcher._lure_name(505) == "Chuva Mágica"
 
-    def test_prefers_masterfile_string_entry(self, watcher):
-        watcher.poliswag.quest_search.masterfile_data = {"items": {"505": "Chuva"}}
-        assert watcher._lure_name(505) == "Chuva"
+class TestArea:
+    def test_at_or_west_of_threshold_is_marinha_grande(self, watcher):
+        assert watcher._area(-8.9) == "Marinha Grande"
+        assert watcher._area(-9.0) == "Marinha Grande"
 
-    def test_missing_item_id_falls_back_to_hardcoded_name(self, watcher):
-        watcher.poliswag.quest_search.masterfile_data = {"items": {}}
-        assert watcher._lure_name(505) == "Lure Chuvoso"
+    def test_east_of_threshold_is_leiria(self, watcher):
+        assert watcher._area(-8.8) == "Leiria"
 
 
 class TestCheckNewLures:
@@ -94,7 +86,8 @@ class TestCheckNewLures:
         result = await watcher.check_new_lures()
         assert len(result) == 1
         assert result[0]["name"] == "Anfiteatro"
-        assert result[0]["lure_name"] == "Lure Chuvoso"
+        assert result[0]["lure_name"] == "Rainy Lure"
+        assert result[0]["area"] == "Leiria"
 
     async def test_relured_stop_with_later_expiry_is_reported(self, watcher):
         watcher.poliswag.quest_search.db.get_data_from_database.return_value = [
