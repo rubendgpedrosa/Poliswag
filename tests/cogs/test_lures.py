@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cogs.lures import Lures
+from cogs.lures import Lures, setup
 
 
 @pytest.fixture
@@ -104,3 +104,22 @@ class TestUseLure:
         await Lures.uselure.callback(cog, ctx, username="free_low", number="0")
         cog.lure_manager.adjust_lure_count.assert_not_called()
         assert "diferente de zero" in ctx.send.call_args.args[0]
+
+
+class TestLifecycle:
+    async def test_cog_load_prints(self, cog, capsys):
+        await cog.cog_load()
+        assert "Lures loaded" in capsys.readouterr().out
+
+    async def test_cog_unload_prints(self, cog, capsys):
+        await cog.cog_unload()
+        assert "Lures unloaded" in capsys.readouterr().out
+
+
+class TestSetup:
+    async def test_registers_cog_on_poliswag(self):
+        poliswag = MagicMock()
+        poliswag.add_cog = AsyncMock()
+        await setup(poliswag)
+        poliswag.add_cog.assert_awaited_once()
+        assert isinstance(poliswag.add_cog.call_args.args[0], Lures)

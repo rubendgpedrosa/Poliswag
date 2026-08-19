@@ -180,6 +180,15 @@ class TestMarkEventNotified:
 
 
 class TestFetchEvents:
+    async def test_skips_refetch_within_cache_window(self, em, mocker):
+        em._last_events_fetch = 1_000.0
+        mocker.patch("modules.event_manager.time.time", return_value=1_100.0)
+        fetch = mocker.patch(
+            "modules.event_manager.fetch_data", new=AsyncMock(return_value=None)
+        )
+        await em.fetch_events()
+        fetch.assert_not_called()
+
     async def test_none_response_logs_and_returns(self, em, mocker):
         mocker.patch(
             "modules.event_manager.fetch_data", new=AsyncMock(return_value=None)
