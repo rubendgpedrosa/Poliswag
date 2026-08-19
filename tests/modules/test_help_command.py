@@ -10,6 +10,7 @@ overrides build.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from discord.ext import commands
 
 from modules.help_command import EmbedHelpCommand
 
@@ -183,3 +184,31 @@ class TestSendErrorMessage:
         embed = hc.context.channel.send.call_args.kwargs["embed"]
         assert "bogus" in embed.title
         assert embed.title.startswith("❌")
+
+
+class TestCommandNotFound:
+    def test_returns_pt_message(self, hc):
+        msg = hc.command_not_found("bogus")
+        assert msg == 'Não encontrei nenhum comando chamado "bogus".'
+
+
+class TestSubcommandNotFound:
+    def test_group_with_subcommands_names_the_missing_one(self, hc):
+        group = MagicMock(spec=commands.Group)
+        group.qualified_name = "device"
+        group.all_commands = {"status": MagicMock()}
+        msg = hc.subcommand_not_found(group, "bogus")
+        assert "device" in msg
+        assert "bogus" in msg
+
+    def test_group_without_subcommands(self, hc):
+        group = MagicMock(spec=commands.Group)
+        group.qualified_name = "empty"
+        group.all_commands = {}
+        msg = hc.subcommand_not_found(group, "bogus")
+        assert "não tem subcomandos" in msg
+
+    def test_non_group_command(self, hc):
+        command = _fake_command("track")
+        msg = hc.subcommand_not_found(command, "bogus")
+        assert "não tem subcomandos" in msg
