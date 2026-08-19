@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from modules.stack_recovery import StackRecovery
@@ -231,3 +232,47 @@ class TestRecreateServices:
             new=AsyncMock(side_effect=FileNotFoundError("docker-compose")),
         )
         assert await stack_recovery.recreate_services() is False
+
+    async def test_timeout_kills_process_and_reaps_it(self, stack_recovery, mocker):
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        proc = MagicMock()
+        proc.communicate = MagicMock()
+        proc.wait = AsyncMock()
+        mocker.patch(
+            "modules.stack_recovery.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        )
+        mocker.patch(
+            "modules.stack_recovery.asyncio.wait_for",
+            new=AsyncMock(side_effect=TimeoutError()),
+        )
+        assert await stack_recovery.recreate_services() is False
+        proc.kill.assert_called_once()
+        proc.wait.assert_awaited_once()
+
+
+class TestNotify:
+    async def test_sends_embed_to_mod_channel_when_configured(self, stack_recovery):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        stack_recovery.poliswag.MOD_CHANNEL = channel
+        await stack_recovery._notify("Title", "Description", discord.Color.red())
+        channel.send.assert_awaited_once()
+        embed = channel.send.await_args.kwargs["embed"]
+        assert embed.title == "Title"
+        assert embed.description == "Description"
+
+    async def test_no_channel_is_a_noop(self, stack_recovery):
+        stack_recovery.poliswag.MOD_CHANNEL = None
+        await stack_recovery._notify(
+            "Title", "Description", discord.Color.red()
+        )  # must not raise
+
+    async def test_send_failure_is_logged_not_raised(self, stack_recovery):
+        channel = MagicMock()
+        channel.send = AsyncMock(side_effect=RuntimeError("discord down"))
+        stack_recovery.poliswag.MOD_CHANNEL = channel
+        await stack_recovery._notify(
+            "Title", "Description", discord.Color.red()
+        )  # must not raise
+        stack_recovery.poliswag.utility.log_to_file.assert_called_once()
