@@ -16,6 +16,7 @@ from modules.event_manager import EventManager
 @pytest.fixture
 def em():
     poliswag = MagicMock()
+    poliswag.db = AsyncMock()
     poliswag.utility.format_datetime_string = (
         lambda s: s.replace("Z", "").replace("T", " ").split(".")[0]
     )
@@ -156,20 +157,20 @@ class TestGetEventLink:
 
 
 class TestMarkEventNotified:
-    def test_start_branch_updates_notification_date(self, em):
+    async def test_start_branch_updates_notification_date(self, em):
         event = {"name": "Community Day"}
         event_date = datetime(2024, 5, 10, 10, 0, 0)
-        em.mark_event_notified(event, event_date, is_end=False)
+        await em.mark_event_notified(event, event_date, is_end=False)
         args, kwargs = em.poliswag.db.execute_query_to_database.call_args
         assert "notification_date" in args[0]
         assert "notification_end_date" not in args[0]
         assert kwargs["params"][1] == "Community Day"
         assert kwargs["params"][2] == "2024-05-10 10:00:00"
 
-    def test_end_branch_updates_notification_end_date(self, em):
+    async def test_end_branch_updates_notification_end_date(self, em):
         event = {"name": "Community Day"}
         event_date = datetime(2024, 5, 10, 12, 0, 0)
-        em.mark_event_notified(event, event_date, is_end=True)
+        await em.mark_event_notified(event, event_date, is_end=True)
         args, _ = em.poliswag.db.execute_query_to_database.call_args
         assert "notification_end_date" in args[0]
         assert "end = %s" in args[0]
@@ -377,7 +378,9 @@ class TestCheckCurrentEventsChanges:
 
     async def test_dry_run_with_at_time_delegates_to_helper(self, em, mocker):
         helper = mocker.patch.object(
-            em, "_dry_run_changes", return_value={"started": [], "ended": []}
+            em,
+            "_dry_run_changes",
+            new=AsyncMock(return_value={"started": [], "ended": []}),
         )
         at = datetime(2024, 5, 10, 9, 0, 0)
         result = await em.check_current_events_changes(at_time=at, dry_run=True)
@@ -401,18 +404,18 @@ class TestCheckCurrentEventsChanges:
 
 
 class TestDryRunChanges:
-    def test_returns_started_and_ended_within_window(self, em):
+    async def test_returns_started_and_ended_within_window(self, em):
         em.poliswag.db.get_data_from_database.side_effect = [
             [{"name": "Starts Now"}],  # started
             [{"name": "Ends Now"}],  # ended
         ]
-        result = em._dry_run_changes(datetime(2024, 5, 10, 9, 0, 0))
+        result = await em._dry_run_changes(datetime(2024, 5, 10, 9, 0, 0))
         assert result["started"][0]["name"] == "Starts Now"
         assert result["ended"][0]["name"] == "Ends Now"
 
-    def test_returns_none_when_both_empty(self, em):
+    async def test_returns_none_when_both_empty(self, em):
         em.poliswag.db.get_data_from_database.side_effect = [[], []]
-        assert em._dry_run_changes(datetime(2024, 5, 10, 9, 0, 0)) is None
+        assert await em._dry_run_changes(datetime(2024, 5, 10, 9, 0, 0)) is None
 
 
 # --- get_weekly_events --------------------------------------------------------
@@ -439,12 +442,12 @@ class TestGetWeeklyEvents:
             },
         ]
 
-    def test_deduplicates_exact_name(self, em):
+    async def test_deduplicates_exact_name(self, em):
         em.poliswag.db.get_data_from_database.return_value = self._rows()
-        result = em.get_weekly_events()
+        result = await em.get_weekly_events()
         assert len(result) == 1
 
-    def test_prefers_specific_name_over_generic(self, em):
+    async def test_prefers_specific_name_over_generic(self, em):
         em.poliswag.db.get_data_from_database.return_value = [
             {
                 "name": "Maio Event",  # generic — contains month
@@ -463,10 +466,10 @@ class TestGetWeeklyEvents:
                 "link": "l",
             },
         ]
-        result = em.get_weekly_events()
+        result = await em.get_weekly_events()
         assert len(result) == 1
         assert result[0]["name"] == "Charmander Community Day"
 
-    def test_empty_rows_return_empty_list(self, em):
+    async def test_empty_rows_return_empty_list(self, em):
         em.poliswag.db.get_data_from_database.return_value = []
-        assert em.get_weekly_events() == []
+        assert await em.get_weekly_events() == []

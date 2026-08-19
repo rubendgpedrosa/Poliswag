@@ -5,7 +5,7 @@ These run against the conftest autouse mock, so they verify SQL shape
 integration-style comment documents what the init.sql must provide.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -23,22 +23,22 @@ def cog():
     )
     with patch("cogs.notifications.DatabaseConnector"):
         c = Notifications(poliswag)
-    c.poracle_db = MagicMock()
+    c.poracle_db = AsyncMock()
     return c
 
 
-def test_resolve_targets_issues_channel_type_query(cog):
+async def test_resolve_targets_issues_channel_type_query(cog):
     cog.poracle_db.get_data_from_database.return_value = []
-    cog._resolve_targets("raros")
+    await cog._resolve_targets("raros")
     call_args = cog.poracle_db.get_data_from_database.call_args_list
     sql = " ".join(c.args[0] for c in call_args)
     assert "humans" in sql
     assert "discord:channel" in sql
 
 
-def test_rule_exists_queries_monsters_table(cog):
+async def test_rule_exists_queries_monsters_table(cog):
     cog.poracle_db.get_data_from_database.return_value = []
-    result = cog._rule_exists("111", 25, 0, 0)
+    result = await cog._rule_exists("111", 25, 0, 0)
     assert result is False
     sql = cog.poracle_db.get_data_from_database.call_args.args[0]
     assert "monsters" in sql

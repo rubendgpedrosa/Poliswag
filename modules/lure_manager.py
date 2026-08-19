@@ -24,35 +24,35 @@ class LureManager:
         self.db = poliswag.db  # poliswag DB — owns account_lure (read/write)
         self.dragonite_db = DatabaseConnector(Config.DB_DRAGONITE)  # read-only
 
-    def _get_available_accounts(self):
-        return self.dragonite_db.get_data_from_database(_AVAILABLE_ACCOUNTS_SQL)
+    async def _get_available_accounts(self):
+        return await self.dragonite_db.get_data_from_database(_AVAILABLE_ACCOUNTS_SQL)
 
-    def _seed_missing(self, usernames):
+    async def _seed_missing(self, usernames):
         if not usernames:
             return
         placeholders = ", ".join(["%s"] * len(usernames))
-        existing_rows = self.db.get_data_from_database(
+        existing_rows = await self.db.get_data_from_database(
             f"SELECT username FROM account_lure WHERE username IN ({placeholders})",
             params=tuple(usernames),
         )
         existing = {row["username"] for row in existing_rows}
         for username in usernames:
             if username not in existing:
-                self.db.execute_query_to_database(
+                await self.db.execute_query_to_database(
                     "INSERT INTO account_lure (username, nb_lures) VALUES (%s, %s)",
                     params=(username, DEFAULT_LURE_COUNT),
                 )
 
-    def list_available_with_lures(self):
-        accounts = self._get_available_accounts()
+    async def list_available_with_lures(self):
+        accounts = await self._get_available_accounts()
         passwords = {a["username"]: a["password"] for a in accounts}
         if not passwords:
             return []
 
-        self._seed_missing(list(passwords.keys()))
+        await self._seed_missing(list(passwords.keys()))
 
         placeholders = ", ".join(["%s"] * len(passwords))
-        rows = self.db.get_data_from_database(
+        rows = await self.db.get_data_from_database(
             "SELECT username, nb_lures FROM account_lure "
             f"WHERE username IN ({placeholders}) AND nb_lures > 0 "
             "ORDER BY nb_lures ASC LIMIT %s",
@@ -67,8 +67,8 @@ class LureManager:
             for row in rows
         ]
 
-    def adjust_lure_count(self, username, delta):
-        return self.db.execute_query_to_database(
+    async def adjust_lure_count(self, username, delta):
+        return await self.db.execute_query_to_database(
             "UPDATE account_lure SET nb_lures = GREATEST(nb_lures + %s, 0) "
             "WHERE username = %s",
             params=(delta, username),
