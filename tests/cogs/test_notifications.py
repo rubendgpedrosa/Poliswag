@@ -37,10 +37,10 @@ def cog():
     )
     with patch("cogs.notifications.DatabaseConnector"):
         c = Notifications(poliswag)
-    c.poracle_db = MagicMock()
+    c.poracle_db = AsyncMock()
     # Dedupe lookup defaults to "no existing rule" so each add_cmd test can
     # opt into the duplicate branch explicitly.
-    c._rule_exists = MagicMock(return_value=False)
+    c._rule_exists = AsyncMock(return_value=False)
     return c
 
 
@@ -87,11 +87,11 @@ class TestGroupParent:
 
 
 class TestResolveTargets:
-    def test_mention_strips_and_queries_by_id(self, cog):
+    async def test_mention_strips_and_queries_by_id(self, cog):
         cog.poracle_db.get_data_from_database.return_value = [
             {"id": "111", "name": "leiria-100iv", "enabled": 1}
         ]
-        out = cog._resolve_targets("<#111>")
+        out = await cog._resolve_targets("<#111>")
         assert out == [{"id": "111", "name": "leiria-100iv", "enabled": 1}]
         query, kwargs = (
             cog.poracle_db.get_data_from_database.call_args.args[0],
@@ -100,24 +100,24 @@ class TestResolveTargets:
         assert "id = %s" in query
         assert kwargs["params"] == ("111",)
 
-    def test_numeric_ref_is_id_match(self, cog):
+    async def test_numeric_ref_is_id_match(self, cog):
         cog.poracle_db.get_data_from_database.return_value = []
-        cog._resolve_targets("111")
+        await cog._resolve_targets("111")
         assert cog.poracle_db.get_data_from_database.call_args.kwargs["params"] == (
             "111",
         )
 
-    def test_exact_name_match_short_circuits(self, cog):
+    async def test_exact_name_match_short_circuits(self, cog):
         cog.poracle_db.get_data_from_database.side_effect = [
             [{"id": "111", "name": "alertas-level5", "enabled": 1}],
         ]
-        out = cog._resolve_targets("alertas-level5")
+        out = await cog._resolve_targets("alertas-level5")
         assert len(out) == 1
         assert out[0]["name"] == "alertas-level5"
         # Only the exact-name query was issued (no LIKE fallback)
         assert cog.poracle_db.get_data_from_database.call_count == 1
 
-    def test_category_suffix_fans_out(self, cog):
+    async def test_category_suffix_fans_out(self, cog):
         cog.poracle_db.get_data_from_database.side_effect = [
             [],  # exact match returns nothing
             [  # LIKE %-raros returns both
@@ -125,15 +125,15 @@ class TestResolveTargets:
                 {"id": "222", "name": "marinha-raros", "enabled": 0},
             ],
         ]
-        out = cog._resolve_targets("raros")
+        out = await cog._resolve_targets("raros")
         assert {r["name"] for r in out} == {"leiria-raros", "marinha-raros"}
         like_call = cog.poracle_db.get_data_from_database.call_args_list[1]
         assert "LIKE %s" in like_call.args[0]
         assert like_call.kwargs["params"] == ("%-raros",)
 
-    def test_no_match_returns_empty_list(self, cog):
+    async def test_no_match_returns_empty_list(self, cog):
         cog.poracle_db.get_data_from_database.side_effect = [[], []]
-        assert cog._resolve_targets("bogus") == []
+        assert await cog._resolve_targets("bogus") == []
 
 
 class TestChannels:
@@ -369,7 +369,7 @@ class TestAdd:
             ],
         ]
         # leiria already has the rule, marinha doesn't.
-        cog._rule_exists = MagicMock(side_effect=[True, False])
+        cog._rule_exists = AsyncMock(side_effect=[True, False])
         ctx = make_ctx()
         await Notifications.add_cmd.callback(cog, ctx, "raros", "pikachu")
         # Only one insert went through — for marinha.
@@ -384,7 +384,7 @@ class TestAdd:
         cog.poracle_db.get_data_from_database.side_effect = [
             [{"id": "111", "name": "leiria-raros", "enabled": 1}]
         ]
-        cog._rule_exists = MagicMock(return_value=True)
+        cog._rule_exists = AsyncMock(return_value=True)
         ctx = make_ctx()
         await Notifications.add_cmd.callback(cog, ctx, "111", "pikachu")
         cog.poliswag.poracle.add_pokemon_tracking.assert_not_awaited()
