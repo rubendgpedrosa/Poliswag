@@ -42,6 +42,7 @@ def _make_poliswag():
     poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
     poliswag.MOD_CHANNEL = MagicMock()
     poliswag.MOD_CHANNEL.send = AsyncMock()
+    poliswag.lure_watcher.check_new_lures = AsyncMock(return_value=[])
     poliswag.event_manager.fetch_events = AsyncMock()
     poliswag.event_manager.check_current_events_changes = AsyncMock(return_value=None)
     poliswag.event_manager.get_event_type_key = MagicMock(return_value="community-day")
@@ -223,6 +224,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_export = AsyncMock()
         cog._check_events = AsyncMock()
         cog._check_workers = AsyncMock()
+        cog._check_new_lures = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
@@ -232,6 +234,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_export.assert_awaited_once()
         cog._check_events.assert_awaited_once()
         cog._check_workers.assert_awaited_once()
+        cog._check_new_lures.assert_awaited_once()
         cog._update_accounts_display.assert_awaited_once()
         cog._check_weekly_digest.assert_awaited_once()
         cog._check_daily_error_digest.assert_awaited_once()
@@ -242,6 +245,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_scan_progress = AsyncMock()
         cog._check_events = AsyncMock()
         cog._check_workers = AsyncMock()
+        cog._check_new_lures = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
@@ -576,6 +580,62 @@ class TestCheckWorkers:
         cog.poliswag.scanner_status.rename_voice_channels.assert_awaited_once_with(
             workers_status
         )
+
+
+class TestCheckNewLures:
+    async def test_no_new_lures_sends_nothing(self, cog):
+        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(return_value=[])
+        await cog._check_new_lures()
+        cog.poliswag.CONVIVIO_CHANNEL.send.assert_not_called()
+
+    async def test_no_convivio_channel_is_a_noop(self, cog):
+        cog.poliswag.CONVIVIO_CHANNEL = None
+        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(
+            return_value=[
+                {
+                    "name": "Anfiteatro",
+                    "lat": 39.7175,
+                    "lon": -8.8022,
+                    "lure_name": "Lure Chuvoso",
+                    "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
+                }
+            ]
+        )
+        await cog._check_new_lures()  # must not raise
+
+    async def test_sends_one_embed_per_new_lure(self, cog):
+        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(
+            return_value=[
+                {
+                    "name": "Anfiteatro",
+                    "lat": 39.7175,
+                    "lon": -8.8022,
+                    "lure_name": "Lure Chuvoso",
+                    "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
+                },
+                {
+                    "name": "PokéStop",
+                    "lat": 39.71,
+                    "lon": -8.81,
+                    "lure_name": "Lure Normal",
+                    "expires_at": real_datetime.datetime(2026, 4, 7, 19, 0, 0),
+                },
+            ]
+        )
+        await cog._check_new_lures()
+        assert cog.poliswag.CONVIVIO_CHANNEL.send.await_count == 2
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args_list[
+                0
+            ].args[0]
+        )
+        assert "Anfiteatro" in title
+        assert "Lure Chuvoso" in title
+        desc = cog.poliswag.utility.build_embed_object_title_description.call_args_list[
+            0
+        ].args[1]
+        assert "18:34" in desc
+        assert "39.7175,-8.8022" in desc
 
 
 # --- _update_accounts_display -------------------------------------------------
