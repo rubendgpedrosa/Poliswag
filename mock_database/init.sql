@@ -848,7 +848,7 @@ CREATE TABLE `poliswag` (
   `auto_recreate_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `quest_expected_leiria` int(11) NOT NULL DEFAULT 371,
   `quest_expected_marinha` int(11) NOT NULL DEFAULT 109,
-  `trap_kick_count` int(11) NOT NULL DEFAULT 0
+  `trap_ban_count` int(11) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 LOCK TABLES `poliswag` WRITE;

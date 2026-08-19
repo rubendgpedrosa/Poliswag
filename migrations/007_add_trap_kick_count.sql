@@ -1,2 +1,0 @@
-ALTER TABLE poliswag
-  ADD COLUMN IF NOT EXISTS trap_kick_count INT NOT NULL DEFAULT 0;
