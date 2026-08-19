@@ -157,6 +157,7 @@ class StackRecovery:
                 )
             except asyncio.TimeoutError:
                 proc.kill()
+                await proc.wait()
                 self._log(f"Recreate timed out after {self.RECREATE_TIMEOUT}s")
                 return False
             output = stdout.decode().strip()
