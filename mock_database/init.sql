@@ -843,6 +843,7 @@ CREATE TABLE `poliswag` (
   `version` varchar(10) DEFAULT NULL,
   `last_scanned_date` datetime DEFAULT NULL,
   `last_weekly_digest_date` date DEFAULT NULL,
+  `last_error_digest_at` datetime DEFAULT NULL,
   `auto_reboot_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `auto_recreate_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `quest_expected_leiria` int(11) NOT NULL DEFAULT 371,

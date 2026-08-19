@@ -1,10 +1,13 @@
 import discord
+import re
 from datetime import datetime, time
 from pathlib import Path
 import logging
 import logging.handlers
 from modules.config import Config
 from modules.http_client import get_session
+
+_LOG_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - \w+ - ")
 
 # Match the size/count already used for the Docker json-file log driver in
 # docker-compose.prod.yaml, so both layers cap out around the same footprint.
@@ -125,6 +128,39 @@ class Utility:
         except Exception as e:
             self.log_to_file(f"Error reading log file: {e}", "ERROR")
             return "Error reading logs"
+
+    def read_new_error_entries(self, since: datetime) -> list[str]:
+        """Return the first line of every error-log entry logged after `since`.
+
+        A multi-line entry (e.g. a CRASH with a traceback) is collapsed to
+        just its first line — this feeds a short digest, not a log dump.
+        Best-effort: does not look at rotated backups (error.log.1, ...), so
+        an entry can be missed if enough errors rotate the file away between
+        two checks — acceptable for a daily low-volume summary.
+        """
+        try:
+            with open(self.ERROR_LOG_FILE, "r") as file:
+                lines = file.readlines()
+        except OSError as e:
+            self.log_to_file(f"Error reading error log file: {e}", "ERROR")
+            return []
+
+        entries = []
+        current_ts = None
+        current_text = None
+        for line in lines:
+            match = _LOG_LINE_RE.match(line)
+            if match:
+                if current_ts is not None and current_ts > since:
+                    entries.append(current_text)
+                try:
+                    current_ts = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    current_ts = None
+                current_text = line.rstrip("\n")
+        if current_ts is not None and current_ts > since:
+            entries.append(current_text)
+        return entries
 
     def time_now(self):
         return datetime.combine(datetime.now().date(), time.min).isoformat()

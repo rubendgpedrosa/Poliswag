@@ -199,6 +199,63 @@ class TestReadLastLinesFromLog:
         util.error_logger.error.assert_called_once()
 
 
+class TestReadNewErrorEntries:
+    def test_returns_entries_strictly_after_since(self, util, tmp_path):
+        log = tmp_path / "error.log"
+        log.write_text(
+            "2026-04-07 09:00:00,000 - ERROR - old one\n"
+            "2026-04-07 10:00:00,000 - ERROR - new one\n"
+            "2026-04-07 11:00:00,000 - CRASH - newer one\n"
+        )
+        util.ERROR_LOG_FILE = log
+        since = datetime(2026, 4, 7, 9, 30, 0)
+        entries = util.read_new_error_entries(since)
+        assert entries == [
+            "2026-04-07 10:00:00,000 - ERROR - new one",
+            "2026-04-07 11:00:00,000 - CRASH - newer one",
+        ]
+
+    def test_multiline_traceback_collapses_to_first_line(self, util, tmp_path):
+        log = tmp_path / "error.log"
+        log.write_text(
+            "2026-04-07 10:00:00,000 - CRASH - boom\n"
+            "Traceback (most recent call last):\n"
+            '  File "main.py", line 1, in <module>\n'
+            "ValueError: boom\n"
+        )
+        util.ERROR_LOG_FILE = log
+        entries = util.read_new_error_entries(datetime(2026, 4, 7, 9, 0, 0))
+        assert entries == ["2026-04-07 10:00:00,000 - CRASH - boom"]
+
+    def test_no_entries_after_since_returns_empty_list(self, util, tmp_path):
+        log = tmp_path / "error.log"
+        log.write_text("2026-04-07 09:00:00,000 - ERROR - old one\n")
+        util.ERROR_LOG_FILE = log
+        entries = util.read_new_error_entries(datetime(2026, 4, 7, 10, 0, 0))
+        assert entries == []
+
+    def test_missing_file_logs_and_returns_empty_list(self, util, tmp_path):
+        util.ERROR_LOG_FILE = tmp_path / "nope.log"
+        entries = util.read_new_error_entries(datetime(2026, 4, 7, 9, 0, 0))
+        assert entries == []
+        util.error_logger.error.assert_called_once()
+
+    def test_syntactically_matching_but_invalid_timestamp_is_skipped(
+        self, util, tmp_path
+    ):
+        # Matches the digit-shaped regex but is not a real calendar date/time
+        # (month 13) — strptime raises, and the entry is dropped rather than
+        # crashing the whole read.
+        log = tmp_path / "error.log"
+        log.write_text(
+            "2026-13-45 25:99:99,000 - ERROR - corrupted line\n"
+            "2026-04-07 10:00:00,000 - ERROR - real one\n"
+        )
+        util.ERROR_LOG_FILE = log
+        entries = util.read_new_error_entries(datetime(2026, 4, 7, 9, 0, 0))
+        assert entries == ["2026-04-07 10:00:00,000 - ERROR - real one"]
+
+
 class TestAddButtonEvent:
     async def test_assigns_callback_to_button(self, util):
         button = MagicMock()
