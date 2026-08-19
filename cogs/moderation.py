@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+from modules.config import Config
+
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 _TRAP_WARNING_TEXT = (
@@ -26,6 +28,7 @@ class Moderation(commands.Cog):
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
         self._trap_kick_count = await self._load_trap_kick_count()
+        await self._ensure_trap_warning_posted()
 
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
@@ -57,6 +60,21 @@ class Moderation(commands.Cog):
             _TRAP_WARNING_TEXT.format(count=self._trap_kick_count)
         )
         return self._trap_message
+
+    async def _ensure_trap_warning_posted(self):
+        """Post (or find) the warning message at startup rather than waiting
+        for the first violation -- the whole point is people see it *before*
+        they get kicked. Fetches the channel directly instead of waiting on
+        poliswag.TRAP_CHANNEL, which is only resolved later in on_ready."""
+        if not Config.TRAP_CHANNEL_ID:
+            return
+        try:
+            trap_channel = await self.poliswag.fetch_channel(Config.TRAP_CHANNEL_ID)
+            await self._get_or_create_trap_message(trap_channel)
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Failed to ensure warning message: {e}", "ERROR"
+            )
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):

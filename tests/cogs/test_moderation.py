@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cogs.moderation import Moderation, setup
+from modules.config import Config
 
 
 @pytest.fixture
@@ -358,8 +359,35 @@ class TestOnMessageTrap:
         cog.poliswag.utility.log_to_file.assert_called()
 
 
+class TestEnsureTrapWarningPosted:
+    async def test_no_trap_channel_id_configured_is_a_noop(self, cog, mocker):
+        mocker.patch.object(Config, "TRAP_CHANNEL_ID", 0)
+        await cog._ensure_trap_warning_posted()
+        cog.poliswag.fetch_channel.assert_not_called()
+
+    async def test_fetches_channel_and_ensures_message(self, cog, mocker):
+        mocker.patch.object(Config, "TRAP_CHANNEL_ID", 3)
+        fetched_channel = MagicMock()
+        cog.poliswag.fetch_channel = AsyncMock(return_value=fetched_channel)
+        cog._get_or_create_trap_message = AsyncMock()
+        await cog._ensure_trap_warning_posted()
+        cog.poliswag.fetch_channel.assert_awaited_once_with(3)
+        cog._get_or_create_trap_message.assert_awaited_once_with(fetched_channel)
+
+    async def test_fetch_failure_is_logged_not_raised(self, cog, mocker):
+        import discord
+
+        mocker.patch.object(Config, "TRAP_CHANNEL_ID", 3)
+        cog.poliswag.fetch_channel = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "not found")
+        )
+        await cog._ensure_trap_warning_posted()  # must not raise
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+
 class TestLifecycle:
-    async def test_cog_load_prints(self, cog, capsys):
+    async def test_cog_load_prints(self, cog, capsys, mocker):
+        mocker.patch.object(Config, "TRAP_CHANNEL_ID", 0)
         await cog.cog_load()
         assert "Moderation loaded" in capsys.readouterr().out
 
