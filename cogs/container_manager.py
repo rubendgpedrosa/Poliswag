@@ -84,14 +84,18 @@ class ContainerManagerCog(commands.Cog):
 
         await msg.edit(content=None, embed=embed)
 
-    @commands.group(name="container", invoke_without_command=True)
+    @commands.group(
+        name="container",
+        invoke_without_command=True,
+        brief="Gere o container do scanner (admin)",
+    )
     async def container(self, ctx):
         await ctx.send(
             "Invalid container command. Use `container start`, `container stop`, "
             "`container recreate` or `container autorecreate on|off`."
         )
 
-    @container.command(name="start")
+    @container.command(name="start", brief="Inicia o container do scanner (admin)")
     async def start_container(self, ctx):
         await ctx.send(
             f"Attempting to start container '{self.SCANNER_CONTAINER_NAME}'..."
@@ -110,7 +114,7 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(error_message, "ERROR")
             await ctx.send(error_message)
 
-    @container.command(name="stop")
+    @container.command(name="stop", brief="Pára o container do scanner (admin)")
     async def stop_container(self, ctx):
         await ctx.send(
             f"Attempting to stop container '{self.SCANNER_CONTAINER_NAME}'..."
@@ -129,7 +133,10 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(error_message, "ERROR")
             await ctx.send(error_message)
 
-    @container.command(name="recreate")
+    @container.command(
+        name="recreate",
+        brief="Recria manualmente os containers do scanner (admin)",
+    )
     async def recreate_containers(self, ctx):
         msg = await ctx.send(f"⏳ A recriar containers `{Config.RECREATE_SERVICES}`…")
         ok = await self.poliswag.stack_recovery.recreate_services()
@@ -148,7 +155,10 @@ class ContainerManagerCog(commands.Cog):
                 "ERROR",
             )
 
-    @container.command(name="autorecreate")
+    @container.command(
+        name="autorecreate",
+        brief="Activa/desactiva a recriação automática dos containers (admin)",
+    )
     async def container_autorecreate(self, ctx, state: str = None):
         if state is None:
             current = await self.poliswag.stack_recovery.get_auto_recreate_enabled()
@@ -173,7 +183,11 @@ class ContainerManagerCog(commands.Cog):
 
     # ---- !device command group --------------------------------------------
 
-    @commands.group(name="device", invoke_without_command=True)
+    @commands.group(
+        name="device",
+        invoke_without_command=True,
+        brief="Gere o dispositivo Pokémon GO via ADB (admin)",
+    )
     async def device(self, ctx):
         await ctx.send(
             "`!device status` — verifica ligação ADB\n"
