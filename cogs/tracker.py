@@ -28,7 +28,12 @@ class Tracker(commands.Cog):
         search_string = search_string.lower()
 
         if await self.tracker_store.exists(search_string):
-            await ctx.send(f"A quest '{search_string}' já está a ser seguida.")
+            already_embed = discord.Embed(
+                title="Já Seguida",
+                description=f"A quest '{search_string}' já está a ser seguida.",
+                color=Config.EMBED_COLOR,
+            )
+            await ctx.send(embed=already_embed)
             return
 
         await self.tracker_store.add(search_string, str(ctx.author.name))
@@ -57,9 +62,12 @@ class Tracker(commands.Cog):
         affected_rows = await self.tracker_store.remove(search_string)
 
         if affected_rows == 0:
-            await ctx.send(
-                f"A quest '{search_string}' não está a ser seguida atualmente."
+            not_tracked_embed = discord.Embed(
+                title="Não Encontrada",
+                description=f"A quest '{search_string}' não está a ser seguida atualmente.",
+                color=Config.EMBED_COLOR,
             )
+            await ctx.send(embed=not_tracked_embed)
         else:
             remove_embed = discord.Embed(
                 title="Quest Removida",
