@@ -65,19 +65,19 @@ class TestUseLure:
         ctx = make_ctx()
         await Lures.uselure.callback(cog, ctx, username=None, number=None)
         cog.lure_manager.adjust_lure_count.assert_not_called()
-        assert "Utilização" in ctx.send.call_args.args[0]
+        assert "Utilização" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_non_integer_number_sends_usage(self, cog):
         ctx = make_ctx()
         await Lures.uselure.callback(cog, ctx, username="free_low", number="abc")
         cog.lure_manager.adjust_lure_count.assert_not_called()
-        assert "inteiro" in ctx.send.call_args.args[0]
+        assert "inteiro" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_unknown_username_reports_not_found(self, cog):
         ctx = make_ctx()
         cog.lure_manager.adjust_lure_count.return_value = 0
         await Lures.uselure.callback(cog, ctx, username="ghost", number="-2")
-        assert "não foi encontrada" in ctx.send.call_args.args[0]
+        assert "não foi encontrada" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_remove_lures_success_logs_and_confirms(self, cog):
         ctx = make_ctx()
@@ -103,7 +103,7 @@ class TestUseLure:
         ctx = make_ctx()
         await Lures.uselure.callback(cog, ctx, username="free_low", number="0")
         cog.lure_manager.adjust_lure_count.assert_not_called()
-        assert "diferente de zero" in ctx.send.call_args.args[0]
+        assert "diferente de zero" in ctx.send.call_args.kwargs["embed"].description
 
 
 class TestLifecycle:
