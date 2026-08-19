@@ -59,6 +59,7 @@ class DeviceManager:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
+            await proc.wait()
             raise RuntimeError(f"Comando ADB expirou após {timeout}s")
         return stdout.decode().strip(), stderr.decode().strip(), proc.returncode
 
