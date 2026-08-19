@@ -142,6 +142,7 @@ class Scheduled(commands.Cog):
             await self._check_quest_export()
             await self._check_events()
             await self._check_workers()
+            await self._check_new_lures()
             await self._update_accounts_display()
             await self._check_weekly_digest()
             await self._check_daily_error_digest()
@@ -334,6 +335,19 @@ class Scheduled(commands.Cog):
         workers_status = await self.poliswag.scanner_status.get_workers_with_issues()
         await self.poliswag.scanner_status.rename_voice_channels(workers_status)
         await self.poliswag.device_manager.alert_if_offline()
+
+    async def _check_new_lures(self):
+        new_lures = await self.poliswag.lure_watcher.check_new_lures()
+        if not new_lures or not self.poliswag.CONVIVIO_CHANNEL:
+            return
+        for stop in new_lures:
+            maps_url = f"https://www.google.com/maps?q={stop['lat']},{stop['lon']}"
+            embed = self.poliswag.utility.build_embed_object_title_description(
+                f"🌸 {stop['lure_name']} colada na PokéStop {stop['name']}",
+                f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
+                f"[Ver no mapa]({maps_url})",
+            )
+            await self.poliswag.CONVIVIO_CHANNEL.send(embed=embed)
 
     async def _update_accounts_display(self):
         await self.poliswag.account_monitor.update_channel_accounts_stats()
