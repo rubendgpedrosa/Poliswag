@@ -16,6 +16,7 @@ class Scheduled(commands.Cog):
         self._last_progress_embed_state = None
         self._last_quest_export = None
         self._last_error_digest_at = None
+        self._last_lure_status_count = None
 
     async def _load_digest_date(self):
         try:
@@ -143,7 +144,7 @@ class Scheduled(commands.Cog):
             await self._check_quest_export()
             await self._check_events()
             await self._check_workers()
-            await self._check_new_lures()
+            await self._update_lure_status()
             await self._update_accounts_display()
             await self._check_weekly_digest()
             await self._check_daily_error_digest()
@@ -351,6 +352,21 @@ class Scheduled(commands.Cog):
                 color=Config.EMBED_COLOR,
             )
             await self.poliswag.CONVIVIO_CHANNEL.send(embed=embed)
+
+    async def _update_lure_status(self):
+        """Reflect the live active-lure count in the bot's Discord presence
+        instead of posting a message per lure to CONVIVIO_CHANNEL -- see
+        _check_new_lures (currently unwired from the tick) for that version.
+        Skips the API call when the count has not changed since last tick."""
+        count = await self.poliswag.lure_watcher.count_active_lures()
+        if count == self._last_lure_status_count:
+            return
+        self._last_lure_status_count = count
+        await self.poliswag.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching, name=f"{count} lures active"
+            )
+        )
 
     async def _update_accounts_display(self):
         await self.poliswag.account_monitor.update_channel_accounts_stats()
