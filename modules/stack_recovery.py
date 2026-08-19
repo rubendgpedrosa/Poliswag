@@ -2,33 +2,32 @@ import asyncio
 import os
 import time
 
+import discord
+
 from modules.config import Config
 
 
 class StackRecovery:
     """Escalation ladder for a fully red map (every region all-workers-down).
 
-    Rung 1 — first red tick: force-recreate the scanner containers (dragonite
-    + rotom-ng) via docker compose. Red already implies ~10 min of dead
-    workers (the liveness window), so no extra debounce is needed. The
-    db/golbat/map containers are deliberately left alone.
-
-    Rung 2 — red persists past DEVICE_REBOOT_AFTER: reboot the phone via ADB
-    (through DeviceManager, sharing its reboot cooldown so the offline path
-    can't double-reboot).
+    On red, force-recreate the scanner containers (dragonite + rotom-ng) via
+    docker compose — first at RECREATE_THRESHOLDS[0] (10 min) into the red
+    episode, and again at RECREATE_THRESHOLDS[1] (45 min) if it's still red.
+    After both attempts, recovery stops trying automatically and just waits
+    — no device reboot is ever triggered. The db/golbat/map containers are
+    deliberately left alone.
     """
 
-    # Minimum gap between recreations — enough for a full account warm-up.
-    RECREATE_COOLDOWN = 1800  # 30 minutes
-    # Red persisting this long after rung 1 escalates to a device reboot.
-    DEVICE_REBOOT_AFTER = 900  # 15 minutes
+    # How long a red episode must persist before each recreate attempt.
+    RECREATE_THRESHOLDS = (600, 2700)  # 10 min, 45 min
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._red_since: float | None = None
-        self._last_recreate: float = 0
+        # Recreate attempts used in the current red episode (0..len(RECREATE_THRESHOLDS)).
+        self._recreate_attempts: int = 0
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
@@ -57,12 +56,13 @@ class StackRecovery:
         """Advance the red escalation ladder one tick.
 
         Called every scheduler tick from the voice-channel status pass.
-        Returns True when an action (recreate or reboot) was taken.
+        Returns True when a recreate attempt was made and succeeded.
         """
         now = time.time()
 
         if not all_red:
             self._red_since = None
+            self._recreate_attempts = 0
             return False
 
         if self._red_since is None:
@@ -71,42 +71,54 @@ class StackRecovery:
         if not self.auto_recreate_enabled:
             return False
 
-        red_duration = now - self._red_since
+        total = len(self.RECREATE_THRESHOLDS)
+        if self._recreate_attempts >= total:
+            # Both attempts already used up for this episode — stop attempting
+            # and just wait for manual intervention.
+            return False
 
-        # Rung 1: fresh containers, immediately on red.
-        if now - self._last_recreate >= self.RECREATE_COOLDOWN:
-            self._last_recreate = now
-            self._log(
-                f"Map fully red — recreating {Config.RECREATE_SERVICES}",
-                "INFO",
-            )
-            ok = await self.recreate_services()
-            if ok:
+        red_duration = now - self._red_since
+        if red_duration < self.RECREATE_THRESHOLDS[self._recreate_attempts]:
+            return False
+
+        self._recreate_attempts += 1
+        attempt = self._recreate_attempts
+        self._log(
+            f"Map fully red for {int(red_duration // 60)} min — recreating "
+            f"{Config.RECREATE_SERVICES} (attempt {attempt}/{total})",
+            "INFO",
+        )
+        ok = await self.recreate_services()
+        if ok:
+            if attempt < total:
+                next_in = int((self.RECREATE_THRESHOLDS[attempt] - red_duration) // 60)
                 await self._notify(
-                    f"🔄 Mapa em baixo — containers `{Config.RECREATE_SERVICES}` "
-                    f"recriados automaticamente. Reboot do dispositivo em "
-                    f"{self.DEVICE_REBOOT_AFTER // 60} min se continuar em baixo."
+                    "Recuperação automática",
+                    f"Contas em baixo — a reiniciar sistema (tentativa {attempt}/{total}).\n"
+                    f"Nova tentativa em **{next_in} min** se continuar.",
+                    discord.Color.orange(),
                 )
             else:
                 await self._notify(
-                    "⚠️ Mapa em baixo — recriação automática dos containers "
-                    "**falhou**. Intervenção manual necessária."
+                    "Recuperação automática",
+                    f"Contas em baixo — a reiniciar sistema (tentativa {attempt}/{total}, "
+                    f"última tentativa automática).\n"
+                    f"Se continuar em baixo, intervenção manual é necessária.",
+                    discord.Color.orange(),
                 )
-            return ok
-
-        # Rung 2: red survived the fresh containers — reboot the phone.
-        if red_duration >= self.DEVICE_REBOOT_AFTER:
-            rebooted = await self.poliswag.device_manager.reboot_with_cooldown()
-            if rebooted:
-                await self._notify(
-                    f"📵 Mapa em baixo há **{int(red_duration // 60)} min** apesar dos "
-                    f"containers novos — reboot do dispositivo enviado via ADB."
-                )
-                # Give the phone a full boot cycle before judging red again.
-                self._red_since = None
-                return True
-
-        return False
+        else:
+            remaining = (
+                "Nova tentativa mais tarde."
+                if attempt < total
+                else "Sem mais tentativas automáticas — intervenção manual necessária."
+            )
+            await self._notify(
+                "Recuperação automática — falhou",
+                f"Contas em baixo — reinício do sistema falhou (tentativa {attempt}/{total}).\n"
+                f"{remaining}",
+                discord.Color.red(),
+            )
+        return ok
 
     async def recreate_services(self) -> bool:
         """Run docker compose up -d --force-recreate on the scanner services."""
@@ -157,10 +169,11 @@ class StackRecovery:
             self._log(f"Error recreating services: {e}")
             return False
 
-    async def _notify(self, message: str) -> None:
+    async def _notify(self, title: str, description: str, color: discord.Color) -> None:
         try:
             channel = self.poliswag.MOD_CHANNEL
             if channel:
-                await channel.send(message)
+                embed = discord.Embed(title=title, description=description, color=color)
+                await channel.send(embed=embed)
         except Exception as e:
             self._log(f"Failed to send stack recovery notification: {e}")
