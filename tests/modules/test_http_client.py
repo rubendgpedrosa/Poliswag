@@ -51,7 +51,7 @@ def _install_aiohttp_mock(
     session = MagicMock()
     session.request = MagicMock(return_value=_async_cm(response))
 
-    mocker.patch("modules.http_client._get_session", return_value=session)
+    mocker.patch("modules.http_client.get_session", return_value=session)
     return response
 
 

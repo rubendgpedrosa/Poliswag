@@ -6,11 +6,14 @@ from modules.config import Config
 _shared_session: aiohttp.ClientSession | None = None
 
 
-def _get_session() -> aiohttp.ClientSession:
+def get_session() -> aiohttp.ClientSession:
     """Lazy-init a single aiohttp session so we reuse the TCP/DNS pool.
 
     Per-request ``ClientSession()`` instances burn a fresh connection every
-    tick. Reusing one across the bot's lifetime is measurably cheaper.
+    tick. Reusing one across the bot's lifetime is measurably cheaper. Public
+    so other modules making one-off requests (e.g. utility.py's version
+    check) can share it too instead of opening their own; closed by
+    close_session() on bot shutdown either way.
     """
     global _shared_session
     if _shared_session is None or _shared_session.closed:
@@ -57,7 +60,7 @@ async def fetch_data(endpoint_key, log_fn=None, timeout=20, method="GET", data=N
         _log(f"No URL defined for endpoint: {endpoint_key}")
         return None
 
-    session = _get_session()
+    session = get_session()
     try:
         async with session.request(
             method,
