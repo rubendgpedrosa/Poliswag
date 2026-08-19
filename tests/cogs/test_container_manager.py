@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 import pytest  # noqa: E402
 from discord.ext import commands  # noqa: E402
 
-from cogs.container_manager import ContainerManagerCog  # noqa: E402
+from cogs.container_manager import ContainerManagerCog, setup  # noqa: E402
 from modules.config import Config  # noqa: E402
 
 
@@ -377,3 +377,12 @@ class TestLifecycle:
     async def test_cog_unload_prints(self, cog, capsys):
         await cog.cog_unload()
         assert "ContainerManagerCog unloaded" in capsys.readouterr().out
+
+
+class TestSetup:
+    async def test_registers_cog_on_bot(self):
+        bot = MagicMock()
+        bot.add_cog = AsyncMock()
+        await setup(bot)
+        bot.add_cog.assert_awaited_once()
+        assert isinstance(bot.add_cog.call_args.args[0], ContainerManagerCog)

@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled
+from cogs.scheduled import Scheduled, setup
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -382,6 +382,30 @@ class TestCheckQuestScanProgress:
         await cog._check_quest_scan_progress()
         cog.poliswag.QUEST_CHANNEL.send.assert_awaited_once()
 
+    async def test_unchanged_state_with_existing_message_skips_edit(self, cog):
+        # Same (leiriaScanned, marinhaScanned) pair on consecutive ticks, with
+        # a tracking message already posted, must not re-render the embed.
+        cog.poliswag.scanner_manager.is_day_change.return_value = False
+        cog.poliswag.quest_scanning_message = MagicMock()
+        cog.poliswag.quest_scanning_message.edit = AsyncMock()
+        cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
+            return_value={
+                "leiriaCompleted": False,
+                "marinhaCompleted": False,
+                "leiriaScanned": 5,
+                "leiriaTotal": 10,
+                "marinhaScanned": 2,
+                "marinhaTotal": 8,
+                "leiriaPercentage": 50.0,
+                "marinhaPercentage": 25.0,
+            }
+        )
+        await cog._check_quest_scan_progress()
+        cog.poliswag.quest_scanning_message.edit.assert_awaited_once()
+        await cog._check_quest_scan_progress()
+        # Still just the one edit from the first tick.
+        cog.poliswag.quest_scanning_message.edit.assert_awaited_once()
+
 
 # --- _build_progress_embed ----------------------------------------------------
 
@@ -708,3 +732,12 @@ class TestLifecycle:
         await cog.cog_unload()
         cog.scheduled_tasks.cancel.assert_called_once()
         assert "Scheduled unloaded" in capsys.readouterr().out
+
+
+class TestSetup:
+    async def test_registers_cog_on_poliswag(self):
+        poliswag = MagicMock()
+        poliswag.add_cog = AsyncMock()
+        await setup(poliswag)
+        poliswag.add_cog.assert_awaited_once()
+        assert isinstance(poliswag.add_cog.call_args.args[0], Scheduled)
