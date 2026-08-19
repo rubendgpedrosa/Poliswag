@@ -406,6 +406,36 @@ class TestCheckQuestScanProgress:
         # Still just the one edit from the first tick.
         cog.poliswag.quest_scanning_message.edit.assert_awaited_once()
 
+    async def test_deleted_message_self_heals_by_resending(self, cog):
+        import discord
+
+        cog.poliswag.scanner_manager.is_day_change.return_value = False
+        stale_message = MagicMock()
+        stale_message.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404), "Unknown Message")
+        )
+        cog.poliswag.quest_scanning_message = stale_message
+        cog.poliswag.QUEST_CHANNEL.send = AsyncMock(return_value=MagicMock())
+        cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
+            return_value={
+                "leiriaCompleted": False,
+                "marinhaCompleted": False,
+                "leiriaScanned": 5,
+                "leiriaTotal": 10,
+                "marinhaScanned": 2,
+                "marinhaTotal": 8,
+                "leiriaPercentage": 50.0,
+                "marinhaPercentage": 25.0,
+            }
+        )
+        await cog._check_quest_scan_progress()
+        stale_message.edit.assert_awaited_once()
+        cog.poliswag.QUEST_CHANNEL.send.assert_awaited_once()
+        assert (
+            cog.poliswag.quest_scanning_message
+            is cog.poliswag.QUEST_CHANNEL.send.return_value
+        )
+
 
 # --- _build_progress_embed ----------------------------------------------------
 
