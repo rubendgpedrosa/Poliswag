@@ -307,7 +307,7 @@ class TestGetNewPokemongoVersion:
             def get(self_inner, url):
                 return _CM()
 
-        mocker.patch("modules.utility.aiohttp.ClientSession", return_value=_Session())
+        mocker.patch("modules.utility.get_session", return_value=_Session())
         util.poliswag.db.get_data_from_database.return_value = [{"version": "1.2.3"}]
         result = await util.get_new_pokemongo_version()
         assert result is None
@@ -339,7 +339,7 @@ class TestGetNewPokemongoVersion:
             def get(self_inner, url):
                 return _CM()
 
-        mocker.patch("modules.utility.aiohttp.ClientSession", return_value=_Session())
+        mocker.patch("modules.utility.get_session", return_value=_Session())
         util.poliswag.db.get_data_from_database.return_value = [{"version": "1.0.0"}]
         result = await util.get_new_pokemongo_version()
         assert result == "2.0.0"
@@ -366,13 +366,11 @@ class TestGetNewPokemongoVersion:
             def get(self_inner, url):
                 return _CM()
 
-        mocker.patch("modules.utility.aiohttp.ClientSession", return_value=_Session())
+        mocker.patch("modules.utility.get_session", return_value=_Session())
         assert await util.get_new_pokemongo_version() is None
 
     async def test_exception_logged_and_returns_none(self, util, mocker):
-        mocker.patch(
-            "modules.utility.aiohttp.ClientSession", side_effect=RuntimeError("boom")
-        )
+        mocker.patch("modules.utility.get_session", side_effect=RuntimeError("boom"))
         assert await util.get_new_pokemongo_version() is None
         util.error_logger.error.assert_called_once()
 
@@ -402,7 +400,7 @@ class TestGetNewPokemongoVersion:
             def get(self_inner, url):
                 return _CM()
 
-        mocker.patch("modules.utility.aiohttp.ClientSession", return_value=_Session())
+        mocker.patch("modules.utility.get_session", return_value=_Session())
         util.poliswag.db.get_data_from_database.return_value = []
         result = await util.get_new_pokemongo_version()
         assert result == "3.0.0"
