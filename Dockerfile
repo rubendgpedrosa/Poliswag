@@ -24,9 +24,11 @@ RUN chmod +x /usr/local/bin/docker-compose
 
 WORKDIR /app
 
-# Cached pip layer: only invalidated when requirements.txt changes
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Cached pip layer: only invalidated when either requirements file changes.
+# Installs dev tooling (pytest, black, vulture) too so make test/make check
+# work in every environment, prod included, without an ad hoc pip install.
+COPY requirements.txt requirements-dev.txt .
+RUN pip install -r requirements-dev.txt
 
 # Copy the rest of the source (overridden at runtime by the .:/app bind mount)
 COPY . /app
