@@ -39,6 +39,9 @@ def _make_poliswag():
     )
     poliswag.utility.get_new_pokemongo_version = AsyncMock(return_value=None)
     poliswag.utility.find_quest_scanning_message = AsyncMock(return_value=None)
+    poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
+    poliswag.MOD_CHANNEL = MagicMock()
+    poliswag.MOD_CHANNEL.send = AsyncMock()
     poliswag.event_manager.fetch_events = AsyncMock()
     poliswag.event_manager.check_current_events_changes = AsyncMock(return_value=None)
     poliswag.event_manager.get_event_type_key = MagicMock(return_value="community-day")
@@ -222,6 +225,7 @@ class TestScheduledTasksLoop:
         cog._check_workers = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
+        cog._check_daily_error_digest = AsyncMock()
         await cog.scheduled_tasks.coro(cog)
         cog._check_version_update.assert_awaited_once()
         cog._check_quest_scan_progress.assert_awaited_once()
@@ -230,6 +234,7 @@ class TestScheduledTasksLoop:
         cog._check_workers.assert_awaited_once()
         cog._update_accounts_display.assert_awaited_once()
         cog._check_weekly_digest.assert_awaited_once()
+        cog._check_daily_error_digest.assert_awaited_once()
 
     async def test_masterfile_refreshed_generates_name_map(self, cog):
         cog.poliswag.quest_search.load_masterfile_data.return_value = True
@@ -239,6 +244,7 @@ class TestScheduledTasksLoop:
         cog._check_workers = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
+        cog._check_daily_error_digest = AsyncMock()
         await cog.scheduled_tasks.coro(cog)
         cog.poliswag.quest_search.generate_pokemon_item_name_map.assert_called_once()
 
@@ -744,6 +750,149 @@ class TestCheckWeeklyDigest:
         cog._save_digest_date.assert_called_once_with(mon.date())
         cog._send_weekly_digest.assert_awaited_once()
         assert cog._last_weekly_digest_monday == mon.date()
+
+
+# --- _load_error_digest_at / _save_error_digest_at ----------------------------
+
+
+class TestLoadErrorDigestAt:
+    async def test_returns_none_when_db_empty(self):
+        poliswag = _make_poliswag()
+        poliswag.db.get_data_from_database = AsyncMock(return_value=[])
+        c = Scheduled(poliswag)
+        assert await c._load_error_digest_at() is None
+
+    async def test_returns_datetime_when_row_has_datetime_object(self):
+        poliswag = _make_poliswag()
+        dt = real_datetime.datetime(2026, 4, 7, 9, 0, 0)
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_error_digest_at": dt}]
+        )
+        c = Scheduled(poliswag)
+        assert await c._load_error_digest_at() == dt
+
+    async def test_parses_isoformat_string(self):
+        poliswag = _make_poliswag()
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_error_digest_at": "2026-04-07 09:00:00"}]
+        )
+        c = Scheduled(poliswag)
+        assert await c._load_error_digest_at() == real_datetime.datetime(
+            2026, 4, 7, 9, 0, 0
+        )
+
+    async def test_exception_returns_none(self):
+        poliswag = _make_poliswag()
+        poliswag.db.get_data_from_database = AsyncMock(
+            side_effect=RuntimeError("db down")
+        )
+        c = Scheduled(poliswag)
+        assert await c._load_error_digest_at() is None
+
+    async def test_none_value_returns_none(self):
+        poliswag = _make_poliswag()
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_error_digest_at": None}]
+        )
+        c = Scheduled(poliswag)
+        assert await c._load_error_digest_at() is None
+
+
+class TestSaveErrorDigestAt:
+    async def test_calls_update_query(self, cog):
+        dt = real_datetime.datetime(2026, 4, 6, 9, 30, 0)
+        await cog._save_error_digest_at(dt)
+        cog.poliswag.db.execute_query_to_database.assert_called_once()
+        _, kwargs = cog.poliswag.db.execute_query_to_database.call_args
+        assert kwargs["params"] == ("2026-04-06 09:30:00",)
+
+
+# --- _check_daily_error_digest -------------------------------------------------
+
+
+class TestCheckDailyErrorDigest:
+    async def test_skips_before_9am(self, cog):
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = real_datetime.datetime(
+                2026, 4, 7, 8, 59, 0
+            )
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        cog.poliswag.utility.read_new_error_entries.assert_not_called()
+
+    async def test_skips_when_already_run_today(self, cog):
+        cog._last_error_digest_at = real_datetime.datetime(2026, 4, 7, 9, 5, 0)
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = real_datetime.datetime(
+                2026, 4, 7, 10, 0, 0
+            )
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        cog.poliswag.utility.read_new_error_entries.assert_not_called()
+
+    async def test_no_entries_is_silent_but_still_advances_pointer(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        assert cog._last_error_digest_at == now
+        cog.poliswag.db.execute_query_to_database.assert_called_once()
+
+    async def test_entries_are_summarized_and_sent(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog.poliswag.MOD_CHANNEL = MagicMock()
+        cog.poliswag.MOD_CHANNEL.send = AsyncMock()
+        cog.poliswag.utility.read_new_error_entries = MagicMock(
+            return_value=["line1", "line2"]
+        )
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        cog.poliswag.MOD_CHANNEL.send.assert_awaited_once()
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "2 erro" in title
+
+    async def test_more_than_ten_entries_notes_the_overflow(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog.poliswag.MOD_CHANNEL = MagicMock()
+        cog.poliswag.MOD_CHANNEL.send = AsyncMock()
+        cog.poliswag.utility.read_new_error_entries = MagicMock(
+            return_value=[f"line{i}" for i in range(15)]
+        )
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        desc = cog.poliswag.utility.build_embed_object_title_description.call_args.args[
+            1
+        ]
+        assert "e mais 5" in desc
+
+    async def test_no_mod_channel_is_a_noop(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog.poliswag.MOD_CHANNEL = None
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()  # must not raise
+
+    async def test_uses_one_day_lookback_when_never_run_before(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog._last_error_digest_at = None
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        since_arg = cog.poliswag.utility.read_new_error_entries.call_args.args[0]
+        assert since_arg == now - real_datetime.timedelta(days=1)
 
 
 # --- lifecycle ---------------------------------------------------------------
