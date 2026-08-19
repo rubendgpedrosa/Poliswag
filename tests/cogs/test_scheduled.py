@@ -43,6 +43,8 @@ def _make_poliswag():
     poliswag.MOD_CHANNEL = MagicMock()
     poliswag.MOD_CHANNEL.send = AsyncMock()
     poliswag.lure_watcher.check_new_lures = AsyncMock(return_value=[])
+    poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=0)
+    poliswag.change_presence = AsyncMock()
     poliswag.event_manager.fetch_events = AsyncMock()
     poliswag.event_manager.check_current_events_changes = AsyncMock(return_value=None)
     poliswag.event_manager.get_event_type_key = MagicMock(return_value="community-day")
@@ -224,7 +226,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_export = AsyncMock()
         cog._check_events = AsyncMock()
         cog._check_workers = AsyncMock()
-        cog._check_new_lures = AsyncMock()
+        cog._update_lure_status = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
@@ -234,7 +236,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_export.assert_awaited_once()
         cog._check_events.assert_awaited_once()
         cog._check_workers.assert_awaited_once()
-        cog._check_new_lures.assert_awaited_once()
+        cog._update_lure_status.assert_awaited_once()
         cog._update_accounts_display.assert_awaited_once()
         cog._check_weekly_digest.assert_awaited_once()
         cog._check_daily_error_digest.assert_awaited_once()
@@ -245,7 +247,7 @@ class TestScheduledTasksLoop:
         cog._check_quest_scan_progress = AsyncMock()
         cog._check_events = AsyncMock()
         cog._check_workers = AsyncMock()
-        cog._check_new_lures = AsyncMock()
+        cog._update_lure_status = AsyncMock()
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
@@ -634,6 +636,35 @@ class TestCheckNewLures:
         assert "18:34" in embed.description
         assert "39.7175,-8.8022" in embed.description
         assert embed.timestamp is None
+
+
+# --- _update_lure_status -------------------------------------------------------
+
+
+class TestUpdateLureStatus:
+    async def test_sets_presence_on_first_run(self, cog):
+        cog.poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=3)
+        await cog._update_lure_status()
+        cog.poliswag.change_presence.assert_awaited_once()
+        activity = cog.poliswag.change_presence.call_args.kwargs["activity"]
+        assert activity.type == discord.ActivityType.watching
+        assert activity.name == "3 lures active"
+        assert cog._last_lure_status_count == 3
+
+    async def test_unchanged_count_skips_presence_update(self, cog):
+        cog._last_lure_status_count = 3
+        cog.poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=3)
+        await cog._update_lure_status()
+        cog.poliswag.change_presence.assert_not_called()
+
+    async def test_changed_count_updates_presence(self, cog):
+        cog._last_lure_status_count = 3
+        cog.poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=5)
+        await cog._update_lure_status()
+        cog.poliswag.change_presence.assert_awaited_once()
+        activity = cog.poliswag.change_presence.call_args.kwargs["activity"]
+        assert activity.name == "5 lures active"
+        assert cog._last_lure_status_count == 5
 
 
 # --- _update_accounts_display -------------------------------------------------
