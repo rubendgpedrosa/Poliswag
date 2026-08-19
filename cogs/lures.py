@@ -50,23 +50,38 @@ class Lures(commands.Cog):
         self, ctx, username: str | None = None, number: str | None = None
     ):
         if username is None or number is None:
-            await ctx.send("Utilização: `!uselure USERNAME NUMERO`")
+            await ctx.send(
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA", "Utilização: `!uselure USERNAME NUMERO`"
+                )
+            )
             return
         try:
             delta = int(number)
         except ValueError:
             await ctx.send(
-                "NUMERO tem de ser um inteiro. Utilização: `!uselure USERNAME NUMERO`"
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA",
+                    "NUMERO tem de ser um inteiro. Utilização: `!uselure USERNAME NUMERO`",
+                )
             )
             return
 
         if delta == 0:
-            await ctx.send("NUMERO tem de ser diferente de zero.")
+            await ctx.send(
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA", "NUMERO tem de ser diferente de zero."
+                )
+            )
             return
 
         affected = await self.lure_manager.adjust_lure_count(username, delta)
         if not affected:
-            await ctx.send(f"A conta `{username}` não foi encontrada.")
+            await ctx.send(
+                embed=build_embed(
+                    "CONTA NÃO ENCONTRADA", f"A conta `{username}` não foi encontrada."
+                )
+            )
             return
 
         amount = abs(delta)

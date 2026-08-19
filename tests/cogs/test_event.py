@@ -45,7 +45,7 @@ class TestExcludeEvent:
         await EventExclusion.exclude_event.callback(cog, ctx, event_type="Raid")
         cog.event_store.add_excluded.assert_not_called()
         ctx.send.assert_awaited_once()
-        assert "já está" in ctx.send.call_args.args[0]
+        assert "já está" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_new_excludes_and_sends_confirmation_and_list(self, cog):
         ctx = make_ctx()
@@ -64,7 +64,7 @@ class TestIncludeEvent:
         cog.event_store.remove_excluded.return_value = 0
         await EventExclusion.include_event.callback(cog, ctx, event_type="Raid")
         ctx.send.assert_awaited_once()
-        assert "não estava" in ctx.send.call_args.args[0]
+        assert "não estava" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_removes_and_sends_confirmation_and_list(self, cog):
         ctx = make_ctx()
@@ -101,7 +101,7 @@ class TestEventTypes:
         cog.event_store.get_all_event_types.return_value = []
         await EventExclusion.event_types.callback(cog, ctx)
         ctx.send.assert_awaited_once()
-        assert "Não foram encontrados" in ctx.send.call_args.args[0]
+        assert "Não foram encontrados" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_populated_list_sends_embed(self, cog):
         ctx = make_ctx()
