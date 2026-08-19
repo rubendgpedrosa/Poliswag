@@ -624,18 +624,12 @@ class TestCheckNewLures:
         )
         await cog._check_new_lures()
         assert cog.poliswag.CONVIVIO_CHANNEL.send.await_count == 2
-        title = (
-            cog.poliswag.utility.build_embed_object_title_description.call_args_list[
-                0
-            ].args[0]
-        )
-        assert "Anfiteatro" in title
-        assert "Lure Chuvoso" in title
-        desc = cog.poliswag.utility.build_embed_object_title_description.call_args_list[
-            0
-        ].args[1]
-        assert "18:34" in desc
-        assert "39.7175,-8.8022" in desc
+        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args_list[0].kwargs["embed"]
+        assert "Anfiteatro" in embed.title
+        assert "Lure Chuvoso" in embed.title
+        assert "18:34" in embed.description
+        assert "39.7175,-8.8022" in embed.description
+        assert embed.timestamp is None
 
 
 # --- _update_accounts_display -------------------------------------------------
