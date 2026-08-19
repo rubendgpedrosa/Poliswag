@@ -151,19 +151,19 @@ class ContainerManagerCog(commands.Cog):
     @container.command(name="autorecreate")
     async def container_autorecreate(self, ctx, state: str = None):
         if state is None:
-            current = self.poliswag.stack_recovery.auto_recreate_enabled
+            current = await self.poliswag.stack_recovery.get_auto_recreate_enabled()
             status = "activada 🟢" if current else "desactivada 🔴"
             await ctx.send(f"Recriação automática: **{status}**. Usa `on` ou `off`.")
             return
         state = state.lower()
         if state in ("on", "enable", "1", "true"):
-            self.poliswag.stack_recovery.auto_recreate_enabled = True
+            await self.poliswag.stack_recovery.set_auto_recreate_enabled(True)
             await ctx.send("✅ Recriação automática de containers **activada**.")
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate ENABLED"
             )
         elif state in ("off", "disable", "0", "false"):
-            self.poliswag.stack_recovery.auto_recreate_enabled = False
+            await self.poliswag.stack_recovery.set_auto_recreate_enabled(False)
             await ctx.send("🔕 Recriação automática de containers **desactivada**.")
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate DISABLED"
@@ -245,19 +245,19 @@ class ContainerManagerCog(commands.Cog):
     async def device_autoreboot(self, ctx, state: str):
         state = state.lower()
         if state in ("on", "enable", "1", "true"):
-            self.poliswag.device_manager.auto_reboot_enabled = True
+            await self.poliswag.device_manager.set_auto_reboot_enabled(True)
             await ctx.send("✅ Reboot automático **activado**.")
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): auto-reboot ENABLED"
             )
         elif state in ("off", "disable", "0", "false"):
-            self.poliswag.device_manager.auto_reboot_enabled = False
+            await self.poliswag.device_manager.set_auto_reboot_enabled(False)
             await ctx.send("🔕 Reboot automático **desactivado**.")
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): auto-reboot DISABLED"
             )
         else:
-            current = self.poliswag.device_manager.auto_reboot_enabled
+            current = await self.poliswag.device_manager.get_auto_reboot_enabled()
             status = "activado 🟢" if current else "desactivado 🔴"
             await ctx.send(f"Estado actual: **{status}**. Usa `on` ou `off`.")
 
