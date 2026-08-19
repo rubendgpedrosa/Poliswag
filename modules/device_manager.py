@@ -20,14 +20,23 @@ class DeviceManager:
         self.poliswag = poliswag
         self._offline_since: float | None = None
         self._last_notification_time: float = 0
+        # Cached toggle — refetched only on a cache miss, updated on every
+        # successful write, so it never goes stale but avoids a DB round
+        # trip on every scheduler tick.
+        self._auto_reboot_enabled: bool | None = None
 
     @property
     def auto_reboot_enabled(self) -> bool:
+        if self._auto_reboot_enabled is not None:
+            return self._auto_reboot_enabled
         try:
             rows = self.poliswag.db.get_data_from_database(
                 "SELECT auto_reboot_enabled FROM poliswag LIMIT 1"
             )
-            return bool(rows[0]["auto_reboot_enabled"]) if rows else True
+            self._auto_reboot_enabled = (
+                bool(rows[0]["auto_reboot_enabled"]) if rows else True
+            )
+            return self._auto_reboot_enabled
         except Exception:
             return True
 
@@ -38,6 +47,7 @@ class DeviceManager:
                 "UPDATE poliswag SET auto_reboot_enabled = %s",
                 params=(1 if value else 0,),
             )
+            self._auto_reboot_enabled = value
         except Exception as e:
             self._log(f"Failed to persist auto_reboot_enabled: {e}")
 
