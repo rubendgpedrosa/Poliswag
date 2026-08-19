@@ -299,7 +299,7 @@ class TestOnMessageTrap:
         cog._trap_kick_count = 4
         await cog.on_message(_trap_msg(author_id=123))
         trap_message.edit.assert_awaited_once()
-        assert "5" in trap_message.edit.call_args.kwargs["content"]
+        assert "5" in trap_message.edit.call_args.kwargs["embed"].description
 
     async def test_delete_failure_still_attempts_kick(self, cog):
         import discord
