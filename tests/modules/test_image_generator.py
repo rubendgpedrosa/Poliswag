@@ -8,7 +8,28 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from modules.config import Config
 from modules.image_generator import ImageGenerator
+
+
+class TestInit:
+    def test_reads_config_and_starts_with_no_cache(self, mocker):
+        mocker.patch.object(Config, "GOOGLE_API_KEY", "KEY")
+        mocker.patch.object(Config, "TEMPLATE_HTML_DIR", "/templates")
+        mocker.patch.object(Config, "FOLLOWED_EVENTS_TEMPLATE_HTML_FILE", "quests.html")
+        mocker.patch.object(Config, "ACCOUNTS_TEMPLATE_HTML_FILE", "accounts.html")
+        mocker.patch.object(Config, "UI_ICONS_URL", "https://icons/")
+
+        g = ImageGenerator(poliswag=MagicMock())
+
+        assert g.google_api_key == "KEY"
+        assert g.TEMPLATE_HTML_DIR == "/templates"
+        assert g.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE == "quests.html"
+        assert g.ACCOUNTS_TEMPLATE_HTML_FILE == "accounts.html"
+        assert g.QUEST_ICON_BASE_URL == "https://icons/"
+        assert g._env is None
+        assert g._quest_template is None
+        assert g._accounts_template is None
 
 
 @pytest.fixture
