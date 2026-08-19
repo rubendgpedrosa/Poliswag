@@ -16,6 +16,10 @@ class Config:
     CONVIVIO_CHANNEL_ID = int(os.environ.get("CONVIVIO_CHANNEL_ID", "0"))
     MOD_CHANNEL_ID = int(os.environ.get("MOD_CHANNEL_ID", "0"))
     ACCOUNTS_CHANNEL_ID = int(os.environ.get("ACCOUNTS_CHANNEL_ID", "0"))
+    # Honeypot channel: real members have no reason to post here, so anyone
+    # who does is almost certainly a spam bot indiscriminately posting into
+    # every channel it can see. See cogs/moderation.py.
+    TRAP_CHANNEL_ID = int(os.environ.get("TRAP_CHANNEL_ID", "0"))
     # Combined Leiria+Marinha map status channel — reuses the old Leiria-only
     # env var name since Leiria's Discord channel is the one that survived
     # the merge (Marinha's separate channel was deleted).
