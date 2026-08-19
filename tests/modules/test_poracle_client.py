@@ -72,6 +72,22 @@ class TestRequest:
             await client._request("GET", "/api/humans/one/1")
         client.poliswag.utility.log_to_file.assert_called_once()
 
+    async def test_non_json_content_type_returns_raw_text(self, client):
+        _install_session(
+            client,
+            _response(text_data="plain body", content_type="text/plain"),
+        )
+        out = await client._request("GET", "/api/humans/one/1")
+        assert out == "plain body"
+
+    async def test_non_json_empty_text_returns_none(self, client):
+        _install_session(
+            client,
+            _response(text_data="", content_type="text/plain"),
+        )
+        out = await client._request("GET", "/api/humans/one/1")
+        assert out is None
+
     async def test_client_error_raises_and_logs(self, client):
         session = MagicMock()
         session.closed = False

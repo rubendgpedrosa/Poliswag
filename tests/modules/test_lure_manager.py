@@ -40,6 +40,11 @@ class TestAvailableQuery:
 
 
 class TestSeeding:
+    async def test_empty_usernames_is_a_noop(self, manager):
+        await manager._seed_missing([])
+        manager.db.get_data_from_database.assert_not_called()
+        manager.db.execute_query_to_database.assert_not_called()
+
     async def test_seeds_missing_usernames_at_default_count(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = [
             {"username": "free_new", "password": "pw"},

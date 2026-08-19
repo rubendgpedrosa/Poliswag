@@ -22,6 +22,17 @@ def sm():
     return s
 
 
+class TestInit:
+    def test_sets_poliswag_and_container_name_from_config(self, mocker):
+        mocker.patch(
+            "modules.scanner_manager.Config.SCANNER_CONTAINER_NAME", "scanner-1"
+        )
+        poliswag = MagicMock()
+        s = ScannerManager(poliswag=poliswag)
+        assert s.poliswag is poliswag
+        assert s.SCANNER_CONTAINER_NAME == "scanner-1"
+
+
 class TestUpdateLastScannedDate:
     async def test_issues_update_query_with_param(self, sm):
         await sm.update_last_scanned_date("2024-01-02T00:00:00")
