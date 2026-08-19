@@ -38,6 +38,17 @@ class EmbedHelpCommand(commands.HelpCommand):
             return "Outros"
         return _COG_DISPLAY_NAMES.get(cog.qualified_name, cog.qualified_name)
 
+    def command_not_found(self, string):
+        return f'Não encontrei nenhum comando chamado "{string}".'
+
+    def subcommand_not_found(self, command, string):
+        if isinstance(command, commands.Group) and len(command.all_commands) > 0:
+            return (
+                f'O comando "{command.qualified_name}" não tem nenhum '
+                f'subcomando chamado "{string}".'
+            )
+        return f'O comando "{command.qualified_name}" não tem subcomandos.'
+
     async def send_bot_help(self, mapping):
         prefix = self.context.clean_prefix
         embed = discord.Embed(
