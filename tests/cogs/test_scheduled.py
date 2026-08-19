@@ -46,7 +46,7 @@ def _make_poliswag():
     poliswag.event_manager.get_event_link = MagicMock(return_value="http://link")
     poliswag.event_manager.format_end_time = MagicMock(return_value="Termina em 1h")
     poliswag.event_manager.event_colors = {"community-day": 0xFFCC00}
-    poliswag.event_manager.get_weekly_events = MagicMock(return_value=[])
+    poliswag.event_manager.get_weekly_events = AsyncMock(return_value=[])
     poliswag.quest_search.load_translation_data = MagicMock()
     poliswag.quest_search.load_masterfile_data = MagicMock(return_value=False)
     poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
@@ -55,6 +55,7 @@ def _make_poliswag():
     poliswag.scanner_manager.is_day_change = AsyncMock(return_value=False)
     poliswag.scanner_manager.update_quest_scanning_state = AsyncMock()
     poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(return_value=None)
+    poliswag.scanner_status.record_quest_scan_completion = AsyncMock()
     poliswag.scanner_status.get_workers_with_issues = AsyncMock(
         return_value={"downDevicesLeiria": [], "downDevicesMarinha": []}
     )
