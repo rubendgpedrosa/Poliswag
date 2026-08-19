@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from modules.account_monitor import DISABLED_STATUSES, AccountMonitor
@@ -316,3 +317,54 @@ class TestUpdateChannelAccountsStats:
             for c in account_monitor.poliswag.utility.log_to_file.call_args_list
         ]
         assert any("update_channel_accounts_stats" in m for m in log_calls)
+
+    async def test_second_call_skips_history_scan(self, account_monitor, mocker):
+        existing = MagicMock()
+        existing.edit = AsyncMock()
+        channel = await self._setup_channel(
+            account_monitor, existing_messages=[existing]
+        )
+        existing.author = account_monitor.poliswag.user
+        mocker.patch(
+            "modules.account_monitor.fetch_data",
+            new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}] * 2),
+        )
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
+            AsyncMock(return_value=b"PNG")
+        )
+
+        await account_monitor.update_channel_accounts_stats()
+        await account_monitor.update_channel_accounts_stats()
+
+        # history() should only be scanned once — the second tick reuses the
+        # cached message reference instead of re-scanning the channel.
+        channel.history.assert_called_once()
+        assert existing.edit.await_count == 2
+        assert account_monitor._accounts_message is existing
+
+    async def test_deleted_cached_message_resends_and_recaches(
+        self, account_monitor, mocker
+    ):
+        channel = await self._setup_channel(account_monitor, existing_messages=[])
+        stale_message = MagicMock()
+        stale_message.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404, reason=""), "gone")
+        )
+        account_monitor._accounts_message = stale_message
+        new_message = MagicMock()
+        channel.send = AsyncMock(return_value=new_message)
+        mocker.patch(
+            "modules.account_monitor.fetch_data",
+            new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
+        )
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
+            AsyncMock(return_value=b"PNG")
+        )
+
+        await account_monitor.update_channel_accounts_stats()
+
+        stale_message.edit.assert_awaited_once()
+        # No cache hit means no history scan was needed to discover this was stale.
+        channel.history.assert_not_called()
+        channel.send.assert_awaited_once()
+        assert account_monitor._accounts_message is new_message
