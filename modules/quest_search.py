@@ -449,8 +449,6 @@ class QuestSearch:
 
         for group_data in reward_groups.values():
             pokestops = group_data["pokestops"]
-            if not pokestops:
-                continue
             fields = _quest_fields(pokestops[0])
             reward_type = fields["reward_type"]
             amount = fields["reward_amount"] or ""
