@@ -19,7 +19,7 @@ def cog():
     poliswag.db = MagicMock()
     with patch("cogs.event.EventStore"):
         c = EventExclusion(poliswag)
-    c.event_store = MagicMock()
+    c.event_store = AsyncMock()
     return c
 
 

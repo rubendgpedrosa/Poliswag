@@ -21,7 +21,7 @@ def build_embed(title, description="", footer=None):
 
 
 async def build_tracked_list_embed(db, title="Quests Seguidas", footer_text=None):
-    tracked_quests = db.get_data_from_database(
+    tracked_quests = await db.get_data_from_database(
         "SELECT target, creator, createddate FROM tracked_quest_reward ORDER BY createddate DESC"
     )
 
@@ -58,7 +58,9 @@ async def build_tracked_list_embed(db, title="Quests Seguidas", footer_text=None
 async def build_excluded_list_embed(
     db, title="Lista de Tipos de Eventos Excluídos", footer_text=None
 ):
-    excluded_events = db.get_data_from_database("SELECT type FROM excluded_event_type")
+    excluded_events = await db.get_data_from_database(
+        "SELECT type FROM excluded_event_type"
+    )
 
     if not excluded_events:
         embed = discord.Embed(

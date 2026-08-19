@@ -45,7 +45,7 @@ class Quests(commands.Cog):
         )
         if request is not None:
             await ctx.send("Scan de quests iniciado!")
-            self.poliswag.scanner_manager.update_quest_scanning_state(0)
+            await self.poliswag.scanner_manager.update_quest_scanning_state(0)
             self.poliswag.utility.log_to_file(
                 f"[QUEST] @{ctx.author} ({ctx.author.id}): triggered quest scan"
             )
