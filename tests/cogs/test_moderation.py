@@ -24,7 +24,31 @@ def cog():
     poliswag.QUEST_CHANNEL.id = 2
     poliswag.user = MagicMock(name="bot_user")
     poliswag.role_manager.response_user_role_selection = AsyncMock()
+    poliswag.db = AsyncMock()
+    poliswag.db.get_data_from_database = AsyncMock(return_value=[])
+    poliswag.db.execute_query_to_database = AsyncMock()
+    poliswag.TRAP_CHANNEL = MagicMock()
+    poliswag.TRAP_CHANNEL.id = 3
+    poliswag.TRAP_CHANNEL.send = AsyncMock()
     return Moderation(poliswag)
+
+
+def _member(author_id, is_bot=False):
+    member = MagicMock()
+    member.id = author_id
+    member.bot = is_bot
+    member.kick = AsyncMock()
+    return member
+
+
+def _trap_msg(author_id=555, content="spam", is_bot=False):
+    message = MagicMock()
+    message.channel = MagicMock()
+    message.channel.id = 3
+    message.author = _member(author_id, is_bot=is_bot)
+    message.content = content
+    message.delete = AsyncMock()
+    return message
 
 
 class TestOnInteraction:
@@ -164,6 +188,174 @@ class TestOnMessageDelete:
         assert embed.image.url == "https://cdn/photo.png"
         assert "report.pdf" in embed.fields[1].value
         assert "photo.png" not in embed.fields[1].value
+
+
+class TestLoadTrapKickCount:
+    async def test_returns_zero_when_db_empty(self, cog):
+        cog.poliswag.db.get_data_from_database = AsyncMock(return_value=[])
+        assert await cog._load_trap_kick_count() == 0
+
+    async def test_returns_stored_count(self, cog):
+        cog.poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"trap_kick_count": 7}]
+        )
+        assert await cog._load_trap_kick_count() == 7
+
+    async def test_none_value_returns_zero(self, cog):
+        cog.poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"trap_kick_count": None}]
+        )
+        assert await cog._load_trap_kick_count() == 0
+
+    async def test_exception_returns_zero_and_logs(self, cog):
+        cog.poliswag.db.get_data_from_database = AsyncMock(
+            side_effect=RuntimeError("db down")
+        )
+        assert await cog._load_trap_kick_count() == 0
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestSaveTrapKickCount:
+    async def test_calls_update_query(self, cog):
+        await cog._save_trap_kick_count(5)
+        cog.poliswag.db.execute_query_to_database.assert_called_once()
+        _, kwargs = cog.poliswag.db.execute_query_to_database.call_args
+        assert kwargs["params"] == (5,)
+
+
+class TestGetOrCreateTrapMessage:
+    async def test_returns_cached_message_without_touching_history(self, cog):
+        cog._trap_message = MagicMock(name="cached")
+        result = await cog._get_or_create_trap_message(cog.poliswag.TRAP_CHANNEL)
+        assert result is cog._trap_message
+        cog.poliswag.TRAP_CHANNEL.history.assert_not_called()
+
+    async def test_finds_existing_bot_message_in_history(self, cog):
+        own_message = MagicMock()
+        own_message.author = cog.poliswag.user
+        other_message = MagicMock()
+        other_message.author = _member(111)
+
+        async def _history(limit):
+            for m in [other_message, own_message]:
+                yield m
+
+        cog.poliswag.TRAP_CHANNEL.history = _history
+        result = await cog._get_or_create_trap_message(cog.poliswag.TRAP_CHANNEL)
+        assert result is own_message
+        cog.poliswag.TRAP_CHANNEL.send.assert_not_called()
+
+    async def test_creates_new_message_when_none_found(self, cog):
+        async def _history(limit):
+            return
+            yield  # pragma: no cover - makes this an async generator
+
+        cog.poliswag.TRAP_CHANNEL.history = _history
+        posted = MagicMock()
+        cog.poliswag.TRAP_CHANNEL.send = AsyncMock(return_value=posted)
+        result = await cog._get_or_create_trap_message(cog.poliswag.TRAP_CHANNEL)
+        assert result is posted
+        cog.poliswag.TRAP_CHANNEL.send.assert_awaited_once()
+
+
+class TestOnMessageTrap:
+    async def test_no_trap_channel_configured_is_a_noop(self, cog):
+        cog.poliswag.TRAP_CHANNEL = None
+        msg = _trap_msg()
+        await cog.on_message(msg)
+        msg.delete.assert_not_called()
+
+    async def test_message_outside_trap_channel_ignored(self, cog):
+        msg = _trap_msg()
+        msg.channel.id = 999
+        await cog.on_message(msg)
+        msg.delete.assert_not_called()
+
+    async def test_bot_author_ignored(self, cog):
+        msg = _trap_msg(is_bot=True)
+        await cog.on_message(msg)
+        msg.delete.assert_not_called()
+
+    async def test_admin_author_ignored(self, cog):
+        msg = _trap_msg(author_id=999)  # matches fixture's ADMIN_USERS_IDS
+        await cog.on_message(msg)
+        msg.delete.assert_not_called()
+
+    async def test_regular_user_deleted_and_kicked(self, cog):
+        cog._get_or_create_trap_message = AsyncMock(
+            return_value=MagicMock(edit=AsyncMock())
+        )
+        msg = _trap_msg(author_id=123)
+        await cog.on_message(msg)
+        msg.delete.assert_awaited_once()
+        msg.author.kick.assert_awaited_once()
+        assert cog._trap_kick_count == 1
+        cog.poliswag.db.execute_query_to_database.assert_called_once()
+
+    async def test_counter_message_updated_with_new_count(self, cog):
+        trap_message = MagicMock(edit=AsyncMock())
+        cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
+        cog._trap_kick_count = 4
+        await cog.on_message(_trap_msg(author_id=123))
+        trap_message.edit.assert_awaited_once()
+        assert "5" in trap_message.edit.call_args.kwargs["content"]
+
+    async def test_delete_failure_still_attempts_kick(self, cog):
+        import discord
+
+        cog._get_or_create_trap_message = AsyncMock(
+            return_value=MagicMock(edit=AsyncMock())
+        )
+        msg = _trap_msg(author_id=123)
+        msg.delete = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "nope"))
+        await cog.on_message(msg)
+        msg.author.kick.assert_awaited_once()
+        cog.poliswag.utility.log_to_file.assert_called()
+
+    async def test_kick_failure_does_not_increment_counter(self, cog):
+        import discord
+
+        cog._get_or_create_trap_message = AsyncMock(
+            return_value=MagicMock(edit=AsyncMock())
+        )
+        msg = _trap_msg(author_id=123)
+        msg.author.kick = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "missing perms")
+        )
+        await cog.on_message(msg)
+        assert cog._trap_kick_count == 0
+        cog.poliswag.db.execute_query_to_database.assert_not_called()
+
+    async def test_mod_channel_notified_with_result(self, cog):
+        cog._get_or_create_trap_message = AsyncMock(
+            return_value=MagicMock(edit=AsyncMock())
+        )
+        msg = _trap_msg(author_id=123, content="buy crypto now")
+        await cog.on_message(msg)
+        cog.poliswag.utility.send_embed_to_channel.assert_awaited_once()
+        channel, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        assert channel is cog.poliswag.MOD_CHANNEL
+        assert "efectuado" in embed.fields[0].value
+        assert "buy crypto now" in embed.fields[0].value
+
+    async def test_no_mod_channel_is_a_noop(self, cog):
+        cog.poliswag.MOD_CHANNEL = None
+        cog._get_or_create_trap_message = AsyncMock(
+            return_value=MagicMock(edit=AsyncMock())
+        )
+        await cog.on_message(_trap_msg(author_id=123))  # must not raise
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
+
+    async def test_counter_message_edit_failure_is_logged_not_raised(self, cog):
+        import discord
+
+        trap_message = MagicMock()
+        trap_message.edit = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "nope")
+        )
+        cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
+        await cog.on_message(_trap_msg(author_id=123))  # must not raise
+        cog.poliswag.utility.log_to_file.assert_called()
 
 
 class TestLifecycle:

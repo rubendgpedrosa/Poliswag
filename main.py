@@ -52,6 +52,7 @@ class Poliswag(commands.Bot):
         self.CONVIVIO_CHANNEL = None
         self.MOD_CHANNEL = None
         self.ACCOUNTS_CHANNEL = None
+        self.TRAP_CHANNEL = None
 
         self.ADMIN_USERS_IDS = Config.ADMIN_USERS_IDS
 
@@ -83,6 +84,7 @@ class Poliswag(commands.Bot):
             "CONVIVIO_CHANNEL": Config.CONVIVIO_CHANNEL_ID,
             "MOD_CHANNEL": Config.MOD_CHANNEL_ID,
             "ACCOUNTS_CHANNEL": Config.ACCOUNTS_CHANNEL_ID,
+            "TRAP_CHANNEL": Config.TRAP_CHANNEL_ID,
         }
         for attr, channel_id in channels.items():
             if not channel_id:
