@@ -552,6 +552,22 @@ class Notifications(commands.Cog):
             )
             return
 
+        # One batched lookup for every (target, pokemon) combination instead
+        # of a separate query per pair — same result set, fewer round trips.
+        target_ids = [t["id"] for t in targets]
+        pokemon_ids = list({pid for _, pid in resolved})
+        id_placeholders = ", ".join(["%s"] * len(target_ids))
+        pokemon_placeholders = ", ".join(["%s"] * len(pokemon_ids))
+        rows = await self.poracle_db.get_data_from_database(
+            f"SELECT id, pokemon_id, uid FROM monsters "
+            f"WHERE id IN ({id_placeholders}) AND pokemon_id IN ({pokemon_placeholders})",
+            params=tuple(target_ids) + tuple(pokemon_ids),
+        )
+        uids_by_target_and_pokemon: dict[tuple[str, int], list] = {}
+        for row in rows or []:
+            key = (str(row["id"]), row["pokemon_id"])
+            uids_by_target_and_pokemon.setdefault(key, []).append(row["uid"])
+
         success_lines = []
         failures = []
         any_removed = False
@@ -559,23 +575,22 @@ class Notifications(commands.Cog):
             pretty = self._pokemon_name(pokemon_id)
             removed = []
             for target in targets:
-                rows = await self.poracle_db.get_data_from_database(
-                    "SELECT uid FROM monsters WHERE id = %s AND pokemon_id = %s",
-                    params=(target["id"], pokemon_id),
+                uids = uids_by_target_and_pokemon.get(
+                    (str(target["id"]), pokemon_id), []
                 )
-                for row in rows or []:
+                for uid in uids:
                     try:
                         await self.poliswag.poracle.delete_pokemon_tracking_uid(
-                            target["id"], row["uid"]
+                            target["id"], uid
                         )
-                        removed.append((target["name"], row["uid"]))
+                        removed.append((target["name"], uid))
                         any_removed = True
                     except PoracleError as e:
                         self.poliswag.utility.log_to_file(
                             f"[NOTIFY] delete_pokemon_tracking_uid failed for "
-                            f"#{target['name']} uid={row['uid']}: {e}"
+                            f"#{target['name']} uid={uid}: {e}"
                         )
-                        failures.append(f"#{target['name']} uid={row['uid']}: {e}")
+                        failures.append(f"#{target['name']} uid={uid}: {e}")
 
             if removed:
                 by_channel = {}
