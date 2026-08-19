@@ -17,6 +17,8 @@ def scanner_status():
     """
     poliswag = MagicMock()
     poliswag.stack_recovery.observe = AsyncMock()
+    poliswag.db = AsyncMock()
+    poliswag.quest_search.db = AsyncMock()
     return ScannerStatus(poliswag=poliswag)
 
 
@@ -534,30 +536,30 @@ class TestGetVoiceChannel:
 
 
 class TestGetSecondsSinceLastPokemon:
-    def test_returns_seconds_from_db(self, scanner_status):
+    async def test_returns_seconds_from_db(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
             {"seconds_ago": 42}
         ]
-        assert scanner_status._get_seconds_since_last_pokemon() == 42
+        assert await scanner_status._get_seconds_since_last_pokemon() == 42
 
-    def test_returns_none_when_table_empty(self, scanner_status):
+    async def test_returns_none_when_table_empty(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
             {"seconds_ago": None}
         ]
-        assert scanner_status._get_seconds_since_last_pokemon() is None
+        assert await scanner_status._get_seconds_since_last_pokemon() is None
 
-    def test_returns_none_on_db_error(self, scanner_status):
+    async def test_returns_none_on_db_error(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
             RuntimeError("db gone")
         )
-        assert scanner_status._get_seconds_since_last_pokemon() is None
+        assert await scanner_status._get_seconds_since_last_pokemon() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
-    def test_queries_correct_column(self, scanner_status):
+    async def test_queries_correct_column(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
             {"seconds_ago": 5}
         ]
-        scanner_status._get_seconds_since_last_pokemon()
+        await scanner_status._get_seconds_since_last_pokemon()
         sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
             0
         ]
@@ -1059,7 +1061,7 @@ class TestQuestPlateauHelpers:
         )
         assert await scanner_status._is_scanner_alive() is False
 
-    def test_count_valid_quests_coerces_decimal_to_int(self, scanner_status):
+    async def test_count_valid_quests_coerces_decimal_to_int(self, scanner_status):
         # MariaDB SUM(CASE ...) returns a decimal.Decimal; if it leaks through,
         # _coverage_pct yields a Decimal that crashes _build_progress_embed's
         # Decimal + float math. Counts must come back as plain ints.
@@ -1068,7 +1070,7 @@ class TestQuestPlateauHelpers:
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
             {"scanned": Decimal("330")}
         ]
-        count = scanner_status._count_valid_quests(
+        count = await scanner_status._count_valid_quests(
             scanner_status.poliswag.quest_search.db, leiria=True
         )
         assert count == 330
@@ -1078,19 +1080,19 @@ class TestQuestPlateauHelpers:
         assert isinstance(pct, float)
         assert pct + 50.0  # would raise TypeError if pct were a Decimal
 
-    def test_expected_totals_fall_back_to_defaults(self, scanner_status):
+    async def test_expected_totals_fall_back_to_defaults(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = []
-        assert scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == (371, 109)
 
-    def test_expected_totals_read_from_db(self, scanner_status):
+    async def test_expected_totals_read_from_db(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = [
             {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
         ]
-        assert scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == (400, 120)
 
-    def test_record_completion_persists_and_resets(self, scanner_status):
+    async def test_record_completion_persists_and_resets(self, scanner_status):
         scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
-        scanner_status.record_quest_scan_completion(371, 109)
+        await scanner_status.record_quest_scan_completion(371, 109)
         scanner_status.poliswag.db.execute_query_to_database.assert_called_once()
         params = scanner_status.poliswag.db.execute_query_to_database.call_args.kwargs[
             "params"
@@ -1101,26 +1103,28 @@ class TestQuestPlateauHelpers:
             "flat_streak": 0,
         }
 
-    def test_expected_totals_second_read_does_not_hit_db_again(self, scanner_status):
+    async def test_expected_totals_second_read_does_not_hit_db_again(
+        self, scanner_status
+    ):
         scanner_status.poliswag.db.get_data_from_database.return_value = [
             {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
         ]
 
-        assert scanner_status._get_expected_totals() == (400, 120)
-        assert scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == (400, 120)
 
         scanner_status.poliswag.db.get_data_from_database.assert_called_once()
 
-    def test_empty_rows_are_not_cached(self, scanner_status):
+    async def test_empty_rows_are_not_cached(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = []
 
-        assert scanner_status._get_expected_totals() == (371, 109)
-        assert scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == (371, 109)
 
         assert scanner_status.poliswag.db.get_data_from_database.call_count == 2
 
-    def test_record_completion_updates_cache_without_a_read(self, scanner_status):
-        scanner_status.record_quest_scan_completion(400, 120)
+    async def test_record_completion_updates_cache_without_a_read(self, scanner_status):
+        await scanner_status.record_quest_scan_completion(400, 120)
 
-        assert scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == (400, 120)
         scanner_status.poliswag.db.get_data_from_database.assert_not_called()

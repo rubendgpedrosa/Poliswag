@@ -188,7 +188,7 @@ class Scheduled(commands.Cog):
             await self.poliswag.quest_exporter.export()
             self._last_quest_export = datetime.datetime.now()
             await self.poliswag.scanner_manager.update_quest_scanning_state()
-            self.poliswag.scanner_status.record_quest_scan_completion(
+            await self.poliswag.scanner_status.record_quest_scan_completion(
                 quest_completed["leiriaScanned"], quest_completed["marinhaScanned"]
             )
             self._last_progress_embed_state = None
@@ -307,7 +307,7 @@ class Scheduled(commands.Cog):
     async def _send_weekly_digest(self, channel=None) -> bool:
         now = datetime.datetime.now()
         today = now.date()
-        events = self.poliswag.event_manager.get_weekly_events()
+        events = await self.poliswag.event_manager.get_weekly_events()
         if not events:
             return False
 
