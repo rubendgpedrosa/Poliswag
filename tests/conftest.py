@@ -1,4 +1,8 @@
 import os
+import subprocess
+import sys
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load test-safe env vars before Config is imported by any test module.
@@ -9,6 +13,26 @@ if not os.environ.get("DISCORD_API_KEY"):
 
 import pytest
 from unittest.mock import MagicMock, patch
+
+_REPO_ROOT = Path(__file__).parent.parent
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _refresh_mock_data_timestamps():
+    """Regenerate mock_data/ JSON timestamps before the test session runs.
+
+    mock_data/scanner_status.json and device_status.json embed absolute
+    timestamps used to decide whether workers/devices look "alive". Left
+    untouched between test runs they silently age past the 1h freshness
+    window a test asserts on, so refresh unconditionally here instead of
+    relying on someone remembering to run `make mock-data` first.
+    """
+    subprocess.run(
+        [sys.executable, "mock_data/refresh.py"],
+        cwd=_REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture(autouse=True)
