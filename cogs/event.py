@@ -28,9 +28,12 @@ class EventExclusion(commands.Cog):
         event_type = event_type.lower()
 
         if await self.event_store.is_excluded(event_type):
-            await ctx.send(
-                f"O tipo de evento '{event_type}' já está na lista de exclusão."
+            already_embed = discord.Embed(
+                title="Já Excluído",
+                description=f"O tipo de evento '{event_type}' já está na lista de exclusão.",
+                color=Config.EMBED_COLOR,
             )
+            await ctx.send(embed=already_embed)
             return
 
         await self.event_store.add_excluded(event_type)
@@ -59,7 +62,12 @@ class EventExclusion(commands.Cog):
         affected_rows = await self.event_store.remove_excluded(event_type)
 
         if affected_rows == 0:
-            await ctx.send(f"O tipo de evento '{event_type}' não estava excluído.")
+            not_excluded_embed = discord.Embed(
+                title="Não Estava Excluído",
+                description=f"O tipo de evento '{event_type}' não estava excluído.",
+                color=Config.EMBED_COLOR,
+            )
+            await ctx.send(embed=not_excluded_embed)
         else:
             remove_embed = discord.Embed(
                 title="Tipo de Evento Incluído",
@@ -108,7 +116,12 @@ class EventExclusion(commands.Cog):
         event_types = await self.event_store.get_all_event_types()
 
         if not event_types:
-            await ctx.send("Não foram encontrados tipos de eventos.")
+            none_found_embed = discord.Embed(
+                title="Nenhum Tipo de Evento",
+                description="Não foram encontrados tipos de eventos.",
+                color=Config.EMBED_COLOR,
+            )
+            await ctx.send(embed=none_found_embed)
             return
 
         event_type_list = "\n".join(

@@ -50,7 +50,10 @@ class TestExportQuestsCmd:
         await Quests.exportquestscmd.callback(cog, ctx)
         cog.poliswag.quest_exporter.export.assert_awaited_once()
         msg.edit.assert_awaited_once()
-        assert "sucesso" in msg.edit.call_args.kwargs["content"]
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "sucesso" in title
 
     async def test_admin_failure_edits_with_error(self, cog):
         ctx = make_ctx()
@@ -60,7 +63,10 @@ class TestExportQuestsCmd:
         cog.poliswag.quest_exporter.export = AsyncMock(side_effect=RuntimeError("x"))
         await Quests.exportquestscmd.callback(cog, ctx)
         msg.edit.assert_awaited_once()
-        assert "Erro" in msg.edit.call_args.kwargs["content"]
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "Erro" in title
 
 
 # --- rescancmd ----------------------------------------------------------------
@@ -78,7 +84,11 @@ class TestRescanCmd:
             "modules.http_client.fetch_data", new=AsyncMock(return_value={"ok": 1})
         ):
             await Quests.rescancmd.callback(cog, ctx)
-        ctx.send.assert_awaited_once_with("Scan de quests iniciado!")
+        ctx.send.assert_awaited_once()
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "Scan de quests iniciado" in title
         cog.poliswag.scanner_manager.update_quest_scanning_state.assert_called_once_with(
             0
         )
@@ -87,7 +97,11 @@ class TestRescanCmd:
         ctx = make_ctx()
         with patch("modules.http_client.fetch_data", new=AsyncMock(return_value=None)):
             await Quests.rescancmd.callback(cog, ctx)
-        ctx.send.assert_awaited_once_with("Erro ao iniciar o scan de quests!")
+        ctx.send.assert_awaited_once()
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "Erro ao iniciar o scan de quests" in title
         cog.poliswag.scanner_manager.update_quest_scanning_state.assert_not_called()
 
 
@@ -99,20 +113,29 @@ class TestQuestCmd:
         ctx = make_ctx()
         await Quests.questcmd.callback(cog, ctx, search="   ")
         ctx.send.assert_awaited_once()
-        assert "necessário" in ctx.send.call_args.args[0]
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "necessário" in title
 
     async def test_no_results_leiria(self, cog):
         ctx = make_ctx(invoked_with="questleiria")
         cog.poliswag.quest_search.find_quest_by_search_keyword.return_value = []
         await Quests.questcmd.callback(cog, ctx, search="pikachu")
         ctx.send.assert_awaited_once()
-        assert "em Leiria" in ctx.send.call_args.args[0]
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "em Leiria" in title
 
     async def test_no_results_marinha(self, cog):
         ctx = make_ctx(invoked_with="questmarinha")
         cog.poliswag.quest_search.find_quest_by_search_keyword.return_value = []
         await Quests.questcmd.callback(cog, ctx, search="pikachu")
-        assert "na Marinha" in ctx.send.call_args.args[0]
+        title = (
+            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
+        )
+        assert "na Marinha" in title
 
     async def test_happy_path_sends_embeds_and_deletes_processing(self, cog):
         ctx = make_ctx(invoked_with="questleiria")

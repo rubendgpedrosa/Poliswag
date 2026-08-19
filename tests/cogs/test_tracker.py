@@ -48,7 +48,7 @@ class TestTrack:
         await Tracker.track.callback(cog, ctx, search_string="Pikachu")
         cog.tracker_store.add.assert_not_called()
         ctx.send.assert_awaited_once()
-        assert "já está" in ctx.send.call_args.args[0]
+        assert "já está" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_new_track_adds_and_sends_two_embeds(self, cog):
         ctx = make_ctx()
@@ -67,7 +67,7 @@ class TestUntrack:
         cog.tracker_store.remove.return_value = 0
         await Tracker.untrack.callback(cog, ctx, search_string="Pikachu")
         ctx.send.assert_awaited_once()
-        assert "não está" in ctx.send.call_args.args[0]
+        assert "não está" in ctx.send.call_args.kwargs["embed"].description
 
     async def test_removes_and_sends_confirmation_and_list(self, cog):
         ctx = make_ctx()
