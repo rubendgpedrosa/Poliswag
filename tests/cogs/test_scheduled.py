@@ -503,7 +503,7 @@ class TestCheckWorkers:
         cog.poliswag.scanner_status.get_workers_with_issues = AsyncMock(
             return_value=workers_status
         )
-        cog.poliswag.device_manager.auto_reboot_if_offline = AsyncMock()
+        cog.poliswag.device_manager.alert_if_offline = AsyncMock()
         await cog._check_workers()
         cog.poliswag.scanner_status.rename_voice_channels.assert_awaited_once_with(
             workers_status

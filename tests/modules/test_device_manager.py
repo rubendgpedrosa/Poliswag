@@ -112,39 +112,8 @@ class TestRestartApp:
         assert await device_manager.restart_app() is False
 
 
-class TestRebootWithCooldown:
-    def _prime(self, device_manager, mocker, *, enabled=True):
-        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
-        mocker.patch.object(
-            type(device_manager),
-            "auto_reboot_enabled",
-            new_callable=mocker.PropertyMock,
-            return_value=enabled,
-        )
-        mocker.patch("modules.device_manager.time.time", return_value=10_000)
-
-    async def test_reboots_and_arms_cooldown(self, device_manager, mocker):
-        self._prime(device_manager, mocker)
-        device_manager.reboot = AsyncMock(return_value=True)
-        assert await device_manager.reboot_with_cooldown() is True
-        assert device_manager._last_auto_reboot == 10_000
-
-    async def test_cooldown_blocks_second_reboot(self, device_manager, mocker):
-        self._prime(device_manager, mocker)
-        device_manager._last_auto_reboot = 10_000 - 600  # 10 min < 30 min cooldown
-        device_manager.reboot = AsyncMock()
-        assert await device_manager.reboot_with_cooldown() is False
-        device_manager.reboot.assert_not_called()
-
-    async def test_disabled_toggle_blocks_reboot(self, device_manager, mocker):
-        self._prime(device_manager, mocker, enabled=False)
-        device_manager.reboot = AsyncMock()
-        assert await device_manager.reboot_with_cooldown() is False
-        device_manager.reboot.assert_not_called()
-
-
-class TestAutoRebootIfOffline:
-    """Offline watchdog: plain reboot after 15 min offline, shared cooldown."""
+class TestAlertIfOffline:
+    """Offline watchdog: alert-only after 15 min offline — never reboots."""
 
     def _prime(self, device_manager, mocker, *, now, offline_since):
         mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
@@ -161,31 +130,27 @@ class TestAutoRebootIfOffline:
         device_manager._offline_since = offline_since
         mocker.patch("modules.device_manager.time.time", return_value=now)
 
-    async def test_reboots_after_threshold(self, device_manager, mocker):
+    async def test_alerts_after_threshold(self, device_manager, mocker):
         self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 960)
-        device_manager.reboot = AsyncMock(return_value=True)
+        device_manager.reboot = AsyncMock()
 
-        assert await device_manager.auto_reboot_if_offline() is True
+        assert await device_manager.alert_if_offline() is True
 
-        device_manager.reboot.assert_awaited_once()
-        assert device_manager._offline_since is None
+        device_manager.reboot.assert_not_called()
 
     async def test_below_threshold_does_nothing(self, device_manager, mocker):
         self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 300)
         device_manager.reboot = AsyncMock()
 
-        assert await device_manager.auto_reboot_if_offline() is False
+        assert await device_manager.alert_if_offline() is False
 
         device_manager.reboot.assert_not_called()
 
-    async def test_cooldown_blocks_repeat_reboot(self, device_manager, mocker):
+    async def test_repeat_alert_throttled(self, device_manager, mocker):
         self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 960)
-        device_manager._last_auto_reboot = 10_000 - 600
-        device_manager.reboot = AsyncMock()
+        device_manager._last_notification_time = 10_000 - 600  # well under 1h cadence
 
-        assert await device_manager.auto_reboot_if_offline() is False
-
-        device_manager.reboot.assert_not_called()
+        assert await device_manager.alert_if_offline() is False
 
     async def test_device_back_online_resets_tracking(self, device_manager, mocker):
         self._prime(device_manager, mocker, now=10_000, offline_since=9_000)
@@ -193,6 +158,6 @@ class TestAutoRebootIfOffline:
             return_value=True
         )
 
-        assert await device_manager.auto_reboot_if_offline() is False
+        assert await device_manager.alert_if_offline() is False
 
         assert device_manager._offline_since is None
