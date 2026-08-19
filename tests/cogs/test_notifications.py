@@ -449,8 +449,11 @@ class TestRemove:
                 {"id": "111", "name": "leiria-raros", "enabled": 1},
                 {"id": "222", "name": "marinha-raros", "enabled": 1},
             ],
-            [{"uid": 50}, {"uid": 51}],  # leiria matches
-            [{"uid": 60}],  # marinha matches
+            [  # single batched monster lookup across both targets
+                {"id": "111", "pokemon_id": 25, "uid": 50},
+                {"id": "111", "pokemon_id": 25, "uid": 51},
+                {"id": "222", "pokemon_id": 25, "uid": 60},
+            ],
         ]
         ctx = make_ctx()
         await Notifications.remove_cmd.callback(cog, ctx, "raros", "pikachu")
@@ -464,8 +467,10 @@ class TestRemove:
     async def test_name_path_comma_separated(self, cog):
         cog.poracle_db.get_data_from_database.side_effect = [
             [{"id": "111", "name": "leiria-raros", "enabled": 1}],
-            [{"uid": 50}],  # pikachu hit
-            [{"uid": 60}],  # charizard hit
+            [  # batched lookup covers both pikachu and charizard in one call
+                {"id": "111", "pokemon_id": 25, "uid": 50},
+                {"id": "111", "pokemon_id": 6, "uid": 60},
+            ],
         ]
         ctx = make_ctx()
         await Notifications.remove_cmd.callback(
@@ -476,6 +481,28 @@ class TestRemove:
         msg = reply_text(ctx)
         assert "Pikachu" in msg
         assert "Charizard" in msg
+
+    async def test_name_path_batches_lookup_into_a_single_query(self, cog):
+        # Two pokemon x two channels used to be four separate SELECTs; it
+        # must now be exactly one, with both IN-lists populated.
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [],  # exact-name miss
+            [
+                {"id": "111", "name": "leiria-raros", "enabled": 1},
+                {"id": "222", "name": "marinha-raros", "enabled": 1},
+            ],
+            [
+                {"id": "111", "pokemon_id": 25, "uid": 50},
+                {"id": "222", "pokemon_id": 6, "uid": 60},
+            ],
+        ]
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(cog, ctx, "raros", "pikachu,charizard")
+        assert cog.poracle_db.get_data_from_database.call_count == 3
+        lookup_call = cog.poracle_db.get_data_from_database.call_args_list[2]
+        assert "id IN (%s, %s)" in lookup_call.args[0]
+        assert "pokemon_id IN (%s, %s)" in lookup_call.args[0]
+        assert set(lookup_call.kwargs["params"]) == {"111", "222", 25, 6}
 
     async def test_name_path_no_matches_reports_gracefully(self, cog):
         cog.poracle_db.get_data_from_database.side_effect = [
