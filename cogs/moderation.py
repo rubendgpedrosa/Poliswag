@@ -5,10 +5,17 @@ from modules.config import Config
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
-_TRAP_WARNING_TEXT = (
-    "🚫 **NUNCA ESCREVAM AQUI. Quem escrever leva kick automático.**\n\n"
-    "**Pessoas expulsas até agora:** {count}"
-)
+
+def _build_trap_warning_embed(count):
+    return discord.Embed(
+        title="🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
+        description=(
+            "Este canal é usado para apanhar bots de spam. Qualquer mensagem "
+            "enviada aqui resulta num **kick automático**.\n\n"
+            f"**Pessoas expulsas até agora:** {count}"
+        ),
+        color=0xE74C3C,
+    )
 
 
 def _is_image_attachment(attachment):
@@ -57,7 +64,7 @@ class Moderation(commands.Cog):
                 self._trap_message = message
                 return message
         self._trap_message = await channel.send(
-            _TRAP_WARNING_TEXT.format(count=self._trap_kick_count)
+            embed=_build_trap_warning_embed(self._trap_kick_count)
         )
         return self._trap_message
 
@@ -169,7 +176,7 @@ class Moderation(commands.Cog):
         trap_message = await self._get_or_create_trap_message(trap_channel)
         try:
             await trap_message.edit(
-                content=_TRAP_WARNING_TEXT.format(count=self._trap_kick_count)
+                embed=_build_trap_warning_embed(self._trap_kick_count)
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
