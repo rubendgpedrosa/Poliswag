@@ -31,6 +31,7 @@ class Quests(commands.Cog):
                 f"{'exported quests to PWA' if wrote else 'export skipped (no changes)'}"
             )
         except Exception as e:
+            self.poliswag.utility.log_to_file(f"[QUEST] exportquestscmd failed: {e}")
             await msg.edit(content=f"❌ Erro ao exportar quests: {e}")
 
     @commands.command(name="scan", brief="Inicia novo scan de quests")

@@ -35,7 +35,10 @@ class Notifications(commands.Cog):
                 with open(Config.POKEMON_NAME_FILE, "r") as f:
                     name_map = json.load(f)
                 self.poliswag.quest_search.pokemon_name_map = name_map
-            except Exception:
+            except Exception as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] Failed to load pokemon name map: {e}"
+                )
                 return f"#{pokemon_id}"
         return name_map.get(str(pokemon_id), f"#{pokemon_id}").title()
 
@@ -200,6 +203,7 @@ class Notifications(commands.Cog):
                 "WHERE type = 'discord:channel' ORDER BY name"
             )
         except Exception as e:
+            self.poliswag.utility.log_to_file(f"[NOTIFY] channels_cmd failed: {e}")
             await self._reply(ctx, f"Erro ao obter canais: {e}", error=True)
             return
 
@@ -303,6 +307,9 @@ class Notifications(commands.Cog):
                 try:
                     rules = await self.poliswag.poracle.list_pokemon_tracking(t["id"])
                 except PoracleError as e:
+                    self.poliswag.utility.log_to_file(
+                        f"[NOTIFY] list_pokemon_tracking failed for #{t['name']}: {e}"
+                    )
                     sections.append(f"{header}\n✖ {e}")
                     continue
                 if not rules:
@@ -329,6 +336,9 @@ class Notifications(commands.Cog):
                             t["id"]
                         )
                     except PoracleError as e:
+                        self.poliswag.utility.log_to_file(
+                            f"[NOTIFY] list_pokemon_tracking failed for #{t['name']}: {e}"
+                        )
                         errors.append(f"#{t['name']}: {e}")
                         continue
                     for rule in rules or []:
@@ -420,6 +430,9 @@ class Notifications(commands.Cog):
                     added_channels.append(target["name"])
                     any_added = True
                 except PoracleError as e:
+                    self.poliswag.utility.log_to_file(
+                        f"[NOTIFY] add_pokemon_tracking failed for #{target['name']}: {e}"
+                    )
                     failures.append(f"#{target['name']} ({_input_name}): {e}")
             if added_channels:
                 mentions = ", ".join(f"#{n}" for n in added_channels)
@@ -431,8 +444,10 @@ class Notifications(commands.Cog):
         if any_added:
             try:
                 await self.poliswag.poracle.reload()
-            except PoracleError:
-                pass
+            except PoracleError as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
+                )
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): added rules — "
                 + "; ".join(success_lines)
@@ -500,6 +515,9 @@ class Notifications(commands.Cog):
             await self.poliswag.poracle.delete_pokemon_tracking_uid(human_id, uid)
             await self.poliswag.poracle.reload()
         except PoracleError as e:
+            self.poliswag.utility.log_to_file(
+                f"[NOTIFY] remove rule uid={uid} failed: {e}"
+            )
             await self._reply(ctx, f"Erro ao remover regra: {e}", error=True)
             return
         await self._reply(
@@ -553,6 +571,10 @@ class Notifications(commands.Cog):
                         removed.append((target["name"], row["uid"]))
                         any_removed = True
                     except PoracleError as e:
+                        self.poliswag.utility.log_to_file(
+                            f"[NOTIFY] delete_pokemon_tracking_uid failed for "
+                            f"#{target['name']} uid={row['uid']}: {e}"
+                        )
                         failures.append(f"#{target['name']} uid={row['uid']}: {e}")
 
             if removed:
@@ -571,8 +593,10 @@ class Notifications(commands.Cog):
         if any_removed:
             try:
                 await self.poliswag.poracle.reload()
-            except PoracleError:
-                pass
+            except PoracleError as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
+                )
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): removed rules — "
                 + "; ".join(line for line in success_lines if line.startswith("✔"))
@@ -607,6 +631,9 @@ class Notifications(commands.Cog):
             await self.poliswag.poracle.create_channel(channel.id, channel.name)
             await self.poliswag.poracle.start(channel.id)
         except PoracleError as e:
+            self.poliswag.utility.log_to_file(
+                f"[NOTIFY] register channel {channel.id} failed: {e}"
+            )
             await self._reply(ctx, f"Erro ao registar canal: {e}", error=True)
             return
         await self._reply(
@@ -652,12 +679,17 @@ class Notifications(commands.Cog):
                 await action(target["id"])
                 changed.append(target["name"])
             except PoracleError as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] enable/disable failed for #{target['name']}: {e}"
+                )
                 failures.append(f"#{target['name']}: {e}")
         if changed:
             try:
                 await self.poliswag.poracle.reload()
-            except PoracleError:
-                pass
+            except PoracleError as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
+                )
             verb_log = "enabled" if enable else "disabled"
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): notifications {verb_log} "
@@ -734,6 +766,9 @@ class Notifications(commands.Cog):
                 await self.poliswag.poracle.test_pokemon(webhook, payload)
                 sent.append(recipient["name"])
             except PoracleError as e:
+                self.poliswag.utility.log_to_file(
+                    f"[NOTIFY] test_pokemon failed for {recipient['name']}: {e}"
+                )
                 failures.append(f"{recipient['name']}: {e}")
 
         lines = []
