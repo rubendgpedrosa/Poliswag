@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cogs.event import EventExclusion
+from cogs.event import EventExclusion, setup
 
 
 @pytest.fixture
@@ -123,3 +123,12 @@ class TestLifecycle:
     async def test_cog_unload_prints(self, cog, capsys):
         await cog.cog_unload()
         assert "EventExclusion unloaded" in capsys.readouterr().out
+
+
+class TestSetup:
+    async def test_registers_cog_on_poliswag(self):
+        poliswag = MagicMock()
+        poliswag.add_cog = AsyncMock()
+        await setup(poliswag)
+        poliswag.add_cog.assert_awaited_once()
+        assert isinstance(poliswag.add_cog.call_args.args[0], EventExclusion)
