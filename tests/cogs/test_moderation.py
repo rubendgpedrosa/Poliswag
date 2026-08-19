@@ -38,7 +38,7 @@ def _member(author_id, is_bot=False):
     member = MagicMock()
     member.id = author_id
     member.bot = is_bot
-    member.kick = AsyncMock()
+    member.ban = AsyncMock()
     return member
 
 
@@ -191,34 +191,34 @@ class TestOnMessageDelete:
         assert "photo.png" not in embed.fields[1].value
 
 
-class TestLoadTrapKickCount:
+class TestLoadTrapBanCount:
     async def test_returns_zero_when_db_empty(self, cog):
         cog.poliswag.db.get_data_from_database = AsyncMock(return_value=[])
-        assert await cog._load_trap_kick_count() == 0
+        assert await cog._load_trap_ban_count() == 0
 
     async def test_returns_stored_count(self, cog):
         cog.poliswag.db.get_data_from_database = AsyncMock(
-            return_value=[{"trap_kick_count": 7}]
+            return_value=[{"trap_ban_count": 7}]
         )
-        assert await cog._load_trap_kick_count() == 7
+        assert await cog._load_trap_ban_count() == 7
 
     async def test_none_value_returns_zero(self, cog):
         cog.poliswag.db.get_data_from_database = AsyncMock(
-            return_value=[{"trap_kick_count": None}]
+            return_value=[{"trap_ban_count": None}]
         )
-        assert await cog._load_trap_kick_count() == 0
+        assert await cog._load_trap_ban_count() == 0
 
     async def test_exception_returns_zero_and_logs(self, cog):
         cog.poliswag.db.get_data_from_database = AsyncMock(
             side_effect=RuntimeError("db down")
         )
-        assert await cog._load_trap_kick_count() == 0
+        assert await cog._load_trap_ban_count() == 0
         cog.poliswag.utility.log_to_file.assert_called_once()
 
 
-class TestSaveTrapKickCount:
+class TestSaveTrapBanCount:
     async def test_calls_update_query(self, cog):
-        await cog._save_trap_kick_count(5)
+        await cog._save_trap_ban_count(5)
         cog.poliswag.db.execute_query_to_database.assert_called_once()
         _, kwargs = cog.poliswag.db.execute_query_to_database.call_args
         assert kwargs["params"] == (5,)
@@ -282,26 +282,26 @@ class TestOnMessageTrap:
         await cog.on_message(msg)
         msg.delete.assert_not_called()
 
-    async def test_regular_user_deleted_and_kicked(self, cog):
+    async def test_regular_user_deleted_and_banned(self, cog):
         cog._get_or_create_trap_message = AsyncMock(
             return_value=MagicMock(edit=AsyncMock())
         )
         msg = _trap_msg(author_id=123)
         await cog.on_message(msg)
         msg.delete.assert_awaited_once()
-        msg.author.kick.assert_awaited_once()
-        assert cog._trap_kick_count == 1
+        msg.author.ban.assert_awaited_once()
+        assert cog._trap_ban_count == 1
         cog.poliswag.db.execute_query_to_database.assert_called_once()
 
     async def test_counter_message_updated_with_new_count(self, cog):
         trap_message = MagicMock(edit=AsyncMock())
         cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
-        cog._trap_kick_count = 4
+        cog._trap_ban_count = 4
         await cog.on_message(_trap_msg(author_id=123))
         trap_message.edit.assert_awaited_once()
         assert "5" in trap_message.edit.call_args.kwargs["embed"].description
 
-    async def test_delete_failure_still_attempts_kick(self, cog):
+    async def test_delete_failure_still_attempts_ban(self, cog):
         import discord
 
         cog._get_or_create_trap_message = AsyncMock(
@@ -310,21 +310,21 @@ class TestOnMessageTrap:
         msg = _trap_msg(author_id=123)
         msg.delete = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "nope"))
         await cog.on_message(msg)
-        msg.author.kick.assert_awaited_once()
+        msg.author.ban.assert_awaited_once()
         cog.poliswag.utility.log_to_file.assert_called()
 
-    async def test_kick_failure_does_not_increment_counter(self, cog):
+    async def test_ban_failure_does_not_increment_counter(self, cog):
         import discord
 
         cog._get_or_create_trap_message = AsyncMock(
             return_value=MagicMock(edit=AsyncMock())
         )
         msg = _trap_msg(author_id=123)
-        msg.author.kick = AsyncMock(
+        msg.author.ban = AsyncMock(
             side_effect=discord.HTTPException(MagicMock(), "missing perms")
         )
         await cog.on_message(msg)
-        assert cog._trap_kick_count == 0
+        assert cog._trap_ban_count == 0
         cog.poliswag.db.execute_query_to_database.assert_not_called()
 
     async def test_mod_channel_notified_with_result(self, cog):
