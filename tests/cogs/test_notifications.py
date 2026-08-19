@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cogs.notifications import Notifications
+from modules.config import Config
 from modules.poracle_client import PoracleError
 
 
@@ -552,6 +553,21 @@ class TestRegister:
         )
         cog.poliswag.poracle.start.assert_awaited_once_with(111)
 
+    async def test_creation_failure_reports_error(self, cog):
+        cog.poliswag.poracle.get_human.return_value = None
+        cog.poliswag.poracle.create_channel = AsyncMock(
+            side_effect=PoracleError("boom")
+        )
+        ctx = make_ctx()
+        channel = MagicMock()
+        channel.id = 111
+        channel.mention = "<#111>"
+        channel.name = "leiria-100iv"
+        await Notifications.register_cmd.callback(cog, ctx, channel)
+        cog.poliswag.poracle.start.assert_not_awaited()
+        assert "Erro ao registar canal" in reply_text(ctx)
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
 
 class TestEnableDisable:
     async def test_enable_fans_out(self, cog):
@@ -625,3 +641,245 @@ class TestTest:
         await Notifications.test_cmd.callback(cog, ctx, "dm", "bogusmon")
         cog.poliswag.poracle.test_pokemon.assert_not_awaited()
         assert "único" in reply_text(ctx)
+
+    async def test_partial_recipient_failure_reports_both(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [],
+            [
+                {"id": "111", "name": "leiria-raros", "enabled": 1},
+                {"id": "222", "name": "marinha-raros", "enabled": 1},
+            ],
+        ]
+        cog.poliswag.poracle.test_pokemon.side_effect = [None, PoracleError("boom")]
+        ctx = make_ctx()
+        await Notifications.test_cmd.callback(cog, ctx, "raros", "pikachu")
+        msg = reply_text(ctx)
+        assert "✔" in msg
+        assert "✖" in msg
+        assert "marinha-raros" in msg
+
+
+class TestLifecycle:
+    async def test_cog_load_prints(self, cog, capsys):
+        await cog.cog_load()
+        assert "Notifications loaded" in capsys.readouterr().out
+
+    async def test_cog_unload_prints(self, cog, capsys):
+        await cog.cog_unload()
+        assert "Notifications unloaded" in capsys.readouterr().out
+
+
+class TestPokemonNameHelper:
+    def test_uses_existing_name_map(self, cog):
+        assert cog._pokemon_name(25) == "Pikachu"
+
+    def test_falls_back_to_id_when_unknown(self, cog):
+        assert cog._pokemon_name(9999) == "#9999"
+
+    def test_loads_from_file_when_map_empty(self, cog, mocker, tmp_path):
+        cog.poliswag.quest_search.pokemon_name_map = {}
+        name_file = tmp_path / "names.json"
+        name_file.write_text('{"25": "pikachu"}')
+        mocker.patch.object(Config, "POKEMON_NAME_FILE", str(name_file))
+        assert cog._pokemon_name(25) == "Pikachu"
+        assert cog.poliswag.quest_search.pokemon_name_map == {"25": "pikachu"}
+
+    def test_missing_file_falls_back_and_logs(self, cog, mocker):
+        cog.poliswag.quest_search.pokemon_name_map = {}
+        mocker.patch.object(Config, "POKEMON_NAME_FILE", "/no/such/file.json")
+        assert cog._pokemon_name(25) == "#25"
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestResolvePokemonHelper:
+    def test_single_non_exact_match_still_resolves(self, cog):
+        # "char" matches only "charizard" by substring, but isn't an exact
+        # name match — should still resolve since it's the only candidate.
+        assert cog._resolve_pokemon("char") == 6
+
+    def test_no_matches_returns_none(self, cog):
+        assert cog._resolve_pokemon("bulbasaur") is None
+
+
+class TestRenderRuleSummary:
+    def test_includes_cp_range_when_restricted(self, cog):
+        summary = cog._render_rule_summary(
+            {
+                "pokemon_id": 25,
+                "min_iv": 0,
+                "max_iv": 100,
+                "min_cp": 500,
+                "max_cp": 9000,
+            }
+        )
+        assert "CP 500-9000" in summary
+
+    def test_omits_cp_range_when_unrestricted(self, cog):
+        summary = cog._render_rule_summary(
+            {"pokemon_id": 25, "min_iv": 0, "max_iv": 100}
+        )
+        assert "CP" not in summary
+
+
+class TestListPerChannelErrors:
+    async def test_single_target_failure_shown_inline(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "alertas-level5", "enabled": 1}],
+        ]
+        cog.poliswag.poracle.list_pokemon_tracking = AsyncMock(
+            side_effect=PoracleError("poracle down")
+        )
+        ctx = make_ctx()
+        await Notifications.list_cmd.callback(cog, ctx, "alertas-level5")
+        desc = ctx.send.call_args.kwargs["embed"].description
+        assert "alertas-level5" in desc
+        assert "poracle down" in desc
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_merged_group_all_empty_shows_placeholder(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [],
+            [
+                {"id": "111", "name": "leiria-raros", "enabled": 1},
+                {"id": "222", "name": "marinha-raros", "enabled": 1},
+            ],
+        ]
+        cog.poliswag.poracle.list_pokemon_tracking = AsyncMock(return_value=[])
+        ctx = make_ctx()
+        await Notifications.list_cmd.callback(cog, ctx, "raros")
+        desc = ctx.send.call_args.kwargs["embed"].description
+        assert "nenhum pokémon" in desc.lower()
+
+    async def test_merged_group_partial_failure_shows_error_and_rules(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [],
+            [
+                {"id": "111", "name": "leiria-raros", "enabled": 1},
+                {"id": "222", "name": "marinha-raros", "enabled": 1},
+            ],
+        ]
+        cog.poliswag.poracle.list_pokemon_tracking = AsyncMock(
+            side_effect=[
+                PoracleError("boom"),
+                [{"uid": 1, "pokemon_id": 25, "min_iv": 0, "max_iv": 100, "min_cp": 0}],
+            ]
+        )
+        ctx = make_ctx()
+        await Notifications.list_cmd.callback(cog, ctx, "raros")
+        desc = ctx.send.call_args.kwargs["embed"].description
+        assert "Pikachu" in desc
+        assert "boom" in desc
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestAddEdgeCases:
+    async def test_empty_names_rejected(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}]
+        ]
+        ctx = make_ctx()
+        await Notifications.add_cmd.callback(cog, ctx, "111", " , ,")
+        cog.poliswag.poracle.add_pokemon_tracking.assert_not_awaited()
+        assert "Não recebi" in reply_text(ctx)
+
+    async def test_reload_failure_is_logged_but_still_confirms(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}]
+        ]
+        cog.poliswag.poracle.reload = AsyncMock(side_effect=PoracleError("boom"))
+        ctx = make_ctx()
+        await Notifications.add_cmd.callback(cog, ctx, "111", "pikachu")
+        assert "✔" in reply_text(ctx)
+        assert cog.poliswag.utility.log_to_file.call_count >= 1
+
+
+class TestRemoveEdgeCases:
+    async def test_uid_delete_failure_reports_error(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}],
+            [{"id": "222"}],
+        ]
+        cog.poliswag.poracle.delete_pokemon_tracking_uid = AsyncMock(
+            side_effect=PoracleError("boom")
+        )
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(cog, ctx, "raros", "17")
+        assert "Erro ao remover regra" in reply_text(ctx)
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_name_path_empty_names_rejected(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}]
+        ]
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(cog, ctx, "111", " , ,")
+        cog.poliswag.poracle.delete_pokemon_tracking_uid.assert_not_awaited()
+        assert "Não recebi" in reply_text(ctx)
+
+    async def test_name_path_partial_delete_failure_reported(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}],
+            [
+                {"id": "111", "pokemon_id": 25, "uid": 50},
+                {"id": "111", "pokemon_id": 25, "uid": 51},
+            ],
+        ]
+        cog.poliswag.poracle.delete_pokemon_tracking_uid = AsyncMock(
+            side_effect=[None, PoracleError("boom")]
+        )
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(cog, ctx, "leiria-raros", "pikachu")
+        msg = reply_text(ctx)
+        assert "✔" in msg
+        assert "✖" in msg
+
+    async def test_name_path_reload_failure_is_logged(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}],
+            [{"id": "111", "pokemon_id": 25, "uid": 50}],
+        ]
+        cog.poliswag.poracle.reload = AsyncMock(side_effect=PoracleError("boom"))
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(cog, ctx, "leiria-raros", "pikachu")
+        assert "✔" in reply_text(ctx)
+        cog.poliswag.utility.log_to_file.assert_called()
+
+    async def test_unresolved_names_listed_alongside_removed(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "leiria-raros", "enabled": 1}],
+            [{"id": "111", "pokemon_id": 25, "uid": 50}],
+        ]
+        ctx = make_ctx()
+        await Notifications.remove_cmd.callback(
+            cog, ctx, "leiria-raros", "pikachu,bogusmon"
+        )
+        msg = reply_text(ctx)
+        assert "✔" in msg
+        assert "bogusmon" in msg
+
+
+class TestEnableDisableEdgeCases:
+    async def test_per_target_failure_reported(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [],
+            [
+                {"id": "111", "name": "leiria-raros", "enabled": 0},
+                {"id": "222", "name": "marinha-raros", "enabled": 0},
+            ],
+        ]
+        cog.poliswag.poracle.start = AsyncMock(side_effect=[None, PoracleError("boom")])
+        ctx = make_ctx()
+        await Notifications.enable_cmd.callback(cog, ctx, "raros")
+        msg = reply_text(ctx)
+        assert "✔" in msg
+        assert "✖" in msg
+
+    async def test_reload_failure_is_logged(self, cog):
+        cog.poracle_db.get_data_from_database.side_effect = [
+            [{"id": "111", "name": "alertas-level5", "enabled": 0}],
+        ]
+        cog.poliswag.poracle.reload = AsyncMock(side_effect=PoracleError("boom"))
+        ctx = make_ctx()
+        await Notifications.enable_cmd.callback(cog, ctx, "alertas-level5")
+        assert "✔" in reply_text(ctx)
+        cog.poliswag.utility.log_to_file.assert_called()
