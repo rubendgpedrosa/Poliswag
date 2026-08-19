@@ -34,14 +34,14 @@ class TestBuildEmbed:
 
 class TestBuildTrackedListEmbed:
     async def test_empty_list_shows_placeholder_description(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = []
         embed = await embeds.build_tracked_list_embed(db)
         assert "Não há quests" in embed.description
         assert embed.footer.text is None
 
     async def test_populates_fields_from_rows(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = [
             {
                 "target": "Catch 5 Pokémon",
@@ -64,7 +64,7 @@ class TestBuildTrackedListEmbed:
         assert "ontem" in embed.fields[1].value
 
     async def test_truncates_field_name_to_256_chars(self):
-        db = MagicMock()
+        db = AsyncMock()
         long_target = "x" * 500
         db.get_data_from_database.return_value = [
             {"target": long_target, "creator": "c", "createddate": "2024-01-01"}
@@ -73,7 +73,7 @@ class TestBuildTrackedListEmbed:
         assert len(embed.fields[0].name) == 256
 
     async def test_overflow_footer_shows_counts_and_returns_early(self):
-        db = MagicMock()
+        db = AsyncMock()
         rows = [
             {"target": f"Q{i}", "creator": "c", "createddate": "2024-01-01"}
             for i in range(30)
@@ -88,7 +88,7 @@ class TestBuildTrackedListEmbed:
         assert "ignored" not in embed.footer.text
 
     async def test_footer_text_applied_on_normal_path(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = [
             {"target": "t", "creator": "c", "createddate": "2024-01-01"}
         ]
@@ -96,13 +96,13 @@ class TestBuildTrackedListEmbed:
         assert embed.footer.text == "hello"
 
     async def test_custom_title(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = []
         embed = await embeds.build_tracked_list_embed(db, title="Custom")
         assert embed.title == "Custom"
 
     async def test_missing_createddate_falls_back(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = [
             {"target": "t", "creator": "c"}  # no createddate
         ]
@@ -112,13 +112,13 @@ class TestBuildTrackedListEmbed:
 
 class TestBuildExcludedListEmbed:
     async def test_empty_returns_placeholder(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = []
         embed = await embeds.build_excluded_list_embed(db)
         assert "Não há tipos" in embed.description
 
     async def test_populates_description(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = [
             {"type": "raid"},
             {"type": "invasion"},
@@ -128,13 +128,13 @@ class TestBuildExcludedListEmbed:
         assert "- invasion" in embed.description
 
     async def test_footer_applied(self):
-        db = MagicMock()
+        db = AsyncMock()
         db.get_data_from_database.return_value = [{"type": "raid"}]
         embed = await embeds.build_excluded_list_embed(db, footer_text="foot")
         assert embed.footer.text == "foot"
 
     async def test_truncates_oversized_description(self):
-        db = MagicMock()
+        db = AsyncMock()
         # Force the joined list well beyond 4096 chars.
         db.get_data_from_database.return_value = [
             {"type": "a" * 50} for _ in range(200)
