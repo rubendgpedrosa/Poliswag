@@ -237,11 +237,12 @@ class TestExport:
     """
 
     async def test_writes_merged_quests_to_json(self, tmp_path, mocker):
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
+        qs.db = AsyncMock()
         qs.translationfile_data = {"data": {"quest_catch_pokemon": "Catch {0} Pokémon"}}
         qs.masterfile_data = {
             "pokemon": {"25": {"name": "Pikachu"}, "150": "Mewtwo"},
@@ -337,11 +338,12 @@ class TestExport:
 
     @staticmethod
     def _make_exporter(tmp_path, rows):
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
+        qs.db = AsyncMock()
         qs.translationfile_data = {"data": {}}
         qs.masterfile_data = {"pokemon": {}, "items": {}}
 
@@ -415,11 +417,12 @@ class TestExport:
         assert "generatedAt" in meta
 
     async def test_handles_missing_translations_and_masterfile(self, tmp_path):
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
+        qs.db = AsyncMock()
         qs.translationfile_data = None
         qs.masterfile_data = None
         qs.db.get_data_from_database.return_value = []
