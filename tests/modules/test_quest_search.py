@@ -15,6 +15,25 @@ import requests
 from modules.quest_search import QuestSearch
 
 
+class TestInit:
+    def test_sets_attributes_and_calls_loaders(self, mocker):
+        mocker.patch.object(QuestSearch, "load_translation_data")
+        mocker.patch.object(QuestSearch, "load_masterfile_data")
+        mocker.patch.object(QuestSearch, "generate_pokemon_item_name_map")
+
+        qs_instance = QuestSearch(poliswag=MagicMock())
+
+        assert qs_instance.masterfile_data is None
+        assert qs_instance.translationfile_data is None
+        assert qs_instance.quest_data is None
+        assert qs_instance.alternative_quest_data is None
+        assert qs_instance.pokemon_name_map == {}
+        assert qs_instance.item_name_map == {}
+        QuestSearch.load_translation_data.assert_called_once()
+        QuestSearch.load_masterfile_data.assert_called_once()
+        QuestSearch.generate_pokemon_item_name_map.assert_called_once()
+
+
 @pytest.fixture
 def qs():
     """A QuestSearch instance with its disk-heavy __init__ bypassed."""
@@ -87,6 +106,15 @@ class TestGetItemIdByItemNameMap:
         qs.item_name_map = {"1": "poké ball"}
         assert qs.get_item_id_by_item_name_map("mega") == []
 
+    def test_empty_map_returns_empty_list(self, qs, mocker):
+        # Force load-from-file path; patch open to return "{}" so the map stays empty.
+        qs.item_name_map = {}
+        mocker.patch(
+            "builtins.open",
+            mocker.mock_open(read_data="{}"),
+        )
+        assert qs.get_item_id_by_item_name_map("ball") == []
+
 
 class TestIsLocationRelevant:
     def test_leiria_excludes_marinha_lon(self, qs):
@@ -108,6 +136,14 @@ class TestIsLocationRelevant:
     def test_float_lon_is_stringified(self, qs):
         quest = {"lon": -8.9123}
         assert qs.is_location_relevant(quest, is_leiria=False) is True
+
+    def test_non_numeric_lon_returns_false(self, qs):
+        quest = {"lon": "not-a-number"}
+        assert qs.is_location_relevant(quest, is_leiria=True) is False
+
+    def test_none_lon_returns_false(self, qs):
+        quest = {"lon": None}
+        assert qs.is_location_relevant(quest, is_leiria=True) is False
 
 
 class TestGenerateQuestSlugForImage:
@@ -324,6 +360,14 @@ class TestGroupPokestopsGeographically:
         # then jumps to the cluster; either way all in one group.
         assert set(names) == {"C0", "C1", "C2", "Far"}
 
+    def test_single_stop_returned_as_is(self, qs):
+        pokestops = [{"lat": "39.7", "lon": "-8.8", "name": "Solo"}]
+        result = qs.group_pokestops_geographically(pokestops, max_per_group=10)
+        assert result == [pokestops]
+
+    def test_empty_list_returned_as_is(self, qs):
+        assert qs.group_pokestops_geographically([], max_per_group=10) == [[]]
+
 
 class TestGroupPokestopsByReward:
     def test_item_reward_sets_reward_text(self, qs):
@@ -343,6 +387,44 @@ class TestGroupPokestopsByReward:
         groups = qs.group_pokestops_by_reward(found)
         assert "reward/item/1.png" in groups
         assert groups["reward/item/1.png"]["reward_text"] == "3x Poké Ball"
+
+    def test_item_reward_with_string_masterfile_entry(self, qs):
+        # item id 2 ("Great Ball") is a plain string in the fixture masterfile,
+        # unlike item 1 which is a {"name": ...} dict.
+        found = [
+            {
+                "quest_title": "Catch Balls",
+                "quests": [
+                    {
+                        "quest_slug": "reward/item/2.png",
+                        "quest_reward_type": 2,
+                        "quest_reward_amount": 5,
+                        "quest_item_id": 2,
+                    }
+                ],
+            }
+        ]
+        groups = qs.group_pokestops_by_reward(found)
+        assert groups["reward/item/2.png"]["reward_text"] == "5x Great Ball"
+
+    def test_item_reward_with_unknown_item_id_sets_no_text(self, qs):
+        # item id 999 is not present in the fixture masterfile at all, so
+        # item_data is None and the reward_text stays unset.
+        found = [
+            {
+                "quest_title": "Mystery Item",
+                "quests": [
+                    {
+                        "quest_slug": "reward/item/999.png",
+                        "quest_reward_type": 2,
+                        "quest_reward_amount": 5,
+                        "quest_item_id": 999,
+                    }
+                ],
+            }
+        ]
+        groups = qs.group_pokestops_by_reward(found)
+        assert "reward_text" not in groups["reward/item/999.png"]
 
     def test_stardust_reward(self, qs):
         found = [
@@ -376,6 +458,25 @@ class TestGroupPokestopsByReward:
         ]
         groups = qs.group_pokestops_by_reward(found)
         assert groups["reward/candy/25.png"]["reward_text"] == "3 Pikachu Candy"
+
+    def test_candy_reward_with_string_masterfile_entry(self, qs):
+        # pokemon id 150 ("Mewtwo") is a plain string in the fixture
+        # masterfile, unlike id 25 which is a {"name": ...} dict.
+        found = [
+            {
+                "quest_title": "Candy",
+                "quests": [
+                    {
+                        "quest_slug": "reward/candy/150.png",
+                        "quest_reward_type": 4,
+                        "quest_reward_amount": 3,
+                        "quest_pokemon_id": 150,
+                    }
+                ],
+            }
+        ]
+        groups = qs.group_pokestops_by_reward(found)
+        assert groups["reward/candy/150.png"]["reward_text"] == "3 Candy"
 
     def test_pokemon_encounter_reward(self, qs):
         found = [
@@ -428,6 +529,47 @@ class TestGroupPokestopsByReward:
             groups["reward/mega_energy/25.png"]["reward_text"]
             == "50 Pikachu Mega Energy"
         )
+
+    def test_mega_energy_reward_with_string_masterfile_entry(self, qs):
+        # pokemon id 150 ("Mewtwo") is a plain string in the fixture
+        # masterfile, unlike id 25 which is a {"name": ...} dict.
+        found = [
+            {
+                "quest_title": "Mega",
+                "quests": [
+                    {
+                        "quest_slug": "reward/mega_energy/150.png",
+                        "quest_reward_type": 12,
+                        "quest_reward_amount": 50,
+                        "quest_pokemon_id": 150,
+                    }
+                ],
+            }
+        ]
+        groups = qs.group_pokestops_by_reward(found)
+        assert (
+            groups["reward/mega_energy/150.png"]["reward_text"]
+            == "50 Mewtwo Mega Energy"
+        )
+
+    def test_mega_energy_reward_with_unknown_pokemon_id_sets_no_text(self, qs):
+        # pokemon id 999 is not present in the fixture masterfile at all, so
+        # pokemon_data is None and the reward_text stays unset.
+        found = [
+            {
+                "quest_title": "Mystery Mega",
+                "quests": [
+                    {
+                        "quest_slug": "reward/mega_energy/999.png",
+                        "quest_reward_type": 12,
+                        "quest_reward_amount": 50,
+                        "quest_pokemon_id": 999,
+                    }
+                ],
+            }
+        ]
+        groups = qs.group_pokestops_by_reward(found)
+        assert "reward_text" not in groups["reward/mega_energy/999.png"]
 
     def test_experience_reward(self, qs):
         found = [
