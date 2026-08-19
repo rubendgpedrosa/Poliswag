@@ -3,6 +3,11 @@ from discord.ext import commands
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
+_TRAP_WARNING_TEXT = (
+    "🚫 **NUNCA ESCREVAM AQUI. Quem escrever leva kick automático.**\n\n"
+    "**Pessoas expulsas até agora:** {count}"
+)
+
 
 def _is_image_attachment(attachment):
     if attachment.content_type and attachment.content_type.startswith("image/"):
@@ -13,12 +18,45 @@ def _is_image_attachment(attachment):
 class Moderation(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        # Cached reference to the warning/counter message in TRAP_CHANNEL --
+        # avoids re-scanning channel history on every trap trigger.
+        self._trap_message = None
+        self._trap_kick_count = 0
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
+        self._trap_kick_count = await self._load_trap_kick_count()
 
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
+
+    async def _load_trap_kick_count(self):
+        try:
+            rows = await self.poliswag.db.get_data_from_database(
+                "SELECT trap_kick_count FROM poliswag"
+            )
+            if rows and rows[0]["trap_kick_count"] is not None:
+                return rows[0]["trap_kick_count"]
+        except Exception as e:
+            self.poliswag.utility.log_to_file(f"Failed to load trap_kick_count: {e}")
+        return 0
+
+    async def _save_trap_kick_count(self, count):
+        await self.poliswag.db.execute_query_to_database(
+            "UPDATE poliswag SET trap_kick_count = %s", params=(count,)
+        )
+
+    async def _get_or_create_trap_message(self, channel):
+        if self._trap_message is not None:
+            return self._trap_message
+        async for message in channel.history(limit=50):
+            if message.author == self.poliswag.user:
+                self._trap_message = message
+                return message
+        self._trap_message = await channel.send(
+            _TRAP_WARNING_TEXT.format(count=self._trap_kick_count)
+        )
+        return self._trap_message
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
@@ -75,6 +113,67 @@ class Moderation(commands.Cog):
             )
 
         await self.poliswag.utility.send_embed_to_channel(mod_channel, embed)
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        trap_channel = self.poliswag.TRAP_CHANNEL
+        if (
+            trap_channel is None
+            or message.channel.id != trap_channel.id
+            or message.author.bot
+            or str(message.author.id) in self.poliswag.ADMIN_USERS_IDS
+        ):
+            return
+
+        try:
+            await message.delete()
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Failed to delete message from {message.author} "
+                f"({message.author.id}): {e}",
+                "ERROR",
+            )
+
+        kicked = False
+        try:
+            await message.author.kick(reason="Auto-kick: posted in trap channel")
+            kicked = True
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Failed to kick {message.author} ({message.author.id}): {e}",
+                "ERROR",
+            )
+
+        if kicked:
+            self._trap_kick_count += 1
+            await self._save_trap_kick_count(self._trap_kick_count)
+
+        trap_message = await self._get_or_create_trap_message(trap_channel)
+        try:
+            await trap_message.edit(
+                content=_TRAP_WARNING_TEXT.format(count=self._trap_kick_count)
+            )
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Failed to update counter message: {e}", "ERROR"
+            )
+
+        if self.poliswag.MOD_CHANNEL is not None:
+            embed = discord.Embed(
+                title="🍯 Alguém caiu no canal-armadilha",
+                color=0xE74C3C,
+            )
+            embed.add_field(
+                name=str(message.author),
+                value=(
+                    f"**Kick:** {'✅ efectuado' if kicked else '❌ falhou (ver logs)'}\n"
+                    f"{message.content or '*(sem texto)*'}"
+                ),
+                inline=False,
+            )
+            await self.poliswag.utility.send_embed_to_channel(
+                self.poliswag.MOD_CHANNEL, embed
+            )
 
 
 async def setup(poliswag):
