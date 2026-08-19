@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cogs.notifications import Notifications
+from cogs.notifications import Notifications, setup
 from modules.config import Config
 from modules.poracle_client import PoracleError
 
@@ -194,6 +194,14 @@ class TestList:
         # Merged view uses _render_rule_summary (no per-channel UID tags)
         assert "`1`" not in desc
         assert "`7`" not in desc
+
+    async def test_no_arg_no_channels_registered_shows_placeholder(self, cog):
+        # No `discord:channel` humans at all -> targets is empty -> body is
+        # empty -> the "nothing found" placeholder branch fires.
+        cog.poracle_db.get_data_from_database.return_value = []
+        ctx = make_ctx()
+        await Notifications.list_cmd.callback(cog, ctx)
+        assert "Nenhum pokémon seguido" in reply_text(ctx)
 
     async def test_no_arg_empty_channel_shows_placeholder(self, cog):
         cog.poracle_db.get_data_from_database.return_value = [
@@ -667,6 +675,15 @@ class TestLifecycle:
     async def test_cog_unload_prints(self, cog, capsys):
         await cog.cog_unload()
         assert "Notifications unloaded" in capsys.readouterr().out
+
+
+class TestSetup:
+    async def test_registers_cog_on_bot(self):
+        bot = MagicMock()
+        bot.add_cog = AsyncMock()
+        await setup(bot)
+        bot.add_cog.assert_awaited_once()
+        assert isinstance(bot.add_cog.call_args.args[0], Notifications)
 
 
 class TestPokemonNameHelper:
