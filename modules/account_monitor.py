@@ -19,6 +19,11 @@ DISABLED_STATUSES = [
 class AccountMonitor:
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        # Cached status-message reference — avoids re-scanning up to 50
+        # channel messages every 60s tick just to re-find the bot's own
+        # message to edit. Cleared if the message turns out to be gone, so
+        # the next tick rediscovers (or resends) it.
+        self._accounts_message = None
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
@@ -51,11 +56,11 @@ class AccountMonitor:
         if self.poliswag.ACCOUNTS_CHANNEL is None:
             return
         try:
-            existing_message = None
-            async for message in self.poliswag.ACCOUNTS_CHANNEL.history(limit=50):
-                if message.author == self.poliswag.user:
-                    existing_message = message
-                    break
+            if self._accounts_message is None:
+                async for message in self.poliswag.ACCOUNTS_CHANNEL.history(limit=50):
+                    if message.author == self.poliswag.user:
+                        self._accounts_message = message
+                        break
 
             account_data = await self.get_account_stats()
             device_status = await self.is_device_connected()
@@ -73,15 +78,22 @@ class AccountMonitor:
             discord_file = discord.File(
                 io.BytesIO(image_bytes), filename="account_status_report.png"
             )
-            if existing_message:
-                await existing_message.edit(
-                    content=f"*updated at:* {timestamp_str}",
-                    attachments=[discord_file],
-                )
-            else:
-                await self.poliswag.ACCOUNTS_CHANNEL.send(
-                    content=f"*updated at:* {timestamp_str}", file=discord_file
-                )
+
+            if self._accounts_message:
+                try:
+                    await self._accounts_message.edit(
+                        content=f"*updated at:* {timestamp_str}",
+                        attachments=[discord_file],
+                    )
+                    return
+                except discord.NotFound:
+                    # Message was deleted out from under us — fall through to
+                    # resend and re-cache below.
+                    self._accounts_message = None
+
+            self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
+                content=f"*updated at:* {timestamp_str}", file=discord_file
+            )
 
         except Exception as e:
             self._log(f"Error in update_channel_accounts_stats: {e}")
