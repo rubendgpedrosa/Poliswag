@@ -2,8 +2,14 @@ import discord
 from datetime import datetime, time
 from pathlib import Path
 import logging
+import logging.handlers
 from modules.config import Config
 from modules.http_client import get_session
+
+# Match the size/count already used for the Docker json-file log driver in
+# docker-compose.prod.yaml, so both layers cap out around the same footprint.
+LOG_MAX_BYTES = 10_000_000
+LOG_BACKUP_COUNT = 5
 
 
 class Utility:
@@ -31,7 +37,9 @@ class Utility:
         if self.logger.handlers:
             self.logger.handlers.clear()
 
-        info_file_handler = logging.FileHandler(self.LOG_FILE)
+        info_file_handler = logging.handlers.RotatingFileHandler(
+            self.LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
+        )
         info_file_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         )
@@ -50,7 +58,9 @@ class Utility:
         if self.error_logger.handlers:
             self.error_logger.handlers.clear()
 
-        error_file_handler = logging.FileHandler(self.ERROR_LOG_FILE)
+        error_file_handler = logging.handlers.RotatingFileHandler(
+            self.ERROR_LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
+        )
         error_file_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         )
