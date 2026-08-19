@@ -48,7 +48,10 @@ class StackRecovery:
                 bool(rows[0]["auto_recreate_enabled"]) if rows else True
             )
             return self._auto_recreate_enabled
-        except Exception:
+        except Exception as e:
+            self._log(
+                f"Failed to read auto_recreate_enabled, defaulting to enabled: {e}"
+            )
             return True
 
     @auto_recreate_enabled.setter

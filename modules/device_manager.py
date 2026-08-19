@@ -37,7 +37,8 @@ class DeviceManager:
                 bool(rows[0]["auto_reboot_enabled"]) if rows else True
             )
             return self._auto_reboot_enabled
-        except Exception:
+        except Exception as e:
+            self._log(f"Failed to read auto_reboot_enabled, defaulting to enabled: {e}")
             return True
 
     @auto_reboot_enabled.setter
@@ -78,7 +79,8 @@ class DeviceManager:
         'offline'), or '' when it can't be determined. Never raises."""
         try:
             stdout, _, rc = await self._adb("-s", device, "get-state", timeout=8)
-        except RuntimeError:
+        except RuntimeError as e:
+            self._log(f"Could not read ADB state for {device}: {e}")
             return ""
         return stdout if rc == 0 else ""
 
@@ -132,7 +134,8 @@ class DeviceManager:
         try:
             _, _, rc = await self.run("shell", "echo", "ping", timeout=8)
             return rc == 0
-        except RuntimeError:
+        except RuntimeError as e:
+            self._log(f"Reachability check failed: {e}")
             return False
 
     async def get_model(self) -> str | None:
@@ -142,7 +145,8 @@ class DeviceManager:
                 "shell", "getprop", "ro.product.model", timeout=8
             )
             return stdout if rc == 0 and stdout else None
-        except RuntimeError:
+        except RuntimeError as e:
+            self._log(f"Could not read device model: {e}")
             return None
 
     async def logcat_filtered(self, lines: int = 10) -> str:
@@ -155,6 +159,7 @@ class DeviceManager:
         try:
             stdout, stderr, rc = await self.run("shell", cmd, timeout=25)
         except RuntimeError as e:
+            self._log(f"logcat fetch failed: {e}")
             return f"Erro: {e}"
 
         output = stdout or stderr or ""
@@ -165,7 +170,8 @@ class DeviceManager:
         try:
             _, _, rc = await self.run("reboot", timeout=10)
             return rc == 0
-        except RuntimeError:
+        except RuntimeError as e:
+            self._log(f"Reboot command failed: {e}")
             return False
 
     async def restart_app(self) -> bool:
@@ -184,7 +190,8 @@ class DeviceManager:
                 "shell", "am", "start", "-n", self.POGO_ACTIVITY, timeout=15
             )
             return rc == 0
-        except RuntimeError:
+        except RuntimeError as e:
+            self._log(f"App restart failed: {e}")
             return False
 
     def _next_notify_interval(self, offline_duration: float) -> float:

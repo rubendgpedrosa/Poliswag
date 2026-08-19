@@ -26,8 +26,10 @@ class Scheduled(commands.Cog):
                     if isinstance(val, datetime.date)
                     else datetime.date.fromisoformat(str(val))
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Failed to load last_weekly_digest_date: {e}"
+            )
         return None
 
     def _save_digest_date(self, date):

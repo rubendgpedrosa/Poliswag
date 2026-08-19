@@ -34,6 +34,7 @@ class ContainerManagerCog(commands.Cog):
         try:
             data = await self.poliswag.scanner_status.get_full_status()
         except Exception as e:
+            self.poliswag.utility.log_to_file(f"[DEVICE] status_cmd failed: {e}")
             await msg.edit(content=f"❌ Erro ao recolher estado: {e}")
             return
 
