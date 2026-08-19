@@ -5,7 +5,7 @@ delegate to db + utility on poliswag. We construct via __new__ and attach
 mocks directly.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -16,14 +16,15 @@ from modules.scanner_manager import ScannerManager
 def sm():
     s = ScannerManager.__new__(ScannerManager)
     s.poliswag = MagicMock()
+    s.poliswag.db = AsyncMock()
     s.poliswag.utility.time_now = MagicMock(return_value="2024-01-02T00:00:00")
     s.SCANNER_CONTAINER_NAME = None
     return s
 
 
 class TestUpdateLastScannedDate:
-    def test_issues_update_query_with_param(self, sm):
-        sm.update_last_scanned_date("2024-01-02T00:00:00")
+    async def test_issues_update_query_with_param(self, sm):
+        await sm.update_last_scanned_date("2024-01-02T00:00:00")
         sm.poliswag.db.execute_query_to_database.assert_called_once()
         args, kwargs = sm.poliswag.db.execute_query_to_database.call_args
         assert "UPDATE poliswag SET last_scanned_date" in args[0]
@@ -32,15 +33,15 @@ class TestUpdateLastScannedDate:
 
 
 class TestUpdateQuestScanningState:
-    def test_default_state_is_one_and_logs_finished(self, sm):
-        sm.update_quest_scanning_state()
+    async def test_default_state_is_one_and_logs_finished(self, sm):
+        await sm.update_quest_scanning_state()
         args, kwargs = sm.poliswag.db.execute_query_to_database.call_args
         assert kwargs["params"] == (1,)
         log_msg = sm.poliswag.utility.log_to_file.call_args.args[0]
         assert "Finished" in log_msg
 
-    def test_state_zero_logs_started(self, sm):
-        sm.update_quest_scanning_state(0)
+    async def test_state_zero_logs_started(self, sm):
+        await sm.update_quest_scanning_state(0)
         args, kwargs = sm.poliswag.db.execute_query_to_database.call_args
         assert kwargs["params"] == (0,)
         log_msg = sm.poliswag.utility.log_to_file.call_args.args[0]
@@ -48,8 +49,8 @@ class TestUpdateQuestScanningState:
 
 
 class TestStartPokestopScan:
-    def test_sets_date_then_flips_state_to_zero(self, sm):
-        sm.start_pokestop_scan()
+    async def test_sets_date_then_flips_state_to_zero(self, sm):
+        await sm.start_pokestop_scan()
         # First call set the scanned date, second flipped scanned flag to 0.
         calls = sm.poliswag.db.execute_query_to_database.call_args_list
         assert len(calls) == 2
@@ -58,22 +59,22 @@ class TestStartPokestopScan:
 
 
 class TestIsDayChange:
-    def test_returns_true_when_db_returns_rows(self, sm):
+    async def test_returns_true_when_db_returns_rows(self, sm):
         sm.poliswag.db.get_data_from_database.return_value = [
             {"last_scanned_date": "x"}
         ]
-        assert sm.is_day_change() is True
+        assert await sm.is_day_change() is True
         # Day-change path should also kick off a new scan → 2 update calls.
         assert sm.poliswag.db.execute_query_to_database.call_count == 2
 
-    def test_returns_false_when_no_rows(self, sm):
+    async def test_returns_false_when_no_rows(self, sm):
         sm.poliswag.db.get_data_from_database.return_value = []
-        assert sm.is_day_change() is False
+        assert await sm.is_day_change() is False
         sm.poliswag.db.execute_query_to_database.assert_not_called()
 
-    def test_query_is_parametrized_with_time_now(self, sm):
+    async def test_query_is_parametrized_with_time_now(self, sm):
         sm.poliswag.db.get_data_from_database.return_value = []
-        sm.is_day_change()
+        await sm.is_day_change()
         args, kwargs = sm.poliswag.db.get_data_from_database.call_args
         assert "last_scanned_date < %s" in args[0]
         assert kwargs["params"] == ("2024-01-02T00:00:00",)

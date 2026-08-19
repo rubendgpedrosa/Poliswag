@@ -21,7 +21,7 @@ def cog():
     poliswag.quest_search.check_tracked = AsyncMock()
     with patch("cogs.tracker.TrackerStore"):
         c = Tracker(poliswag)
-    c.tracker_store = MagicMock()
+    c.tracker_store = AsyncMock()
     return c
 
 

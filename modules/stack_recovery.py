@@ -36,12 +36,11 @@ class StackRecovery:
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
 
-    @property
-    def auto_recreate_enabled(self) -> bool:
+    async def get_auto_recreate_enabled(self) -> bool:
         if self._auto_recreate_enabled is not None:
             return self._auto_recreate_enabled
         try:
-            rows = self.poliswag.db.get_data_from_database(
+            rows = await self.poliswag.db.get_data_from_database(
                 "SELECT auto_recreate_enabled FROM poliswag LIMIT 1"
             )
             self._auto_recreate_enabled = (
@@ -54,10 +53,9 @@ class StackRecovery:
             )
             return True
 
-    @auto_recreate_enabled.setter
-    def auto_recreate_enabled(self, value: bool) -> None:
+    async def set_auto_recreate_enabled(self, value: bool) -> None:
         try:
-            self.poliswag.db.execute_query_to_database(
+            await self.poliswag.db.execute_query_to_database(
                 "UPDATE poliswag SET auto_recreate_enabled = %s",
                 params=(1 if value else 0,),
             )
@@ -81,7 +79,7 @@ class StackRecovery:
         if self._red_since is None:
             self._red_since = now
 
-        if not self.auto_recreate_enabled:
+        if not await self.get_auto_recreate_enabled():
             return False
 
         total = len(self.RECREATE_THRESHOLDS)

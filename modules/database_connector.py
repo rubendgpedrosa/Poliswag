@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import pymysql
@@ -13,6 +14,11 @@ class DatabaseConnector:
     def __init__(self, database=None):
         self.database = database or Config.DB_POLISWAG
         self.db = self.connect_to_db()
+        # pymysql connections aren't thread-safe for concurrent use, so every
+        # call is serialized through this lock — same fully-sequential
+        # behavior as before, just off the event loop thread (via to_thread
+        # in get_data_from_database / execute_query_to_database below).
+        self._lock = asyncio.Lock()
 
     def connect_to_db(self):
         try:
@@ -29,13 +35,19 @@ class DatabaseConnector:
             logging.error(f"Failed to connect to the database: {e}")
             raise
 
-    def get_data_from_database(self, query, retries=3, params=None):
-        return self.execute_query(query, fetch=True, retries=retries, params=params)
+    async def get_data_from_database(self, query, retries=3, params=None):
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._execute_query_sync, query, True, retries, params
+            )
 
-    def execute_query_to_database(self, query, retries=3, params=None):
-        return self.execute_query(query, fetch=False, retries=retries, params=params)
+    async def execute_query_to_database(self, query, retries=3, params=None):
+        async with self._lock:
+            return await asyncio.to_thread(
+                self._execute_query_sync, query, False, retries, params
+            )
 
-    def execute_query(self, query, fetch, retries, params=None):
+    def _execute_query_sync(self, query, fetch, retries, params=None):
         last_error = None
         for attempt in range(retries):
             try:
