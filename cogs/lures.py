@@ -24,7 +24,7 @@ class Lures(commands.Cog):
         "com username, password e número de lures restantes.",
     )
     async def lures(self, ctx):
-        accounts = self.lure_manager.list_available_with_lures()
+        accounts = await self.lure_manager.list_available_with_lures()
         if not accounts:
             await ctx.send(
                 embed=build_embed(
@@ -64,7 +64,7 @@ class Lures(commands.Cog):
             await ctx.send("NUMERO tem de ser diferente de zero.")
             return
 
-        affected = self.lure_manager.adjust_lure_count(username, delta)
+        affected = await self.lure_manager.adjust_lure_count(username, delta)
         if not affected:
             await ctx.send(f"A conta `{username}` não foi encontrada.")
             return

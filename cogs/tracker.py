@@ -27,11 +27,11 @@ class Tracker(commands.Cog):
     async def track(self, ctx, *, search_string):
         search_string = search_string.lower()
 
-        if self.tracker_store.exists(search_string):
+        if await self.tracker_store.exists(search_string):
             await ctx.send(f"A quest '{search_string}' já está a ser seguida.")
             return
 
-        self.tracker_store.add(search_string, str(ctx.author.name))
+        await self.tracker_store.add(search_string, str(ctx.author.name))
 
         confirm_embed = discord.Embed(
             title="Quest Adicionada",
@@ -54,7 +54,7 @@ class Tracker(commands.Cog):
     )
     async def untrack(self, ctx, *, search_string):
         search_string = search_string.lower()
-        affected_rows = self.tracker_store.remove(search_string)
+        affected_rows = await self.tracker_store.remove(search_string)
 
         if affected_rows == 0:
             await ctx.send(
@@ -81,7 +81,7 @@ class Tracker(commands.Cog):
         help="Remove todas as quests da lista.",
     )
     async def untrack_all(self, ctx):
-        count = self.tracker_store.clear()
+        count = await self.tracker_store.clear()
 
         confirm_embed = discord.Embed(
             title="Todas as Quests Removidas",

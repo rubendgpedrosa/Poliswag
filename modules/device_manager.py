@@ -25,12 +25,11 @@ class DeviceManager:
         # trip on every scheduler tick.
         self._auto_reboot_enabled: bool | None = None
 
-    @property
-    def auto_reboot_enabled(self) -> bool:
+    async def get_auto_reboot_enabled(self) -> bool:
         if self._auto_reboot_enabled is not None:
             return self._auto_reboot_enabled
         try:
-            rows = self.poliswag.db.get_data_from_database(
+            rows = await self.poliswag.db.get_data_from_database(
                 "SELECT auto_reboot_enabled FROM poliswag LIMIT 1"
             )
             self._auto_reboot_enabled = (
@@ -41,10 +40,9 @@ class DeviceManager:
             self._log(f"Failed to read auto_reboot_enabled, defaulting to enabled: {e}")
             return True
 
-    @auto_reboot_enabled.setter
-    def auto_reboot_enabled(self, value: bool) -> None:
+    async def set_auto_reboot_enabled(self, value: bool) -> None:
         try:
-            self.poliswag.db.execute_query_to_database(
+            await self.poliswag.db.execute_query_to_database(
                 "UPDATE poliswag SET auto_reboot_enabled = %s",
                 params=(1 if value else 0,),
             )
@@ -212,7 +210,7 @@ class DeviceManager:
         - First alert at OFFLINE_BEFORE_ALERT (15 min).
         - Repeated every 1 h while offline < 6 h, then every 6 h.
         """
-        if not Config.ADB_DEVICE or not self.auto_reboot_enabled:
+        if not Config.ADB_DEVICE or not await self.get_auto_reboot_enabled():
             return False
 
         device_alive = await self.poliswag.account_monitor.is_device_connected()

@@ -45,7 +45,7 @@ class Quests(commands.Cog):
         )
         if request is not None:
             await ctx.send("Scan de quests iniciado!")
-            self.poliswag.scanner_manager.update_quest_scanning_state(0)
+            await self.poliswag.scanner_manager.update_quest_scanning_state(0)
             self.poliswag.utility.log_to_file(
                 f"[QUEST] @{ctx.author} ({ctx.author.id}): triggered quest scan"
             )
@@ -68,7 +68,7 @@ class Quests(commands.Cog):
 
         is_leiria = ctx.invoked_with == "questleiria"
         area = "Leiria" if is_leiria else "Marinha"
-        found_quests = self.poliswag.quest_search.find_quest_by_search_keyword(
+        found_quests = await self.poliswag.quest_search.find_quest_by_search_keyword(
             search.lower(), is_leiria
         )
         if not found_quests:

@@ -55,7 +55,7 @@ class Notifications(commands.Cog):
             return int(matches[0])
         return None
 
-    def _resolve_targets(self, ref: str) -> list[dict]:
+    async def _resolve_targets(self, ref: str) -> list[dict]:
         """Map a user-supplied reference to one or more registered channels.
 
         Accepts:
@@ -68,14 +68,14 @@ class Notifications(commands.Cog):
         if ref.startswith("<#") and ref.endswith(">"):
             ref = ref[2:-1]
         if ref.isdigit():
-            rows = self.poracle_db.get_data_from_database(
+            rows = await self.poracle_db.get_data_from_database(
                 "SELECT id, name, enabled FROM humans "
                 "WHERE type = 'discord:channel' AND id = %s",
                 params=(ref,),
             )
             return rows or []
 
-        exact = self.poracle_db.get_data_from_database(
+        exact = await self.poracle_db.get_data_from_database(
             "SELECT id, name, enabled FROM humans "
             "WHERE type = 'discord:channel' AND name = %s",
             params=(ref,),
@@ -83,7 +83,7 @@ class Notifications(commands.Cog):
         if exact:
             return exact
         return (
-            self.poracle_db.get_data_from_database(
+            await self.poracle_db.get_data_from_database(
                 "SELECT id, name, enabled FROM humans "
                 "WHERE type = 'discord:channel' AND name LIKE %s "
                 "ORDER BY name",
@@ -198,7 +198,7 @@ class Notifications(commands.Cog):
     )
     async def channels_cmd(self, ctx):
         try:
-            rows = self.poracle_db.get_data_from_database(
+            rows = await self.poracle_db.get_data_from_database(
                 "SELECT id, name, enabled FROM humans "
                 "WHERE type = 'discord:channel' ORDER BY name"
             )
@@ -236,7 +236,7 @@ class Notifications(commands.Cog):
     async def list_cmd(self, ctx, ref: str | None = None):
         if ref is None:
             targets = (
-                self.poracle_db.get_data_from_database(
+                await self.poracle_db.get_data_from_database(
                     "SELECT id, name, enabled FROM humans "
                     "WHERE type = 'discord:channel' ORDER BY name"
                 )
@@ -244,7 +244,7 @@ class Notifications(commands.Cog):
             )
             title_ref = "todos os canais"
         else:
-            targets = self._resolve_targets(ref)
+            targets = await self._resolve_targets(ref)
             if not targets:
                 await self._send_no_match(ctx, ref)
                 return
@@ -384,7 +384,7 @@ class Notifications(commands.Cog):
         min_iv: int = 0,
         min_cp: int = 0,
     ):
-        targets = self._resolve_targets(ref)
+        targets = await self._resolve_targets(ref)
         if not targets:
             await self._send_no_match(ctx, ref)
             return
@@ -422,7 +422,7 @@ class Notifications(commands.Cog):
             added_channels = []
             skipped_channels = []
             for target in targets:
-                if self._rule_exists(target["id"], pokemon_id, min_iv, min_cp):
+                if await self._rule_exists(target["id"], pokemon_id, min_iv, min_cp):
                     skipped_channels.append(target["name"])
                     continue
                 try:
@@ -465,10 +465,10 @@ class Notifications(commands.Cog):
             error=not (any_added or skipped),
         )
 
-    def _rule_exists(
+    async def _rule_exists(
         self, human_id: str | int, pokemon_id: int, min_iv: int, min_cp: int
     ) -> bool:
-        rows = self.poracle_db.get_data_from_database(
+        rows = await self.poracle_db.get_data_from_database(
             "SELECT uid FROM monsters "
             "WHERE id = %s AND pokemon_id = %s AND min_iv = %s AND min_cp = %s",
             params=(str(human_id), pokemon_id, min_iv, min_cp),
@@ -488,7 +488,7 @@ class Notifications(commands.Cog):
         ),
     )
     async def remove_cmd(self, ctx, ref: str, target: str):
-        targets = self._resolve_targets(ref)
+        targets = await self._resolve_targets(ref)
         if not targets:
             await self._send_no_match(ctx, ref)
             return
@@ -502,7 +502,7 @@ class Notifications(commands.Cog):
         await self._remove_by_pokemon_name(ctx, targets, target)
 
     async def _remove_by_uid(self, ctx, uid: str):
-        rows = self.poracle_db.get_data_from_database(
+        rows = await self.poracle_db.get_data_from_database(
             "SELECT id FROM monsters WHERE uid = %s", params=(uid,)
         )
         if not rows:
@@ -559,7 +559,7 @@ class Notifications(commands.Cog):
             pretty = self._pokemon_name(pokemon_id)
             removed = []
             for target in targets:
-                rows = self.poracle_db.get_data_from_database(
+                rows = await self.poracle_db.get_data_from_database(
                     "SELECT uid FROM monsters WHERE id = %s AND pokemon_id = %s",
                     params=(target["id"], pokemon_id),
                 )
@@ -668,7 +668,7 @@ class Notifications(commands.Cog):
         await self._toggle(ctx, ref, enable=False)
 
     async def _toggle(self, ctx, ref: str, *, enable: bool):
-        targets = self._resolve_targets(ref)
+        targets = await self._resolve_targets(ref)
         if not targets:
             await self._send_no_match(ctx, ref)
             return
@@ -739,7 +739,7 @@ class Notifications(commands.Cog):
                 }
             ]
         else:
-            resolved = self._resolve_targets(target)
+            resolved = await self._resolve_targets(target)
             if not resolved:
                 await self._send_no_match(ctx, target)
                 return

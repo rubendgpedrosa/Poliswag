@@ -1,11 +1,11 @@
 """Tests for modules.lure_manager.LureManager.
 
 LureManager opens a dragonite DatabaseConnector in __init__; we patch it at
-the import site and use poliswag.db (a MagicMock) for the account_lure table.
-After construction we replace dragonite_db with a MagicMock too.
+the import site and use poliswag.db (an AsyncMock) for the account_lure table.
+After construction we replace dragonite_db with an AsyncMock too.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -15,10 +15,10 @@ from modules.lure_manager import LureManager, DEFAULT_LURE_COUNT, MAX_LISTED
 @pytest.fixture
 def manager():
     poliswag = MagicMock()
-    poliswag.db = MagicMock()
+    poliswag.db = AsyncMock()
     with patch("modules.lure_manager.DatabaseConnector"):
         m = LureManager(poliswag)
-    m.dragonite_db = MagicMock()
+    m.dragonite_db = AsyncMock()
     # default: no rows unless a test sets them
     poliswag.db.get_data_from_database.return_value = []
     m.dragonite_db.get_data_from_database.return_value = []
@@ -26,8 +26,8 @@ def manager():
 
 
 class TestAvailableQuery:
-    def test_query_filters_health_cooldown_and_selection(self, manager):
-        manager.list_available_with_lures()
+    async def test_query_filters_health_cooldown_and_selection(self, manager):
+        await manager.list_available_with_lures()
         sql = manager.dragonite_db.get_data_from_database.call_args.args[0]
         assert "FROM account" in sql
         assert "banned = 0" in sql
@@ -40,18 +40,18 @@ class TestAvailableQuery:
 
 
 class TestSeeding:
-    def test_seeds_missing_usernames_at_default_count(self, manager):
+    async def test_seeds_missing_usernames_at_default_count(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = [
             {"username": "free_new", "password": "pw"},
         ]
         # account_lure currently empty (first poliswag call), then select returns nothing
         manager.db.get_data_from_database.side_effect = [[], []]
-        manager.list_available_with_lures()
+        await manager.list_available_with_lures()
         insert_call = manager.db.execute_query_to_database.call_args
         assert "INSERT INTO account_lure" in insert_call.args[0]
         assert insert_call.kwargs["params"] == ("free_new", DEFAULT_LURE_COUNT)
 
-    def test_does_not_seed_existing_usernames(self, manager):
+    async def test_does_not_seed_existing_usernames(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = [
             {"username": "free_low", "password": "pw"},
         ]
@@ -59,12 +59,12 @@ class TestSeeding:
             [{"username": "free_low"}],  # existing account_lure rows
             [{"username": "free_low", "nb_lures": 2}],  # selection
         ]
-        manager.list_available_with_lures()
+        await manager.list_available_with_lures()
         seed_sql = manager.db.get_data_from_database.call_args_list[0].args[0]
         assert "WHERE username IN" in seed_sql
         manager.db.execute_query_to_database.assert_not_called()
 
-    def test_seeds_multiple_missing_usernames(self, manager):
+    async def test_seeds_multiple_missing_usernames(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = [
             {"username": "free_new1", "password": "pw1"},
             {"username": "free_new2", "password": "pw2"},
@@ -73,7 +73,7 @@ class TestSeeding:
             [],
             [],
         ]  # none existing, then empty selection
-        manager.list_available_with_lures()
+        await manager.list_available_with_lures()
         seeded = [
             c.kwargs["params"][0]
             for c in manager.db.execute_query_to_database.call_args_list
@@ -84,7 +84,7 @@ class TestSeeding:
 
 
 class TestListing:
-    def test_merges_password_and_count_sorted_and_capped(self, manager):
+    async def test_merges_password_and_count_sorted_and_capped(self, manager):
         # 6 available accounts; all already seeded
         avail = [{"username": f"u{i}", "password": f"p{i}"} for i in range(6)]
         manager.dragonite_db.get_data_from_database.return_value = avail
@@ -98,7 +98,7 @@ class TestListing:
             {"username": "u2", "nb_lures": 12},
         ]
         manager.db.get_data_from_database.side_effect = [existing, selected]
-        result = manager.list_available_with_lures()
+        result = await manager.list_available_with_lures()
         assert [r["username"] for r in result] == ["u3", "u0", "u5", "u1", "u2"]
         assert result[0] == {"username": "u3", "password": "p3", "nb_lures": 1}
         # selection SQL caps at MAX_LISTED and sorts ascending
@@ -109,24 +109,24 @@ class TestListing:
         sel_params = manager.db.get_data_from_database.call_args.kwargs["params"]
         assert sel_params[-1] == MAX_LISTED
 
-    def test_returns_empty_when_no_available_accounts(self, manager):
+    async def test_returns_empty_when_no_available_accounts(self, manager):
         manager.dragonite_db.get_data_from_database.return_value = []
-        result = manager.list_available_with_lures()
+        result = await manager.list_available_with_lures()
         assert result == []
         # no poliswag selection query issued when nothing is available
         manager.db.get_data_from_database.assert_not_called()
 
 
 class TestAdjust:
-    def test_update_floors_at_zero_and_returns_rowcount(self, manager):
+    async def test_update_floors_at_zero_and_returns_rowcount(self, manager):
         manager.db.execute_query_to_database.return_value = 1
-        affected = manager.adjust_lure_count("free_low", -3)
+        affected = await manager.adjust_lure_count("free_low", -3)
         assert affected == 1
         call = manager.db.execute_query_to_database.call_args
         assert "UPDATE account_lure" in call.args[0]
         assert "GREATEST(nb_lures + %s, 0)" in call.args[0]
         assert call.kwargs["params"] == (-3, "free_low")
 
-    def test_unknown_username_returns_zero(self, manager):
+    async def test_unknown_username_returns_zero(self, manager):
         manager.db.execute_query_to_database.return_value = 0
-        assert manager.adjust_lure_count("ghost", 5) == 0
+        assert await manager.adjust_lure_count("ghost", 5) == 0

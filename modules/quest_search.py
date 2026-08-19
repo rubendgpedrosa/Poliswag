@@ -184,26 +184,26 @@ class QuestSearch:
                 matching_ids.append(item_id)
         return matching_ids
 
-    def get_quest_data(self):
+    async def get_quest_data(self):
         if self.quest_data and datetime.now() - datetime.fromisoformat(
             self.quest_data["date"]
         ) < timedelta(hours=1):
             return self.quest_data
 
-        quest_data = self.db.get_data_from_database("""
+        quest_data = await self.db.get_data_from_database("""
             SELECT name, lat, lon, url, quest_title, quest_pokemon_id, quest_reward_type, quest_item_id, quest_reward_amount, quest_target
             FROM pokestop WHERE quest_reward_type IS NOT NULL AND deleted = 0;
         """)
         self.quest_data = {"data": quest_data, "date": datetime.now().isoformat()}
         return self.quest_data
 
-    def get_alternative_quest_data(self):
+    async def get_alternative_quest_data(self):
         if self.alternative_quest_data and datetime.now() - datetime.fromisoformat(
             self.alternative_quest_data["date"]
         ) < timedelta(hours=1):
             return self.alternative_quest_data
 
-        alternative_quest_data = self.db.get_data_from_database("""
+        alternative_quest_data = await self.db.get_data_from_database("""
             SELECT name, lat, lon, url, alternative_quest_title, alternative_quest_pokemon_id, alternative_quest_reward_type, alternative_quest_item_id, alternative_quest_reward_amount, alternative_quest_target
             FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0;
         """)
@@ -213,11 +213,11 @@ class QuestSearch:
         }
         return self.alternative_quest_data
 
-    def find_quest_by_search_keyword(self, search, is_leiria):
+    async def find_quest_by_search_keyword(self, search, is_leiria):
         """Find quests by a search keyword."""
         search = search.lower()
-        quest_data = self.get_quest_data()["data"]
-        alternative_quest_data = self.get_alternative_quest_data()["data"]
+        quest_data = (await self.get_quest_data())["data"]
+        alternative_quest_data = (await self.get_alternative_quest_data())["data"]
 
         found_quests = self.find_and_process_quest_by_search_keyword(
             search, is_leiria, quest_data
@@ -518,7 +518,7 @@ class QuestSearch:
         return reward_groups
 
     async def check_tracked(self, channel):
-        tracked_quests = self.poliswag.db.get_data_from_database(
+        tracked_quests = await self.poliswag.db.get_data_from_database(
             "SELECT target FROM tracked_quest_reward"
         )
 
@@ -536,7 +536,7 @@ class QuestSearch:
             search_keyword = tracked_quest_data["target"]
 
             found_quests_leiria = (
-                self.poliswag.quest_search.find_quest_by_search_keyword(
+                await self.poliswag.quest_search.find_quest_by_search_keyword(
                     search_keyword, True
                 )
             )
@@ -544,7 +544,7 @@ class QuestSearch:
                 all_found_quests_leiria.extend(found_quests_leiria)
 
             found_quests_marinha = (
-                self.poliswag.quest_search.find_quest_by_search_keyword(
+                await self.poliswag.quest_search.find_quest_by_search_keyword(
                     search_keyword, False
                 )
             )

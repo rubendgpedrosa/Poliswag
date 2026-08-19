@@ -10,13 +10,14 @@ from modules.locale_pt import PT_DAYS_SHORT
 class Scheduled(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self._last_weekly_digest_monday = self._load_digest_date()
+        # Loaded in cog_load (async) instead of here — __init__ can't await.
+        self._last_weekly_digest_monday = None
         self._last_progress_embed_state = None
         self._last_quest_export = None
 
-    def _load_digest_date(self):
+    async def _load_digest_date(self):
         try:
-            rows = self.poliswag.db.get_data_from_database(
+            rows = await self.poliswag.db.get_data_from_database(
                 "SELECT last_weekly_digest_date FROM poliswag"
             )
             if rows and rows[0]["last_weekly_digest_date"]:
@@ -32,14 +33,15 @@ class Scheduled(commands.Cog):
             )
         return None
 
-    def _save_digest_date(self, date):
-        self.poliswag.db.execute_query_to_database(
+    async def _save_digest_date(self, date):
+        await self.poliswag.db.execute_query_to_database(
             "UPDATE poliswag SET last_weekly_digest_date = %s",
             params=(str(date),),
         )
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
+        self._last_weekly_digest_monday = await self._load_digest_date()
         self.scheduled_tasks.start()
 
     async def cog_unload(self):
@@ -138,7 +140,7 @@ class Scheduled(commands.Cog):
             )
 
     async def _check_quest_scan_progress(self):
-        day_changed = self.poliswag.scanner_manager.is_day_change()
+        day_changed = await self.poliswag.scanner_manager.is_day_change()
         if day_changed:
             self.poliswag.scanner_status.reset_quest_plateau()
             self.poliswag.quest_scanning_message = (
@@ -185,8 +187,8 @@ class Scheduled(commands.Cog):
             )
             await self.poliswag.quest_exporter.export()
             self._last_quest_export = datetime.datetime.now()
-            self.poliswag.scanner_manager.update_quest_scanning_state()
-            self.poliswag.scanner_status.record_quest_scan_completion(
+            await self.poliswag.scanner_manager.update_quest_scanning_state()
+            await self.poliswag.scanner_status.record_quest_scan_completion(
                 quest_completed["leiriaScanned"], quest_completed["marinhaScanned"]
             )
             self._last_progress_embed_state = None
@@ -305,7 +307,7 @@ class Scheduled(commands.Cog):
     async def _send_weekly_digest(self, channel=None) -> bool:
         now = datetime.datetime.now()
         today = now.date()
-        events = self.poliswag.event_manager.get_weekly_events()
+        events = await self.poliswag.event_manager.get_weekly_events()
         if not events:
             return False
 
@@ -385,7 +387,7 @@ class Scheduled(commands.Cog):
         if now.hour < 9:
             return
         self._last_weekly_digest_monday = today
-        self._save_digest_date(today)
+        await self._save_digest_date(today)
         await self._send_weekly_digest()
 
 
