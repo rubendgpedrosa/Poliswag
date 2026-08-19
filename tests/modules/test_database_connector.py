@@ -14,6 +14,49 @@ import pytest
 from modules.database_connector import DatabaseConnector
 
 
+class TestConnectToDb:
+    def test_success_returns_connection_and_logs(self, mocker):
+        conn = MagicMock()
+        connect = mocker.patch(
+            "modules.database_connector.pymysql.connect", return_value=conn
+        )
+        info = mocker.patch("modules.database_connector.logging.info")
+        dc = DatabaseConnector.__new__(DatabaseConnector)
+        dc.database = "poliswag"
+        assert dc.connect_to_db() is conn
+        connect.assert_called_once()
+        info.assert_called_once()
+
+    def test_failure_logs_and_reraises(self, mocker):
+        mocker.patch(
+            "modules.database_connector.pymysql.connect",
+            side_effect=pymysql.MySQLError("connection refused"),
+        )
+        error = mocker.patch("modules.database_connector.logging.error")
+        dc = DatabaseConnector.__new__(DatabaseConnector)
+        dc.database = "poliswag"
+        with pytest.raises(pymysql.MySQLError, match="connection refused"):
+            dc.connect_to_db()
+        error.assert_called_once()
+
+
+class TestInit:
+    def test_sets_up_database_connection_and_lock(self, mocker):
+        conn = MagicMock()
+        mocker.patch.object(DatabaseConnector, "connect_to_db", return_value=conn)
+        dc = DatabaseConnector(database="custom_db")
+        assert dc.database == "custom_db"
+        assert dc.db is conn
+        assert isinstance(dc._lock, asyncio.Lock)
+
+    def test_defaults_database_from_config(self, mocker):
+        conn = MagicMock()
+        mocker.patch.object(DatabaseConnector, "connect_to_db", return_value=conn)
+        mocker.patch("modules.database_connector.Config.DB_POLISWAG", "poliswag_db")
+        dc = DatabaseConnector()
+        assert dc.database == "poliswag_db"
+
+
 class _FakeCursor:
     def __init__(
         self,

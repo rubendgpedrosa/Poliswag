@@ -55,6 +55,50 @@ def _install_aiohttp_mock(
     return response
 
 
+class TestGetSession:
+    async def test_creates_session_lazily_and_reuses_it(self, mocker):
+        mocker.patch.object(http_client, "_shared_session", None)
+        first = http_client.get_session()
+        assert isinstance(first, aiohttp.ClientSession)
+        second = http_client.get_session()
+        assert second is first
+        await first.close()
+
+    async def test_creates_new_session_when_previous_is_closed(self, mocker):
+        closed_session = MagicMock()
+        closed_session.closed = True
+        mocker.patch.object(http_client, "_shared_session", closed_session)
+        result = http_client.get_session()
+        assert result is not closed_session
+        assert isinstance(result, aiohttp.ClientSession)
+        await result.close()
+
+
+class TestCloseSession:
+    async def test_closes_open_session_and_clears_global(self, mocker):
+        session = MagicMock()
+        session.closed = False
+        session.close = AsyncMock()
+        mocker.patch.object(http_client, "_shared_session", session)
+        await http_client.close_session()
+        session.close.assert_awaited_once()
+        assert http_client._shared_session is None
+
+    async def test_noop_when_no_session_exists(self, mocker):
+        mocker.patch.object(http_client, "_shared_session", None)
+        await http_client.close_session()
+        assert http_client._shared_session is None
+
+    async def test_noop_when_session_already_closed(self, mocker):
+        session = MagicMock()
+        session.closed = True
+        session.close = AsyncMock()
+        mocker.patch.object(http_client, "_shared_session", session)
+        await http_client.close_session()
+        session.close.assert_not_awaited()
+        assert http_client._shared_session is None
+
+
 class TestDevMockFileBranch:
     """When IS_PRODUCTION is False and endpoint is mapped, read from mock_data/."""
 
