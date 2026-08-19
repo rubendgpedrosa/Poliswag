@@ -5,14 +5,20 @@ from modules.config import Config
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
+# Bots that hit the trap channel almost always blasted the same spam into
+# every other channel too. A ban (unlike a kick) can purge a member's recent
+# messages server-wide in the same API call -- this is how long a lookback
+# that purge covers.
+_TRAP_BAN_PURGE_SECONDS = 86400
+
 
 def _build_trap_warning_embed(count):
     return discord.Embed(
         title="🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
         description=(
             "Este canal é usado para apanhar spam bots. Qualquer mensagem "
-            "enviada aqui resulta num **kick automático**.\n\n"
-            f"**Pessoas expulsas até agora:** {count}"
+            "enviada aqui resulta num **ban automático**.\n\n"
+            f"**Pessoas banidas até agora:** {count}"
         ),
         color=0xE74C3C,
     )
@@ -30,30 +36,30 @@ class Moderation(commands.Cog):
         # Cached reference to the warning/counter message in TRAP_CHANNEL --
         # avoids re-scanning channel history on every trap trigger.
         self._trap_message = None
-        self._trap_kick_count = 0
+        self._trap_ban_count = 0
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
-        self._trap_kick_count = await self._load_trap_kick_count()
+        self._trap_ban_count = await self._load_trap_ban_count()
         await self._ensure_trap_warning_posted()
 
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
 
-    async def _load_trap_kick_count(self):
+    async def _load_trap_ban_count(self):
         try:
             rows = await self.poliswag.db.get_data_from_database(
-                "SELECT trap_kick_count FROM poliswag"
+                "SELECT trap_ban_count FROM poliswag"
             )
-            if rows and rows[0]["trap_kick_count"] is not None:
-                return rows[0]["trap_kick_count"]
+            if rows and rows[0]["trap_ban_count"] is not None:
+                return rows[0]["trap_ban_count"]
         except Exception as e:
-            self.poliswag.utility.log_to_file(f"Failed to load trap_kick_count: {e}")
+            self.poliswag.utility.log_to_file(f"Failed to load trap_ban_count: {e}")
         return 0
 
-    async def _save_trap_kick_count(self, count):
+    async def _save_trap_ban_count(self, count):
         await self.poliswag.db.execute_query_to_database(
-            "UPDATE poliswag SET trap_kick_count = %s", params=(count,)
+            "UPDATE poliswag SET trap_ban_count = %s", params=(count,)
         )
 
     async def _get_or_create_trap_message(self, channel):
@@ -64,26 +70,26 @@ class Moderation(commands.Cog):
                 self._trap_message = message
                 return message
         self._trap_message = await channel.send(
-            embed=_build_trap_warning_embed(self._trap_kick_count)
+            embed=_build_trap_warning_embed(self._trap_ban_count)
         )
         return self._trap_message
 
     async def _ensure_trap_warning_posted(self):
         """Post (or find) the warning message at startup rather than waiting
         for the first violation -- the whole point is people see it *before*
-        they get kicked. Fetches the channel directly instead of waiting on
+        they get banned. Fetches the channel directly instead of waiting on
         poliswag.TRAP_CHANNEL, which is only resolved later in on_ready.
 
         Also re-edits an already-existing message to the current embed, so a
         wording/count change actually takes effect on deploy instead of only
-        refreshing whenever the next kick happens to fire."""
+        refreshing whenever the next ban happens to fire."""
         if not Config.TRAP_CHANNEL_ID:
             return
         try:
             trap_channel = await self.poliswag.fetch_channel(Config.TRAP_CHANNEL_ID)
             trap_message = await self._get_or_create_trap_message(trap_channel)
             await trap_message.edit(
-                content=None, embed=_build_trap_warning_embed(self._trap_kick_count)
+                content=None, embed=_build_trap_warning_embed(self._trap_ban_count)
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
@@ -166,24 +172,27 @@ class Moderation(commands.Cog):
                 "ERROR",
             )
 
-        kicked = False
+        banned = False
         try:
-            await message.author.kick(reason="Auto-kick: posted in trap channel")
-            kicked = True
+            await message.author.ban(
+                reason="Auto-ban: posted in trap channel",
+                delete_message_seconds=_TRAP_BAN_PURGE_SECONDS,
+            )
+            banned = True
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
-                f"[TRAP] Failed to kick {message.author} ({message.author.id}): {e}",
+                f"[TRAP] Failed to ban {message.author} ({message.author.id}): {e}",
                 "ERROR",
             )
 
-        if kicked:
-            self._trap_kick_count += 1
-            await self._save_trap_kick_count(self._trap_kick_count)
+        if banned:
+            self._trap_ban_count += 1
+            await self._save_trap_ban_count(self._trap_ban_count)
 
         trap_message = await self._get_or_create_trap_message(trap_channel)
         try:
             await trap_message.edit(
-                content=None, embed=_build_trap_warning_embed(self._trap_kick_count)
+                content=None, embed=_build_trap_warning_embed(self._trap_ban_count)
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
@@ -198,7 +207,7 @@ class Moderation(commands.Cog):
             embed.add_field(
                 name=str(message.author),
                 value=(
-                    f"**Kick:** {'✅ efectuado' if kicked else '❌ falhou (ver logs)'}\n"
+                    f"**Ban:** {'✅ efectuado (mensagens dos últimos 24h purgadas)' if banned else '❌ falhou (ver logs)'}\n"
                     f"{message.content or '*(sem texto)*'}"
                 ),
                 inline=False,
