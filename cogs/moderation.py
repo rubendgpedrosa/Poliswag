@@ -10,7 +10,7 @@ def _build_trap_warning_embed(count):
     return discord.Embed(
         title="🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
         description=(
-            "Este canal é usado para apanhar bots de spam. Qualquer mensagem "
+            "Este canal é usado para apanhar spam bots. Qualquer mensagem "
             "enviada aqui resulta num **kick automático**.\n\n"
             f"**Pessoas expulsas até agora:** {count}"
         ),
@@ -83,7 +83,7 @@ class Moderation(commands.Cog):
             trap_channel = await self.poliswag.fetch_channel(Config.TRAP_CHANNEL_ID)
             trap_message = await self._get_or_create_trap_message(trap_channel)
             await trap_message.edit(
-                embed=_build_trap_warning_embed(self._trap_kick_count)
+                content=None, embed=_build_trap_warning_embed(self._trap_kick_count)
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
@@ -183,7 +183,7 @@ class Moderation(commands.Cog):
         trap_message = await self._get_or_create_trap_message(trap_channel)
         try:
             await trap_message.edit(
-                embed=_build_trap_warning_embed(self._trap_kick_count)
+                content=None, embed=_build_trap_warning_embed(self._trap_kick_count)
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
