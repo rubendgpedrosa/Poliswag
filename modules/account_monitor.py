@@ -1,6 +1,7 @@
 import io
 import datetime
 import discord
+from modules.config import Config
 from modules.http_client import fetch_data
 
 DISABLED_STATUSES = [
@@ -78,12 +79,14 @@ class AccountMonitor:
             discord_file = discord.File(
                 io.BytesIO(image_bytes), filename="account_status_report.png"
             )
+            embed = discord.Embed(color=Config.EMBED_COLOR)
+            embed.set_image(url="attachment://account_status_report.png")
+            embed.set_footer(text=f"Actualizado às {timestamp_str}")
 
             if self._accounts_message:
                 try:
                     await self._accounts_message.edit(
-                        content=f"*updated at:* {timestamp_str}",
-                        attachments=[discord_file],
+                        content=None, embed=embed, attachments=[discord_file]
                     )
                     return
                 except discord.NotFound:
@@ -92,7 +95,7 @@ class AccountMonitor:
                     self._accounts_message = None
 
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
-                content=f"*updated at:* {timestamp_str}", file=discord_file
+                embed=embed, file=discord_file
             )
 
         except Exception as e:

@@ -181,7 +181,8 @@ class TestTestEventCmd:
         ctx.channel.send = AsyncMock()
         await Scheduled.testeventcmd.callback(cog, ctx, time_arg="not-a-time")
         ctx.channel.send.assert_awaited_once()
-        assert "Formato inválido" in ctx.channel.send.call_args.args[0]
+        embed = ctx.channel.send.call_args.kwargs["embed"]
+        assert "Formato inválido" in embed.title
 
     async def test_valid_time_no_changes(self, cog):
         ctx = make_ctx(dm=True)
@@ -191,7 +192,8 @@ class TestTestEventCmd:
         )
         await Scheduled.testeventcmd.callback(cog, ctx, time_arg="10:30")
         ctx.channel.send.assert_awaited_once()
-        assert "10:30" in ctx.channel.send.call_args.kwargs["content"]
+        embed = ctx.channel.send.call_args.kwargs["embed"]
+        assert "10:30" in embed.description
 
     async def test_no_time_arg_agora_with_changes_triggers_notifications(self, cog):
         ctx = make_ctx(dm=True)
@@ -204,7 +206,8 @@ class TestTestEventCmd:
         )
         cog._send_event_change_notifications = AsyncMock()
         await Scheduled.testeventcmd.callback(cog, ctx)
-        assert "agora" in ctx.channel.send.call_args_list[0].kwargs["content"]
+        embed = ctx.channel.send.call_args_list[0].kwargs["embed"]
+        assert "agora" in embed.description
         cog._send_event_change_notifications.assert_awaited_once()
 
     async def test_guild_channel_deletes_message(self, cog):

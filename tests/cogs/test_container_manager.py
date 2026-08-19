@@ -49,45 +49,56 @@ class TestContainerGroup:
         ctx = make_ctx()
         await ContainerManagerCog.container.callback(cog, ctx)
         ctx.send.assert_awaited_once()
-        assert "Invalid container command" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "container start" in embed.description
 
 
 class TestStartContainer:
-    async def test_success_path_sends_two_messages(self, cog):
+    async def test_success_path_sends_loading_then_confirms(self, cog):
         ctx = make_ctx()
         await ContainerManagerCog.start_container.callback(cog, ctx)
         cog.poliswag.scanner_manager.change_scanner_status.assert_called_once_with(
             "start"
         )
-        assert ctx.send.await_count == 2
+        ctx.send.assert_awaited_once()
+        msg = ctx.send.return_value
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "início enviado" in embed.title
 
-    async def test_exception_logs_and_sends_error(self, cog):
+    async def test_exception_logs_and_edits_error(self, cog):
         ctx = make_ctx()
         cog.poliswag.scanner_manager.change_scanner_status.side_effect = RuntimeError(
             "docker offline"
         )
         await ContainerManagerCog.start_container.callback(cog, ctx)
         cog.poliswag.utility.log_to_file.assert_called()
-        assert ctx.send.await_count == 2
+        msg = ctx.send.return_value
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "Erro ao iniciar" in embed.title
 
 
 class TestStopContainer:
-    async def test_success_path_sends_two_messages(self, cog):
+    async def test_success_path_sends_loading_then_confirms(self, cog):
         ctx = make_ctx()
         await ContainerManagerCog.stop_container.callback(cog, ctx)
         cog.poliswag.scanner_manager.change_scanner_status.assert_called_once_with(
             "stop"
         )
-        assert ctx.send.await_count == 2
+        ctx.send.assert_awaited_once()
+        msg = ctx.send.return_value
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "paragem enviado" in embed.title
 
-    async def test_exception_logs_and_sends_error(self, cog):
+    async def test_exception_logs_and_edits_error(self, cog):
         ctx = make_ctx()
         cog.poliswag.scanner_manager.change_scanner_status.side_effect = RuntimeError(
             "docker offline"
         )
         await ContainerManagerCog.stop_container.callback(cog, ctx)
         cog.poliswag.utility.log_to_file.assert_called()
-        assert ctx.send.await_count == 2
+        msg = ctx.send.return_value
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "Erro ao parar" in embed.title
 
 
 class TestStatusCmd:
@@ -133,10 +144,8 @@ class TestStatusCmd:
         await ContainerManagerCog.status_cmd.callback(cog, ctx)
         cog.poliswag.utility.log_to_file.assert_called_once()
         ctx.send.return_value.edit.assert_awaited_once()
-        assert (
-            "Erro ao recolher estado"
-            in ctx.send.return_value.edit.call_args.kwargs["content"]
-        )
+        embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
+        assert "Erro ao recolher estado" in embed.title
 
     async def test_stale_pokemon_marks_red(self, cog):
         ctx = make_ctx()
@@ -173,7 +182,8 @@ class TestRecreateContainers:
         cog.poliswag.stack_recovery.recreate_services = AsyncMock(return_value=True)
         await ContainerManagerCog.recreate_containers.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "recriados" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "recriados" in embed.title
         cog.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_failure_edits_error(self, cog):
@@ -181,7 +191,8 @@ class TestRecreateContainers:
         cog.poliswag.stack_recovery.recreate_services = AsyncMock(return_value=False)
         await ContainerManagerCog.recreate_containers.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "Falha" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "Falha" in embed.title
         log_call = cog.poliswag.utility.log_to_file.call_args
         assert log_call.args[1] == "ERROR"
 
@@ -193,7 +204,8 @@ class TestContainerAutorecreate:
             return_value=True
         )
         await ContainerManagerCog.container_autorecreate.callback(cog, ctx, None)
-        assert "activada" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "activada" in embed.title
 
     async def test_on_enables_and_confirms(self, cog):
         ctx = make_ctx()
@@ -202,7 +214,8 @@ class TestContainerAutorecreate:
         cog.poliswag.stack_recovery.set_auto_recreate_enabled.assert_awaited_once_with(
             True
         )
-        assert "activada" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "activada" in embed.title
 
     async def test_off_disables_and_confirms(self, cog):
         ctx = make_ctx()
@@ -211,21 +224,24 @@ class TestContainerAutorecreate:
         cog.poliswag.stack_recovery.set_auto_recreate_enabled.assert_awaited_once_with(
             False
         )
-        assert "desactivada" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "desactivada" in embed.title
 
     async def test_invalid_state_sends_error(self, cog):
         ctx = make_ctx()
         cog.poliswag.stack_recovery.set_auto_recreate_enabled = AsyncMock()
         await ContainerManagerCog.container_autorecreate.callback(cog, ctx, "bogus")
         cog.poliswag.stack_recovery.set_auto_recreate_enabled.assert_not_awaited()
-        assert "inválido" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "inválido" in embed.title
 
 
 class TestDeviceGroup:
     async def test_fallback_invocation_sends_help(self, cog):
         ctx = make_ctx()
         await ContainerManagerCog.device.callback(cog, ctx)
-        assert "!device status" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "!device status" in embed.description
 
 
 class TestDeviceRestartapp:
@@ -234,7 +250,8 @@ class TestDeviceRestartapp:
         cog.poliswag.device_manager.restart_app = AsyncMock(return_value=True)
         await ContainerManagerCog.device_restartapp.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "reiniciada" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "reiniciada" in embed.title
         cog.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_failure_edits_error(self, cog):
@@ -242,7 +259,8 @@ class TestDeviceRestartapp:
         cog.poliswag.device_manager.restart_app = AsyncMock(return_value=False)
         await ContainerManagerCog.device_restartapp.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "Falha" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "Falha" in embed.title
 
 
 class TestDeviceStatus:
@@ -272,13 +290,15 @@ class TestDeviceLogcat:
     async def test_rejects_out_of_range_lines(self, cog):
         ctx = make_ctx()
         await ContainerManagerCog.device_logcat.callback(cog, ctx, 0)
-        assert "entre 1 e 200" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "entre 1 e 200" in embed.title
         cog.poliswag.device_manager.logcat_filtered.assert_not_called()
 
     async def test_rejects_too_many_lines(self, cog):
         ctx = make_ctx()
         await ContainerManagerCog.device_logcat.callback(cog, ctx, 201)
-        assert "entre 1 e 200" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "entre 1 e 200" in embed.title
 
     async def test_default_ten_lines_and_normal_output(self, cog):
         ctx = make_ctx()
@@ -288,17 +308,18 @@ class TestDeviceLogcat:
         await ContainerManagerCog.device_logcat.callback(cog, ctx)
         cog.poliswag.device_manager.logcat_filtered.assert_awaited_once_with(10)
         msg = ctx.send.return_value
-        assert "short output" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "short output" in embed.description
 
     async def test_long_output_is_truncated(self, cog):
         ctx = make_ctx()
         cog.poliswag.device_manager.logcat_filtered = AsyncMock(return_value="x" * 2000)
         await ContainerManagerCog.device_logcat.callback(cog, ctx, 50)
         msg = ctx.send.return_value
-        content = msg.edit.call_args.kwargs["content"]
-        assert content.startswith("```\n…")
+        description = msg.edit.call_args.kwargs["embed"].description
+        assert description.startswith("```\n…")
         # 1897 chars of "x" plus the leading ellipsis marker.
-        assert content.count("x") == 1897
+        assert description.count("x") == 1897
 
 
 class TestDeviceAutoreboot:
@@ -309,7 +330,8 @@ class TestDeviceAutoreboot:
         cog.poliswag.device_manager.set_auto_reboot_enabled.assert_awaited_once_with(
             True
         )
-        assert "activado" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "activado" in embed.title
 
     async def test_off_disables_and_confirms(self, cog):
         ctx = make_ctx()
@@ -318,7 +340,8 @@ class TestDeviceAutoreboot:
         cog.poliswag.device_manager.set_auto_reboot_enabled.assert_awaited_once_with(
             False
         )
-        assert "desactivado" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "desactivado" in embed.title
 
     async def test_unrecognised_state_reports_current_status(self, cog):
         ctx = make_ctx()
@@ -326,7 +349,8 @@ class TestDeviceAutoreboot:
             return_value=False
         )
         await ContainerManagerCog.device_autoreboot.callback(cog, ctx, "status")
-        assert "desactivado" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "desactivado" in embed.title
 
 
 class TestDeviceReboot:
@@ -336,7 +360,8 @@ class TestDeviceReboot:
         cog.poliswag.device_manager.reboot = AsyncMock(return_value=True)
         await ContainerManagerCog.device_reboot.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "1.2.3.4:5555" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "1.2.3.4:5555" in embed.title
         cog.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_failure_edits_error(self, cog):
@@ -344,7 +369,8 @@ class TestDeviceReboot:
         cog.poliswag.device_manager.reboot = AsyncMock(return_value=False)
         await ContainerManagerCog.device_reboot.callback(cog, ctx)
         msg = ctx.send.return_value
-        assert "Falha no reboot" in msg.edit.call_args.kwargs["content"]
+        embed = msg.edit.call_args.kwargs["embed"]
+        assert "Falha no reboot" in embed.title
         cog.poliswag.utility.log_to_file.assert_called_once()
 
 
@@ -353,13 +379,16 @@ class TestCogCommandError:
         ctx = make_ctx()
         err = commands.CheckFailure("no")
         await cog.cog_command_error(ctx, err)
-        ctx.send.assert_awaited_once_with("You are not authorized to use this command.")
+        ctx.send.assert_awaited_once()
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "autorização" in embed.title
 
     async def test_command_not_found_sends_help(self, cog):
         ctx = make_ctx()
         err = commands.CommandNotFound("huh")
         await cog.cog_command_error(ctx, err)
-        assert "Invalid container command" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "container start" in embed.description
 
     async def test_other_error_logs_and_sends(self, cog):
         ctx = make_ctx()
