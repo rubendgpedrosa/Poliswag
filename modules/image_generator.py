@@ -15,13 +15,26 @@ class ImageGenerator:
         )
         self.ACCOUNTS_TEMPLATE_HTML_FILE = Config.ACCOUNTS_TEMPLATE_HTML_FILE
         self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
+        # Lazily-cached Jinja environment/templates — loaded and parsed from
+        # disk once instead of on every render call (generate_image_from_
+        # account_stats runs every 60s tick).
+        self._env = None
+        self._quest_template = None
+        self._accounts_template = None
+
+    def _get_env(self):
+        if self._env is None:
+            self._env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
+        return self._env
 
     async def generate_image_from_quest_data(
         self, quests_leiria, quests_marinha, has_leiria, has_marinha
     ):
-        env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
-        template = env.get_template(self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE)
-        html_content = template.render(
+        if self._quest_template is None:
+            self._quest_template = self._get_env().get_template(
+                self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE
+            )
+        html_content = self._quest_template.render(
             quests_leiria=quests_leiria,
             quests_marinha=quests_marinha,
             has_leiria=has_leiria,
@@ -48,9 +61,11 @@ class ImageGenerator:
             return None
 
     async def generate_image_from_account_stats(self, account_data, device_status):
-        env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
-        template = env.get_template(self.ACCOUNTS_TEMPLATE_HTML_FILE)
-        html_content = template.render(
+        if self._accounts_template is None:
+            self._accounts_template = self._get_env().get_template(
+                self.ACCOUNTS_TEMPLATE_HTML_FILE
+            )
+        html_content = self._accounts_template.render(
             good=account_data.get("good", 0),
             cooldown=account_data.get("cooldown", 0),
             disabled=account_data.get("disabled", 0),
