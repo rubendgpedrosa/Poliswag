@@ -206,8 +206,15 @@ class Scheduled(commands.Cog):
             embed = self._build_progress_embed(quest_completed)
 
         if self.poliswag.quest_scanning_message:
-            await self.poliswag.quest_scanning_message.edit(embed=embed)
-        elif self.poliswag.QUEST_CHANNEL:
+            try:
+                await self.poliswag.quest_scanning_message.edit(embed=embed)
+                return
+            except discord.NotFound:
+                # Message was deleted out from under us — fall through to
+                # resend and re-cache below.
+                self.poliswag.quest_scanning_message = None
+
+        if self.poliswag.QUEST_CHANNEL:
             self.poliswag.quest_scanning_message = (
                 await self.poliswag.QUEST_CHANNEL.send(embed=embed)
             )
