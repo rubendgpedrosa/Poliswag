@@ -45,6 +45,18 @@ class LureWatcher:
     def _area(self, lon):
         return "Marinha Grande" if lon <= _MARINHA_LON_MAX else "Leiria"
 
+    async def count_active_lures(self):
+        """Current count of pokestops with an active lure right now."""
+        try:
+            rows = await self.poliswag.quest_search.db.get_data_from_database(
+                "SELECT COUNT(*) AS active FROM pokestop "
+                "WHERE lure_expire_timestamp > UNIX_TIMESTAMP()"
+            )
+        except Exception as e:
+            self._log(f"Error counting active lures: {e}")
+            return 0
+        return rows[0]["active"] if rows else 0
+
     async def check_new_lures(self):
         """Return newly-placed lures as a list of dicts with name, lat, lon,
         area, lure_name, and expires_at (datetime). Empty on the seeding run."""
