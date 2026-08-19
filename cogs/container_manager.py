@@ -30,12 +30,18 @@ class ContainerManagerCog(commands.Cog):
         ),
     )
     async def status_cmd(self, ctx):
-        msg = await ctx.send("⏳ A recolher dados…")
+        msg = await ctx.send(
+            embed=discord.Embed(title="⏳ A recolher dados…", color=Config.EMBED_COLOR)
+        )
         try:
             data = await self.poliswag.scanner_status.get_full_status()
         except Exception as e:
             self.poliswag.utility.log_to_file(f"[DEVICE] status_cmd failed: {e}")
-            await msg.edit(content=f"❌ Erro ao recolher estado: {e}")
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"❌ Erro ao recolher estado: {e}", color=discord.Color.red()
+                )
+            )
             return
 
         # ── Pokemon freshness ────────────────────────────────────────────────
@@ -82,7 +88,7 @@ class ContainerManagerCog(commands.Cog):
         embed.add_field(name="Workers (Dragonite)", value=workers_text, inline=False)
         embed.add_field(name="Contas (Dragonite)", value=accounts_text, inline=False)
 
-        await msg.edit(content=None, embed=embed)
+        await msg.edit(embed=embed)
 
     @commands.group(
         name="container",
@@ -91,65 +97,104 @@ class ContainerManagerCog(commands.Cog):
     )
     async def container(self, ctx):
         await ctx.send(
-            "Invalid container command. Use `container start`, `container stop`, "
-            "`container recreate` or `container autorecreate on|off`."
+            embed=discord.Embed(
+                title="Comando inválido",
+                description=(
+                    "Usa `container start`, `container stop`, `container recreate` "
+                    "ou `container autorecreate on|off`."
+                ),
+                color=Config.EMBED_COLOR,
+            )
         )
 
     @container.command(name="start", brief="Inicia o container do scanner (admin)")
     async def start_container(self, ctx):
-        await ctx.send(
-            f"Attempting to start container '{self.SCANNER_CONTAINER_NAME}'..."
+        msg = await ctx.send(
+            embed=discord.Embed(
+                title=f"⏳ A iniciar o container '{self.SCANNER_CONTAINER_NAME}'…",
+                color=Config.EMBED_COLOR,
+            )
         )
         try:
             self.poliswag.scanner_manager.change_scanner_status("start")
-            await ctx.send(
-                f"Container '{self.SCANNER_CONTAINER_NAME}' start command sent."
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"✅ Comando de início enviado para '{self.SCANNER_CONTAINER_NAME}'.",
+                    color=discord.Color.green(),
+                )
             )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): started '{self.SCANNER_CONTAINER_NAME}'"
             )
         except Exception as e:
-            error_message = f"Error starting container: {e}"
+            error_message = f"Erro ao iniciar o container: {e}"
             print(error_message)
             self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send(error_message)
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"❌ {error_message}", color=discord.Color.red()
+                )
+            )
 
     @container.command(name="stop", brief="Pára o container do scanner (admin)")
     async def stop_container(self, ctx):
-        await ctx.send(
-            f"Attempting to stop container '{self.SCANNER_CONTAINER_NAME}'..."
+        msg = await ctx.send(
+            embed=discord.Embed(
+                title=f"⏳ A parar o container '{self.SCANNER_CONTAINER_NAME}'…",
+                color=Config.EMBED_COLOR,
+            )
         )
         try:
             self.poliswag.scanner_manager.change_scanner_status("stop")
-            await ctx.send(
-                f"Container '{self.SCANNER_CONTAINER_NAME}' stop command sent."
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"✅ Comando de paragem enviado para '{self.SCANNER_CONTAINER_NAME}'.",
+                    color=discord.Color.green(),
+                )
             )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): stopped '{self.SCANNER_CONTAINER_NAME}'"
             )
         except Exception as e:
-            error_message = f"Error stopping container: {e}"
+            error_message = f"Erro ao parar o container: {e}"
             print(error_message)
             self.poliswag.utility.log_to_file(error_message, "ERROR")
-            await ctx.send(error_message)
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"❌ {error_message}", color=discord.Color.red()
+                )
+            )
 
     @container.command(
         name="recreate",
         brief="Recria manualmente os containers do scanner (admin)",
     )
     async def recreate_containers(self, ctx):
-        msg = await ctx.send(f"⏳ A recriar containers `{Config.RECREATE_SERVICES}`…")
+        msg = await ctx.send(
+            embed=discord.Embed(
+                title=f"⏳ A recriar containers `{Config.RECREATE_SERVICES}`…",
+                color=Config.EMBED_COLOR,
+            )
+        )
         ok = await self.poliswag.stack_recovery.recreate_services()
         if ok:
             await msg.edit(
-                content=f"✅ Containers `{Config.RECREATE_SERVICES}` recriados."
+                embed=discord.Embed(
+                    title=f"✅ Containers `{Config.RECREATE_SERVICES}` recriados.",
+                    color=discord.Color.green(),
+                )
             )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): recreated "
                 f"'{Config.RECREATE_SERVICES}'"
             )
         else:
-            await msg.edit(content="❌ Falha ao recriar containers. Verifica os logs.")
+            await msg.edit(
+                embed=discord.Embed(
+                    title="❌ Falha ao recriar containers. Verifica os logs.",
+                    color=discord.Color.red(),
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): recreate FAILED",
                 "ERROR",
@@ -163,23 +208,44 @@ class ContainerManagerCog(commands.Cog):
         if state is None:
             current = await self.poliswag.stack_recovery.get_auto_recreate_enabled()
             status = "activada 🟢" if current else "desactivada 🔴"
-            await ctx.send(f"Recriação automática: **{status}**. Usa `on` ou `off`.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title=f"Recriação automática: {status}",
+                    description="Usa `on` ou `off`.",
+                    color=Config.EMBED_COLOR,
+                )
+            )
             return
         state = state.lower()
         if state in ("on", "enable", "1", "true"):
             await self.poliswag.stack_recovery.set_auto_recreate_enabled(True)
-            await ctx.send("✅ Recriação automática de containers **activada**.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="✅ Recriação automática de containers activada.",
+                    color=discord.Color.green(),
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate ENABLED"
             )
         elif state in ("off", "disable", "0", "false"):
             await self.poliswag.stack_recovery.set_auto_recreate_enabled(False)
-            await ctx.send("🔕 Recriação automática de containers **desactivada**.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="🔕 Recriação automática de containers desactivada.",
+                    color=Config.EMBED_COLOR,
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate DISABLED"
             )
         else:
-            await ctx.send("Estado inválido. Usa `on` ou `off`.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="Estado inválido. Usa `on` ou `off`.",
+                    color=discord.Color.red(),
+                )
+            )
 
     # ---- !device command group --------------------------------------------
 
@@ -190,25 +256,42 @@ class ContainerManagerCog(commands.Cog):
     )
     async def device(self, ctx):
         await ctx.send(
-            "`!device status` — verifica ligação ADB\n"
-            "`!device logcat [linhas]` — últimas N linhas filtradas por aegis/poke (padrão 10)\n"
-            "`!device autoreboot on|off` — activa/desactiva reboot automático\n"
-            "`!device restartapp` — reinicia a app Pokémon GO via ADB\n"
-            "`!device reboot` — reinicia o dispositivo via ADB"
+            embed=discord.Embed(
+                title="Comandos de dispositivo",
+                description=(
+                    "`!device status` — verifica ligação ADB\n"
+                    "`!device logcat [linhas]` — últimas N linhas filtradas por "
+                    "aegis/poke (padrão 10)\n"
+                    "`!device autoreboot on|off` — activa/desactiva reboot automático\n"
+                    "`!device restartapp` — reinicia a app Pokémon GO via ADB\n"
+                    "`!device reboot` — reinicia o dispositivo via ADB"
+                ),
+                color=Config.EMBED_COLOR,
+            )
         )
 
     @device.command(name="restartapp", brief="Reinicia a app Pokémon GO via ADB")
     async def device_restartapp(self, ctx):
-        msg = await ctx.send("⏳ A reiniciar a app…")
+        msg = await ctx.send(
+            embed=discord.Embed(title="⏳ A reiniciar a app…", color=Config.EMBED_COLOR)
+        )
         ok = await self.poliswag.device_manager.restart_app()
         if ok:
-            await msg.edit(content="✅ App Pokémon GO reiniciada via ADB.")
+            await msg.edit(
+                embed=discord.Embed(
+                    title="✅ App Pokémon GO reiniciada via ADB.",
+                    color=discord.Color.green(),
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual app restart sent"
             )
         else:
             await msg.edit(
-                content="❌ Falha ao reiniciar a app. Verifica `!device status`."
+                embed=discord.Embed(
+                    title="❌ Falha ao reiniciar a app. Verifica `!device status`.",
+                    color=discord.Color.red(),
+                )
             )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual app restart FAILED",
@@ -217,7 +300,11 @@ class ContainerManagerCog(commands.Cog):
 
     @device.command(name="status", brief="Verifica ligação ADB ao dispositivo")
     async def device_status(self, ctx):
-        msg = await ctx.send("⏳ A verificar ligação ADB…")
+        msg = await ctx.send(
+            embed=discord.Embed(
+                title="⏳ A verificar ligação ADB…", color=Config.EMBED_COLOR
+            )
+        )
         dm = self.poliswag.device_manager
         model = await dm.get_model()
         device = Config.ADB_DEVICE
@@ -239,53 +326,94 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): checked ADB status → no response from {device}"
             )
-        await msg.edit(content=None, embed=embed)
+        await msg.edit(embed=embed)
 
     @device.command(name="logcat", brief="Últimas N linhas de logcat com aegis/poke")
     async def device_logcat(self, ctx, lines: int = 10):
         if lines < 1 or lines > 200:
-            await ctx.send("❌ Número de linhas deve estar entre 1 e 200.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="❌ Número de linhas deve estar entre 1 e 200.",
+                    color=discord.Color.red(),
+                )
+            )
             return
-        msg = await ctx.send("⏳ A obter logcat…")
+        msg = await ctx.send(
+            embed=discord.Embed(title="⏳ A obter logcat…", color=Config.EMBED_COLOR)
+        )
         self.poliswag.utility.log_to_file(
             f"[DEVICE] @{ctx.author} ({ctx.author.id}): requested last {lines} logcat lines (aegis/poke filter)"
         )
         output = await self.poliswag.device_manager.logcat_filtered(lines)
         if len(output) > 1900:
             output = "…" + output[-1897:]
-        await msg.edit(content=f"```\n{output}\n```")
+        await msg.edit(
+            embed=discord.Embed(
+                title="Logcat",
+                description=f"```\n{output}\n```",
+                color=Config.EMBED_COLOR,
+            )
+        )
 
     @device.command(name="autoreboot", brief="Activa ou desactiva o reboot automático")
     async def device_autoreboot(self, ctx, state: str):
         state = state.lower()
         if state in ("on", "enable", "1", "true"):
             await self.poliswag.device_manager.set_auto_reboot_enabled(True)
-            await ctx.send("✅ Reboot automático **activado**.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="✅ Reboot automático activado.", color=discord.Color.green()
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): auto-reboot ENABLED"
             )
         elif state in ("off", "disable", "0", "false"):
             await self.poliswag.device_manager.set_auto_reboot_enabled(False)
-            await ctx.send("🔕 Reboot automático **desactivado**.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="🔕 Reboot automático desactivado.", color=Config.EMBED_COLOR
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): auto-reboot DISABLED"
             )
         else:
             current = await self.poliswag.device_manager.get_auto_reboot_enabled()
             status = "activado 🟢" if current else "desactivado 🔴"
-            await ctx.send(f"Estado actual: **{status}**. Usa `on` ou `off`.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title=f"Estado actual: {status}",
+                    description="Usa `on` ou `off`.",
+                    color=Config.EMBED_COLOR,
+                )
+            )
 
     @device.command(name="reboot", brief="Reinicia o dispositivo via ADB")
     async def device_reboot(self, ctx):
-        msg = await ctx.send("⏳ A enviar comando de reboot…")
+        msg = await ctx.send(
+            embed=discord.Embed(
+                title="⏳ A enviar comando de reboot…", color=Config.EMBED_COLOR
+            )
+        )
         ok = await self.poliswag.device_manager.reboot()
         if ok:
-            await msg.edit(content=f"✅ Reboot enviado para `{Config.ADB_DEVICE}`.")
+            await msg.edit(
+                embed=discord.Embed(
+                    title=f"✅ Reboot enviado para `{Config.ADB_DEVICE}`.",
+                    color=discord.Color.green(),
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual ADB reboot sent to {Config.ADB_DEVICE}"
             )
         else:
-            await msg.edit(content="❌ Falha no reboot. Verifica `!device status`.")
+            await msg.edit(
+                embed=discord.Embed(
+                    title="❌ Falha no reboot. Verifica `!device status`.",
+                    color=discord.Color.red(),
+                )
+            )
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): manual ADB reboot FAILED",
                 "ERROR",
@@ -293,17 +421,28 @@ class ContainerManagerCog(commands.Cog):
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
-            await ctx.send("You are not authorized to use this command.")
+            await ctx.send(
+                embed=discord.Embed(
+                    title="❌ Não tens autorização para usar este comando.",
+                    color=discord.Color.red(),
+                )
+            )
             return
         if isinstance(error, commands.CommandNotFound):
             await ctx.send(
-                "Invalid container command. Use `container start` or `container stop`."
+                embed=discord.Embed(
+                    title="Comando inválido",
+                    description="Usa `container start` ou `container stop`.",
+                    color=Config.EMBED_COLOR,
+                )
             )
             return
-        error_message = f"An error occurred: {error}"
+        error_message = f"Ocorreu um erro: {error}"
         print(error_message)
         self.poliswag.utility.log_to_file(error_message, "ERROR")
-        await ctx.send(error_message)
+        await ctx.send(
+            embed=discord.Embed(title=f"❌ {error_message}", color=discord.Color.red())
+        )
 
 
 async def setup(bot):

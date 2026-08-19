@@ -39,16 +39,29 @@ class Accounts(commands.Cog):
                     self.poliswag.utility.log_to_file(
                         f"Error sending image: {e}", "ERROR"
                     )
-                    await ctx.send("Error sending image. Check logs.")
+                    await ctx.send(
+                        embed=discord.Embed(
+                            title="❌ Erro ao enviar a imagem. Verifica os logs.",
+                            color=discord.Color.red(),
+                        )
+                    )
             else:
-                await ctx.send("Error generating account image. Check logs.")
+                await ctx.send(
+                    embed=discord.Embed(
+                        title="❌ Erro ao gerar a imagem de contas. Verifica os logs.",
+                        color=discord.Color.red(),
+                    )
+                )
 
         except Exception as e:
             self.poliswag.utility.log_to_file(
                 f"Error in account_report_cmd: {e}", "ERROR"
             )
             await ctx.send(
-                "An error occurred while generating the report. Check the logs."
+                embed=discord.Embed(
+                    title="❌ Ocorreu um erro ao gerar o relatório. Verifica os logs.",
+                    color=discord.Color.red(),
+                )
             )
 
 

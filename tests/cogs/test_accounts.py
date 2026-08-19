@@ -54,7 +54,9 @@ class TestAccountReportCmd:
         )
         ctx = make_ctx(guild=False)
         await Accounts.account_report_cmd.callback(cog, ctx)
-        ctx.send.assert_awaited_once_with("Error generating account image. Check logs.")
+        ctx.send.assert_awaited_once()
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "Erro ao gerar a imagem" in embed.title
 
     async def test_send_file_failure_logs_and_sends_error_text(self, cog, mocker):
         ctx = make_ctx(guild=False)
@@ -72,7 +74,8 @@ class TestAccountReportCmd:
         await Accounts.account_report_cmd.callback(cog, ctx)
         cog.poliswag.utility.log_to_file.assert_called()
         ctx.send.assert_awaited_once()
-        assert "An error occurred" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "Ocorreu um erro" in embed.title
 
 
 class TestLifecycle:
