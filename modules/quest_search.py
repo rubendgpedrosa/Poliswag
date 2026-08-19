@@ -529,7 +529,11 @@ class QuestSearch:
         all_found_quests_leiria = []
         all_found_quests_marinha = []
 
-        await channel.send("**RESULTADOS DO SCAN DE QUESTS DE HOJE**")
+        await channel.send(
+            embed=discord.Embed(
+                title="Resultados do scan de quests de hoje", color=Config.EMBED_COLOR
+            )
+        )
         for tracked_quest_data in tracked_quests:
             search_keyword = tracked_quest_data["target"]
 
@@ -554,7 +558,6 @@ class QuestSearch:
             return
 
         from modules.embeds import build_tracked_summary_embeds
-        from modules.config import Config
 
         if all_found_quests_leiria:
             reward_groups_leiria = self.poliswag.quest_search.group_pokestops_by_reward(
