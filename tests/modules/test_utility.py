@@ -8,7 +8,7 @@ fast and isolated from the filesystem.
 
 import logging
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -21,6 +21,7 @@ def util():
     """A Utility instance with its I/O-heavy __init__ bypassed."""
     u = Utility.__new__(Utility)
     u.poliswag = MagicMock()
+    u.poliswag.db = AsyncMock()
     u.logger = MagicMock(spec=logging.Logger)
     u.error_logger = MagicMock(spec=logging.Logger)
     return u

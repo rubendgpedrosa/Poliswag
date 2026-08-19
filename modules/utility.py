@@ -75,13 +75,13 @@ class Utility:
                         (await response.text()).strip().replace("\x07", "")
                     )
 
-                    result = self.poliswag.db.get_data_from_database(
+                    result = await self.poliswag.db.get_data_from_database(
                         "SELECT version FROM poliswag"
                     )
                     current_version = result[0]["version"] if result else None
 
                     if retrieved_version != current_version:
-                        self.poliswag.db.execute_query_to_database(
+                        await self.poliswag.db.execute_query_to_database(
                             "UPDATE poliswag SET version = %s",
                             params=(retrieved_version,),
                         )
