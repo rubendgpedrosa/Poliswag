@@ -103,7 +103,12 @@ class Scheduled(commands.Cog):
                     datetime.date.today(), datetime.time(int(hour), int(minute))
                 )
             except Exception:
-                await ctx.channel.send("Formato inválido. Usa `!testevent HH:MM`")
+                await ctx.channel.send(
+                    embed=discord.Embed(
+                        title="Formato inválido. Usa `!testevent HH:MM`",
+                        color=discord.Color.red(),
+                    )
+                )
                 return
 
         when_label = at_time.strftime("%H:%M") if at_time else "agora"
@@ -118,7 +123,11 @@ class Scheduled(commands.Cog):
             f"Started ({len(started_names)}): {', '.join(started_names) or 'nenhum'}",
             f"Ended ({len(ended_names)}): {', '.join(ended_names) or 'nenhum'}",
         ]
-        await ctx.channel.send(content="\n".join(debug_lines))
+        await ctx.channel.send(
+            embed=discord.Embed(
+                description="\n".join(debug_lines), color=Config.EMBED_COLOR
+            )
+        )
 
         if not changed:
             return
@@ -303,11 +312,17 @@ class Scheduled(commands.Cog):
 
     async def _send_event_change_notifications(self, channel, changed):
         if changed["ended"]:
-            await channel.send(content="**EVENTOS QUE TERMINARAM**")
+            await channel.send(
+                embed=discord.Embed(
+                    title="Eventos que terminaram", color=Config.EMBED_COLOR
+                )
+            )
             for event in changed["ended"]:
                 await channel.send(embed=self._build_event_embed(event, is_ended=True))
         if changed["started"]:
-            await channel.send(content="**NOVOS EVENTOS**")
+            await channel.send(
+                embed=discord.Embed(title="Novos eventos", color=Config.EMBED_COLOR)
+            )
             for event in changed["started"]:
                 await channel.send(embed=self._build_event_embed(event))
 
