@@ -20,7 +20,7 @@ def qs():
     """A QuestSearch instance with its disk-heavy __init__ bypassed."""
     q = QuestSearch.__new__(QuestSearch)
     q.poliswag = MagicMock()
-    q.db = MagicMock()
+    q.db = AsyncMock()
     q.pokemon_name_map = {}
     q.item_name_map = {}
     q.quest_data = None
@@ -600,46 +600,46 @@ class TestGeneratePokemonItemNameMap:
 
 
 class TestGetQuestData:
-    def test_returns_cached_when_fresh(self, qs):
+    async def test_returns_cached_when_fresh(self, qs):
         qs.quest_data = {
             "data": [{"name": "stop"}],
             "date": datetime.now().isoformat(),
         }
-        result = qs.get_quest_data()
+        result = await qs.get_quest_data()
         assert result == qs.quest_data
         qs.db.get_data_from_database.assert_not_called()
 
-    def test_queries_when_stale(self, qs):
+    async def test_queries_when_stale(self, qs):
         qs.quest_data = {
             "data": [],
             "date": (datetime.now() - timedelta(hours=2)).isoformat(),
         }
         qs.db.get_data_from_database.return_value = [{"name": "fresh"}]
-        result = qs.get_quest_data()
+        result = await qs.get_quest_data()
         assert result["data"] == [{"name": "fresh"}]
         qs.db.get_data_from_database.assert_called_once()
 
-    def test_queries_when_no_cache(self, qs):
+    async def test_queries_when_no_cache(self, qs):
         qs.quest_data = None
         qs.db.get_data_from_database.return_value = [{"name": "first"}]
-        result = qs.get_quest_data()
+        result = await qs.get_quest_data()
         assert result["data"] == [{"name": "first"}]
 
 
 class TestGetAlternativeQuestData:
-    def test_returns_cached_when_fresh(self, qs):
+    async def test_returns_cached_when_fresh(self, qs):
         qs.alternative_quest_data = {
             "data": [{"name": "ar"}],
             "date": datetime.now().isoformat(),
         }
-        result = qs.get_alternative_quest_data()
+        result = await qs.get_alternative_quest_data()
         assert result == qs.alternative_quest_data
         qs.db.get_data_from_database.assert_not_called()
 
-    def test_queries_when_stale(self, qs):
+    async def test_queries_when_stale(self, qs):
         qs.alternative_quest_data = None
         qs.db.get_data_from_database.return_value = [{"name": "ar"}]
-        result = qs.get_alternative_quest_data()
+        result = await qs.get_alternative_quest_data()
         assert result["data"] == [{"name": "ar"}]
 
 
@@ -647,7 +647,7 @@ class TestGetAlternativeQuestData:
 
 
 class TestFindQuestBySearchKeyword:
-    def test_merges_standard_and_alternative_results(self, qs, mocker):
+    async def test_merges_standard_and_alternative_results(self, qs, mocker):
         qs.poliswag = MagicMock()
         qs.poliswag.quest_search = qs
         # Pre-seed name maps so find_and_process_... doesn't try to read files.
@@ -673,16 +673,16 @@ class TestFindQuestBySearchKeyword:
         mocker.patch.object(
             qs, "generate_quest_slug_for_image", return_value="slug.png"
         )
-        result = qs.find_quest_by_search_keyword("catch", is_leiria=True)
+        result = await qs.find_quest_by_search_keyword("catch", is_leiria=True)
         assert result is not None
         assert result[0]["quest_title"] == "Catch 5 Pokémon"
 
-    def test_returns_none_when_nothing_found(self, qs):
+    async def test_returns_none_when_nothing_found(self, qs):
         qs.pokemon_name_map = {"25": "pikachu"}
         qs.item_name_map = {"1": "poké ball"}
         qs.quest_data = {"data": [], "date": datetime.now().isoformat()}
         qs.alternative_quest_data = {"data": [], "date": datetime.now().isoformat()}
-        assert qs.find_quest_by_search_keyword("nothing", is_leiria=True) is None
+        assert await qs.find_quest_by_search_keyword("nothing", is_leiria=True) is None
 
 
 # --- create_quest_embed --------------------------------------------------------
@@ -747,6 +747,7 @@ class TestCreateQuestEmbed:
 class TestCheckTracked:
     async def test_empty_tracked_list_logs_and_exits(self, qs):
         qs.poliswag = MagicMock()
+        qs.poliswag.db = AsyncMock()
         qs.poliswag.db.get_data_from_database.return_value = []
         channel = MagicMock()
         channel.send = AsyncMock()
@@ -756,6 +757,7 @@ class TestCheckTracked:
 
     async def test_no_matches_logs_and_exits_without_embeds(self, qs, mocker):
         qs.poliswag = MagicMock()
+        qs.poliswag.db = AsyncMock()
         qs.poliswag.db.get_data_from_database.return_value = [{"target": "ditto"}]
         qs.poliswag.quest_search = qs
         mocker.patch.object(qs, "find_quest_by_search_keyword", return_value=None)
@@ -769,6 +771,7 @@ class TestCheckTracked:
 
     async def test_sends_summary_embeds_when_matches_found(self, qs, mocker):
         qs.poliswag = MagicMock()
+        qs.poliswag.db = AsyncMock()
         qs.poliswag.db.get_data_from_database.return_value = [{"target": "pikachu"}]
         qs.poliswag.quest_search = qs
         mocker.patch.object(
