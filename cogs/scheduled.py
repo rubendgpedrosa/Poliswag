@@ -295,7 +295,7 @@ class Scheduled(commands.Cog):
     async def _check_workers(self):
         workers_status = await self.poliswag.scanner_status.get_workers_with_issues()
         await self.poliswag.scanner_status.rename_voice_channels(workers_status)
-        await self.poliswag.device_manager.auto_reboot_if_offline()
+        await self.poliswag.device_manager.alert_if_offline()
 
     async def _update_accounts_display(self):
         await self.poliswag.account_monitor.update_channel_accounts_stats()
