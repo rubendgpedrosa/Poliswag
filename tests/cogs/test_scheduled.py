@@ -25,7 +25,8 @@ from cogs.scheduled import Scheduled
 
 def _make_poliswag():
     poliswag = MagicMock()
-    poliswag.db.get_data_from_database.return_value = []
+    poliswag.db.get_data_from_database = AsyncMock(return_value=[])
+    poliswag.db.execute_query_to_database = AsyncMock()
     poliswag.ADMIN_USERS_IDS = ["42"]
     poliswag.CONVIVIO_CHANNEL = MagicMock()
     poliswag.CONVIVIO_CHANNEL.send = AsyncMock()
@@ -51,8 +52,8 @@ def _make_poliswag():
     poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
     poliswag.quest_search.check_tracked = AsyncMock()
     poliswag.quest_exporter.export = AsyncMock()
-    poliswag.scanner_manager.is_day_change = MagicMock(return_value=False)
-    poliswag.scanner_manager.update_quest_scanning_state = MagicMock()
+    poliswag.scanner_manager.is_day_change = AsyncMock(return_value=False)
+    poliswag.scanner_manager.update_quest_scanning_state = AsyncMock()
     poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(return_value=None)
     poliswag.scanner_status.get_workers_with_issues = AsyncMock(
         return_value={"downDevicesLeiria": [], "downDevicesMarinha": []}
@@ -83,48 +84,54 @@ def make_ctx(author_id="42", dm=False):
 
 
 class TestLoadDigestDate:
-    def test_returns_none_when_db_empty(self):
+    """__init__ can't await, so the date is loaded lazily via cog_load ->
+    _load_digest_date instead of at construction time — see cog_load."""
+
+    async def test_returns_none_when_db_empty(self):
         poliswag = _make_poliswag()
-        poliswag.db.get_data_from_database.return_value = []
+        poliswag.db.get_data_from_database = AsyncMock(return_value=[])
         c = Scheduled(poliswag)
         assert c._last_weekly_digest_monday is None
+        assert await c._load_digest_date() is None
 
-    def test_returns_date_when_row_has_date_object(self):
+    async def test_returns_date_when_row_has_date_object(self):
         poliswag = _make_poliswag()
         d = real_datetime.date(2026, 4, 7)
-        poliswag.db.get_data_from_database.return_value = [
-            {"last_weekly_digest_date": d}
-        ]
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_weekly_digest_date": d}]
+        )
         c = Scheduled(poliswag)
-        assert c._last_weekly_digest_monday == d
+        assert await c._load_digest_date() == d
 
-    def test_parses_isoformat_string(self):
+    async def test_parses_isoformat_string(self):
         poliswag = _make_poliswag()
-        poliswag.db.get_data_from_database.return_value = [
-            {"last_weekly_digest_date": "2026-04-07"}
-        ]
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_weekly_digest_date": "2026-04-07"}]
+        )
         c = Scheduled(poliswag)
-        assert c._last_weekly_digest_monday == real_datetime.date(2026, 4, 7)
+        assert await c._load_digest_date() == real_datetime.date(2026, 4, 7)
 
-    def test_exception_returns_none(self):
+    async def test_exception_returns_none(self):
         poliswag = _make_poliswag()
-        poliswag.db.get_data_from_database.side_effect = RuntimeError("db down")
+        poliswag.db.get_data_from_database = AsyncMock(
+            side_effect=RuntimeError("db down")
+        )
         c = Scheduled(poliswag)
-        assert c._last_weekly_digest_monday is None
+        assert await c._load_digest_date() is None
 
-    def test_none_value_returns_none(self):
+    async def test_none_value_returns_none(self):
         poliswag = _make_poliswag()
-        poliswag.db.get_data_from_database.return_value = [
-            {"last_weekly_digest_date": None}
-        ]
+        poliswag.db.get_data_from_database = AsyncMock(
+            return_value=[{"last_weekly_digest_date": None}]
+        )
         c = Scheduled(poliswag)
-        assert c._last_weekly_digest_monday is None
+        assert await c._load_digest_date() is None
 
 
 class TestSaveDigestDate:
-    def test_calls_update_query(self, cog):
+    async def test_calls_update_query(self, cog):
         d = real_datetime.date(2026, 4, 6)
-        cog._save_digest_date(d)
+        await cog._save_digest_date(d)
         cog.poliswag.db.execute_query_to_database.assert_called_once()
         _, kwargs = cog.poliswag.db.execute_query_to_database.call_args
         assert kwargs["params"] == ("2026-04-06",)
@@ -675,7 +682,7 @@ class TestCheckWeeklyDigest:
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = None
         cog._send_weekly_digest = AsyncMock()
-        cog._save_digest_date = MagicMock()
+        cog._save_digest_date = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()

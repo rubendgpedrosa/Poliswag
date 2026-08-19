@@ -15,7 +15,7 @@ from cogs.lures import Lures
 def cog():
     poliswag = MagicMock()
     poliswag.ADMIN_USERS_IDS = ["42"]
-    poliswag.lure_manager = MagicMock()
+    poliswag.lure_manager = AsyncMock()
     return Lures(poliswag)
 
 

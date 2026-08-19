@@ -18,6 +18,7 @@ def cog():
     poliswag = MagicMock()
     poliswag.ADMIN_USERS_IDS = ["42"]
     poliswag.quest_exporter.export = AsyncMock()
+    poliswag.scanner_manager.update_quest_scanning_state = AsyncMock()
     return Quests(poliswag)
 
 
