@@ -7,10 +7,8 @@ from modules.config import Config
 class DeviceManager:
     """Manages ADB interactions with the configured Android device."""
 
-    # How long the device must be continuously offline before recovery starts.
-    OFFLINE_BEFORE_REBOOT = 900  # 15 minutes offline before acting
-    # Minimum gap between reboots — long enough for the device to fully boot + reconnect.
-    AUTO_REBOOT_COOLDOWN = 1800  # 30 minutes between reboots
+    # How long the device must be continuously offline before alerting.
+    OFFLINE_BEFORE_ALERT = 900  # 15 minutes offline before acting
 
     POGO_PACKAGE = "com.nianticlabs.pokemongo"
     POGO_ACTIVITY = (
@@ -20,7 +18,6 @@ class DeviceManager:
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self._last_auto_reboot: float = 0
         self._offline_since: float | None = None
         self._last_notification_time: float = 0
 
@@ -105,7 +102,7 @@ class DeviceManager:
         If the device is reachable but its session is stale ('unauthorized' /
         'offline' — the usual aftermath of the device flapping its connection),
         a one-shot re-handshake is attempted before running the command, so a
-        recoverable session never blocks an auto-reboot.
+        recoverable session never blocks a command that depends on it.
         """
         device = Config.ADB_DEVICE
         if not device:
@@ -160,20 +157,6 @@ class DeviceManager:
         except RuntimeError:
             return False
 
-    async def reboot_with_cooldown(self) -> bool:
-        """Reboot, but only if auto-reboot is enabled and the cooldown passed.
-
-        Shared by every automatic path (offline watchdog, red-map ladder) so
-        they can't stack reboots on top of each other.
-        """
-        if not Config.ADB_DEVICE or not self.auto_reboot_enabled:
-            return False
-        now = time.time()
-        if now - self._last_auto_reboot < self.AUTO_REBOOT_COOLDOWN:
-            return False
-        self._last_auto_reboot = now
-        return await self.reboot()
-
     async def restart_app(self) -> bool:
         """Force-stop and relaunch Pokémon GO. Much lighter than a reboot.
 
@@ -199,16 +182,16 @@ class DeviceManager:
             return 3600  # every 1 h for the first 6 h offline
         return 6 * 3600  # every 6 h after that
 
-    async def auto_reboot_if_offline(self) -> bool:
-        """Reboot the device if Rotom reports it offline long enough.
+    async def alert_if_offline(self) -> bool:
+        """Alert when Rotom reports the device offline long enough.
 
         The red-map ladder (StackRecovery) is the primary self-healing path;
         this watchdog covers the case where the worker-status endpoint is
-        unreachable (no red signal) but the device itself is gone. Reboots go
-        through reboot_with_cooldown, sharing the cooldown with that ladder.
+        unreachable (no red signal) but the device itself is gone. It never
+        reboots automatically — it only raises an alert so a human can act.
 
         Notification cadence:
-        - First alert at OFFLINE_BEFORE_REBOOT (15 min).
+        - First alert at OFFLINE_BEFORE_ALERT (15 min).
         - Repeated every 1 h while offline < 6 h, then every 6 h.
         """
         if not Config.ADB_DEVICE or not self.auto_reboot_enabled:
@@ -228,21 +211,10 @@ class DeviceManager:
 
         offline_duration = now - self._offline_since
 
-        if offline_duration < self.OFFLINE_BEFORE_REBOOT:
+        if offline_duration < self.OFFLINE_BEFORE_ALERT:
             return False
 
-        rebooted = await self.reboot_with_cooldown()
-        if rebooted:
-            self._offline_since = None
-            self._last_notification_time = 0
-            self._log("Auto ADB reboot sent successfully", "INFO")
-            await self._notify(
-                f"📵 Dispositivo offline há **{int(offline_duration // 60)} min** — "
-                f"reboot automático via ADB enviado para `{Config.ADB_DEVICE}`."
-            )
-            return True
-
-        # Notify with escalating throttle (first notification fires immediately)
+        # Escalating throttle between repeated alerts (first one fires immediately).
         since_last_notify = now - self._last_notification_time
         if (
             self._last_notification_time > 0
@@ -251,12 +223,12 @@ class DeviceManager:
             return False
 
         self._last_notification_time = now
-        self._log("Auto ADB reboot command failed")
+        self._log("Device offline — no auto-reboot, alerting for manual action", "INFO")
         await self._notify(
             f"⚠️ Dispositivo offline há **{int(offline_duration // 60)} min** — "
-            f"tentativa de reboot ADB **falhou**. Intervenção manual necessária."
+            f"intervenção manual necessária (reboot automático desactivado)."
         )
-        return False
+        return True
 
     async def _notify(self, message: str) -> None:
         """Send a plain message to the mod channel if it's available."""
