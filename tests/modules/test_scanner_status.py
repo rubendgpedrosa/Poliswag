@@ -509,6 +509,88 @@ class TestGetFullStatusDevices:
         ]
 
 
+class TestGetFullStatusWorkers:
+    """get_full_status also parses the Dragonite `workers` array (via the
+    scanner_status fetch_data payload). Only the worker branch is exercised
+    here; device/account branches are mocked out."""
+
+    def _prime(self, scanner_status, mocker, scanner_payload, *, now=1_000_000):
+        # First fetch_data call is device_status, second is scanner_status.
+        mocker.patch(
+            "modules.scanner_status.fetch_data",
+            new=AsyncMock(side_effect=[{"devices": []}, scanner_payload]),
+        )
+        mocker.patch("modules.scanner_status.time.time", return_value=now)
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=0
+        )
+        scanner_status.poliswag.account_monitor.get_account_stats = AsyncMock(
+            return_value={"good": 1}
+        )
+
+    async def test_parses_workers_across_areas_and_managers(
+        self, scanner_status, mocker
+    ):
+        now = 1_000_000
+        self._prime(
+            scanner_status,
+            mocker,
+            {
+                "areas": [
+                    {
+                        "name": "Leiria",
+                        "worker_managers": [
+                            {
+                                "workers": [
+                                    {
+                                        "worker_id": "leiria-1",
+                                        "connection_status": "Executing Worker",
+                                        "last_data": now - 10,
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            },
+            now=now,
+        )
+        result = await scanner_status.get_full_status()
+        assert result["workers"] == [
+            {
+                "worker_id": "leiria-1",
+                "area": "Leiria",
+                "status": "Executing Worker",
+                "last_data_seconds_ago": 10,
+            }
+        ]
+
+    async def test_worker_missing_last_data_has_no_age(self, scanner_status, mocker):
+        now = 1_000_000
+        self._prime(
+            scanner_status,
+            mocker,
+            {
+                "areas": [
+                    {
+                        "name": "Leiria",
+                        "worker_managers": [{"workers": [{}]}],
+                    }
+                ]
+            },
+            now=now,
+        )
+        result = await scanner_status.get_full_status()
+        assert result["workers"] == [
+            {
+                "worker_id": "?",
+                "area": "Leiria",
+                "status": "?",
+                "last_data_seconds_ago": None,
+            }
+        ]
+
+
 class TestGetVoiceChannel:
     async def test_returns_channel_on_success(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
@@ -852,6 +934,31 @@ class TestRenameVoiceChannels:
         ]
         assert any("Rate limited" in m for m in logged)
 
+    async def test_non_rate_limit_http_error_is_logged_not_raised(
+        self, scanner_status, mocker
+    ):
+        import discord
+
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        channel = MagicMock()
+        exc = discord.errors.HTTPException(
+            MagicMock(status=500, reason=""), {"message": "server error", "code": 0}
+        )
+        exc.code = 0
+        channel.edit = AsyncMock(side_effect=exc)
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        logged = [
+            c.args[0]
+            for c in scanner_status.poliswag.utility.log_to_file.call_args_list
+        ]
+        assert any("Error updating status channel" in m for m in logged)
+
 
 def _poliswag_db_handler(*, scanning_ongoing=False, expected=(371, 109)):
     """Side-effect for the poliswag DB mock, routing by the SQL it receives.
@@ -943,6 +1050,18 @@ class TestIsQuestScanningComplete:
         )
         assert await scanner_status.is_quest_scanning_complete() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_returns_none_when_count_valid_quests_yields_no_row(
+        self, scanner_status, mocker
+    ):
+        # An empty result set from the SUM query means _count_valid_quests
+        # returns None, which short-circuits the whole check.
+        self._prime(scanner_status, mocker)
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
+            [],
+            [{"scanned": 109}],
+        ]
+        assert await scanner_status.is_quest_scanning_complete() is None
 
     # --- plateau behaviour -------------------------------------------------
 
@@ -1080,6 +1199,10 @@ class TestQuestPlateauHelpers:
         assert isinstance(pct, float)
         assert pct + 50.0  # would raise TypeError if pct were a Decimal
 
+    def test_coverage_pct_is_zero_when_expected_is_not_positive(self, scanner_status):
+        assert scanner_status._coverage_pct(10, 0) == 0
+        assert scanner_status._coverage_pct(10, -1) == 0
+
     async def test_expected_totals_fall_back_to_defaults(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = []
         assert await scanner_status._get_expected_totals() == (371, 109)
@@ -1128,3 +1251,26 @@ class TestQuestPlateauHelpers:
 
         assert await scanner_status._get_expected_totals() == (400, 120)
         scanner_status.poliswag.db.get_data_from_database.assert_not_called()
+
+    async def test_expected_totals_db_error_is_logged_and_falls_back(
+        self, scanner_status
+    ):
+        scanner_status.poliswag.db.get_data_from_database.side_effect = RuntimeError(
+            "db down"
+        )
+        assert await scanner_status._get_expected_totals() == (371, 109)
+        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_record_completion_db_error_is_logged_but_still_resets(
+        self, scanner_status
+    ):
+        scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
+        scanner_status.poliswag.db.execute_query_to_database.side_effect = RuntimeError(
+            "db down"
+        )
+        await scanner_status.record_quest_scan_completion(371, 109)
+        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+        assert scanner_status._quest_plateau["leiria"] == {
+            "prev_count": -1,
+            "flat_streak": 0,
+        }
