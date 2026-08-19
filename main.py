@@ -18,6 +18,7 @@ from modules.device_manager import DeviceManager
 from modules.lure_manager import LureManager
 from modules.lure_watcher import LureWatcher
 from modules.stack_recovery import StackRecovery
+from modules.help_command import EmbedHelpCommand
 from modules.config import Config
 from modules.http_client import close_session
 
@@ -29,6 +30,7 @@ class Poliswag(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned_or("!"),
             intents=intents,
+            help_command=EmbedHelpCommand(),
         )
 
         self.db = DatabaseConnector()
