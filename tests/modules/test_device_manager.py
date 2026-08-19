@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -209,3 +210,156 @@ class TestAlertIfOffline:
         assert await device_manager.alert_if_offline() is False
 
         assert device_manager._offline_since is None
+
+    async def test_no_configured_device_is_a_noop(self, device_manager, mocker):
+        mocker.patch.object(Config, "ADB_DEVICE", "")
+        assert await device_manager.alert_if_offline() is False
+
+    async def test_auto_reboot_disabled_is_a_noop(self, device_manager, mocker):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+        mocker.patch.object(
+            device_manager,
+            "get_auto_reboot_enabled",
+            new=AsyncMock(return_value=False),
+        )
+        assert await device_manager.alert_if_offline() is False
+
+    async def test_first_offline_tick_only_records_timestamp(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker, now=10_000, offline_since=None)
+        assert await device_manager.alert_if_offline() is False
+        assert device_manager._offline_since == 10_000
+
+
+class TestNotify:
+    async def test_sends_to_mod_channel_when_configured(self, device_manager):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        device_manager.poliswag.MOD_CHANNEL = channel
+        await device_manager._notify("hello")
+        channel.send.assert_awaited_once_with("hello")
+
+    async def test_no_channel_is_a_noop(self, device_manager):
+        device_manager.poliswag.MOD_CHANNEL = None
+        await device_manager._notify("hello")  # must not raise
+
+    async def test_send_failure_is_logged_not_raised(self, device_manager):
+        channel = MagicMock()
+        channel.send = AsyncMock(side_effect=RuntimeError("discord down"))
+        device_manager.poliswag.MOD_CHANNEL = channel
+        await device_manager._notify("hello")  # must not raise
+        device_manager.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestNextNotifyInterval:
+    def test_hourly_while_under_six_hours(self, device_manager):
+        assert device_manager._next_notify_interval(0) == 3600
+        assert device_manager._next_notify_interval(6 * 3600 - 1) == 3600
+
+    def test_every_six_hours_after(self, device_manager):
+        assert device_manager._next_notify_interval(6 * 3600) == 6 * 3600
+        assert device_manager._next_notify_interval(100 * 3600) == 6 * 3600
+
+
+class TestAdb:
+    async def test_returns_stripped_stdout_stderr_and_rc(self, device_manager, mocker):
+        proc = MagicMock()
+        proc.communicate = AsyncMock(return_value=(b"out\n", b"err\n"))
+        proc.returncode = 0
+        mocker.patch(
+            "modules.device_manager.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        )
+        stdout, stderr, rc = await device_manager._adb("get-state")
+        assert (stdout, stderr, rc) == ("out", "err", 0)
+
+    async def test_timeout_kills_and_reaps_process_then_raises(
+        self, device_manager, mocker
+    ):
+        proc = MagicMock()
+        proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
+        proc.kill = MagicMock()
+        proc.wait = AsyncMock()
+        mocker.patch(
+            "modules.device_manager.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        )
+        with pytest.raises(RuntimeError, match="expirou"):
+            await device_manager._adb("get-state", timeout=1)
+        proc.kill.assert_called_once()
+        proc.wait.assert_awaited_once()
+
+
+class TestIsReachable:
+    async def test_returns_true_on_rc_zero(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("pong", "", 0))
+        assert await device_manager.is_reachable() is True
+
+    async def test_returns_false_on_nonzero_rc(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.is_reachable() is False
+
+    async def test_returns_false_and_logs_on_runtime_error(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.is_reachable() is False
+        device_manager.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestGetModel:
+    async def test_returns_model_string(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("Pixel 6", "", 0))
+        assert await device_manager.get_model() == "Pixel 6"
+
+    async def test_returns_none_on_nonzero_rc(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.get_model() is None
+
+    async def test_returns_none_on_empty_stdout(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        assert await device_manager.get_model() is None
+
+    async def test_returns_none_and_logs_on_runtime_error(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.get_model() is None
+        device_manager.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestLogcatFiltered:
+    async def test_returns_output_from_stdout(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("line1\nline2", "", 0))
+        result = await device_manager.logcat_filtered(5)
+        assert result == "line1\nline2"
+        args = device_manager.run.await_args.args
+        assert args[0] == "shell"
+        assert "tail -5" in args[1]
+
+    async def test_falls_back_to_stderr_when_stdout_empty(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "grep: no matches", 0))
+        assert await device_manager.logcat_filtered() == "grep: no matches"
+
+    async def test_returns_placeholder_when_both_empty(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        result = await device_manager.logcat_filtered()
+        assert "aegis" in result
+
+    async def test_returns_error_string_on_runtime_error(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        result = await device_manager.logcat_filtered()
+        assert "Erro" in result
+        device_manager.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestReboot:
+    async def test_returns_true_on_rc_zero(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        assert await device_manager.reboot() is True
+
+    async def test_returns_false_on_nonzero_rc(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.reboot() is False
+
+    async def test_returns_false_and_logs_on_runtime_error(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.reboot() is False
+        device_manager.poliswag.utility.log_to_file.assert_called_once()
