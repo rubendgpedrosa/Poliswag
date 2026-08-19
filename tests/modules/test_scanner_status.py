@@ -1000,6 +1000,9 @@ class TestIsQuestScanningComplete:
 
         mock_datetime = mocker.patch("modules.scanner_status.datetime.datetime")
         mock_datetime.now.return_value = _dt.datetime(2024, 1, 2, 3, 0, 0)
+        # Long past the post-reset quiet period by default; tests targeting
+        # that guard set this explicitly instead.
+        scanner_status._plateau_reset_at = 0
         scanner_status.poliswag.db.get_data_from_database.side_effect = (
             _poliswag_db_handler(scanning_ongoing=scanning_ongoing, expected=expected)
         )
@@ -1030,14 +1033,26 @@ class TestIsQuestScanningComplete:
 
     # --- early-exit guards -------------------------------------------------
 
-    async def test_returns_none_near_midnight(self, scanner_status, mocker):
-        fake_now = MagicMock()
-        fake_now.hour = 0
-        fake_now.minute = 1
-        mock_dt_module = MagicMock()
-        mock_dt_module.datetime.now.return_value = fake_now
-        mocker.patch("modules.scanner_status.datetime", new=mock_dt_module)
+    async def test_returns_none_within_quiet_period_after_reset(
+        self, scanner_status, mocker
+    ):
+        # A reset just now (day-change, or a fresh bot startup) must block any
+        # plateau signal until PLATEAU_RESET_QUIET_PERIOD has actually elapsed —
+        # yesterday's still-valid quest_expiry rows could otherwise be read as
+        # today's finished scan.
+        mocker.patch("modules.scanner_status.time.time", return_value=1_000.0)
+        scanner_status._plateau_reset_at = 1_000.0
         assert await scanner_status.is_quest_scanning_complete() is None
+
+    async def test_proceeds_once_quiet_period_has_elapsed(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker, scanning_ongoing=True)
+        mocker.patch("modules.scanner_status.time.time", return_value=1_000.0)
+        scanner_status._plateau_reset_at = (
+            1_000.0 - scanner_status.PLATEAU_RESET_QUIET_PERIOD
+        )
+        # Past the guard now, so it proceeds to the real "scanning ongoing" check.
+        assert await scanner_status.is_quest_scanning_complete() is None
+        scanner_status.poliswag.db.get_data_from_database.assert_called_once()
 
     async def test_returns_none_when_scanning_ongoing(self, scanner_status, mocker):
         self._prime(scanner_status, mocker, scanning_ongoing=True)
@@ -1151,6 +1166,19 @@ class TestIsQuestScanningComplete:
 
 class TestQuestPlateauHelpers:
     """Unit tests for the supporting plateau / expected-total helpers."""
+
+    def test_reset_quest_plateau_clears_state_and_bumps_reset_time(
+        self, scanner_status, mocker
+    ):
+        scanner_status._quest_plateau["leiria"] = {"prev_count": 300, "flat_streak": 5}
+        scanner_status._plateau_reset_at = 0
+        mocker.patch("modules.scanner_status.time.time", return_value=12_345.0)
+        scanner_status.reset_quest_plateau()
+        assert scanner_status._quest_plateau["leiria"] == {
+            "prev_count": -1,
+            "flat_streak": 0,
+        }
+        assert scanner_status._plateau_reset_at == 12_345.0
 
     async def test_is_scanner_alive_true_when_one_area_has_workers(
         self, scanner_status, mocker
