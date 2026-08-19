@@ -369,10 +369,12 @@ class TestEnsureTrapWarningPosted:
         mocker.patch.object(Config, "TRAP_CHANNEL_ID", 3)
         fetched_channel = MagicMock()
         cog.poliswag.fetch_channel = AsyncMock(return_value=fetched_channel)
-        cog._get_or_create_trap_message = AsyncMock()
+        trap_message = MagicMock(edit=AsyncMock())
+        cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
         await cog._ensure_trap_warning_posted()
         cog.poliswag.fetch_channel.assert_awaited_once_with(3)
         cog._get_or_create_trap_message.assert_awaited_once_with(fetched_channel)
+        trap_message.edit.assert_awaited_once()
 
     async def test_fetch_failure_is_logged_not_raised(self, cog, mocker):
         import discord

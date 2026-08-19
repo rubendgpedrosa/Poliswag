@@ -72,12 +72,19 @@ class Moderation(commands.Cog):
         """Post (or find) the warning message at startup rather than waiting
         for the first violation -- the whole point is people see it *before*
         they get kicked. Fetches the channel directly instead of waiting on
-        poliswag.TRAP_CHANNEL, which is only resolved later in on_ready."""
+        poliswag.TRAP_CHANNEL, which is only resolved later in on_ready.
+
+        Also re-edits an already-existing message to the current embed, so a
+        wording/count change actually takes effect on deploy instead of only
+        refreshing whenever the next kick happens to fire."""
         if not Config.TRAP_CHANNEL_ID:
             return
         try:
             trap_channel = await self.poliswag.fetch_channel(Config.TRAP_CHANNEL_ID)
-            await self._get_or_create_trap_message(trap_channel)
+            trap_message = await self._get_or_create_trap_message(trap_channel)
+            await trap_message.edit(
+                embed=_build_trap_warning_embed(self._trap_kick_count)
+            )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
                 f"[TRAP] Failed to ensure warning message: {e}", "ERROR"
