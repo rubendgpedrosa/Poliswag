@@ -1100,3 +1100,27 @@ class TestQuestPlateauHelpers:
             "prev_count": -1,
             "flat_streak": 0,
         }
+
+    def test_expected_totals_second_read_does_not_hit_db_again(self, scanner_status):
+        scanner_status.poliswag.db.get_data_from_database.return_value = [
+            {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
+        ]
+
+        assert scanner_status._get_expected_totals() == (400, 120)
+        assert scanner_status._get_expected_totals() == (400, 120)
+
+        scanner_status.poliswag.db.get_data_from_database.assert_called_once()
+
+    def test_empty_rows_are_not_cached(self, scanner_status):
+        scanner_status.poliswag.db.get_data_from_database.return_value = []
+
+        assert scanner_status._get_expected_totals() == (371, 109)
+        assert scanner_status._get_expected_totals() == (371, 109)
+
+        assert scanner_status.poliswag.db.get_data_from_database.call_count == 2
+
+    def test_record_completion_updates_cache_without_a_read(self, scanner_status):
+        scanner_status.record_quest_scan_completion(400, 120)
+
+        assert scanner_status._get_expected_totals() == (400, 120)
+        scanner_status.poliswag.db.get_data_from_database.assert_not_called()
