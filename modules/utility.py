@@ -1,9 +1,9 @@
 import discord
 from datetime import datetime, time
 from pathlib import Path
-import aiohttp
 import logging
 from modules.config import Config
+from modules.http_client import get_session
 
 
 class Utility:
@@ -58,28 +58,26 @@ class Utility:
 
     async def get_new_pokemongo_version(self):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    Config.NIANTIC_FORCED_VERSION_ENDPOINT
-                ) as response:
-                    if response.status == 200:
-                        retrieved_version = (
-                            (await response.text()).strip().replace("\x07", "")
-                        )
+            session = get_session()
+            async with session.get(Config.NIANTIC_FORCED_VERSION_ENDPOINT) as response:
+                if response.status == 200:
+                    retrieved_version = (
+                        (await response.text()).strip().replace("\x07", "")
+                    )
 
-                        result = self.poliswag.db.get_data_from_database(
-                            "SELECT version FROM poliswag"
-                        )
-                        current_version = result[0]["version"] if result else None
+                    result = self.poliswag.db.get_data_from_database(
+                        "SELECT version FROM poliswag"
+                    )
+                    current_version = result[0]["version"] if result else None
 
-                        if retrieved_version != current_version:
-                            self.poliswag.db.execute_query_to_database(
-                                "UPDATE poliswag SET version = %s",
-                                params=(retrieved_version,),
-                            )
-                            return retrieved_version
-                        return None
+                    if retrieved_version != current_version:
+                        self.poliswag.db.execute_query_to_database(
+                            "UPDATE poliswag SET version = %s",
+                            params=(retrieved_version,),
+                        )
+                        return retrieved_version
                     return None
+                return None
         except Exception as e:
             self.log_to_file(f"Error fetching Pokemon version: {e}", "ERROR")
             return None
