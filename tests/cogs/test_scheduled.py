@@ -596,7 +596,8 @@ class TestCheckNewLures:
                     "name": "Anfiteatro",
                     "lat": 39.7175,
                     "lon": -8.8022,
-                    "lure_name": "Lure Chuvoso",
+                    "area": "Leiria",
+                    "lure_name": "Rainy Lure",
                     "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
                 }
             ]
@@ -610,14 +611,16 @@ class TestCheckNewLures:
                     "name": "Anfiteatro",
                     "lat": 39.7175,
                     "lon": -8.8022,
-                    "lure_name": "Lure Chuvoso",
+                    "area": "Leiria",
+                    "lure_name": "Rainy Lure",
                     "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
                 },
                 {
                     "name": "PokéStop",
                     "lat": 39.71,
                     "lon": -8.81,
-                    "lure_name": "Lure Normal",
+                    "area": "Marinha Grande",
+                    "lure_name": "Normal Lure",
                     "expires_at": real_datetime.datetime(2026, 4, 7, 19, 0, 0),
                 },
             ]
@@ -626,7 +629,8 @@ class TestCheckNewLures:
         assert cog.poliswag.CONVIVIO_CHANNEL.send.await_count == 2
         embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args_list[0].kwargs["embed"]
         assert "Anfiteatro" in embed.title
-        assert "Lure Chuvoso" in embed.title
+        assert "Rainy Lure" in embed.title
+        assert "Leiria" in embed.description
         assert "18:34" in embed.description
         assert "39.7175,-8.8022" in embed.description
         assert embed.timestamp is None

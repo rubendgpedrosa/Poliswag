@@ -345,7 +345,8 @@ class Scheduled(commands.Cog):
             maps_url = f"https://www.google.com/maps?q={stop['lat']},{stop['lon']}"
             embed = discord.Embed(
                 title=f"🌸 {stop['lure_name']} colocada na PokéStop {stop['name']}",
-                description=f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
+                description=f"**Área:** {stop['area']}\n"
+                f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
                 f"[Ver no mapa]({maps_url})",
                 color=Config.EMBED_COLOR,
             )
