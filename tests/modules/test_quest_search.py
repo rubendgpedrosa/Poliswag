@@ -892,7 +892,7 @@ class TestCreateQuestEmbed:
     def test_description_shows_stop_count(self, qs):
         stops = [{"lat": 39.7, "lon": -8.8, "name": f"S{i}"} for i in range(3)]
         embed = qs.create_quest_embed("T", stops, is_leiria=True)
-        assert "3 paragens" in embed.description
+        assert "3 pokeyop" in embed.description
 
     def test_no_thumbnail_when_stops_lack_slug(self, qs):
         embed = qs.create_quest_embed(
