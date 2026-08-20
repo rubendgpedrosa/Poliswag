@@ -27,6 +27,17 @@ class ImageGenerator:
             self._env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
         return self._env
 
+    async def _render_png(self, html_content, options, error_label):
+        try:
+            return await asyncio.to_thread(
+                imgkit.from_string, html_content, False, options
+            )
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Error generating {error_label}: {e}", "ERROR"
+            )
+            return None
+
     async def generate_image_from_quest_data(
         self, quests_leiria, quests_marinha, has_leiria, has_marinha
     ):
@@ -50,15 +61,7 @@ class ImageGenerator:
             "javascript-delay": "1000",
             "quiet": "",
         }
-        try:
-            return await asyncio.to_thread(
-                imgkit.from_string, html_content, False, options
-            )
-        except Exception as e:
-            self.poliswag.utility.log_to_file(
-                f"Error generating quest image: {e}", "ERROR"
-            )
-            return None
+        return await self._render_png(html_content, options, "quest image")
 
     async def generate_image_from_account_stats(self, account_data, device_status):
         if self._accounts_template is None:
@@ -81,15 +84,7 @@ class ImageGenerator:
             "javascript-delay": "1000",
             "quiet": "",
         }
-        try:
-            return await asyncio.to_thread(
-                imgkit.from_string, html_content, False, options
-            )
-        except Exception as e:
-            self.poliswag.utility.log_to_file(
-                f"Error generating account image: {e}", "ERROR"
-            )
-            return None
+        return await self._render_png(html_content, options, "account image")
 
     def generate_static_map_for_group_of_quests(self, pokestops):
         coordinates = []
