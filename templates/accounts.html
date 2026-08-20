@@ -63,7 +63,7 @@
            WebKit engine distributes centered flex leftover space
            unevenly. Fixed top/bottom padding plus the explicit margins
            on each row below give predictable, even spacing instead. */
-        padding: 20px 26px 20px 30px;
+        padding: 16px 26px 14px 30px;
     }
 
     /* ---- header row: title + device pill ---- */
@@ -117,7 +117,7 @@
     .divider {
         flex: 0 0 auto;
         height: 1px;
-        margin: 10px 0;
+        margin: 8px 0;
         background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
     }
 
@@ -127,6 +127,14 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+    }
+
+    /* Fallback layout: with no area footer (no scanner snapshots yet, or a
+       query failure) the fixed-height rows would leave dead space at the
+       bottom of the card. Letting the stats row absorb the slack keeps the
+       numbers optically centred instead. */
+    .card-inner.no-area .stats-row {
+        flex: 1 1 auto;
     }
 
     .stat {
@@ -148,7 +156,7 @@
 
     .stat-value {
         font-weight: 900;
-        font-size: 46px;
+        font-size: 42px;
         line-height: 1;
     }
 
@@ -167,7 +175,11 @@
     .area-divider {
         flex: 0 0 auto;
         height: 1px;
-        margin: 8px 0;
+        /* Asymmetric on purpose: the larger top margin is the visual gap
+           between the account stats and the area stats, while the bottom
+           margin is matched to card-inner's bottom padding so the area
+           text sits with equal space above and below it. */
+        margin: 18px 0 14px;
         background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
     }
 
@@ -209,7 +221,7 @@
     <div class="stage">
         <div class="card">
             <div class="status-bar status-{{ status }}"></div>
-            <div class="card-inner">
+            <div class="card-inner{% if not area_lines %} no-area{% endif %}">
                 <div class="header-row">
                     <div class="title"><strong>Poliswag</strong> &middot; Account Pool</div>
                     <div class="device-pill">
