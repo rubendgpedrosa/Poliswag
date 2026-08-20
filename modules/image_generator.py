@@ -4,6 +4,11 @@ from jinja2 import Environment, FileSystemLoader
 
 from modules.config import Config
 
+# Display order + short label for the account card's area-performance
+# footer -- fixed order so Leiria always renders before Marinha
+# regardless of dict/query row order.
+_AREA_LABELS = (("Leiria", "Leiria"), ("MarinhaGrande", "Marinha"))
+
 
 class ImageGenerator:
     def __init__(self, poliswag):
@@ -63,16 +68,26 @@ class ImageGenerator:
         }
         return await self._render_png(html_content, options, "quest image")
 
-    async def generate_image_from_account_stats(self, account_data, device_status):
+    async def generate_image_from_account_stats(
+        self, account_data, device_status, area_performance=None
+    ):
         if self._accounts_template is None:
             self._accounts_template = self._get_env().get_template(
                 self.ACCOUNTS_TEMPLATE_HTML_FILE
             )
+        area_lines = []
+        for db_area, label in _AREA_LABELS:
+            stats = (area_performance or {}).get(db_area)
+            if not stats or not stats.get("total"):
+                continue
+            rate = round(stats.get("iv", 0) / stats["total"] * 100)
+            area_lines.append({"name": label, "rate": rate})
         html_content = self._accounts_template.render(
             good=account_data.get("good", 0),
             cooldown=account_data.get("cooldown", 0),
             disabled=account_data.get("disabled", 0),
             device_status=device_status,
+            area_lines=area_lines,
         )
         options = {
             "format": "png",

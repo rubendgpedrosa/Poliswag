@@ -739,6 +739,57 @@ class TestGetIvVerificationStats:
         assert "MarinhaGrande" in sql
 
 
+class TestGetIvVerificationByArea:
+    async def test_returns_dict_keyed_by_area(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"area": "Leiria", "total": 300, "iv": 297},
+            {"area": "MarinhaGrande", "total": 100, "iv": 100},
+        ]
+        result = await scanner_status.get_iv_verification_by_area()
+        assert result == {
+            "Leiria": {"total": 300, "iv": 297},
+            "MarinhaGrande": {"total": 100, "iv": 100},
+        }
+
+    async def test_omits_areas_with_no_activity(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"area": "Leiria", "total": 300, "iv": 297},
+            {"area": "MarinhaGrande", "total": 0, "iv": 0},
+        ]
+        result = await scanner_status.get_iv_verification_by_area()
+        assert result == {"Leiria": {"total": 300, "iv": 297}}
+
+    async def test_empty_dict_when_no_rows(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        assert await scanner_status.get_iv_verification_by_area() == {}
+
+    async def test_empty_dict_on_db_error(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+            RuntimeError("db gone")
+        )
+        assert await scanner_status.get_iv_verification_by_area() == {}
+        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_uses_requested_minutes_window(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        await scanner_status.get_iv_verification_by_area(minutes=30)
+        call_args = (
+            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
+        )
+        assert call_args.kwargs["params"] == (30 * 60,)
+
+    async def test_queries_correct_table_and_groups_by_area(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        await scanner_status.get_iv_verification_by_area()
+        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+            0
+        ]
+        assert "pokemon_area_stats" in sql
+        assert "GROUP BY area" in sql
+        assert "Leiria" in sql
+        assert "MarinhaGrande" in sql
+
+
 class TestTriggerAllDownAction:
     def _setup(self, scanner_status, mocker, *, seconds_ago=30):
         scanner_status.last_all_down_request_time = 0
