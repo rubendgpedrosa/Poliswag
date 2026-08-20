@@ -7,6 +7,10 @@ from pathlib import Path
 
 from modules.config import Config
 
+# Matches scanner_status.py's _MARINHA_LON_MAX: pokestops at or west of this
+# longitude are in Marinha Grande, everything east of it is Leiria.
+_MARINHA_LON_MAX = -8.9
+
 ITEM_EMOJI: dict[int, str] = {
     1: "⚪",
     2: "🔵",
@@ -166,7 +170,7 @@ class QuestExporter:
 
     @staticmethod
     def _get_zone(lon) -> str:
-        return "marinha" if "-8.9" in str(lon) else "leiria"
+        return "marinha" if float(lon) <= _MARINHA_LON_MAX else "leiria"
 
     @staticmethod
     def _categorize(title: str) -> str:

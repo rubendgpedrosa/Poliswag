@@ -38,15 +38,21 @@ class TestTranslateTitle:
 
 
 class TestGetZone:
-    def test_marinha_zone_when_longitude_matches_prefix(self):
+    def test_marinha_zone_at_or_west_of_threshold(self):
         assert QuestExporter._get_zone("-8.9123") == "marinha"
 
-    def test_leiria_zone_for_other_longitudes(self):
+    def test_leiria_zone_east_of_threshold(self):
         assert QuestExporter._get_zone("-8.8456") == "leiria"
 
-    def test_float_input_is_stringified(self):
+    def test_accepts_float_input(self):
         assert QuestExporter._get_zone(-8.9321) == "marinha"
         assert QuestExporter._get_zone(-8.8) == "leiria"
+
+    def test_far_west_longitude_is_marinha(self):
+        # Regression: a substring check on "-8.9" used to misclassify
+        # anything at or past -9.0 as leiria.
+        assert QuestExporter._get_zone(-9.0) == "marinha"
+        assert QuestExporter._get_zone("-9.5") == "marinha"
 
 
 class TestCategorize:
@@ -252,7 +258,7 @@ class TestExport:
             {
                 "name": "Fonte Luminosa",
                 "lat": 39.75,
-                "lon": -8.80,  # Leiria (no -8.9 substring)
+                "lon": -8.80,  # Leiria
                 "url": "https://img/stop1.png",
                 "quest_title": "quest_catch_pokemon",
                 "quest_target": 5,
