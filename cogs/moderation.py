@@ -74,6 +74,30 @@ class Moderation(commands.Cog):
         )
         return self._trap_message
 
+    async def _refresh_trap_message(self, channel):
+        """Ensure the warning/counter message in `channel` exists and
+        reflects the current ban count. Self-heals if the message was
+        deleted out from under us (discord.NotFound) by clearing the cached
+        reference and reposting, instead of silently failing to update it
+        forever until the next restart."""
+        try:
+            trap_message = await self._get_or_create_trap_message(channel)
+            await trap_message.edit(
+                content=None, embed=_build_trap_warning_embed(self._trap_ban_count)
+            )
+        except discord.NotFound:
+            self._trap_message = None
+            try:
+                await self._get_or_create_trap_message(channel)
+            except discord.HTTPException as e:
+                self.poliswag.utility.log_to_file(
+                    f"[TRAP] Failed to recreate warning message: {e}", "ERROR"
+                )
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Failed to update warning message: {e}", "ERROR"
+            )
+
     async def _ensure_trap_warning_posted(self):
         """Post (or find) the warning message at startup rather than waiting
         for the first violation -- the whole point is people see it *before*
@@ -87,14 +111,12 @@ class Moderation(commands.Cog):
             return
         try:
             trap_channel = await self.poliswag.fetch_channel(Config.TRAP_CHANNEL_ID)
-            trap_message = await self._get_or_create_trap_message(trap_channel)
-            await trap_message.edit(
-                content=None, embed=_build_trap_warning_embed(self._trap_ban_count)
-            )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
-                f"[TRAP] Failed to ensure warning message: {e}", "ERROR"
+                f"[TRAP] Failed to fetch trap channel: {e}", "ERROR"
             )
+            return
+        await self._refresh_trap_message(trap_channel)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction):
@@ -189,15 +211,7 @@ class Moderation(commands.Cog):
             self._trap_ban_count += 1
             await self._save_trap_ban_count(self._trap_ban_count)
 
-        trap_message = await self._get_or_create_trap_message(trap_channel)
-        try:
-            await trap_message.edit(
-                content=None, embed=_build_trap_warning_embed(self._trap_ban_count)
-            )
-        except discord.HTTPException as e:
-            self.poliswag.utility.log_to_file(
-                f"[TRAP] Failed to update counter message: {e}", "ERROR"
-            )
+        await self._refresh_trap_message(trap_channel)
 
         if self.poliswag.MOD_CHANNEL is not None:
             embed = discord.Embed(
