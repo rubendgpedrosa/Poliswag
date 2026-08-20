@@ -359,6 +359,72 @@ class TestOnMessageTrap:
         cog.poliswag.utility.log_to_file.assert_called()
 
 
+class TestRefreshTrapMessage:
+    async def test_edit_success(self, cog):
+        trap_message = MagicMock(edit=AsyncMock())
+        cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
+        await cog._refresh_trap_message(MagicMock())
+        trap_message.edit.assert_awaited_once()
+
+    async def test_not_found_clears_cache_and_reposts(self, cog):
+        import discord
+
+        stale_message = MagicMock()
+        stale_message.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404), "Unknown Message")
+        )
+        cog._trap_message = stale_message
+
+        async def _empty_history(limit):
+            return
+            yield  # pragma: no cover - makes this an async generator
+
+        new_message = MagicMock()
+        channel = MagicMock()
+        channel.history = _empty_history
+        channel.send = AsyncMock(return_value=new_message)
+
+        await cog._refresh_trap_message(channel)
+
+        assert cog._trap_message is new_message
+        channel.send.assert_awaited_once()
+
+    async def test_not_found_recreate_failure_is_logged(self, cog):
+        import discord
+
+        stale_message = MagicMock()
+        stale_message.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404), "Unknown Message")
+        )
+        cog._trap_message = stale_message
+
+        async def _empty_history(limit):
+            return
+            yield  # pragma: no cover - makes this an async generator
+
+        channel = MagicMock()
+        channel.history = _empty_history
+        channel.send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "missing perms")
+        )
+
+        await cog._refresh_trap_message(channel)  # must not raise
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_other_http_exception_is_logged_without_clearing_cache(self, cog):
+        import discord
+
+        trap_message = MagicMock()
+        trap_message.edit = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(), "rate limited")
+        )
+        cog._get_or_create_trap_message = AsyncMock(return_value=trap_message)
+
+        await cog._refresh_trap_message(MagicMock())  # must not raise
+
+        cog.poliswag.utility.log_to_file.assert_called_once()
+
+
 class TestEnsureTrapWarningPosted:
     async def test_no_trap_channel_id_configured_is_a_noop(self, cog, mocker):
         mocker.patch.object(Config, "TRAP_CHANNEL_ID", 0)
