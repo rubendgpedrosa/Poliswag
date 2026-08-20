@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-from modules.config import Config
+from modules.embeds import status_embed
 
 # Friendlier PT-PT category labels for !help, keyed by cog qualified_name.
 # A cog not listed here falls back to its qualified_name as-is.
@@ -51,10 +51,9 @@ class EmbedHelpCommand(commands.HelpCommand):
 
     async def send_bot_help(self, mapping):
         prefix = self.context.clean_prefix
-        embed = discord.Embed(
-            title="📖 Comandos disponíveis",
-            description=f"Usa `{prefix}help <comando>` para mais detalhes sobre um comando específico.",
-            color=Config.EMBED_COLOR,
+        embed = status_embed(
+            "📖 Comandos disponíveis",
+            f"Usa `{prefix}help <comando>` para mais detalhes sobre um comando específico.",
         )
         for cog, cog_commands in mapping.items():
             filtered = await self.filter_commands(cog_commands, sort=True)
@@ -72,7 +71,7 @@ class EmbedHelpCommand(commands.HelpCommand):
     async def send_cog_help(self, cog):
         prefix = self.context.clean_prefix
         filtered = await self.filter_commands(cog.get_commands(), sort=True)
-        embed = discord.Embed(title=self._cog_label(cog), color=Config.EMBED_COLOR)
+        embed = status_embed(self._cog_label(cog))
         for command in filtered:
             embed.add_field(
                 name=f"{prefix}{command.qualified_name}",
@@ -83,10 +82,9 @@ class EmbedHelpCommand(commands.HelpCommand):
 
     async def send_group_help(self, group):
         prefix = self.context.clean_prefix
-        embed = discord.Embed(
-            title=f"📖 {prefix}{group.qualified_name}",
-            description=group.help or group.brief or _NO_DESCRIPTION,
-            color=Config.EMBED_COLOR,
+        embed = status_embed(
+            f"📖 {prefix}{group.qualified_name}",
+            group.help or group.brief or _NO_DESCRIPTION,
         )
         filtered = await self.filter_commands(group.commands, sort=True)
         for command in filtered:
@@ -99,10 +97,9 @@ class EmbedHelpCommand(commands.HelpCommand):
 
     async def send_command_help(self, command):
         prefix = self.context.clean_prefix
-        embed = discord.Embed(
-            title=f"📖 {prefix}{command.qualified_name}",
-            description=command.help or command.brief or _NO_DESCRIPTION,
-            color=Config.EMBED_COLOR,
+        embed = status_embed(
+            f"📖 {prefix}{command.qualified_name}",
+            command.help or command.brief or _NO_DESCRIPTION,
         )
         if command.aliases:
             embed.add_field(
@@ -116,5 +113,5 @@ class EmbedHelpCommand(commands.HelpCommand):
         await self.get_destination().send(embed=embed)
 
     async def send_error_message(self, error):
-        embed = discord.Embed(title=f"❌ {error}", color=discord.Color.red())
+        embed = status_embed(f"❌ {error}", color=discord.Color.red())
         await self.get_destination().send(embed=embed)
