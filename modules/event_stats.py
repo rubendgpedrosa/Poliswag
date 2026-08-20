@@ -58,7 +58,7 @@ class EventStats(LoggingMixin):
         hundos = await self._sum(
             "pokemon_hundo_stats", pokemon_id, start_date, end_date
         )
-        return f"🐾 **{spawns}** avistamentos · 💯 **{hundos}** 100% IV"
+        return f"🐾 **{spawns}** spawns · 💯 **{hundos}** 100% IV"
 
     def _resolve_pokemon_id(self, species: str) -> int | None:
         qs = self.poliswag.quest_search
