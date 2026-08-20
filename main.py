@@ -99,6 +99,7 @@ class Poliswag(commands.Bot):
 
 
 def main():
+    Config.validate()
     poliswag = Poliswag()
     poliswag.run(Config.DISCORD_API_KEY)
 
