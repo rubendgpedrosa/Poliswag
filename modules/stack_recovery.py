@@ -4,7 +4,9 @@ import time
 
 import discord
 
+from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
+from modules.embeds import status_embed
 
 
 class StackRecovery:
@@ -28,40 +30,18 @@ class StackRecovery:
         self._red_since: float | None = None
         # Recreate attempts used in the current red episode (0..len(RECREATE_THRESHOLDS)).
         self._recreate_attempts: int = 0
-        # Cached toggle — refetched only on a cache miss, updated on every
-        # successful write, so it never goes stale but avoids a DB round
-        # trip on every scheduler tick.
-        self._auto_recreate_enabled: bool | None = None
+        self._auto_recreate_setting = CachedBoolSetting(
+            poliswag, "auto_recreate_enabled"
+        )
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
 
     async def get_auto_recreate_enabled(self) -> bool:
-        if self._auto_recreate_enabled is not None:
-            return self._auto_recreate_enabled
-        try:
-            rows = await self.poliswag.db.get_data_from_database(
-                "SELECT auto_recreate_enabled FROM poliswag LIMIT 1"
-            )
-            self._auto_recreate_enabled = (
-                bool(rows[0]["auto_recreate_enabled"]) if rows else True
-            )
-            return self._auto_recreate_enabled
-        except Exception as e:
-            self._log(
-                f"Failed to read auto_recreate_enabled, defaulting to enabled: {e}"
-            )
-            return True
+        return await self._auto_recreate_setting.get()
 
     async def set_auto_recreate_enabled(self, value: bool) -> None:
-        try:
-            await self.poliswag.db.execute_query_to_database(
-                "UPDATE poliswag SET auto_recreate_enabled = %s",
-                params=(1 if value else 0,),
-            )
-            self._auto_recreate_enabled = value
-        except Exception as e:
-            self._log(f"Failed to persist auto_recreate_enabled: {e}")
+        await self._auto_recreate_setting.set(value)
 
     async def observe(self, all_red: bool) -> bool:
         """Advance the red escalation ladder one tick.
@@ -185,7 +165,7 @@ class StackRecovery:
         try:
             channel = self.poliswag.MOD_CHANNEL
             if channel:
-                embed = discord.Embed(title=title, description=description, color=color)
+                embed = status_embed(title, description, color=color)
                 await channel.send(embed=embed)
         except Exception as e:
             self._log(f"Failed to send stack recovery notification: {e}")

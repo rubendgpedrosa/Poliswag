@@ -1,6 +1,7 @@
 import asyncio
 import time
 
+from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
 
 
@@ -20,35 +21,13 @@ class DeviceManager:
         self.poliswag = poliswag
         self._offline_since: float | None = None
         self._last_notification_time: float = 0
-        # Cached toggle — refetched only on a cache miss, updated on every
-        # successful write, so it never goes stale but avoids a DB round
-        # trip on every scheduler tick.
-        self._auto_reboot_enabled: bool | None = None
+        self._auto_reboot_setting = CachedBoolSetting(poliswag, "auto_reboot_enabled")
 
     async def get_auto_reboot_enabled(self) -> bool:
-        if self._auto_reboot_enabled is not None:
-            return self._auto_reboot_enabled
-        try:
-            rows = await self.poliswag.db.get_data_from_database(
-                "SELECT auto_reboot_enabled FROM poliswag LIMIT 1"
-            )
-            self._auto_reboot_enabled = (
-                bool(rows[0]["auto_reboot_enabled"]) if rows else True
-            )
-            return self._auto_reboot_enabled
-        except Exception as e:
-            self._log(f"Failed to read auto_reboot_enabled, defaulting to enabled: {e}")
-            return True
+        return await self._auto_reboot_setting.get()
 
     async def set_auto_reboot_enabled(self, value: bool) -> None:
-        try:
-            await self.poliswag.db.execute_query_to_database(
-                "UPDATE poliswag SET auto_reboot_enabled = %s",
-                params=(1 if value else 0,),
-            )
-            self._auto_reboot_enabled = value
-        except Exception as e:
-            self._log(f"Failed to persist auto_reboot_enabled: {e}")
+        await self._auto_reboot_setting.set(value)
 
     def _log(self, msg, level="ERROR"):
         self.poliswag.utility.log_to_file(msg, level)
