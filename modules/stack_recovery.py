@@ -7,9 +7,10 @@ import discord
 from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
 from modules.embeds import status_embed
+from modules.logging_mixin import LoggingMixin
 
 
-class StackRecovery:
+class StackRecovery(LoggingMixin):
     """Escalation ladder for a fully red map (every region all-workers-down).
 
     On red, force-recreate the scanner containers (dragonite + rotom-ng) via
@@ -33,9 +34,6 @@ class StackRecovery:
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     async def get_auto_recreate_enabled(self) -> bool:
         return await self._auto_recreate_setting.get()

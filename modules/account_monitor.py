@@ -3,6 +3,7 @@ import datetime
 import discord
 from modules.config import Config
 from modules.http_client import fetch_data
+from modules.logging_mixin import LoggingMixin
 
 DISABLED_STATUSES = [
     "banned",
@@ -17,7 +18,7 @@ DISABLED_STATUSES = [
 ]
 
 
-class AccountMonitor:
+class AccountMonitor(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         # Cached status-message reference — avoids re-scanning up to 50
@@ -25,9 +26,6 @@ class AccountMonitor:
         # message to edit. Cleared if the message turns out to be gone, so
         # the next tick rediscovers (or resends) it.
         self._accounts_message = None
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     async def get_account_stats(self):
         account_stats = await fetch_data("account_status", log_fn=self._log)
