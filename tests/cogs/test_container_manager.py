@@ -117,6 +117,7 @@ class TestStatusCmd:
                 },
             ],
             "accounts": {"good": 5, "in_use": 2, "cooldown": 1, "disabled": 0},
+            "iv_verification": {"total": 100, "iv": 95, "unverified": 5},
         }
         data.update(overrides)
         return data
@@ -135,6 +136,8 @@ class TestStatusCmd:
         assert "MITM-1" in field_values
         assert "leiria-worker-1" in field_values
         assert "Boas: **5**" in field_values
+        assert "IV lido: **95/100** (**95%**)" in field_values
+        assert "Encontros não verificados: **5**" in field_values
 
     async def test_exception_logs_and_edits_error(self, cog):
         ctx = make_ctx()
@@ -174,6 +177,48 @@ class TestStatusCmd:
         embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
         assert "_sem dispositivos_" in embed.fields[1].value
         assert "_sem workers_" in embed.fields[2].value
+
+    async def test_no_iv_data_shows_placeholder(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.scanner_status.get_full_status = AsyncMock(
+            return_value=self._full_data(iv_verification=None)
+        )
+        await ContainerManagerCog.status_cmd.callback(cog, ctx)
+        embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
+        assert "Sem dados nos últimos 10 min" in embed.fields[-1].value
+
+    async def test_high_iv_rate_marks_green(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.scanner_status.get_full_status = AsyncMock(
+            return_value=self._full_data(
+                iv_verification={"total": 100, "iv": 95, "unverified": 5}
+            )
+        )
+        await ContainerManagerCog.status_cmd.callback(cog, ctx)
+        embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
+        assert "🟢" in embed.fields[-1].value
+
+    async def test_mid_iv_rate_marks_yellow(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.scanner_status.get_full_status = AsyncMock(
+            return_value=self._full_data(
+                iv_verification={"total": 100, "iv": 80, "unverified": 20}
+            )
+        )
+        await ContainerManagerCog.status_cmd.callback(cog, ctx)
+        embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
+        assert "🟡" in embed.fields[-1].value
+
+    async def test_low_iv_rate_marks_red(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.scanner_status.get_full_status = AsyncMock(
+            return_value=self._full_data(
+                iv_verification={"total": 100, "iv": 40, "unverified": 60}
+            )
+        )
+        await ContainerManagerCog.status_cmd.callback(cog, ctx)
+        embed = ctx.send.return_value.edit.call_args.kwargs["embed"]
+        assert "🔴" in embed.fields[-1].value
 
 
 class TestRecreateContainers:

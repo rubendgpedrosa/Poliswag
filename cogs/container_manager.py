@@ -95,11 +95,33 @@ class ContainerManagerCog(commands.Cog):
             f"❌ Desactivadas: **{acc.get('disabled', 0)}**"
         )
 
+        # ── IV verification / scanner performance ───────────────────────────
+        iv_stats = data["iv_verification"]
+        if iv_stats is None:
+            perf_text = "❓ Sem dados nos últimos 10 min"
+        else:
+            total, iv, unverified = (
+                iv_stats["total"],
+                iv_stats["iv"],
+                iv_stats["unverified"],
+            )
+            rate = (iv / total * 100) if total else 0
+            icon = "🟢" if rate >= 90 else "🟡" if rate >= 70 else "🔴"
+            perf_text = (
+                f"{icon} IV lido: **{iv}/{total}** (**{rate:.0f}%**)\n"
+                f"⚠️ Encontros não verificados: **{unverified}**"
+            )
+
         embed = status_embed("Scanner — Estado")
         embed.add_field(name="Pokémon (Golbat)", value=pokemon_line, inline=False)
         embed.add_field(name="Dispositivos (Rotom)", value=devices_text, inline=False)
         embed.add_field(name="Workers (Dragonite)", value=workers_text, inline=False)
         embed.add_field(name="Contas (Dragonite)", value=accounts_text, inline=False)
+        embed.add_field(
+            name="Performance do Scanner (últimos 10 min)",
+            value=perf_text,
+            inline=False,
+        )
 
         await msg.edit(embed=embed)
 
