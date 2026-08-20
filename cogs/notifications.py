@@ -5,6 +5,7 @@ from discord.ext import commands
 
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
+from modules.embeds import status_embed
 from modules.poracle_client import PoracleError
 
 _PAIRED_PREFIXES = ("leiria-", "marinha-")
@@ -95,10 +96,8 @@ class Notifications(commands.Cog):
     async def _reply(
         self, ctx, description: str, *, title: str | None = None, error: bool = False
     ):
-        embed = discord.Embed(
-            title=title,
-            description=description,
-            color=discord.Color.red() if error else Config.EMBED_COLOR,
+        embed = status_embed(
+            title, description, color=discord.Color.red() if error else None
         )
         await ctx.send(embed=embed)
 
@@ -138,17 +137,14 @@ class Notifications(commands.Cog):
         ),
     )
     async def notify(self, ctx):
-        embed = discord.Embed(
-            title="!notify — alertas Poracle",
-            description=(
-                "Gere os alertas de pokémon do Poracle por canal.\n\n"
-                "**`<ref>` aceita:**\n"
-                "• `#leiria-100iv` — mention\n"
-                "• `868051002782277652` — id numérico\n"
-                "• `alertas-level5` — nome exacto do canal\n"
-                "• `raros` / `100iv` / `0iv` / `uteis` — categoria (aplica aos dois canais leiria + marinha)\n"
-            ),
-            color=Config.EMBED_COLOR,
+        embed = status_embed(
+            "!notify — alertas Poracle",
+            "Gere os alertas de pokémon do Poracle por canal.\n\n"
+            "**`<ref>` aceita:**\n"
+            "• `#leiria-100iv` — mention\n"
+            "• `868051002782277652` — id numérico\n"
+            "• `alertas-level5` — nome exacto do canal\n"
+            "• `raros` / `100iv` / `0iv` / `uteis` — categoria (aplica aos dois canais leiria + marinha)\n",
         )
         embed.add_field(
             name="Ver",
@@ -215,11 +211,7 @@ class Notifications(commands.Cog):
             f"{'🟢' if row['enabled'] else '🔴'} <#{row['id']}> — `{row['id']}`"
             for row in rows
         ]
-        embed = discord.Embed(
-            title="Canais Poracle",
-            description="\n".join(lines)[:4000],
-            color=Config.EMBED_COLOR,
-        )
+        embed = status_embed("Canais Poracle", "\n".join(lines)[:4000])
         await ctx.send(embed=embed)
 
     @notify.command(
@@ -260,11 +252,7 @@ class Notifications(commands.Cog):
             )
             return
 
-        embed = discord.Embed(
-            title=f"Pokémon seguidos — {title_ref}",
-            description=body[:4000],
-            color=Config.EMBED_COLOR,
-        )
+        embed = status_embed(f"Pokémon seguidos — {title_ref}", body[:4000])
         embed.set_footer(
             text="Usa !notify remove <ref> <nome|uid> para remover uma regra"
         )

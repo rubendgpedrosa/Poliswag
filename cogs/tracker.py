@@ -1,8 +1,6 @@
-import discord
 from discord.ext import commands
 from modules.tracker_store import TrackerStore
-from modules.embeds import build_tracked_list_embed
-from modules.config import Config
+from modules.embeds import build_tracked_list_embed, status_embed
 
 
 class Tracker(commands.Cog):
@@ -28,20 +26,16 @@ class Tracker(commands.Cog):
         search_string = search_string.lower()
 
         if await self.tracker_store.exists(search_string):
-            already_embed = discord.Embed(
-                title="Já Seguida",
-                description=f"A quest '{search_string}' já está a ser seguida.",
-                color=Config.EMBED_COLOR,
+            already_embed = status_embed(
+                "Já Seguida", f"A quest '{search_string}' já está a ser seguida."
             )
             await ctx.send(embed=already_embed)
             return
 
         await self.tracker_store.add(search_string, str(ctx.author.name))
 
-        confirm_embed = discord.Embed(
-            title="Quest Adicionada",
-            description=f"Agora a seguir a quest: **{search_string}**",
-            color=Config.EMBED_COLOR,
+        confirm_embed = status_embed(
+            "Quest Adicionada", f"Agora a seguir a quest: **{search_string}**"
         )
         await ctx.send(embed=confirm_embed)
 
@@ -62,17 +56,14 @@ class Tracker(commands.Cog):
         affected_rows = await self.tracker_store.remove(search_string)
 
         if affected_rows == 0:
-            not_tracked_embed = discord.Embed(
-                title="Não Encontrada",
-                description=f"A quest '{search_string}' não está a ser seguida atualmente.",
-                color=Config.EMBED_COLOR,
+            not_tracked_embed = status_embed(
+                "Não Encontrada",
+                f"A quest '{search_string}' não está a ser seguida atualmente.",
             )
             await ctx.send(embed=not_tracked_embed)
         else:
-            remove_embed = discord.Embed(
-                title="Quest Removida",
-                description=f"Deixou de seguir a quest: **{search_string}**",
-                color=Config.EMBED_COLOR,
+            remove_embed = status_embed(
+                "Quest Removida", f"Deixou de seguir a quest: **{search_string}**"
             )
             await ctx.send(embed=remove_embed)
 
@@ -91,10 +82,9 @@ class Tracker(commands.Cog):
     async def untrack_all(self, ctx):
         count = await self.tracker_store.clear()
 
-        confirm_embed = discord.Embed(
-            title="Todas as Quests Removidas",
-            description=f"{count} quests foram removidas da lista de seguimento.",
-            color=Config.EMBED_COLOR,
+        confirm_embed = status_embed(
+            "Todas as Quests Removidas",
+            f"{count} quests foram removidas da lista de seguimento.",
         )
         await ctx.send(embed=confirm_embed)
 

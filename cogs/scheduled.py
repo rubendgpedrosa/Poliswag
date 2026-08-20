@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands, tasks
 
 from modules.config import Config
+from modules.embeds import status_embed
 from modules.locale_pt import PT_DAYS_SHORT
 
 
@@ -104,8 +105,8 @@ class Scheduled(commands.Cog):
                 )
             except Exception:
                 await ctx.channel.send(
-                    embed=discord.Embed(
-                        title="Formato inválido. Usa `!testevent HH:MM`",
+                    embed=status_embed(
+                        "Formato inválido. Usa `!testevent HH:MM`",
                         color=discord.Color.red(),
                     )
                 )
@@ -312,17 +313,11 @@ class Scheduled(commands.Cog):
 
     async def _send_event_change_notifications(self, channel, changed):
         if changed["ended"]:
-            await channel.send(
-                embed=discord.Embed(
-                    title="Eventos que terminaram", color=Config.EMBED_COLOR
-                )
-            )
+            await channel.send(embed=status_embed("Eventos que terminaram"))
             for event in changed["ended"]:
                 await channel.send(embed=self._build_event_embed(event, is_ended=True))
         if changed["started"]:
-            await channel.send(
-                embed=discord.Embed(title="Novos eventos", color=Config.EMBED_COLOR)
-            )
+            await channel.send(embed=status_embed("Novos eventos"))
             for event in changed["started"]:
                 await channel.send(embed=self._build_event_embed(event))
 
@@ -359,12 +354,11 @@ class Scheduled(commands.Cog):
             return
         for stop in new_lures:
             maps_url = f"https://www.google.com/maps?q={stop['lat']},{stop['lon']}"
-            embed = discord.Embed(
-                title=f"🌸 {stop['lure_name']} colocada na PokéStop {stop['name']}",
-                description=f"**Área:** {stop['area']}\n"
+            embed = status_embed(
+                f"🌸 {stop['lure_name']} colocada na PokéStop {stop['name']}",
+                f"**Área:** {stop['area']}\n"
                 f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
                 f"[Ver no mapa]({maps_url})",
-                color=Config.EMBED_COLOR,
             )
             await self.poliswag.CONVIVIO_CHANNEL.send(embed=embed)
 
