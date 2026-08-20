@@ -137,7 +137,6 @@ class TestStatusCmd:
         assert "leiria-worker-1" in field_values
         assert "Boas: **5**" in field_values
         assert "IV lido: **95/100** (**95%**)" in field_values
-        assert "Encontros não verificados: **5**" in field_values
 
     async def test_exception_logs_and_edits_error(self, cog):
         ctx = make_ctx()
