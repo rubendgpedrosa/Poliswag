@@ -254,15 +254,7 @@ class QuestSearch:
         quest_target = str(fields["target"] or "")
         quest_reward_type = fields["reward_type"] or ""
 
-        if self.translationfile_data is None:
-            logging.warning("Translation data is not available.")
-            quest_title_translated = quest_title
-        else:
-            quest_title_translated = (
-                self.translationfile_data["data"]
-                .get(quest_title, "")
-                .replace("{0}", quest_target)
-            )
+        quest_title_translated = self._translate_quest_title(quest_title, quest_target)
 
         if self.is_location_relevant(quest, is_leiria):
             return (
@@ -273,6 +265,18 @@ class QuestSearch:
                 or (search in "experience" and quest_reward_type == 1)
             )
         return False
+
+    def _translate_quest_title(self, quest_title, quest_target):
+        """Look up the PT translation for a quest title, falling back to the
+        (untranslated) title if translation data isn't loaded yet."""
+        if self.translationfile_data is None:
+            logging.warning("Translation data is not available.")
+            return quest_title
+        return (
+            self.translationfile_data["data"]
+            .get(quest_title, "")
+            .replace("{0}", quest_target)
+        )
 
     def is_location_relevant(self, quest, is_leiria):
         try:
@@ -289,15 +293,9 @@ class QuestSearch:
 
         quest_target_str = str(quest_target) if quest_target is not None else ""
 
-        if self.translationfile_data is None:
-            logging.warning("Translation data is not available.")
-            quest_title_translated = quest_title
-        else:
-            quest_title_translated = (
-                self.translationfile_data["data"]
-                .get(quest_title, "")
-                .replace("{0}", quest_target_str)
-            )
+        quest_title_translated = self._translate_quest_title(
+            quest_title, quest_target_str
+        )
 
         stop_key = (quest.get("name"), quest.get("lat"), quest.get("lon"))
         for found_quest in found_quests:
@@ -435,6 +433,22 @@ class QuestSearch:
         embed.set_footer(text=footer)
         return embed
 
+    def _masterfile_name(self, category, entity_id):
+        """Look up an entity's display name from the cached masterfile data.
+
+        A masterfile entry is either a {"name": ...} dict or a bare string
+        (already the name). Returns "" if the masterfile category is
+        missing, the id isn't found, or the entry is neither shape.
+        """
+        if self.masterfile_data is None or category not in self.masterfile_data:
+            return ""
+        data = self.masterfile_data[category].get(str(entity_id))
+        if isinstance(data, dict) and "name" in data:
+            return data["name"]
+        if isinstance(data, str):
+            return data
+        return ""
+
     def group_pokestops_by_reward(self, found_quests):
         reward_groups = {}
         for quest_group in found_quests:
@@ -457,13 +471,7 @@ class QuestSearch:
 
             if reward_type == 2:  # Item
                 if amount and item_id and "items" in self.masterfile_data:
-                    item_data = self.masterfile_data["items"].get(str(item_id), None)
-                    if isinstance(item_data, dict) and "name" in item_data:
-                        item_name = item_data["name"]
-                    elif isinstance(item_data, str):
-                        item_name = item_data
-                    else:
-                        item_name = ""
+                    item_name = self._masterfile_name("items", item_id)
                     if item_name:
                         group_data["reward_text"] = f"{amount}x {item_name}"
 
@@ -495,15 +503,7 @@ class QuestSearch:
 
             elif reward_type == 12:  # Mega Energy
                 if amount and pokemon_id and "pokemon" in self.masterfile_data:
-                    pokemon_data = self.masterfile_data["pokemon"].get(
-                        str(pokemon_id), None
-                    )
-                    if isinstance(pokemon_data, dict) and "name" in pokemon_data:
-                        pokemon_name = pokemon_data["name"]
-                    elif isinstance(pokemon_data, str):
-                        pokemon_name = pokemon_data
-                    else:
-                        pokemon_name = ""
+                    pokemon_name = self._masterfile_name("pokemon", pokemon_id)
                     if pokemon_name:
                         group_data["reward_text"] = (
                             f"{amount} {pokemon_name} Mega Energy"
