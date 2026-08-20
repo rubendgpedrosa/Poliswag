@@ -8,6 +8,15 @@ _MAX_FIELD_VALUE = 1024
 _MAX_DESCRIPTION = 4096
 
 
+def status_embed(title, description=None, *, color=None):
+    """A simple title(+description) embed with no timestamp, for transient
+    status/loading/success/error replies -- as opposed to build_embed's
+    fixed color and timestamp, meant for persistent list/summary embeds."""
+    return discord.Embed(
+        title=title, description=description, color=color or Config.EMBED_COLOR
+    )
+
+
 def build_embed(title, description="", footer=None):
     embed = discord.Embed(
         title=title,
