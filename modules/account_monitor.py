@@ -1,9 +1,15 @@
-import io
 import datetime
 import discord
-from modules.config import Config
+from modules.embeds import status_embed
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
+
+# (color, emoji, PT-PT label) per severity level for the account-pool status embed.
+_STATUS_LEVELS = {
+    "ok": (discord.Color.green(), "🟢", "Operacional"),
+    "warn": (discord.Color.gold(), "🟡", "Atenção"),
+    "crit": (discord.Color.red(), "🔴", "Crítico"),
+}
 
 DISABLED_STATUSES = [
     "banned",
@@ -51,6 +57,66 @@ class AccountMonitor(LoggingMixin):
             for device in device_status["devices"]
         )
 
+    def _build_status_embed(self, account_data, device_status):
+        """Build the account-pool status embed shown in ACCOUNTS_CHANNEL.
+
+        A plain embed rather than a rendered image: this updates every 60s
+        forever, and the payload is just 3 counts + a boolean -- an embed's
+        color/emoji/bold-number vocabulary already gives an at-a-glance
+        health signal, is automatically theme-correct (dark/light), and
+        needs no imgkit/wkhtmltoimage render step on every tick.
+        """
+        good = account_data.get("good", 0)
+        cooldown = account_data.get("cooldown", 0)
+        disabled = account_data.get("disabled", 0)
+        total = max(good + cooldown + disabled, 1)
+
+        if not device_status or good == 0:
+            level = "crit"
+        elif disabled > 0 or cooldown / total > 0.5:
+            level = "warn"
+        else:
+            level = "ok"
+
+        color, dot, label = _STATUS_LEVELS[level]
+
+        if level == "crit" and not device_status:
+            description = (
+                "⚠️ Dispositivo scanner desconectado — nenhuma conta pode ser "
+                "usada no momento."
+            )
+        elif level == "crit":
+            description = "⚠️ Nenhuma conta disponível no pool."
+        elif level == "warn":
+            description = "Pool operando com restrições — algumas contas indisponíveis."
+        else:
+            description = "Tudo certo por aqui — pool saudável e dispositivo conectado."
+
+        embed = status_embed(
+            f"{dot} Estado do Pool de Contas — {label}", description, color=color
+        )
+        embed.add_field(name="✅ Disponíveis", value=f"**{good}**", inline=True)
+        embed.add_field(name="⏳ Cooldown", value=f"**{cooldown}**", inline=True)
+        embed.add_field(name="🚫 Desativadas", value=f"**{disabled}**", inline=True)
+
+        device_txt = "🟢 Conectado" if device_status else "🔴 Desconectado"
+        embed.add_field(name="📱 Dispositivo Scanner", value=device_txt, inline=False)
+
+        def bar(n, width=16):
+            filled = round((n / total) * width)
+            return "█" * filled + "░" * (width - filled)
+
+        chart = (
+            "```\n"
+            f"Disponíveis  {bar(good)}  {good}/{total} ({good / total:.0%})\n"
+            f"Cooldown     {bar(cooldown)}  {cooldown}/{total} ({cooldown / total:.0%})\n"
+            f"Desativadas  {bar(disabled)}  {disabled}/{total} ({disabled / total:.0%})\n"
+            "```"
+        )
+        embed.add_field(name="​", value=chart, inline=False)
+        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
+        return embed
+
     async def update_channel_accounts_stats(self):
         if self.poliswag.ACCOUNTS_CHANNEL is None:
             return
@@ -63,29 +129,11 @@ class AccountMonitor(LoggingMixin):
 
             account_data = await self.get_account_stats()
             device_status = await self.is_device_connected()
-            image_bytes = (
-                await self.poliswag.image_generator.generate_image_from_account_stats(
-                    account_data, device_status
-                )
-            )
-
-            if not image_bytes:
-                self._log("Error generating account image")
-                return
-
-            timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            discord_file = discord.File(
-                io.BytesIO(image_bytes), filename="account_status_report.png"
-            )
-            embed = discord.Embed(color=Config.EMBED_COLOR)
-            embed.set_image(url="attachment://account_status_report.png")
-            embed.set_footer(text=f"Actualizado às {timestamp_str}")
+            embed = self._build_status_embed(account_data, device_status)
 
             if self._accounts_message:
                 try:
-                    await self._accounts_message.edit(
-                        content=None, embed=embed, attachments=[discord_file]
-                    )
+                    await self._accounts_message.edit(content=None, embed=embed)
                     return
                 except discord.NotFound:
                     # Message was deleted out from under us — fall through to
@@ -93,7 +141,7 @@ class AccountMonitor(LoggingMixin):
                     self._accounts_message = None
 
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
-                embed=embed, file=discord_file
+                embed=embed
             )
 
         except Exception as e:
