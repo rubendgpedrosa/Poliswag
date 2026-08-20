@@ -8,8 +8,11 @@ from modules.logging_mixin import LoggingMixin
 # Community Day / Raid Day / Raid Hour (a few boosted hours on one day),
 # the boosted activity dominates the day's total, so the daily sum is a
 # reasonable proxy; it's not exact for events that share a day with
-# unrelated activity.
+# unrelated activity. Spotlight Hour is the weakest fit here (just one
+# boosted hour vs. the rest of the day), but still the best signal
+# available without per-minute stats.
 _COMMUNITY_DAY_SUFFIX = re.compile(r"\s*community day\s*$", re.IGNORECASE)
+_SPOTLIGHT_HOUR_SUFFIX = re.compile(r"\s*spotlight hour\s*$", re.IGNORECASE)
 _STATS_AREAS = ("Leiria", "MarinhaGrande")
 
 
@@ -23,7 +26,8 @@ class EventStats(LoggingMixin):
     async def get_summary(self, event: dict) -> str | None:
         """A short PT-PT stats line for a finished event, or None if the
         event type isn't one we have a stats source for (or the species
-        for a Community Day couldn't be resolved from its name)."""
+        for a Community Day / Spotlight Hour couldn't be resolved from
+        its name)."""
         event_type = (event.get("event_type") or "").lower()
         try:
             start_date = str(event["start"])[:10]
@@ -35,8 +39,18 @@ class EventStats(LoggingMixin):
             if "raid" in event_type:
                 return await self._raid_summary(start_date, end_date)
             if "community" in event_type:
-                return await self._community_day_summary(
-                    event.get("name", ""), start_date, end_date
+                return await self._species_summary(
+                    event.get("name", ""),
+                    _COMMUNITY_DAY_SUFFIX,
+                    start_date,
+                    end_date,
+                )
+            if "spotlight" in event_type:
+                return await self._species_summary(
+                    event.get("name", ""),
+                    _SPOTLIGHT_HOUR_SUFFIX,
+                    start_date,
+                    end_date,
                 )
         except Exception as e:
             self._log(f"[EVENTSTATS] Failed to build summary: {e}")
@@ -47,8 +61,13 @@ class EventStats(LoggingMixin):
         total = await self._sum("raid_stats", None, start_date, end_date)
         return f"🥊 **{total}** raids durante o evento."
 
-    async def _community_day_summary(self, name, start_date, end_date) -> str | None:
-        species = _COMMUNITY_DAY_SUFFIX.sub("", name).strip()
+    async def _species_summary(
+        self, name, suffix_pattern, start_date, end_date
+    ) -> str | None:
+        """Shared by Community Day and Spotlight Hour: both name the
+        featured species as "<Species> <Event Label>" and both are worth
+        the same spawns/100% IV summary."""
+        species = suffix_pattern.sub("", name).strip()
         if not species:
             return None
         pokemon_id = self._resolve_pokemon_id(species)
