@@ -18,7 +18,8 @@ _STATS_AREAS = ("Leiria", "MarinhaGrande")
 
 class EventStats(LoggingMixin):
     """Post-event stats summaries, sourced from golbat's own aggregate
-    stats tables (raid_stats, pokemon_stats, pokemon_hundo_stats)."""
+    stats tables (raid_stats, pokemon_stats, pokemon_hundo_stats,
+    pokemon_nundo_stats)."""
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -66,7 +67,7 @@ class EventStats(LoggingMixin):
     ) -> str | None:
         """Shared by Community Day and Spotlight Hour: both name the
         featured species as "<Species> <Event Label>" and both are worth
-        the same spawns/100% IV summary."""
+        the same spawns/100% IV/0% IV summary."""
         species = suffix_pattern.sub("", name).strip()
         if not species:
             return None
@@ -77,7 +78,13 @@ class EventStats(LoggingMixin):
         hundos = await self._sum(
             "pokemon_hundo_stats", pokemon_id, start_date, end_date
         )
-        return f"🐾 **{spawns}** spawns · 💯 **{hundos}** 100% IV"
+        nundos = await self._sum(
+            "pokemon_nundo_stats", pokemon_id, start_date, end_date
+        )
+        return (
+            f"🐾 **{spawns}** spawns · 💯 **{hundos}** 100% IV · "
+            f"0️⃣ **{nundos}** 0% IV"
+        )
 
     def _resolve_pokemon_id(self, species: str) -> int | None:
         qs = self.poliswag.quest_search
