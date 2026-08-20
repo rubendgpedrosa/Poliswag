@@ -2,6 +2,8 @@ import discord
 import io
 from discord.ext import commands
 
+from modules.embeds import status_embed
+
 
 class Accounts(commands.Cog):
     def __init__(self, poliswag):
@@ -40,15 +42,15 @@ class Accounts(commands.Cog):
                         f"Error sending image: {e}", "ERROR"
                     )
                     await ctx.send(
-                        embed=discord.Embed(
-                            title="❌ Erro ao enviar a imagem. Verifica os logs.",
+                        embed=status_embed(
+                            "❌ Erro ao enviar a imagem. Verifica os logs.",
                             color=discord.Color.red(),
                         )
                     )
             else:
                 await ctx.send(
-                    embed=discord.Embed(
-                        title="❌ Erro ao gerar a imagem de contas. Verifica os logs.",
+                    embed=status_embed(
+                        "❌ Erro ao gerar a imagem de contas. Verifica os logs.",
                         color=discord.Color.red(),
                     )
                 )
@@ -58,8 +60,8 @@ class Accounts(commands.Cog):
                 f"Error in account_report_cmd: {e}", "ERROR"
             )
             await ctx.send(
-                embed=discord.Embed(
-                    title="❌ Ocorreu um erro ao gerar o relatório. Verifica os logs.",
+                embed=status_embed(
+                    "❌ Ocorreu um erro ao gerar o relatório. Verifica os logs.",
                     color=discord.Color.red(),
                 )
             )
