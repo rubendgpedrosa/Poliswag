@@ -82,7 +82,8 @@ class EventStats(LoggingMixin):
             "pokemon_nundo_stats", pokemon_id, start_date, end_date
         )
         return (
-            f"🐾 **{spawns}** spawns · 💯 **{hundos}** 100% IV · "
+            f"🐾 **{spawns}** spawns\n"
+            f"💯 **{hundos}** 100% IV\n"
             f"0️⃣ **{nundos}** 0% IV"
         )
 
