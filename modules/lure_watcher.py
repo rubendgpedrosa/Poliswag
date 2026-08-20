@@ -1,5 +1,7 @@
 import datetime
 
+from modules.logging_mixin import LoggingMixin
+
 # Standard Pokémon GO lure module item IDs, also used verbatim as golbat's
 # pokestop.lure_id. Named directly here rather than looked up from the
 # masterfile: WatWowMap's masterfile source names these items "Troy Disk"
@@ -18,7 +20,7 @@ _LURE_NAMES = {
 _MARINHA_LON_MAX = -8.9
 
 
-class LureWatcher:
+class LureWatcher(LoggingMixin):
     """Detects newly-placed lure modules on scanned pokestops.
 
     golbat's pokestop table only records that a lure is active (lure_id,
@@ -35,9 +37,6 @@ class LureWatcher:
         # First check after startup only seeds state -- it must never
         # announce every lure that was already active before the bot came up.
         self._seeded = False
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     def _lure_name(self, lure_id):
         return _LURE_NAMES.get(lure_id, "Lure")

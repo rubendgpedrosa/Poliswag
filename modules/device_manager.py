@@ -3,9 +3,10 @@ import time
 
 from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
+from modules.logging_mixin import LoggingMixin
 
 
-class DeviceManager:
+class DeviceManager(LoggingMixin):
     """Manages ADB interactions with the configured Android device."""
 
     # How long the device must be continuously offline before alerting.
@@ -28,9 +29,6 @@ class DeviceManager:
 
     async def set_auto_reboot_enabled(self, value: bool) -> None:
         await self._auto_reboot_setting.set(value)
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     async def _adb(self, *args, timeout: int = 15) -> tuple[str, str, int]:
         """Run a raw ``adb`` invocation. Returns (stdout, stderr, returncode).
