@@ -187,13 +187,27 @@
     .area-row {
         flex: 0 0 auto;
         display: flex;
+        align-items: baseline;
         justify-content: center;
+    }
+
+    /* Labels the whole row so each area can show a bare percentage.
+       "99% IV" would read as a perfect-IV pokemon -- the meaning "100%
+       IV" already carries elsewhere in the bot -- when it actually means
+       the share of spawns whose IV the scanner managed to read. */
+    .area-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #6f7276;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        margin-right: 26px;
     }
 
     .area-item {
         display: flex;
         align-items: baseline;
-        margin: 0 36px;
+        margin: 0 22px;
     }
 
     .area-name {
@@ -258,10 +272,11 @@
                 {% if area_lines %}
                 <div class="area-divider"></div>
                 <div class="area-row">
+                    <span class="area-label">IV Coverage</span>
                     {% for line in area_lines %}
                     <div class="area-item">
                         <span class="area-name">{{ line.name }}</span>
-                        <span class="area-rate">{{ line.rate }}% IV</span>
+                        <span class="area-rate">{{ line.rate }}%</span>
                     </div>
                     {% endfor %}
                 </div>
