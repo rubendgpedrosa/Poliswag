@@ -53,7 +53,7 @@ class TestGetSummary:
         )
         event = _event("community-day", "Nickit Community Day")
         result = await event_stats.get_summary(event)
-        assert result == "🐾 **500** avistamentos · 💯 **3** 100% IV"
+        assert result == "🐾 **500** spawns · 💯 **3** 100% IV"
 
     async def test_community_day_returns_none_when_species_unresolved(
         self, event_stats
