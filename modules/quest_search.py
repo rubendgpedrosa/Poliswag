@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import json
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
+from modules.embeds import status_embed
 import logging
 
 HTTP_TIMEOUT_SECONDS = 15
@@ -417,11 +418,7 @@ class QuestSearch:
             label = chr(65 + idx)  # A, B, C … matches the static map markers
             lines.append(f"**{label}** · {stop['name']} — [🗺️ Mapa]({maps_url})")
 
-        embed = discord.Embed(
-            title=quest_title,
-            description="\n".join(lines),
-            color=color,
-        )
+        embed = status_embed(quest_title, "\n".join(lines), color=color)
 
         if pokestops and "quest_slug" in pokestops[0]:
             embed.set_thumbnail(url=f"{self.UI_ICONS_URL}{pokestops[0]['quest_slug']}")
@@ -528,11 +525,7 @@ class QuestSearch:
         all_found_quests_leiria = []
         all_found_quests_marinha = []
 
-        await channel.send(
-            embed=discord.Embed(
-                title="Resultados do scan de quests de hoje", color=Config.EMBED_COLOR
-            )
-        )
+        await channel.send(embed=status_embed("Resultados do scan de quests de hoje"))
         for tracked_quest_data in tracked_quests:
             search_keyword = tracked_quest_data["target"]
 
