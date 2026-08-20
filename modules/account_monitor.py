@@ -4,11 +4,13 @@ from modules.embeds import status_embed
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
 
-# (color, emoji) per severity level for the account-pool status embed.
+# color per severity level for the account-pool status embed. The embed's
+# left border is the only severity signal -- no per-field emoji duplicating
+# it, see build_status_embed.
 _STATUS_LEVELS = {
-    "ok": (discord.Color.green(), "🟢"),
-    "warn": (discord.Color.gold(), "🟡"),
-    "crit": (discord.Color.red(), "🔴"),
+    "ok": discord.Color.green(),
+    "warn": discord.Color.gold(),
+    "crit": discord.Color.red(),
 }
 
 DISABLED_STATUSES = [
@@ -68,9 +70,10 @@ class AccountMonitor(LoggingMixin):
         gives an at-a-glance health signal, is automatically theme-correct
         (dark/light), and needs no imgkit/wkhtmltoimage render step.
 
-        Deliberately minimal: no description sentence and no bar chart --
-        the title's color/emoji plus the four field values already say
-        everything at a glance.
+        Deliberately minimal: no description, no bar chart, and no per-field
+        emoji -- the embed's left-border color is the single severity
+        signal, so it isn't repeated as a title emoji or a device-field
+        emoji. Four plain inline columns carry the actual numbers/state.
         """
         good = account_data.get("good", 0)
         cooldown = account_data.get("cooldown", 0)
@@ -88,16 +91,16 @@ class AccountMonitor(LoggingMixin):
         else:
             level = "ok"
 
-        color, dot = _STATUS_LEVELS[level]
+        color = _STATUS_LEVELS[level]
 
-        embed = status_embed(f"{dot} Pool de Contas", color=color)
+        embed = status_embed("Pool de Contas", color=color)
         embed.add_field(name="Disponíveis", value=f"**{good}**", inline=True)
         embed.add_field(name="Cooldown", value=f"**{cooldown}**", inline=True)
         embed.add_field(name="Desativadas", value=f"**{disabled}**", inline=True)
         embed.add_field(
             name="Dispositivo",
-            value="🟢 Conectado" if device_status else "🔴 Desconectado",
-            inline=False,
+            value="Conectado" if device_status else "Desconectado",
+            inline=True,
         )
         embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
         return embed
