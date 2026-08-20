@@ -100,17 +100,14 @@ class ContainerManagerCog(commands.Cog):
         if iv_stats is None:
             perf_text = "❓ Sem dados nos últimos 10 min"
         else:
-            total, iv, unverified = (
-                iv_stats["total"],
-                iv_stats["iv"],
-                iv_stats["unverified"],
-            )
+            total, iv = iv_stats["total"], iv_stats["iv"]
             rate = (iv / total * 100) if total else 0
             icon = "🟢" if rate >= 90 else "🟡" if rate >= 70 else "🔴"
-            perf_text = (
-                f"{icon} IV lido: **{iv}/{total}** (**{rate:.0f}%**)\n"
-                f"⚠️ Encontros não verificados: **{unverified}**"
-            )
+            # Deliberately only the read rate: unverifiedEnc (and
+            # verifiedReEnc/resetMon alongside it) read 0 across a full day
+            # of ~9k spawns, so surfacing them just adds a line that never
+            # says anything.
+            perf_text = f"{icon} IV lido: **{iv}/{total}** (**{rate:.0f}%**)"
 
         embed = status_embed("Scanner — Estado")
         embed.add_field(name="Pokémon (Golbat)", value=pokemon_line, inline=False)
