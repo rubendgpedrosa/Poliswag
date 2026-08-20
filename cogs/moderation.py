@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 
 from modules.config import Config
+from modules.embeds import status_embed
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
@@ -13,13 +14,11 @@ _TRAP_BAN_PURGE_SECONDS = 86400
 
 
 def _build_trap_warning_embed(count):
-    return discord.Embed(
-        title="🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
-        description=(
-            "Este canal é usado para apanhar spam bots. Qualquer mensagem "
-            "enviada aqui resulta num **ban automático**.\n\n"
-            f"**Pessoas banidas até agora:** {count}"
-        ),
+    return status_embed(
+        "🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
+        "Este canal é usado para apanhar spam bots. Qualquer mensagem "
+        "enviada aqui resulta num **ban automático**.\n\n"
+        f"**Pessoas banidas até agora:** {count}",
         color=0xE74C3C,
     )
 
@@ -147,9 +146,7 @@ class Moderation(commands.Cog):
         ):
             return
 
-        embed = discord.Embed(
-            title=f"[{message.channel}] Mensagem removida", color=0x7B83B4
-        )
+        embed = status_embed(f"[{message.channel}] Mensagem removida", color=0x7B83B4)
         embed.add_field(
             name=str(message.author),
             value=message.content or "*(sem texto)*",
@@ -214,10 +211,7 @@ class Moderation(commands.Cog):
         await self._refresh_trap_message(trap_channel)
 
         if self.poliswag.MOD_CHANNEL is not None:
-            embed = discord.Embed(
-                title="🍯 Alguém caiu no canal-armadilha",
-                color=0xE74C3C,
-            )
+            embed = status_embed("🍯 Alguém caiu no canal-armadilha", color=0xE74C3C)
             embed.add_field(
                 name=str(message.author),
                 value=(
