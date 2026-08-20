@@ -4,6 +4,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Env vars the bot cannot run without. Everything else (channel ids, feature
+# endpoints, image-gen settings, ...) degrades gracefully -- see e.g.
+# Poliswag.get_channels(), which already logs and skips an unset channel
+# rather than crashing.
+_REQUIRED_ENV_VARS = (
+    "DISCORD_API_KEY",
+    "DB_HOST",
+    "DB_USER",
+    "DB_PASSWORD",
+    "DB_POLISWAG",
+    "DB_SCANNER_NAME",
+)
+
 
 class Config:
     # Discord
@@ -86,3 +99,17 @@ class Config:
     # UI
     EMBED_COLOR = 0x4169E1
     MOCK_DATA_DIR = "mock_data"
+
+    @classmethod
+    def validate(cls):
+        """Raise if any env var the bot cannot run without is unset.
+
+        Fails once at startup with every missing var listed, instead of a
+        separate cryptic exception from whichever component (discord.py,
+        pymysql, ...) happens to hit the missing value first.
+        """
+        missing = [name for name in _REQUIRED_ENV_VARS if not getattr(cls, name)]
+        if missing:
+            raise RuntimeError(
+                "Missing required environment variable(s): " + ", ".join(missing)
+            )
