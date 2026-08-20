@@ -27,7 +27,7 @@ def _event(event_type, name, start="2026-08-16 14:00:00", end="2026-08-16 17:00:
 
 class TestGetSummary:
     async def test_returns_none_for_unrelated_event_type(self, event_stats):
-        event = _event("spotlight-hour", "Wurmple Spotlight Hour")
+        event = _event("go-battle-league", "Great League Edition")
         assert await event_stats.get_summary(event) is None
 
     async def test_returns_none_when_start_missing(self, event_stats):
@@ -66,6 +66,21 @@ class TestGetSummary:
     async def test_community_day_with_no_species_text_returns_none(self, event_stats):
         event = _event("community-day", "Community Day")
         assert await event_stats.get_summary(event) is None
+
+    async def test_spotlight_hour_summary(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            side_effect=[[{"total": 80}], [{"total": 1}]]
+        )
+        event = _event("pokemon-spotlight-hour", "Nickit Spotlight Hour")
+        result = await event_stats.get_summary(event)
+        assert result == "🐾 **80** spawns · 💯 **1** 100% IV"
+
+    async def test_spotlight_hour_returns_none_when_species_unresolved(
+        self, event_stats
+    ):
+        event = _event("pokemon-spotlight-hour", "November Spotlight Hour")
+        assert await event_stats.get_summary(event) is None
+        event_stats.poliswag.quest_search.db.get_data_from_database.assert_not_called()
 
     async def test_exception_during_query_is_caught_and_logged(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
