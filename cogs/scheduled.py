@@ -330,13 +330,15 @@ class Scheduled(commands.Cog):
         if changed["ended"]:
             await channel.send(embed=status_embed("Eventos que terminaram"))
             for event in changed["ended"]:
-                await channel.send(embed=self._build_event_embed(event, is_ended=True))
+                embed = await self._build_event_embed(event, is_ended=True)
+                await channel.send(embed=embed)
         if changed["started"]:
             await channel.send(embed=status_embed("Novos eventos"))
             for event in changed["started"]:
-                await channel.send(embed=self._build_event_embed(event))
+                embed = await self._build_event_embed(event)
+                await channel.send(embed=embed)
 
-    def _build_event_embed(self, event, is_ended=False):
+    async def _build_event_embed(self, event, is_ended=False):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
         emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
         event_link = self.poliswag.event_manager.get_event_link(event)
@@ -344,14 +346,14 @@ class Scheduled(commands.Cog):
             event["event_type"]
         )
         color = self.poliswag.event_manager.event_colors.get(event_type_key, 0x3498DB)
+        if is_ended:
+            description = await self.poliswag.event_stats.get_summary(event)
+        else:
+            description = self.poliswag.event_manager.format_end_time(event_end)
         embed = discord.Embed(
             title=f"{emoji} {event['name']}",
             url=event_link,
-            description=(
-                None
-                if is_ended
-                else self.poliswag.event_manager.format_end_time(event_end)
-            ),
+            description=description,
             color=color,
         )
         if event.get("image"):
