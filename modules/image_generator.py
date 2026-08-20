@@ -81,7 +81,7 @@ class ImageGenerator:
             if not stats or not stats.get("total"):
                 continue
             rate = round(stats.get("iv", 0) / stats["total"] * 100)
-            area_lines.append({"name": label, "rate": rate})
+            area_lines.append({"name": label, "rate": rate, "spawns": stats["total"]})
         html_content = self._accounts_template.render(
             good=account_data.get("good", 0),
             cooldown=account_data.get("cooldown", 0),

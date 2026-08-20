@@ -191,23 +191,10 @@
         justify-content: center;
     }
 
-    /* Labels the whole row so each area can show a bare percentage.
-       "99% IV" would read as a perfect-IV pokemon -- the meaning "100%
-       IV" already carries elsewhere in the bot -- when it actually means
-       the share of spawns whose IV the scanner managed to read. */
-    .area-label {
-        font-size: 13px;
-        font-weight: 700;
-        color: #6f7276;
-        text-transform: uppercase;
-        letter-spacing: 1.2px;
-        margin-right: 26px;
-    }
-
     .area-item {
         display: flex;
         align-items: baseline;
-        margin: 0 22px;
+        margin: 0 18px;
     }
 
     .area-name {
@@ -216,13 +203,31 @@
         color: #8b8e93;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        margin-right: 8px;
+        margin-right: 10px;
     }
 
-    .area-rate {
+    .area-value {
         font-size: 19px;
         font-weight: 800;
         color: #d8dadd;
+        margin-right: 5px;
+    }
+
+    /* Units spelled out per figure rather than a single row label:
+       "99% IV" would read as a perfect-IV pokemon -- the meaning "100%
+       IV" already carries elsewhere in the bot -- when it actually means
+       the share of spawns whose IV the scanner managed to read. */
+    .area-unit {
+        font-size: 13px;
+        font-weight: 700;
+        color: #6f7276;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-right: 14px;
+    }
+
+    .area-unit:last-child {
+        margin-right: 0;
     }
 </style>
 </head>
@@ -272,11 +277,13 @@
                 {% if area_lines %}
                 <div class="area-divider"></div>
                 <div class="area-row">
-                    <span class="area-label">IV Coverage</span>
                     {% for line in area_lines %}
                     <div class="area-item">
                         <span class="area-name">{{ line.name }}</span>
-                        <span class="area-rate">{{ line.rate }}%</span>
+                        <span class="area-value">{{ line.spawns }}</span>
+                        <span class="area-unit">spawns</span>
+                        <span class="area-value">{{ line.rate }}%</span>
+                        <span class="area-unit">coverage</span>
                     </div>
                     {% endfor %}
                 </div>

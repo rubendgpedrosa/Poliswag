@@ -151,7 +151,9 @@ class TestGenerateImageFromAccountStats:
     async def _render_area_lines(self, ig, mocker, tmp_path, area_performance, **kw):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "accounts.html").write_text(
-            "{% for l in area_lines %}{{ l.name }}:{{ l.rate }} {% endfor %}"
+            "{% for l in area_lines %}"
+            "{{ l.name }}:{{ l.spawns }}:{{ l.rate }} "
+            "{% endfor %}"
         )
         captured = {}
         mocker.patch(
@@ -167,7 +169,9 @@ class TestGenerateImageFromAccountStats:
         )
         return captured["html"]
 
-    async def test_area_performance_computes_rounded_rate(self, ig, mocker, tmp_path):
+    async def test_area_performance_passes_spawns_and_rounded_rate(
+        self, ig, mocker, tmp_path
+    ):
         html = await self._render_area_lines(
             ig,
             mocker,
@@ -177,7 +181,7 @@ class TestGenerateImageFromAccountStats:
                 "MarinhaGrande": {"total": 40, "iv": 36},
             },
         )
-        assert html == "Leiria:99 Marinha:90 "
+        assert html == "Leiria:100:99 Marinha:40:90 "
 
     async def test_area_performance_leiria_always_before_marinha(
         self, ig, mocker, tmp_path
