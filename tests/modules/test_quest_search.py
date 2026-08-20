@@ -863,10 +863,9 @@ class TestCreateQuestEmbed:
         assert "Leiria" in embed.description
         assert embed.color == discord.Color.blue()
         assert embed.thumbnail.url == "https://icons.example/reward/item/1.png"
-        assert len(embed.fields) == 1
-        # Field name carries the letter label and the stop name
-        assert "A" in embed.fields[0].name
-        assert "Stop A" in embed.fields[0].name
+        # The stop listing lives in the description, one line per stop.
+        assert "**A** · Stop A" in embed.description
+        assert "Mapa" in embed.description
 
     def test_marinha_embed_is_green(self, qs):
         embed = qs.create_quest_embed(
@@ -881,9 +880,10 @@ class TestCreateQuestEmbed:
             for c in "XYZ"
         ]
         embed = qs.create_quest_embed("T", stops, is_leiria=True)
-        assert embed.fields[0].name.startswith("A")
-        assert embed.fields[1].name.startswith("B")
-        assert embed.fields[2].name.startswith("C")
+        idx_a = embed.description.index("**A**")
+        idx_b = embed.description.index("**B**")
+        idx_c = embed.description.index("**C**")
+        assert idx_a < idx_b < idx_c
 
     def test_pagination_footer(self, qs):
         embed = qs.create_quest_embed("T", [], is_leiria=True, page=2, total_pages=5)
