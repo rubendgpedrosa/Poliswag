@@ -778,6 +778,16 @@ class TestGetIvVerificationByArea:
         )
         assert call_args.kwargs["params"] == (30 * 60,)
 
+    async def test_defaults_to_one_hour_window(self, scanner_status):
+        # The account card labels this figure "spawns/h" -- the default
+        # window and that label have to agree.
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        await scanner_status.get_iv_verification_by_area()
+        call_args = (
+            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
+        )
+        assert call_args.kwargs["params"] == (60 * 60,)
+
     async def test_queries_correct_table_and_groups_by_area(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
         await scanner_status.get_iv_verification_by_area()
