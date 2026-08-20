@@ -34,9 +34,6 @@ def _make_poliswag():
     poliswag.QUEST_CHANNEL.send = AsyncMock()
     poliswag.quest_scanning_message = None
     poliswag.utility.log_to_file = MagicMock()
-    poliswag.utility.build_embed_object_title_description = MagicMock(
-        return_value=MagicMock(name="embed")
-    )
     poliswag.utility.get_new_pokemongo_version = AsyncMock(return_value=None)
     poliswag.utility.find_quest_scanning_message = AsyncMock(return_value=None)
     poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
@@ -466,7 +463,7 @@ class TestBuildProgressEmbed:
         ],
     )
     def test_emoji_selection(self, cog, leiria_pct, marinha_pct, expected_emoji):
-        cog._build_progress_embed(
+        embed = cog._build_progress_embed(
             {
                 "leiriaScanned": 1,
                 "leiriaTotal": 10,
@@ -476,8 +473,7 @@ class TestBuildProgressEmbed:
                 "marinhaPercentage": marinha_pct,
             }
         )
-        args = cog.poliswag.utility.build_embed_object_title_description.call_args
-        assert expected_emoji in args.args[0]
+        assert expected_emoji in embed.title
 
 
 # --- _check_events ------------------------------------------------------------
@@ -752,8 +748,8 @@ class TestSendWeeklyDigest:
             mock_dt.datetime.strptime = real_datetime.datetime.strptime
             mock_dt.timedelta = real_datetime.timedelta
             await cog._send_weekly_digest()
-        args = cog.poliswag.utility.build_embed_object_title_description.call_args
-        assert "HOJE" in args.kwargs["description"]
+        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args.kwargs["embed"]
+        assert "HOJE" in embed.description
 
     async def test_explicit_channel_overrides_default(self, cog):
         now = real_datetime.datetime(2026, 4, 7, 12, 0)
@@ -796,9 +792,9 @@ class TestSendWeeklyDigest:
             mock_dt.datetime.strptime = real_datetime.datetime.strptime
             mock_dt.timedelta = real_datetime.timedelta
             await cog._send_weekly_digest()
-        args = cog.poliswag.utility.build_embed_object_title_description.call_args
+        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args.kwargs["embed"]
         # Multi-day end formatted as "dd/mm HH:MM" not just "HH:MM"
-        assert end.strftime("%d/%m") in args.kwargs["description"]
+        assert end.strftime("%d/%m") in embed.description
 
 
 # --- _check_weekly_digest -----------------------------------------------------
@@ -945,9 +941,7 @@ class TestCheckDailyErrorDigest:
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
         cog.poliswag.MOD_CHANNEL.send.assert_awaited_once()
-        title = (
-            cog.poliswag.utility.build_embed_object_title_description.call_args.args[0]
-        )
+        title = cog.poliswag.MOD_CHANNEL.send.call_args.kwargs["embed"].title
         assert "2 erro" in title
 
     async def test_more_than_ten_entries_notes_the_overflow(self, cog):
@@ -961,9 +955,7 @@ class TestCheckDailyErrorDigest:
             mock_dt.datetime.now.return_value = now
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
-        desc = cog.poliswag.utility.build_embed_object_title_description.call_args.args[
-            1
-        ]
+        desc = cog.poliswag.MOD_CHANNEL.send.call_args.kwargs["embed"].description
         assert "e mais 5" in desc
 
     async def test_no_mod_channel_is_a_noop(self, cog):
