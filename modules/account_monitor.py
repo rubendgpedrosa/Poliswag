@@ -61,9 +61,12 @@ class AccountMonitor(LoggingMixin):
 
             account_data = await self.get_account_stats()
             device_status = await self.is_device_connected()
+            area_performance = (
+                await self.poliswag.scanner_status.get_iv_verification_by_area()
+            )
             image_bytes = (
                 await self.poliswag.image_generator.generate_image_from_account_stats(
-                    account_data, device_status
+                    account_data, device_status, area_performance
                 )
             )
 

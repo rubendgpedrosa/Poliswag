@@ -148,6 +148,75 @@ class TestGenerateImageFromAccountStats:
         assert result == b"IMG"
         assert "0" in captured["html"]
 
+    async def _render_area_lines(self, ig, mocker, tmp_path, area_performance, **kw):
+        ig.TEMPLATE_HTML_DIR = str(tmp_path)
+        (tmp_path / "accounts.html").write_text(
+            "{% for l in area_lines %}{{ l.name }}:{{ l.rate }} {% endfor %}"
+        )
+        captured = {}
+        mocker.patch(
+            "modules.image_generator.imgkit.from_string",
+            side_effect=lambda html, out, options: captured.setdefault("html", html)
+            or b"IMG",
+        )
+        await ig.generate_image_from_account_stats(
+            {"good": 1, "cooldown": 2, "disabled": 3},
+            True,
+            area_performance,
+            **kw,
+        )
+        return captured["html"]
+
+    async def test_area_performance_computes_rounded_rate(self, ig, mocker, tmp_path):
+        html = await self._render_area_lines(
+            ig,
+            mocker,
+            tmp_path,
+            {
+                "Leiria": {"total": 100, "iv": 99},
+                "MarinhaGrande": {"total": 40, "iv": 36},
+            },
+        )
+        assert html == "Leiria:99 Marinha:90 "
+
+    async def test_area_performance_leiria_always_before_marinha(
+        self, ig, mocker, tmp_path
+    ):
+        # Dict insertion order is reversed here -- output order must not be.
+        html = await self._render_area_lines(
+            ig,
+            mocker,
+            tmp_path,
+            {
+                "MarinhaGrande": {"total": 10, "iv": 10},
+                "Leiria": {"total": 10, "iv": 10},
+            },
+        )
+        assert html.index("Leiria") < html.index("Marinha")
+
+    async def test_area_with_zero_total_is_omitted(self, ig, mocker, tmp_path):
+        html = await self._render_area_lines(
+            ig,
+            mocker,
+            tmp_path,
+            {
+                "Leiria": {"total": 100, "iv": 99},
+                "MarinhaGrande": {"total": 0, "iv": 0},
+            },
+        )
+        assert "Leiria" in html
+        assert "Marinha" not in html
+
+    async def test_area_performance_none_renders_no_lines(self, ig, mocker, tmp_path):
+        html = await self._render_area_lines(ig, mocker, tmp_path, None)
+        assert html == ""
+
+    async def test_area_performance_empty_dict_renders_no_lines(
+        self, ig, mocker, tmp_path
+    ):
+        html = await self._render_area_lines(ig, mocker, tmp_path, {})
+        assert html == ""
+
     async def test_template_is_loaded_once_and_reused(self, ig, mocker, tmp_path):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "accounts.html").write_text("<html>{{ good }}-v1</html>")
