@@ -83,8 +83,8 @@ class EventStats(LoggingMixin):
         )
         return (
             f"🐾 **{spawns}** spawns\n"
-            f"💯 **{hundos}** 100% IV\n"
-            f"0️⃣ **{nundos}** 0% IV"
+            f"💯 **{hundos}** 100% {species}\n"
+            f"0️⃣ **{nundos}** 0% {species}"
         )
 
     def _resolve_pokemon_id(self, species: str) -> int | None:
