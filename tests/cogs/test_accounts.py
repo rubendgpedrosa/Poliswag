@@ -18,6 +18,7 @@ def cog():
     poliswag = MagicMock()
     poliswag.account_monitor.get_account_stats = AsyncMock(return_value={"ok": 1})
     poliswag.account_monitor.is_device_connected = AsyncMock(return_value=True)
+    poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(return_value={})
     poliswag.image_generator.generate_image_from_account_stats = AsyncMock(
         return_value=b"PNGBYTES"
     )

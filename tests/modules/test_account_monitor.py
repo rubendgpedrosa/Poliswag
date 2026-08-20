@@ -11,9 +11,12 @@ def account_monitor():
     """An AccountMonitor with a mocked poliswag dependency.
 
     poliswag.utility.log_to_file is auto-mocked by MagicMock so error paths
-    don't touch the real logger.
+    don't touch the real logger. scanner_status.get_iv_verification_by_area
+    defaults to no data -- tests that care about its content override it.
     """
-    return AccountMonitor(poliswag=MagicMock())
+    poliswag = MagicMock()
+    poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(return_value={})
+    return AccountMonitor(poliswag=poliswag)
 
 
 def _mock_fetch(mocker, return_value):
@@ -246,6 +249,27 @@ class TestUpdateChannelAccountsStats:
         await account_monitor.update_channel_accounts_stats()
         channel.send.assert_awaited_once()
         assert "file" in channel.send.call_args.kwargs
+
+    async def test_passes_area_performance_to_image_generator(
+        self, account_monitor, mocker
+    ):
+        await self._setup_channel(account_monitor, existing_messages=[])
+        mocker.patch(
+            "modules.account_monitor.fetch_data",
+            new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
+        )
+        area_data = {"Leiria": {"total": 100, "iv": 99}}
+        account_monitor.poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(
+            return_value=area_data
+        )
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
+            AsyncMock(return_value=b"PNG")
+        )
+        await account_monitor.update_channel_accounts_stats()
+        call_args = (
+            account_monitor.poliswag.image_generator.generate_image_from_account_stats.call_args
+        )
+        assert call_args.args[2] == area_data
 
     async def test_edits_existing_message_when_present(self, account_monitor, mocker):
         existing = MagicMock()
