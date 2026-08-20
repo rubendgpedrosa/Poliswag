@@ -1,5 +1,7 @@
 from discord.ext import commands
 
+from modules.embeds import build_embed
+
 
 class Quests(commands.Cog):
     def __init__(self, poliswag):
@@ -16,15 +18,11 @@ class Quests(commands.Cog):
     async def exportquestscmd(self, ctx):
         if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
             return
-        msg = await ctx.send(
-            embed=self.poliswag.utility.build_embed_object_title_description(
-                "⏳ A exportar quests..."
-            )
-        )
+        msg = await ctx.send(embed=build_embed("⏳ A exportar quests..."))
         try:
             wrote = await self.poliswag.quest_exporter.export()
             await msg.edit(
-                embed=self.poliswag.utility.build_embed_object_title_description(
+                embed=build_embed(
                     "✅ Quests exportadas com sucesso!"
                     if wrote
                     else "✅ Sem alterações nas quests — nada para exportar."
@@ -36,11 +34,7 @@ class Quests(commands.Cog):
             )
         except Exception as e:
             self.poliswag.utility.log_to_file(f"[QUEST] exportquestscmd failed: {e}")
-            await msg.edit(
-                embed=self.poliswag.utility.build_embed_object_title_description(
-                    f"❌ Erro ao exportar quests: {e}"
-                )
-            )
+            await msg.edit(embed=build_embed(f"❌ Erro ao exportar quests: {e}"))
 
     @commands.command(name="scan", brief="Inicia novo scan de quests")
     async def rescancmd(self, ctx):
@@ -52,21 +46,13 @@ class Quests(commands.Cog):
             "scan_quest_all", log_fn=self.poliswag.utility.log_to_file
         )
         if request is not None:
-            await ctx.send(
-                embed=self.poliswag.utility.build_embed_object_title_description(
-                    "✅ Scan de quests iniciado!"
-                )
-            )
+            await ctx.send(embed=build_embed("✅ Scan de quests iniciado!"))
             await self.poliswag.scanner_manager.update_quest_scanning_state(0)
             self.poliswag.utility.log_to_file(
                 f"[QUEST] @{ctx.author} ({ctx.author.id}): triggered quest scan"
             )
         else:
-            await ctx.send(
-                embed=self.poliswag.utility.build_embed_object_title_description(
-                    "❌ Erro ao iniciar o scan de quests!"
-                )
-            )
+            await ctx.send(embed=build_embed("❌ Erro ao iniciar o scan de quests!"))
 
     @commands.command(
         name="questleiria",
@@ -80,7 +66,7 @@ class Quests(commands.Cog):
 
         if not search:
             await ctx.send(
-                embed=self.poliswag.utility.build_embed_object_title_description(
+                embed=build_embed(
                     f"{user.mention}, é necessário incluir algo para pesquisar!"
                 )
             )
@@ -93,7 +79,7 @@ class Quests(commands.Cog):
         )
         if not found_quests:
             await ctx.send(
-                embed=self.poliswag.utility.build_embed_object_title_description(
+                embed=build_embed(
                     f"{user.mention}, não foram encontradas quests {'em Leiria' if is_leiria else 'na Marinha'} para '{search}'!"
                 )
             )
@@ -106,7 +92,7 @@ class Quests(commands.Cog):
         )
 
         processing_msg = await ctx.send(
-            embed=self.poliswag.utility.build_embed_object_title_description(
+            embed=build_embed(
                 f"⏳ {user.mention}, a processar resultados para '{search}'..."
             )
         )
