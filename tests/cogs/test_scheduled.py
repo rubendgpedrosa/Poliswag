@@ -50,6 +50,7 @@ def _make_poliswag():
     poliswag.event_manager.format_end_time = MagicMock(return_value="Termina em 1h")
     poliswag.event_manager.event_colors = {"community-day": 0xFFCC00}
     poliswag.event_manager.get_weekly_events = AsyncMock(return_value=[])
+    poliswag.event_stats.get_summary = AsyncMock(return_value=None)
     poliswag.quest_search.load_translation_data = MagicMock()
     poliswag.quest_search.load_masterfile_data = MagicMock(return_value=False)
     poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
@@ -554,33 +555,47 @@ class TestSendEventChangeNotifications:
 
 
 class TestBuildEventEmbed:
-    def test_ended_event_omits_description(self, cog):
+    async def test_ended_event_uses_stats_summary_as_description(self, cog):
         event = {
             "event_type": "Community Day",
             "name": "Test",
             "end": "2026-04-07 20:00:00",
             "image": None,
         }
-        embed = cog._build_event_embed(event, is_ended=True)
+        cog.poliswag.event_stats.get_summary = AsyncMock(
+            return_value="🐾 **5** avistamentos · 💯 **1** 100% IV"
+        )
+        embed = await cog._build_event_embed(event, is_ended=True)
         assert isinstance(embed, discord.Embed)
         assert "Test" in embed.title
-        # Ended notifications are sent *at* the end time, so repeating
-        # "Terminou às HH:MM" in the body would duplicate the message timestamp.
-        assert embed.description in (None, "")
+        assert embed.description == "🐾 **5** avistamentos · 💯 **1** 100% IV"
         cog.poliswag.event_manager.format_end_time.assert_not_called()
+        cog.poliswag.event_stats.get_summary.assert_awaited_once_with(event)
 
-    def test_started_event_with_image(self, cog):
+    async def test_ended_event_omits_description_when_no_stats(self, cog):
+        event = {
+            "event_type": "Community Day",
+            "name": "Test",
+            "end": "2026-04-07 20:00:00",
+            "image": None,
+        }
+        # Fixture default: event_stats.get_summary returns None.
+        embed = await cog._build_event_embed(event, is_ended=True)
+        assert embed.description in (None, "")
+
+    async def test_started_event_with_image(self, cog):
         event = {
             "event_type": "Community Day",
             "name": "Test",
             "end": "2026-04-07 20:00:00",
             "image": "http://img",
         }
-        embed = cog._build_event_embed(event, is_ended=False)
+        embed = await cog._build_event_embed(event, is_ended=False)
         assert embed.thumbnail.url == "http://img"
         cog.poliswag.event_manager.format_end_time.assert_called_once_with(
             real_datetime.datetime(2026, 4, 7, 20, 0)
         )
+        cog.poliswag.event_stats.get_summary.assert_not_called()
 
 
 # --- _check_workers -----------------------------------------------------------
