@@ -53,7 +53,7 @@ class TestGetSummary:
         )
         event = _event("community-day", "Nickit Community Day")
         result = await event_stats.get_summary(event)
-        assert result == "🐾 **500** spawns · 💯 **3** 100% IV · 0️⃣ **2** 0% IV"
+        assert result == ("🐾 **500** spawns\n💯 **3** 100% IV\n0️⃣ **2** 0% IV")
 
     async def test_community_day_returns_none_when_species_unresolved(
         self, event_stats
@@ -73,7 +73,7 @@ class TestGetSummary:
         )
         event = _event("pokemon-spotlight-hour", "Nickit Spotlight Hour")
         result = await event_stats.get_summary(event)
-        assert result == "🐾 **80** spawns · 💯 **1** 100% IV · 0️⃣ **0** 0% IV"
+        assert result == ("🐾 **80** spawns\n💯 **1** 100% IV\n0️⃣ **0** 0% IV")
 
     async def test_spotlight_hour_returns_none_when_species_unresolved(
         self, event_stats
