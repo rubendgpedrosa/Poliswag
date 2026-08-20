@@ -59,7 +59,11 @@
         height: 100%;
         display: flex;
         flex-direction: column;
-        padding: 18px 26px 18px 30px;
+        /* Deliberately not justify-content:center -- this renderer's old
+           WebKit engine distributes centered flex leftover space
+           unevenly. Fixed top/bottom padding plus the explicit margins
+           on each row below give predictable, even spacing instead. */
+        padding: 20px 26px 20px 30px;
     }
 
     /* ---- header row: title + device pill ---- */
@@ -85,7 +89,6 @@
     .device-pill {
         display: flex;
         align-items: center;
-        gap: 8px;
         padding: 6px 12px;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.05);
@@ -96,6 +99,7 @@
         width: 9px;
         height: 9px;
         border-radius: 50%;
+        margin-right: 8px;
         flex: 0 0 auto;
     }
     .device-on  { background: #3ba55c; box-shadow: 0 0 8px rgba(59, 165, 92, 0.85); }
@@ -113,13 +117,13 @@
     .divider {
         flex: 0 0 auto;
         height: 1px;
-        margin: 16px 0;
+        margin: 10px 0;
         background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
     }
 
     /* ---- main stats row ---- */
     .stats-row {
-        flex: 1 1 auto;
+        flex: 0 0 auto;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -139,12 +143,12 @@
         letter-spacing: 1.2px;
         text-transform: uppercase;
         color: #8b8e93;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }
 
     .stat-value {
         font-weight: 900;
-        font-size: 58px;
+        font-size: 46px;
         line-height: 1;
     }
 
@@ -155,8 +159,43 @@
     .stat-sep {
         flex: 0 0 auto;
         width: 1px;
-        height: 64px;
+        align-self: stretch;
         background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* ---- footer: per-area scanner performance ---- */
+    .area-divider {
+        flex: 0 0 auto;
+        height: 1px;
+        margin: 8px 0;
+        background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+    }
+
+    .area-row {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+    }
+
+    .area-item {
+        display: flex;
+        align-items: baseline;
+        margin: 0 36px;
+    }
+
+    .area-name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #8b8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-right: 6px;
+    }
+
+    .area-rate {
+        font-size: 13px;
+        font-weight: 800;
+        color: #d8dadd;
     }
 </style>
 </head>
@@ -202,6 +241,18 @@
                         <div class="stat-value value-banned">{{ disabled }}</div>
                     </div>
                 </div>
+
+                {% if area_lines %}
+                <div class="area-divider"></div>
+                <div class="area-row">
+                    {% for line in area_lines %}
+                    <div class="area-item">
+                        <span class="area-name">{{ line.name }}</span>
+                        <span class="area-rate">{{ line.rate }}% IV</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

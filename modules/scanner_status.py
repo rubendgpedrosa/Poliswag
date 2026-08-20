@@ -247,6 +247,30 @@ class ScannerStatus(LoggingMixin):
             self._log(f"Error querying IV verification stats: {e}")
         return None
 
+    async def get_iv_verification_by_area(self, minutes: int = 10) -> dict:
+        """Per-area (Leiria/MarinhaGrande) scanner IV-verification over the
+        last `minutes`, from the same pokemon_area_stats snapshots as
+        _get_iv_verification_stats. Areas with no activity in the window
+        are omitted; empty dict on a query failure."""
+        try:
+            rows = await self.poliswag.quest_search.db.get_data_from_database(
+                "SELECT area, COALESCE(SUM(totMon), 0) AS total, "
+                "COALESCE(SUM(ivMon), 0) AS iv "
+                "FROM pokemon_area_stats "
+                "WHERE datetime >= UNIX_TIMESTAMP() - %s "
+                "AND area IN ('Leiria', 'MarinhaGrande') "
+                "GROUP BY area",
+                params=(minutes * 60,),
+            )
+            return {
+                row["area"]: {"total": int(row["total"]), "iv": int(row["iv"])}
+                for row in (rows or [])
+                if int(row["total"]) > 0
+            }
+        except Exception as e:
+            self._log(f"Error querying per-area IV verification stats: {e}")
+        return {}
+
     async def trigger_all_down_action(self):
         current_time = time.time()
         if (
