@@ -247,11 +247,17 @@ class ScannerStatus(LoggingMixin):
             self._log(f"Error querying IV verification stats: {e}")
         return None
 
-    async def get_iv_verification_by_area(self, minutes: int = 10) -> dict:
+    async def get_iv_verification_by_area(self, minutes: int = 60) -> dict:
         """Per-area (Leiria/MarinhaGrande) scanner IV-verification over the
         last `minutes`, from the same pokemon_area_stats snapshots as
         _get_iv_verification_stats. Areas with no activity in the window
-        are omitted; empty dict on a query failure."""
+        are omitted; empty dict on a query failure.
+
+        Defaults to an hour rather than the 10 minutes _get_iv_verification_
+        stats uses: this feeds the account card, which labels the figure
+        "spawns/h" -- a 10-minute sample was both noisier and easy to
+        misread as a running total. Keep this in sync with that label.
+        """
         try:
             rows = await self.poliswag.quest_search.db.get_data_from_database(
                 "SELECT area, COALESCE(SUM(totMon), 0) AS total, "
