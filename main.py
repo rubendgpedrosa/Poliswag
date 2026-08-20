@@ -10,6 +10,7 @@ from modules.database_connector import DatabaseConnector
 from modules.image_generator import ImageGenerator
 from modules.quest_search import QuestSearch
 from modules.event_manager import EventManager
+from modules.event_stats import EventStats
 from modules.quest_exporter import QuestExporter
 from modules.mega_exporter import MegaExporter
 from modules.account_monitor import AccountMonitor
@@ -41,6 +42,7 @@ class Poliswag(commands.Bot):
         self.image_generator = ImageGenerator(self)
         self.quest_search = QuestSearch(self)
         self.event_manager = EventManager(self)
+        self.event_stats = EventStats(self)
         self.quest_exporter = QuestExporter(self)
         self.mega_exporter = MegaExporter(self)
         self.account_monitor = AccountMonitor(self)
