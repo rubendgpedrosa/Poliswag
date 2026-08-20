@@ -5,6 +5,8 @@
 htmlcov/
 *.code-workspace
 .claude/
+.agents/
+skills-lock.json
 
 **/__pycache__/
 
