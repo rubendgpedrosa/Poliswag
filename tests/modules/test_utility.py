@@ -113,36 +113,6 @@ class TestLogToFile:
         util.logger.info.assert_called_once_with("debug message")
 
 
-class TestBuildEmbedObjectTitleDescription:
-    def test_returns_discord_embed_with_title_and_description(self, util):
-        embed = util.build_embed_object_title_description("My Title", "My Desc")
-        assert isinstance(embed, discord.Embed)
-        assert embed.title == "My Title"
-        assert embed.description == "My Desc"
-
-    def test_default_description_is_empty_string(self, util):
-        embed = util.build_embed_object_title_description("Only Title")
-        assert embed.description == ""
-
-    def test_footer_is_set_when_provided(self, util):
-        embed = util.build_embed_object_title_description("T", "D", footer="foot")
-        assert embed.footer.text == "foot"
-
-    def test_footer_absent_by_default(self, util):
-        embed = util.build_embed_object_title_description("T", "D")
-        # Footer should not have text set.
-        assert embed.footer.text is None
-
-    def test_timestamp_is_set(self, util):
-        before = datetime.now()
-        embed = util.build_embed_object_title_description("T", "D")
-        after = datetime.now()
-        assert embed.timestamp is not None
-        # Discord.py stores timezone-aware datetimes; strip tz for comparison.
-        ts = embed.timestamp.replace(tzinfo=None)
-        assert before <= ts <= after
-
-
 class TestTimeNow:
     def test_returns_iso_string_at_midnight(self, util):
         result = util.time_now()

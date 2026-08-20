@@ -101,17 +101,6 @@ class Utility:
         else:
             self.logger.info(message)
 
-    def build_embed_object_title_description(self, title, description="", footer=None):
-        embed = discord.Embed(
-            title=title,
-            description=description,
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.now(),
-        )
-        if footer:
-            embed.set_footer(text=footer)
-        return embed
-
     async def add_button_event(self, button, callback):
         try:
             button.callback = callback
