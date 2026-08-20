@@ -93,7 +93,10 @@ class ImageGenerator:
             "format": "png",
             "encoding": "UTF-8",
             "width": "800",
-            "height": "220",
+            # Taller than the original 220 to fit the per-area footer
+            # without shrinking the headline numbers. Must stay in sync
+            # with the html/body/.stage height in accounts.html.
+            "height": "260",
             "quality": "100",
             "transparent": "",
             "javascript-delay": "1000",

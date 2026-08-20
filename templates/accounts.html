@@ -13,7 +13,7 @@
         margin: 0;
         padding: 0;
         width: 800px;
-        height: 220px;
+        height: 260px;
         /* Left transparent on purpose: everything outside .card stays
            true alpha-0 so this composites correctly on both Discord
            light and dark chat backgrounds. Only .card paints an
@@ -24,7 +24,7 @@
 
     .stage {
         width: 800px;
-        height: 220px;
+        height: 260px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -63,7 +63,7 @@
            WebKit engine distributes centered flex leftover space
            unevenly. Fixed top/bottom padding plus the explicit margins
            on each row below give predictable, even spacing instead. */
-        padding: 16px 26px 14px 30px;
+        padding: 20px 26px 18px 30px;
     }
 
     /* ---- header row: title + device pill ---- */
@@ -121,20 +121,16 @@
         background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
     }
 
-    /* ---- main stats row ---- */
+    /* ---- main stats row ----
+       Grows to absorb whatever height the fixed rows above/below don't
+       use, so the numbers stay optically centred whether or not the area
+       footer is present (it's absent before the first scanner snapshot
+       lands, or on a query failure). */
     .stats-row {
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         display: flex;
         align-items: center;
         justify-content: space-between;
-    }
-
-    /* Fallback layout: with no area footer (no scanner snapshots yet, or a
-       query failure) the fixed-height rows would leave dead space at the
-       bottom of the card. Letting the stats row absorb the slack keeps the
-       numbers optically centred instead. */
-    .card-inner.no-area .stats-row {
-        flex: 1 1 auto;
     }
 
     .stat {
@@ -156,7 +152,7 @@
 
     .stat-value {
         font-weight: 900;
-        font-size: 42px;
+        font-size: 58px;
         line-height: 1;
     }
 
@@ -167,7 +163,12 @@
     .stat-sep {
         flex: 0 0 auto;
         width: 1px;
-        align-self: stretch;
+        /* Sized to the label+value stack (~78px) rather than stretched to
+           the row, which now grows to absorb slack -- stretching would
+           make these run the full card height when the area footer is
+           absent. */
+        height: 72px;
+        align-self: center;
         background: rgba(255, 255, 255, 0.08);
     }
 
@@ -179,7 +180,7 @@
            between the account stats and the area stats, while the bottom
            margin is matched to card-inner's bottom padding so the area
            text sits with equal space above and below it. */
-        margin: 18px 0 14px;
+        margin: 20px 0 18px;
         background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
     }
 
@@ -221,7 +222,7 @@
     <div class="stage">
         <div class="card">
             <div class="status-bar status-{{ status }}"></div>
-            <div class="card-inner{% if not area_lines %} no-area{% endif %}">
+            <div class="card-inner">
                 <div class="header-row">
                     <div class="title"><strong>Poliswag</strong> &middot; Account Pool</div>
                     <div class="device-pill">
