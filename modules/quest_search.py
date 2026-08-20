@@ -407,25 +407,24 @@ class QuestSearch:
         location_name = "Leiria" if is_leiria else "Marinha Grande"
         color = discord.Color.blue() if is_leiria else discord.Color.green()
         stop_count = total_stops if total_stops is not None else len(pokestops)
-        description = f"Encontrados em {location_name} · {stop_count} pokestop"
+        # One line per stop in the description (rather than a field per stop)
+        # so the listing stays compact and doesn't reflow awkwardly on mobile,
+        # which Discord's inline fields are prone to.
+        lines = [f"Encontrados em {location_name} · {stop_count} pokestop", ""]
+        for idx, stop in enumerate(pokestops):
+            lat, lon = stop["lat"], stop["lon"]
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+            label = chr(65 + idx)  # A, B, C … matches the static map markers
+            lines.append(f"**{label}** · {stop['name']} — [🗺️ Mapa]({maps_url})")
+
         embed = discord.Embed(
             title=quest_title,
-            description=description,
+            description="\n".join(lines),
             color=color,
         )
 
         if pokestops and "quest_slug" in pokestops[0]:
             embed.set_thumbnail(url=f"{self.UI_ICONS_URL}{pokestops[0]['quest_slug']}")
-
-        for idx, stop in enumerate(pokestops):
-            lat, lon = stop["lat"], stop["lon"]
-            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-            label = chr(65 + idx)  # A, B, C … matches the static map markers
-            embed.add_field(
-                name=f"{label} · {stop['name']}",
-                value=f"[Abrir no mapa]({maps_url})",
-                inline=False,
-            )
 
         footer = f"Página {page}/{total_pages}"
         if total_pages > 1:
