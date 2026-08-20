@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands, tasks
 
 from modules.config import Config
-from modules.embeds import status_embed
+from modules.embeds import build_embed, status_embed
 from modules.locale_pt import PT_DAYS_SHORT
 
 
@@ -173,7 +173,7 @@ class Scheduled(commands.Cog):
         new_version = await self.poliswag.utility.get_new_pokemongo_version()
         if new_version is not None:
             await self.poliswag.CONVIVIO_CHANNEL.send(
-                embed=self.poliswag.utility.build_embed_object_title_description(
+                embed=build_embed(
                     "PAAAAAAAAAUUUUUUUUUU!!! FORCE UPDATE!",
                     f"Nova versão: {new_version}",
                 )
@@ -185,7 +185,7 @@ class Scheduled(commands.Cog):
             self.poliswag.scanner_status.reset_quest_plateau()
             self.poliswag.quest_scanning_message = (
                 await self.poliswag.QUEST_CHANNEL.send(
-                    embed=self.poliswag.utility.build_embed_object_title_description(
+                    embed=build_embed(
                         "SCAN DE QUESTS INICIADO!",
                         "A recolher quests em Leiria e Marinha Grande...",
                     )
@@ -210,7 +210,7 @@ class Scheduled(commands.Cog):
             quest_completed["leiriaCompleted"] and quest_completed["marinhaCompleted"]
         )
         if is_complete:
-            embed = self.poliswag.utility.build_embed_object_title_description(
+            embed = build_embed(
                 "✅ SCAN DE QUESTS CONCLUÍDO!",
                 (
                     "**Concluída a verificação de todas as PokéStops nas áreas de Leiria e Marinha Grande. Lista de quests finalizada!**\n\n"
@@ -292,7 +292,7 @@ class Scheduled(commands.Cog):
         else:
             status_emoji = "🔜"
 
-        return self.poliswag.utility.build_embed_object_title_description(
+        return build_embed(
             f"{status_emoji} SCAN DE QUESTS EM PROGRESSO...",
             f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests ({quest_completed['leiriaPercentage']:.1f}%)\n"
             + f"{leiria_bar}\n\n"
@@ -443,7 +443,7 @@ class Scheduled(commands.Cog):
         if not lines:
             return False
 
-        embed = self.poliswag.utility.build_embed_object_title_description(
+        embed = build_embed(
             f"Eventos desta Semana  |  {date_range}",
             description="\n".join(lines),
             footer=f"Actualizado a {now.strftime('%d/%m/%Y %H:%M')}",
@@ -492,7 +492,7 @@ class Scheduled(commands.Cog):
         if len(entries) > len(preview):
             description += f"\n… e mais {len(entries) - len(preview)}."
 
-        embed = self.poliswag.utility.build_embed_object_title_description(
+        embed = build_embed(
             f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
             description[:4000],
         )
