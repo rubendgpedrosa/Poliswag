@@ -369,6 +369,24 @@ class TestGroupPokestopsGeographically:
         assert qs.group_pokestops_geographically([], max_per_group=10) == [[]]
 
 
+class TestMasterfileName:
+    def test_dict_entry_returns_name(self, qs):
+        assert qs._masterfile_name("items", "1") == "Poké Ball"
+
+    def test_bare_string_entry_returned_as_is(self, qs):
+        assert qs._masterfile_name("items", "2") == "Great Ball"
+
+    def test_unknown_id_returns_empty_string(self, qs):
+        assert qs._masterfile_name("items", "999") == ""
+
+    def test_missing_category_returns_empty_string(self, qs):
+        assert qs._masterfile_name("nope", "1") == ""
+
+    def test_masterfile_data_none_returns_empty_string(self, qs):
+        qs.masterfile_data = None
+        assert qs._masterfile_name("items", "1") == ""
+
+
 class TestGroupPokestopsByReward:
     def test_item_reward_sets_reward_text(self, qs):
         found = [
