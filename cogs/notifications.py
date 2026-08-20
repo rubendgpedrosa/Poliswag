@@ -109,6 +109,46 @@ class Notifications(commands.Cog):
             error=True,
         )
 
+    async def _reload_poracle(self):
+        """Reload Poracle so a rule change takes effect immediately."""
+        try:
+            await self.poliswag.poracle.reload()
+        except PoracleError as e:
+            self.poliswag.utility.log_to_file(
+                f"[NOTIFY] Poracle reload failed after rule change: {e}"
+            )
+
+    async def _parse_and_resolve_pokemon_names(
+        self, ctx, names: str
+    ) -> tuple[list, list] | None:
+        """Split a comma-separated name list and resolve each to a pokemon id.
+
+        Sends an error reply and returns None if nothing parsed or nothing
+        resolved to a unique pokemon; otherwise returns (resolved, unresolved).
+        """
+        parsed = [n.strip() for n in names.split(",") if n.strip()]
+        if not parsed:
+            await self._reply(ctx, "Não recebi nenhum nome de pokémon.", error=True)
+            return None
+
+        resolved = []
+        unresolved = []
+        for n in parsed:
+            pid = self._resolve_pokemon(n)
+            if pid is None:
+                unresolved.append(n)
+            else:
+                resolved.append((n, pid))
+
+        if not resolved:
+            await self._reply(
+                ctx,
+                f"Nenhum dos nomes ({', '.join(unresolved)}) resolveu para um pokémon único.",
+                error=True,
+            )
+            return None
+        return resolved, unresolved
+
     def _render_rule_summary(self, rule: dict) -> str:
         """Name + IV/CP filters, without the UID (channel-agnostic)."""
         pokemon_id = rule.get("pokemon_id", 0)
@@ -377,27 +417,10 @@ class Notifications(commands.Cog):
             await self._send_no_match(ctx, ref)
             return
 
-        parsed = [n.strip() for n in names.split(",") if n.strip()]
-        if not parsed:
-            await self._reply(ctx, "Não recebi nenhum nome de pokémon.", error=True)
+        result = await self._parse_and_resolve_pokemon_names(ctx, names)
+        if result is None:
             return
-
-        resolved = []
-        unresolved = []
-        for n in parsed:
-            pid = self._resolve_pokemon(n)
-            if pid is None:
-                unresolved.append(n)
-            else:
-                resolved.append((n, pid))
-
-        if not resolved:
-            await self._reply(
-                ctx,
-                f"Nenhum dos nomes ({', '.join(unresolved)}) resolveu para um pokémon único.",
-                error=True,
-            )
-            return
+        resolved, unresolved = result
 
         suffix = f" (IV≥{min_iv}, CP≥{min_cp})" if (min_iv or min_cp) else ""
         success_lines = []
@@ -430,12 +453,7 @@ class Notifications(commands.Cog):
                 skipped.append(f"= {pretty}{suffix} já existe em {mentions}")
 
         if any_added:
-            try:
-                await self.poliswag.poracle.reload()
-            except PoracleError as e:
-                self.poliswag.utility.log_to_file(
-                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
-                )
+            await self._reload_poracle()
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): added rules — "
                 + "; ".join(success_lines)
@@ -518,27 +536,10 @@ class Notifications(commands.Cog):
         )
 
     async def _remove_by_pokemon_name(self, ctx, targets: list[dict], names: str):
-        parsed = [n.strip() for n in names.split(",") if n.strip()]
-        if not parsed:
-            await self._reply(ctx, "Não recebi nenhum nome de pokémon.", error=True)
+        result = await self._parse_and_resolve_pokemon_names(ctx, names)
+        if result is None:
             return
-
-        resolved = []
-        unresolved = []
-        for n in parsed:
-            pid = self._resolve_pokemon(n)
-            if pid is None:
-                unresolved.append(n)
-            else:
-                resolved.append((n, pid))
-
-        if not resolved:
-            await self._reply(
-                ctx,
-                f"Nenhum dos nomes ({', '.join(unresolved)}) resolveu para um pokémon único.",
-                error=True,
-            )
-            return
+        resolved, unresolved = result
 
         # One batched lookup for every (target, pokemon) combination instead
         # of a separate query per pair — same result set, fewer round trips.
@@ -594,12 +595,7 @@ class Notifications(commands.Cog):
                 )
 
         if any_removed:
-            try:
-                await self.poliswag.poracle.reload()
-            except PoracleError as e:
-                self.poliswag.utility.log_to_file(
-                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
-                )
+            await self._reload_poracle()
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): removed rules — "
                 + "; ".join(line for line in success_lines if line.startswith("✔"))
@@ -687,12 +683,7 @@ class Notifications(commands.Cog):
                 )
                 failures.append(f"#{target['name']}: {e}")
         if changed:
-            try:
-                await self.poliswag.poracle.reload()
-            except PoracleError as e:
-                self.poliswag.utility.log_to_file(
-                    f"[NOTIFY] Poracle reload failed after rule change: {e}"
-                )
+            await self._reload_poracle()
             verb_log = "enabled" if enable else "disabled"
             self.poliswag.utility.log_to_file(
                 f"[NOTIFY] @{ctx.author} ({ctx.author.id}): notifications {verb_log} "
