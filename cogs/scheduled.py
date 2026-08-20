@@ -135,35 +135,50 @@ class Scheduled(commands.Cog):
 
         await self._send_event_change_notifications(ctx.channel, changed)
 
-    @tasks.loop(seconds=60)
-    async def scheduled_tasks(self):
-        try:
-            await asyncio.to_thread(self.poliswag.quest_search.load_translation_data)
-            masterfile_refreshed = await asyncio.to_thread(
-                self.poliswag.quest_search.load_masterfile_data
+    async def _refresh_masterfile_data(self):
+        await asyncio.to_thread(self.poliswag.quest_search.load_translation_data)
+        masterfile_refreshed = await asyncio.to_thread(
+            self.poliswag.quest_search.load_masterfile_data
+        )
+        if masterfile_refreshed:
+            await asyncio.to_thread(
+                self.poliswag.quest_search.generate_pokemon_item_name_map
             )
-            if masterfile_refreshed:
-                await asyncio.to_thread(
-                    self.poliswag.quest_search.generate_pokemon_item_name_map
-                )
-                await asyncio.to_thread(self.poliswag.mega_exporter.export)
-            await self.poliswag.event_manager.fetch_events()
+            await asyncio.to_thread(self.poliswag.mega_exporter.export)
 
-            await self._check_version_update()
-            await self._check_quest_scan_progress()
-            await self._check_quest_export()
-            await self._check_events()
-            await self._check_workers()
-            await self._update_lure_status()
-            await self._update_accounts_display()
-            await self._check_weekly_digest()
-            await self._check_daily_error_digest()
+    async def _run_tick_step(self, step):
+        """Run one scheduled_tasks step in isolation.
+
+        Each tick's responsibilities are unrelated to one another (version
+        checks, quest scanning, lure status, ...) -- a bug or transient
+        failure in one must not stop the rest from running, especially
+        _check_workers, which feeds StackRecovery's self-healing.
+        """
+        try:
+            await step()
         except Exception as e:
             print("CRASH ---", e)
             traceback.print_exc()
             self.poliswag.utility.log_to_file(
                 f"{str(e)}\n{traceback.format_exc()}", "CRASH"
             )
+
+    @tasks.loop(seconds=60)
+    async def scheduled_tasks(self):
+        for step in (
+            self._refresh_masterfile_data,
+            self.poliswag.event_manager.fetch_events,
+            self._check_version_update,
+            self._check_quest_scan_progress,
+            self._check_quest_export,
+            self._check_events,
+            self._check_workers,
+            self._update_lure_status,
+            self._update_accounts_display,
+            self._check_weekly_digest,
+            self._check_daily_error_digest,
+        ):
+            await self._run_tick_step(step)
 
     @scheduled_tasks.before_loop
     async def before_scheduled_tasks(self):

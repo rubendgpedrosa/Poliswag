@@ -261,6 +261,27 @@ class TestScheduledTasksLoop:
         out = capsys.readouterr().out
         assert "CRASH" in out
 
+    async def test_one_failing_step_does_not_block_the_rest(self, cog):
+        # A failure in an earlier step (e.g. the version check) must not
+        # starve later steps -- especially _check_workers, which feeds
+        # StackRecovery's self-healing.
+        cog._refresh_masterfile_data = AsyncMock(side_effect=RuntimeError("boom"))
+        cog._check_version_update = AsyncMock()
+        cog._check_quest_scan_progress = AsyncMock()
+        cog._check_quest_export = AsyncMock()
+        cog._check_events = AsyncMock()
+        cog._check_workers = AsyncMock()
+        cog._update_lure_status = AsyncMock()
+        cog._update_accounts_display = AsyncMock()
+        cog._check_weekly_digest = AsyncMock()
+        cog._check_daily_error_digest = AsyncMock()
+
+        await cog.scheduled_tasks.coro(cog)
+
+        cog._check_version_update.assert_awaited_once()
+        cog._check_workers.assert_awaited_once()
+        cog._check_daily_error_digest.assert_awaited_once()
+
 
 class TestCheckQuestExport:
     async def test_exports_on_first_run(self, cog):
