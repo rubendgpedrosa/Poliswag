@@ -591,6 +591,46 @@ class TestGetFullStatusWorkers:
         ]
 
 
+class TestGetFullStatusIvVerification:
+    """get_full_status wires in _get_iv_verification_stats under the
+    iv_verification key; device/worker/account branches are mocked out."""
+
+    def _prime(self, scanner_status, mocker, *, now=1_000_000):
+        mocker.patch(
+            "modules.scanner_status.fetch_data",
+            new=AsyncMock(side_effect=[{"devices": []}, {"areas": []}]),
+        )
+        mocker.patch("modules.scanner_status.time.time", return_value=now)
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=0
+        )
+        scanner_status.poliswag.account_monitor.get_account_stats = AsyncMock(
+            return_value={"good": 1}
+        )
+
+    async def test_includes_iv_verification_stats(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker)
+        mocker.patch.object(
+            scanner_status,
+            "_get_iv_verification_stats",
+            return_value={"total": 100, "iv": 90, "unverified": 10},
+        )
+        result = await scanner_status.get_full_status()
+        assert result["iv_verification"] == {
+            "total": 100,
+            "iv": 90,
+            "unverified": 10,
+        }
+
+    async def test_none_when_no_recent_activity(self, scanner_status, mocker):
+        self._prime(scanner_status, mocker)
+        mocker.patch.object(
+            scanner_status, "_get_iv_verification_stats", return_value=None
+        )
+        result = await scanner_status.get_full_status()
+        assert result["iv_verification"] is None
+
+
 class TestGetVoiceChannel:
     async def test_returns_channel_on_success(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
@@ -648,6 +688,55 @@ class TestGetSecondsSinceLastPokemon:
         assert "MAX(updated)" in sql
         assert "seconds_ago" in sql
         assert "pokemon" in sql
+
+
+class TestGetIvVerificationStats:
+    async def test_returns_totals_from_db(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"total": 100, "iv": 90, "unverified": 10}
+        ]
+        result = await scanner_status._get_iv_verification_stats()
+        assert result == {"total": 100, "iv": 90, "unverified": 10}
+
+    async def test_returns_none_when_no_rows(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        assert await scanner_status._get_iv_verification_stats() is None
+
+    async def test_returns_none_when_total_is_zero(self, scanner_status):
+        # No scanning activity in the window -- e.g. right after a restart.
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"total": 0, "iv": 0, "unverified": 0}
+        ]
+        assert await scanner_status._get_iv_verification_stats() is None
+
+    async def test_returns_none_on_db_error(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+            RuntimeError("db gone")
+        )
+        assert await scanner_status._get_iv_verification_stats() is None
+        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_uses_requested_minutes_window(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"total": 1, "iv": 1, "unverified": 0}
+        ]
+        await scanner_status._get_iv_verification_stats(minutes=30)
+        call_args = (
+            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
+        )
+        assert call_args.kwargs["params"] == (30 * 60,)
+
+    async def test_queries_correct_table_and_areas(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"total": 1, "iv": 1, "unverified": 0}
+        ]
+        await scanner_status._get_iv_verification_stats()
+        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+            0
+        ]
+        assert "pokemon_area_stats" in sql
+        assert "Leiria" in sql
+        assert "MarinhaGrande" in sql
 
 
 class TestTriggerAllDownAction:
