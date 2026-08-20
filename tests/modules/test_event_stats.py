@@ -49,11 +49,11 @@ class TestGetSummary:
 
     async def test_community_day_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
-            side_effect=[[{"total": 500}], [{"total": 3}]]
+            side_effect=[[{"total": 500}], [{"total": 3}], [{"total": 2}]]
         )
         event = _event("community-day", "Nickit Community Day")
         result = await event_stats.get_summary(event)
-        assert result == "🐾 **500** spawns · 💯 **3** 100% IV"
+        assert result == "🐾 **500** spawns · 💯 **3** 100% IV · 0️⃣ **2** 0% IV"
 
     async def test_community_day_returns_none_when_species_unresolved(
         self, event_stats
@@ -69,11 +69,11 @@ class TestGetSummary:
 
     async def test_spotlight_hour_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
-            side_effect=[[{"total": 80}], [{"total": 1}]]
+            side_effect=[[{"total": 80}], [{"total": 1}], [{"total": 0}]]
         )
         event = _event("pokemon-spotlight-hour", "Nickit Spotlight Hour")
         result = await event_stats.get_summary(event)
-        assert result == "🐾 **80** spawns · 💯 **1** 100% IV"
+        assert result == "🐾 **80** spawns · 💯 **1** 100% IV · 0️⃣ **0** 0% IV"
 
     async def test_spotlight_hour_returns_none_when_species_unresolved(
         self, event_stats
