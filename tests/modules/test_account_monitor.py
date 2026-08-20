@@ -216,6 +216,84 @@ class _AsyncChannelHistory:
         return gen()
 
 
+class TestBuildStatusEmbed:
+    """AccountMonitor._build_status_embed's severity levels and content."""
+
+    def test_ok_level_when_all_healthy(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 10, "cooldown": 1, "disabled": 0}, True
+        )
+        assert "Operacional" in embed.title
+        assert embed.color == discord.Color.green()
+        assert "saudável" in embed.description
+
+    def test_crit_level_when_device_disconnected(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 10, "cooldown": 0, "disabled": 0}, False
+        )
+        assert "Crítico" in embed.title
+        assert embed.color == discord.Color.red()
+        assert "Dispositivo scanner desconectado" in embed.description
+
+    def test_crit_level_when_no_accounts_available(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 0, "cooldown": 5, "disabled": 1}, True
+        )
+        assert "Crítico" in embed.title
+        assert "Nenhuma conta disponível" in embed.description
+
+    def test_warn_level_when_some_disabled(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 10, "cooldown": 0, "disabled": 1}, True
+        )
+        assert "Atenção" in embed.title
+        assert embed.color == discord.Color.gold()
+
+    def test_warn_level_when_cooldown_is_majority(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 2, "cooldown": 8, "disabled": 0}, True
+        )
+        assert "Atenção" in embed.title
+
+    def test_fields_contain_counts_and_device_text(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 3, "cooldown": 2, "disabled": 1}, True
+        )
+        values = {f.name: f.value for f in embed.fields}
+        assert values["✅ Disponíveis"] == "**3**"
+        assert values["⏳ Cooldown"] == "**2**"
+        assert values["🚫 Desativadas"] == "**1**"
+        assert "Conectado" in values["📱 Dispositivo Scanner"]
+
+    def test_device_disconnected_field_text(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 1, "cooldown": 0, "disabled": 0}, False
+        )
+        values = {f.name: f.value for f in embed.fields}
+        assert "Desconectado" in values["📱 Dispositivo Scanner"]
+
+    def test_bar_chart_field_present(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 5, "cooldown": 5, "disabled": 0}, True
+        )
+        chart_field = embed.fields[-1]
+        assert "```" in chart_field.value
+        assert "Disponíveis" in chart_field.value
+
+    def test_timestamp_is_set(self, account_monitor):
+        embed = account_monitor._build_status_embed(
+            {"good": 1, "cooldown": 0, "disabled": 0}, True
+        )
+        assert embed.timestamp is not None
+
+    def test_zero_total_accounts_does_not_divide_by_zero(self, account_monitor):
+        # good == cooldown == disabled == 0 -> total falls back to 1.
+        embed = account_monitor._build_status_embed(
+            {"good": 0, "cooldown": 0, "disabled": 0}, True
+        )
+        assert "Crítico" in embed.title
+
+
 class TestUpdateChannelAccountsStats:
     """AccountMonitor.update_channel_accounts_stats end-to-end branches."""
 
@@ -240,11 +318,9 @@ class TestUpdateChannelAccountsStats:
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": [{"isAlive": True}]}]),
         )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=b"PNGDATA")
-        )
         await account_monitor.update_channel_accounts_stats()
         channel.send.assert_awaited_once()
+        assert "embed" in channel.send.call_args.kwargs
 
     async def test_edits_existing_message_when_present(self, account_monitor, mocker):
         existing = MagicMock()
@@ -259,9 +335,6 @@ class TestUpdateChannelAccountsStats:
         mocker.patch(
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
-        )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=b"PNG")
         )
         await account_monitor.update_channel_accounts_stats()
         existing.edit.assert_awaited_once()
@@ -281,30 +354,9 @@ class TestUpdateChannelAccountsStats:
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
         )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=b"PNG")
-        )
         await account_monitor.update_channel_accounts_stats()
         msg_keep.edit.assert_awaited_once()
         msg_other.delete.assert_not_called()
-
-    async def test_bails_early_when_image_missing(self, account_monitor, mocker):
-        channel = await self._setup_channel(account_monitor, existing_messages=[])
-        mocker.patch(
-            "modules.account_monitor.fetch_data",
-            new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
-        )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=None)
-        )
-        await account_monitor.update_channel_accounts_stats()
-        channel.send.assert_not_called()
-        # An error is logged describing the image failure.
-        log_calls = [
-            c.args[0]
-            for c in account_monitor.poliswag.utility.log_to_file.call_args_list
-        ]
-        assert any("Error generating account image" in m for m in log_calls)
 
     async def test_exception_is_logged(self, account_monitor, mocker):
         account_monitor.poliswag.ACCOUNTS_CHANNEL = MagicMock()
@@ -328,9 +380,6 @@ class TestUpdateChannelAccountsStats:
         mocker.patch(
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}] * 2),
-        )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=b"PNG")
         )
 
         await account_monitor.update_channel_accounts_stats()
@@ -356,9 +405,6 @@ class TestUpdateChannelAccountsStats:
         mocker.patch(
             "modules.account_monitor.fetch_data",
             new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}]),
-        )
-        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
-            AsyncMock(return_value=b"PNG")
         )
 
         await account_monitor.update_channel_accounts_stats()
