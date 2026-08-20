@@ -1,8 +1,6 @@
-import discord
 from discord.ext import commands
 from modules.event_store import EventStore
-from modules.embeds import build_excluded_list_embed
-from modules.config import Config
+from modules.embeds import build_excluded_list_embed, status_embed
 
 
 class EventExclusion(commands.Cog):
@@ -28,20 +26,18 @@ class EventExclusion(commands.Cog):
         event_type = event_type.lower()
 
         if await self.event_store.is_excluded(event_type):
-            already_embed = discord.Embed(
-                title="Já Excluído",
-                description=f"O tipo de evento '{event_type}' já está na lista de exclusão.",
-                color=Config.EMBED_COLOR,
+            already_embed = status_embed(
+                "Já Excluído",
+                f"O tipo de evento '{event_type}' já está na lista de exclusão.",
             )
             await ctx.send(embed=already_embed)
             return
 
         await self.event_store.add_excluded(event_type)
 
-        confirm_embed = discord.Embed(
-            title="Tipo de Evento Excluído",
-            description=f"Eventos do tipo **{event_type}** adicionado à lista de exclusão.",
-            color=Config.EMBED_COLOR,
+        confirm_embed = status_embed(
+            "Tipo de Evento Excluído",
+            f"Eventos do tipo **{event_type}** adicionado à lista de exclusão.",
         )
         await ctx.send(embed=confirm_embed)
 
@@ -62,17 +58,15 @@ class EventExclusion(commands.Cog):
         affected_rows = await self.event_store.remove_excluded(event_type)
 
         if affected_rows == 0:
-            not_excluded_embed = discord.Embed(
-                title="Não Estava Excluído",
-                description=f"O tipo de evento '{event_type}' não estava excluído.",
-                color=Config.EMBED_COLOR,
+            not_excluded_embed = status_embed(
+                "Não Estava Excluído",
+                f"O tipo de evento '{event_type}' não estava excluído.",
             )
             await ctx.send(embed=not_excluded_embed)
         else:
-            remove_embed = discord.Embed(
-                title="Tipo de Evento Incluído",
-                description=f"**{event_type}** voltou a ser incluído nas notificações.",
-                color=Config.EMBED_COLOR,
+            remove_embed = status_embed(
+                "Tipo de Evento Incluído",
+                f"**{event_type}** voltou a ser incluído nas notificações.",
             )
             await ctx.send(embed=remove_embed)
 
@@ -91,10 +85,9 @@ class EventExclusion(commands.Cog):
     async def exclude_clear_all_events(self, ctx):
         count = await self.event_store.clear_excluded()
 
-        confirm_embed = discord.Embed(
-            title="Todos os Tipos de Eventos Incluídos",
-            description=f"{count} tipos de eventos foram removidos da lista de exclusão.",
-            color=Config.EMBED_COLOR,
+        confirm_embed = status_embed(
+            "Todos os Tipos de Eventos Incluídos",
+            f"{count} tipos de eventos foram removidos da lista de exclusão.",
         )
         await ctx.send(embed=confirm_embed)
 
@@ -116,10 +109,8 @@ class EventExclusion(commands.Cog):
         event_types = await self.event_store.get_all_event_types()
 
         if not event_types:
-            none_found_embed = discord.Embed(
-                title="Nenhum Tipo de Evento",
-                description="Não foram encontrados tipos de eventos.",
-                color=Config.EMBED_COLOR,
+            none_found_embed = status_embed(
+                "Nenhum Tipo de Evento", "Não foram encontrados tipos de eventos."
             )
             await ctx.send(embed=none_found_embed)
             return
@@ -128,10 +119,9 @@ class EventExclusion(commands.Cog):
             [f"- {event['event_type']}" for event in event_types]
         )
 
-        embed = discord.Embed(
-            title="Tipos de Eventos Registados",
-            description=f"Lista de tipos de eventos:\n{event_type_list}",
-            color=Config.EMBED_COLOR,
+        embed = status_embed(
+            "Tipos de Eventos Registados",
+            f"Lista de tipos de eventos:\n{event_type_list}",
         )
         await ctx.send(embed=embed)
 
