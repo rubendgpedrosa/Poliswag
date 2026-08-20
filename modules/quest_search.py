@@ -407,7 +407,7 @@ class QuestSearch:
         location_name = "Leiria" if is_leiria else "Marinha Grande"
         color = discord.Color.blue() if is_leiria else discord.Color.green()
         stop_count = total_stops if total_stops is not None else len(pokestops)
-        description = f"Encontrados em {location_name} · {stop_count} pokeyop"
+        description = f"Encontrados em {location_name} · {stop_count} pokestop"
         embed = discord.Embed(
             title=quest_title,
             description=description,
@@ -429,7 +429,7 @@ class QuestSearch:
 
         footer = f"Página {page}/{total_pages}"
         if total_pages > 1:
-            footer += f" · {len(pokestops)} pokeyop nesta página"
+            footer += f" · {len(pokestops)} pokestop nesta página"
         embed.set_footer(text=footer)
         return embed
 
