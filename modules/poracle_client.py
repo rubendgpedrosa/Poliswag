@@ -1,13 +1,14 @@
 import aiohttp
 
 from modules.config import Config
+from modules.logging_mixin import LoggingMixin
 
 
 class PoracleError(Exception):
     pass
 
 
-class PoracleClient:
+class PoracleClient(LoggingMixin):
     """Thin async wrapper over the Poracle-NG REST API.
 
     Scope is intentionally pokemon-only today — the only surface the
@@ -21,9 +22,6 @@ class PoracleClient:
         self.base_url = (base_url or Config.PORACLE_API_URL).rstrip("/")
         self.secret = secret if secret is not None else Config.PORACLE_API_SECRET
         self._session: aiohttp.ClientSession | None = None
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
