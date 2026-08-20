@@ -3,11 +3,12 @@ import time
 import discord
 from modules.http_client import fetch_data
 from modules.config import Config
+from modules.logging_mixin import LoggingMixin
 
 _MARINHA_LON_MAX = -8.9  # pokestops at or west of this longitude are in Marinha Grande
 
 
-class ScannerStatus:
+class ScannerStatus(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
 
@@ -61,9 +62,6 @@ class ScannerStatus:
         # goes stale but avoids a DB round trip on every scheduler tick while
         # a scan is in progress.
         self._expected_totals: tuple[int, int] | None = None
-
-    def _log(self, msg, level="ERROR"):
-        self.poliswag.utility.log_to_file(msg, level)
 
     async def get_voice_channel(self):
         try:
