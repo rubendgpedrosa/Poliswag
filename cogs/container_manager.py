@@ -4,6 +4,20 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import status_embed
 
+_ON_STATES = ("on", "enable", "1", "true")
+_OFF_STATES = ("off", "disable", "0", "false")
+
+
+def _parse_toggle_state(state):
+    """Maps an on/off-style admin toggle argument to True/False, or None if
+    it matches neither -- shared by the container and device autorecreate/
+    autoreboot commands, which each decide what None means for them."""
+    if state in _ON_STATES:
+        return True
+    if state in _OFF_STATES:
+        return False
+    return None
+
 
 class ContainerManagerCog(commands.Cog):
     def __init__(self, poliswag):
@@ -202,7 +216,8 @@ class ContainerManagerCog(commands.Cog):
             )
             return
         state = state.lower()
-        if state in ("on", "enable", "1", "true"):
+        parsed = _parse_toggle_state(state)
+        if parsed is True:
             await self.poliswag.stack_recovery.set_auto_recreate_enabled(True)
             await ctx.send(
                 embed=status_embed(
@@ -213,7 +228,7 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(
                 f"[CONTAINER] @{ctx.author} ({ctx.author.id}): auto-recreate ENABLED"
             )
-        elif state in ("off", "disable", "0", "false"):
+        elif parsed is False:
             await self.poliswag.stack_recovery.set_auto_recreate_enabled(False)
             await ctx.send(
                 embed=status_embed("🔕 Recriação automática de containers desactivada.")
@@ -321,7 +336,8 @@ class ContainerManagerCog(commands.Cog):
     @device.command(name="autoreboot", brief="Activa ou desactiva o reboot automático")
     async def device_autoreboot(self, ctx, state: str):
         state = state.lower()
-        if state in ("on", "enable", "1", "true"):
+        parsed = _parse_toggle_state(state)
+        if parsed is True:
             await self.poliswag.device_manager.set_auto_reboot_enabled(True)
             await ctx.send(
                 embed=status_embed(
@@ -331,7 +347,7 @@ class ContainerManagerCog(commands.Cog):
             self.poliswag.utility.log_to_file(
                 f"[DEVICE] @{ctx.author} ({ctx.author.id}): auto-reboot ENABLED"
             )
-        elif state in ("off", "disable", "0", "false"):
+        elif parsed is False:
             await self.poliswag.device_manager.set_auto_reboot_enabled(False)
             await ctx.send(embed=status_embed("🔕 Reboot automático desactivado."))
             self.poliswag.utility.log_to_file(
