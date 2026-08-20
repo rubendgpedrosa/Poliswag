@@ -1,17 +1,7 @@
-import datetime
+import io
 import discord
-from modules.embeds import status_embed
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
-
-# color per severity level for the account-pool status embed. The embed's
-# left border is the only severity signal -- no per-field emoji duplicating
-# it, see build_status_embed.
-_STATUS_LEVELS = {
-    "ok": discord.Color.green(),
-    "warn": discord.Color.gold(),
-    "crit": discord.Color.red(),
-}
 
 DISABLED_STATUSES = [
     "banned",
@@ -59,52 +49,6 @@ class AccountMonitor(LoggingMixin):
             for device in device_status["devices"]
         )
 
-    def build_status_embed(self, account_data, device_status):
-        """Build the account-pool status embed, used both by the
-        auto-updating ACCOUNTS_CHANNEL board and the on-demand !accounts
-        command.
-
-        A plain embed rather than a rendered image: the auto-updating board
-        refreshes every 60s forever, and the payload is just 3 counts + a
-        boolean -- an embed's color/emoji/bold-number vocabulary already
-        gives an at-a-glance health signal, is automatically theme-correct
-        (dark/light), and needs no imgkit/wkhtmltoimage render step.
-
-        Deliberately minimal: no description, no bar chart, and no per-field
-        emoji -- the embed's left-border color is the single severity
-        signal, so it isn't repeated as a title emoji or a device-field
-        emoji. Four plain inline columns carry the actual numbers/state.
-        """
-        good = account_data.get("good", 0)
-        cooldown = account_data.get("cooldown", 0)
-        disabled = account_data.get("disabled", 0)
-        total = max(good + cooldown + disabled, 1)
-
-        # Some accounts sitting in cooldown/disabled at any given moment is
-        # normal pool churn, not itself a problem -- only the device being
-        # down or the *available* share running thin actually warrants a
-        # warning/critical color.
-        if not device_status or good == 0:
-            level = "crit"
-        elif good / total < 0.3:
-            level = "warn"
-        else:
-            level = "ok"
-
-        color = _STATUS_LEVELS[level]
-
-        embed = status_embed("Pool de Contas", color=color)
-        embed.add_field(name="Disponíveis", value=f"**{good}**", inline=True)
-        embed.add_field(name="Cooldown", value=f"**{cooldown}**", inline=True)
-        embed.add_field(name="Desativadas", value=f"**{disabled}**", inline=True)
-        embed.add_field(
-            name="Dispositivo",
-            value="Conectado" if device_status else "Desconectado",
-            inline=True,
-        )
-        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
-        return embed
-
     async def update_channel_accounts_stats(self):
         if self.poliswag.ACCOUNTS_CHANNEL is None:
             return
@@ -117,16 +61,27 @@ class AccountMonitor(LoggingMixin):
 
             account_data = await self.get_account_stats()
             device_status = await self.is_device_connected()
-            embed = self.build_status_embed(account_data, device_status)
+            image_bytes = (
+                await self.poliswag.image_generator.generate_image_from_account_stats(
+                    account_data, device_status
+                )
+            )
+
+            if not image_bytes:
+                self._log("Error generating account image")
+                return
+
+            discord_file = discord.File(
+                io.BytesIO(image_bytes), filename="account_status_report.png"
+            )
 
             if self._accounts_message:
                 try:
-                    # attachments=[] is required here, not just cosmetic: the
-                    # cached message may predate this embed-only design and
-                    # still carry the old rendered-image attachment, which
-                    # .edit() otherwise keeps by default alongside the embed.
+                    # embed=None + attachments=[...] fully replaces whatever
+                    # the cached message had before -- either a stale image
+                    # attachment, or the plain embed from an earlier design.
                     await self._accounts_message.edit(
-                        content=None, embed=embed, attachments=[]
+                        content=None, embed=None, attachments=[discord_file]
                     )
                     return
                 except discord.NotFound:
@@ -135,7 +90,7 @@ class AccountMonitor(LoggingMixin):
                     self._accounts_message = None
 
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
-                embed=embed
+                file=discord_file
             )
 
         except Exception as e:
