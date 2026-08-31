@@ -12,7 +12,11 @@ class ScannerStatus(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
 
-        self.channelCache = {"name": None, "last_update": 0}
+        # The status-channel name we last successfully wrote. Compared on
+        # every tick so an unchanged status costs zero Discord calls. Reset to
+        # None by a restart, so the first tick of a new process always renames
+        # once — accepted as cheap next to a per-tick name lookup.
+        self.channelStatusName: str | None = None
 
         # Fallback only: get_workers_with_issues() prefers the live
         # expected_workers Dragonite reports per area on every call, so this
@@ -23,7 +27,6 @@ class ScannerStatus(LoggingMixin):
         }
 
         self.last_all_down_request_time = 0
-        self.UPDATE_THRESHOLD = 3600  # 1 hour
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
         self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
 
@@ -69,13 +72,19 @@ class ScannerStatus(LoggingMixin):
             if not channel_id:
                 self._log("No voice channel configured for the combined map status")
                 return None
+            # discord.py caches every channel the bot can see, so the
+            # normal path costs no HTTP at all. fetch_channel is only the
+            # fallback for a cache miss (e.g. a tick that lands before the
+            # gateway READY has populated the cache).
+            cached = self.poliswag.get_channel(channel_id)
+            if cached is not None:
+                return cached
             return await self.poliswag.fetch_channel(channel_id)
         except Exception as e:
             self._log(f"Error fetching status channel: {e}")
             return None
 
     async def rename_voice_channels(self, workers_status):
-        current_time = time.time()
         leiriaDownCounter = workers_status.get("downDevicesLeiria")
         marinhaDownCounter = workers_status.get("downDevicesMarinha")
         leiriaExpected = workers_status.get("expectedWorkersLeiria")
@@ -95,18 +104,19 @@ class ScannerStatus(LoggingMixin):
         # combined indicator (down workers / total expected workers across
         # both areas, both read live from Dragonite rather than a hardcoded
         # guess) is more honest than two independently-labeled channels that
-        # would always move in lockstep anyway. Any of the four inputs being
+        # would always move in lockstep anyway. Only 🟢 (scanning) and 🔴
+        # (every worker down) come out of it. Any of the four inputs being
         # None (Dragonite unreachable, or an area missing from its response)
         # makes this None too — see _get_combined_status_indicator.
         indicator = self._get_combined_status_indicator(
             leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
         )
 
-        # The red state alone is ambiguous: workers can be down because the
-        # MITM device dropped off Rotom, or because the device is fine but the
-        # account pool is exhausted. Only when it would show red do we pay for
-        # the device lookup, so ❌ (device offline) can be told apart from 🔴
-        # (device up, accounts/workers down).
+        # The red state alone is ambiguous: every worker can be down because
+        # the MITM device dropped off Rotom, or because the device is fine but
+        # the account pool is exhausted. Only when it would show red do we pay
+        # for the device lookup, so ❌ (device offline) can be told apart
+        # from 🔴 (device up, all accounts down).
         device_connected = True
         if indicator == "🔴":
             device_connected = await self.poliswag.account_monitor.is_device_connected()
@@ -128,12 +138,12 @@ class ScannerStatus(LoggingMixin):
             marinhaExpected,
             device_connected,
         )
-        if self.should_update_channel(status) and status != self.channelCache["name"]:
+        if self.should_update_channel(status):
             channel = await self.get_voice_channel()
             if channel:
                 try:
                     await channel.edit(name=status)
-                    self.channelCache = {"name": status, "last_update": current_time}
+                    self.channelStatusName = status
                 except discord.errors.HTTPException as e:
                     if e.code == 429:
                         self._log(f"Rate limited while updating status channel: {e}")
@@ -141,16 +151,14 @@ class ScannerStatus(LoggingMixin):
                         self._log(f"Error updating status channel: {e}")
 
     def should_update_channel(self, new_status):
-        current_time = time.time()
-        cacheEntry = self.channelCache
+        """True only when the channel name would actually change.
 
-        if (
-            cacheEntry["name"] is None
-            or current_time - cacheEntry["last_update"] >= self.UPDATE_THRESHOLD
-        ):
-            return True
-
-        return new_status != cacheEntry["name"]
+        Discord allows two channel renames per 10 minutes, so a tick that
+        agrees with what we last wrote must cost zero API calls. There is
+        deliberately no periodic re-assert: rewriting a name that is already
+        correct just spends the rename budget a real status change needs.
+        """
+        return new_status != self.channelStatusName
 
     async def get_workers_with_issues(self):
         workerStatus = await fetch_data("scanner_status", log_fn=self._log)
@@ -334,15 +342,16 @@ class ScannerStatus(LoggingMixin):
 
         expected_total = leiriaExpected + marinhaExpected
         down_total = leiriaDownCounter + marinhaDownCounter
-        down_percentage = (down_total / expected_total) if expected_total > 0 else 0
 
-        if down_percentage == 0:
-            return "🟢"
-        elif down_percentage <= 0.4:
-            return "🟡"
-        elif down_percentage <= 0.8:
-            return "🟠"
-        return "🔴"
+        # Only two computed states: the map is either scanning or it is not.
+        # A partially-down worker pool still produces a scanned map, so
+        # anything short of every worker being down reads green. The old
+        # 🟡/🟠 tiers renamed the status channel on every swing in the
+        # account pool — churn against Discord's channel-rename rate limit
+        # for a distinction nobody acted on.
+        if expected_total > 0 and down_total >= expected_total:
+            return "🔴"
+        return "🟢"
 
     def get_status_message(
         self,
@@ -355,6 +364,8 @@ class ScannerStatus(LoggingMixin):
         status_indicator = self._get_combined_status_indicator(
             leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
         )
+        # Three states only — 🟢 scanning, 🔴 every account/worker down with
+        # the device still connected, ❌ device offline (or no data at all).
         # No data (Dragonite unreachable, or an area missing from its
         # response) still reads as down from an operator's point of view —
         # show ❌ rather than a wishy-washy "unknown". This is a display

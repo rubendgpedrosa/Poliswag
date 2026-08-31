@@ -102,7 +102,7 @@ Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a 
 - `!device autoreboot on|off` *(admin)* — toggle automatic ADB reboot when the device goes offline
 - `!device reboot` *(admin)* — reboot the device via ADB
 
-The `STATUS` voice channel mirrors combined scanner health across both areas (down workers / expected workers, read live from Dragonite): 🟢 all workers up, 🟡/🟠 partially down, 🔴 all workers down but device connected (account problem), ❌ device offline or status data unavailable (Dragonite unreachable).
+The `STATUS` voice channel mirrors combined scanner health across both areas (down workers / expected workers, read live from Dragonite), in three states: 🟢 the map is being scanned — at least one worker up, however thin the account pool is; 🔴 every worker down but the device still connected (account problem); ❌ device offline or status data unavailable (Dragonite unreachable). There is deliberately no partial-degradation tier — renaming the channel on every account-pool swing was pure churn against Discord's rename rate limit.
 
 When the map goes fully red, the recovery ladder kicks in automatically: dragonite + rotom-ng are force-recreated immediately; if the map is still red 15 minutes later the device is rebooted via ADB (30 min reboot cooldown, shared with the offline watchdog). A data outage alone (❌ from an unreachable Dragonite) never triggers this ladder — only a confirmed red reading does.
 
