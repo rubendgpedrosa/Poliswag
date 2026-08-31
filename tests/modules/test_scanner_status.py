@@ -30,6 +30,10 @@ class TestGetStatusMessage:
     see TestGetWorkersWithIssues) feed one indicator. Production values are
     currently 7 (LeiriaBigger) + 1 (MarinhaGrande) = 8 total, but nothing here
     hardcodes that — it's just what's passed in.
+
+    Three states only: 🟢 the map is being scanned (however few accounts are
+    left), 🔴 every worker down with the device still connected, ❌ device
+    offline or no data at all.
     """
 
     def test_missing_input_renders_as_cross(self, scanner_status):
@@ -48,31 +52,30 @@ class TestGetStatusMessage:
     def test_zero_down_is_green(self, scanner_status):
         assert scanner_status.get_status_message(0, 0, 7, 1) == "STATUS: 🟢"
 
-    def test_one_of_eight_is_yellow(self, scanner_status):
-        # 1/8 = 0.125 ≤ 0.4 → yellow
-        assert scanner_status.get_status_message(1, 0, 7, 1) == "STATUS: 🟡"
+    def test_partially_down_is_still_green(self, scanner_status):
+        # A thinned account pool still scans the map, so it stays 🟢 — the
+        # whole point of dropping the 🟡/🟠 tiers is that these swings no
+        # longer rename the status channel.
+        assert scanner_status.get_status_message(1, 0, 7, 1) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(3, 1, 7, 1) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(6, 1, 7, 1) == "STATUS: 🟢"
 
-    def test_four_of_eight_is_orange(self, scanner_status):
-        # 4/8 = 0.5 ∈ (0.4, 0.8] → orange
-        assert scanner_status.get_status_message(3, 1, 7, 1) == "STATUS: 🟠"
+    def test_only_last_area_alive_is_still_green(self, scanner_status):
+        # Every Leiria worker down but Marinha still scanning → 🟢.
+        assert scanner_status.get_status_message(7, 0, 7, 1) == "STATUS: 🟢"
 
     def test_all_down_is_red(self, scanner_status):
-        # 8/8 = 1.0 > 0.8 → red
+        # 8/8 down — nothing is scanning anywhere → 🔴
         assert scanner_status.get_status_message(7, 1, 7, 1) == "STATUS: 🔴"
 
     def test_more_than_expected_is_still_red(self, scanner_status):
-        # 11/8 = 1.375 > 0.8 → red; percentage saturates, no overflow
+        # 11/8 — the down count can overshoot expected; still red, no overflow
         assert scanner_status.get_status_message(9, 2, 7, 1) == "STATUS: 🔴"
 
-    # --- Boundary conditions: pick expected totals with exact ratios ---
-
-    def test_boundary_exact_40_percent_is_yellow(self, scanner_status):
-        # 2/5 = exactly 0.4 → boundary (≤ 0.4 → yellow)
-        assert scanner_status.get_status_message(2, 0, 4, 1) == "STATUS: 🟡"
-
-    def test_boundary_exact_80_percent_is_orange(self, scanner_status):
-        # 4/5 = exactly 0.8 → boundary (≤ 0.8 → orange)
-        assert scanner_status.get_status_message(4, 0, 4, 1) == "STATUS: 🟠"
+    def test_zero_expected_workers_is_green(self, scanner_status):
+        # Nothing expected means nothing is down — never report red off a
+        # 0/0 reading (that would hand StackRecovery a false red episode).
+        assert scanner_status.get_status_message(0, 0, 0, 0) == "STATUS: 🟢"
 
     # --- device_connected: splits the red state into 🔴 (accounts) / ❌ (device) ---
 
@@ -88,16 +91,17 @@ class TestGetStatusMessage:
             == "STATUS: 🔴"
         )
 
-    def test_non_red_states_ignore_device_flag(self, scanner_status):
-        # Only a real red reading is ambiguous; green/yellow/orange never
-        # turn into ❌ just because the device flag happens to read False.
+    def test_green_ignores_device_flag(self, scanner_status):
+        # Only a real red reading is ambiguous; a map that is still scanning
+        # never turns into ❌ just because the device flag happens to read
+        # False (in practice rename_voice_channels doesn't even look it up).
         assert (
             scanner_status.get_status_message(0, 0, 7, 1, device_connected=False)
             == "STATUS: 🟢"
         )
         assert (
             scanner_status.get_status_message(1, 0, 7, 1, device_connected=False)
-            == "STATUS: 🟡"
+            == "STATUS: 🟢"
         )
 
     def test_missing_input_becomes_cross_regardless_of_device_flag(
@@ -117,33 +121,36 @@ class TestGetStatusMessage:
 
 
 class TestShouldUpdateChannel:
-    """Cache invalidation logic for the merged voice channel rename."""
+    """The single gate in front of every Discord call in the rename path.
 
-    def test_empty_cache_triggers_update(self, scanner_status):
-        # Default cache has name=None → always update
+    Pure change detection against the last name we wrote — no time-based
+    re-assert, so a steady status never spends the channel's rename budget
+    (two per 10 minutes) no matter how long it holds.
+    """
+
+    def test_nothing_written_yet_triggers_update(self, scanner_status):
+        # Nothing written yet (fresh boot) → always update
+        assert scanner_status.channelStatusName is None
         assert scanner_status.should_update_channel("STATUS: 🟢") is True
 
-    def test_stale_cache_triggers_update(self, scanner_status, mocker):
-        scanner_status.channelCache = {"name": "STATUS: 🟢", "last_update": 0}
-        mocker.patch("modules.scanner_status.time.time", return_value=10_000)
-        # 10_000 - 0 = 10_000 ≥ UPDATE_THRESHOLD (3600) → stale → update
-        assert scanner_status.should_update_channel("STATUS: 🟢") is True
-
-    def test_fresh_cache_same_status_skips_update(self, scanner_status, mocker):
-        mocker.patch("modules.scanner_status.time.time", return_value=10_000)
-        scanner_status.channelCache = {
-            "name": "STATUS: 🟢",
-            "last_update": 9_500,  # 500s ago, well under UPDATE_THRESHOLD
-        }
+    def test_same_status_skips_update(self, scanner_status):
+        scanner_status.channelStatusName = "STATUS: 🟢"
         assert scanner_status.should_update_channel("STATUS: 🟢") is False
 
-    def test_fresh_cache_different_status_triggers_update(self, scanner_status, mocker):
-        mocker.patch("modules.scanner_status.time.time", return_value=10_000)
-        scanner_status.channelCache = {
-            "name": "STATUS: 🟢",  # cached as green
-            "last_update": 9_500,
-        }
+    def test_different_status_triggers_update(self, scanner_status):
+        scanner_status.channelStatusName = "STATUS: 🟢"
         assert scanner_status.should_update_channel("STATUS: 🔴") is True
+
+    def test_unchanged_status_never_goes_stale(self, scanner_status, mocker):
+        """A status that holds for hours is still not rewritten.
+
+        The old implementation re-asserted the name once an hour; that write
+        could only ever set the name to what it already was, while consuming
+        a rename slot. Guard against it coming back.
+        """
+        scanner_status.channelStatusName = "STATUS: 🟢"
+        mocker.patch("modules.scanner_status.time.time", return_value=10_000_000)
+        assert scanner_status.should_update_channel("STATUS: 🟢") is False
 
 
 def _make_fetch_mock(mocker, return_value):
@@ -632,9 +639,23 @@ class TestGetFullStatusIvVerification:
 
 
 class TestGetVoiceChannel:
-    async def test_returns_channel_on_success(self, scanner_status, mocker):
+    async def test_cache_hit_skips_the_http_fetch(self, scanner_status, mocker):
+        # discord.py already holds every visible channel, so the normal path
+        # must not spend an HTTP GET on top of the rename's PATCH.
         mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
         expected = MagicMock(name="channel")
+        scanner_status.poliswag.get_channel = MagicMock(return_value=expected)
+        scanner_status.poliswag.fetch_channel = AsyncMock()
+        result = await scanner_status.get_voice_channel()
+        assert result is expected
+        scanner_status.poliswag.get_channel.assert_called_once_with(12345)
+        scanner_status.poliswag.fetch_channel.assert_not_called()
+
+    async def test_cache_miss_falls_back_to_fetch(self, scanner_status, mocker):
+        # A tick landing before the gateway cache is populated still works.
+        mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
+        expected = MagicMock(name="channel")
+        scanner_status.poliswag.get_channel = MagicMock(return_value=None)
         scanner_status.poliswag.fetch_channel = AsyncMock(return_value=expected)
         result = await scanner_status.get_voice_channel()
         assert result is expected
@@ -642,13 +663,16 @@ class TestGetVoiceChannel:
 
     async def test_returns_none_and_logs_on_missing_env(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 0)
+        scanner_status.poliswag.get_channel = MagicMock()
         scanner_status.poliswag.fetch_channel = AsyncMock()
         result = await scanner_status.get_voice_channel()
         assert result is None
+        scanner_status.poliswag.get_channel.assert_not_called()
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_returns_none_when_fetch_channel_raises(self, scanner_status, mocker):
         mocker.patch("modules.scanner_status.Config.VOICE_CHANNEL_ID", 12345)
+        scanner_status.poliswag.get_channel = MagicMock(return_value=None)
         scanner_status.poliswag.fetch_channel = AsyncMock(
             side_effect=RuntimeError("boom")
         )
@@ -960,15 +984,14 @@ class TestRenameVoiceChannels:
         )
         await scanner_status.rename_voice_channels(_ws(0, 0))
         assert channel.edit.await_count == 1
-        assert scanner_status.channelCache["name"] == "STATUS: 🟢"
+        assert scanner_status.channelStatusName == "STATUS: 🟢"
 
     async def test_skips_edit_when_status_unchanged(self, scanner_status, mocker):
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
         mocker.patch.object(
             scanner_status, "_get_seconds_since_last_pokemon", return_value=1
         )
-        now = time.time()
-        scanner_status.channelCache = {"name": "STATUS: 🟢", "last_update": now}
+        scanner_status.channelStatusName = "STATUS: 🟢"
         get_channel = mocker.patch.object(
             scanner_status, "get_voice_channel", new=AsyncMock()
         )
@@ -990,7 +1013,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        assert scanner_status.channelCache["name"] == "STATUS: ❌"
+        assert scanner_status.channelStatusName == "STATUS: ❌"
 
     async def test_device_up_keeps_red_when_all_workers_down(
         self, scanner_status, mocker
@@ -1009,7 +1032,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        assert scanner_status.channelCache["name"] == "STATUS: 🔴"
+        assert scanner_status.channelStatusName == "STATUS: 🔴"
 
     async def test_device_check_skipped_when_not_red(self, scanner_status, mocker):
         # Healthy counters → the extra device_status fetch never happens.
@@ -1035,10 +1058,29 @@ class TestRenameVoiceChannels:
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
 
     async def test_partial_down_is_not_all_red(self, scanner_status, mocker):
-        # 4/8 down = 50% → orange, not red → no stack recovery trigger.
+        # 4/8 down — the map is still being scanned → 🟢, no recovery trigger.
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
         await scanner_status.rename_voice_channels(_ws(4, 0))
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+
+    async def test_partial_down_keeps_channel_green(self, scanner_status, mocker):
+        # The status channel is only renamed when the map stops scanning
+        # entirely, so a shrinking account pool never touches it.
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        channel = MagicMock()
+        channel.edit = AsyncMock()
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        assert scanner_status.channelStatusName == "STATUS: 🟢"
+        await scanner_status.rename_voice_channels(_ws(6, 0))
+        await scanner_status.rename_voice_channels(_ws(7, 0))
+        assert channel.edit.await_count == 1
+        assert scanner_status.channelStatusName == "STATUS: 🟢"
 
     async def test_dragonite_unreachable_renders_as_cross(self, scanner_status, mocker):
         # get_workers_with_issues() returns all-None when the Dragonite fetch
@@ -1057,7 +1099,7 @@ class TestRenameVoiceChannels:
             scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
         )
         await scanner_status.rename_voice_channels(_ws(None, None, None, None))
-        assert scanner_status.channelCache["name"] == "STATUS: ❌"
+        assert scanner_status.channelStatusName == "STATUS: ❌"
         is_connected.assert_not_called()
         scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
 
