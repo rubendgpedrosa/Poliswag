@@ -13,24 +13,38 @@ from modules.logging_mixin import LoggingMixin
 class StackRecovery(LoggingMixin):
     """Escalation ladder for a fully red map (every region all-workers-down).
 
-    On red, force-recreate the scanner containers (dragonite + rotom-ng) via
-    docker compose — first at RECREATE_THRESHOLDS[0] (10 min) into the red
-    episode, and again at RECREATE_THRESHOLDS[1] (45 min) if it's still red.
-    After both attempts, recovery stops trying automatically and just waits
-    — no device reboot is ever triggered. The db/golbat/map containers are
+    Two rungs, both timed from the start of the red episode and each fired at
+    most once per episode:
+
+    - 10 min: force-recreate the scanner containers (dragonite + rotom-ng)
+      via docker compose.
+    - 30 min: force-stop Pokémon GO + Pokémod on the device and start Aegis's
+      mapping service again. Recreating containers cannot fix a wedged MITM,
+      so the ladder has to reach the phone before it gives up.
+
+    After both rungs, recovery stops trying automatically and just waits — no
+    device reboot is ever triggered. The db/golbat/map containers are
     deliberately left alone.
     """
 
-    # How long a red episode must persist before each recreate attempt.
-    RECREATE_THRESHOLDS = (600, 2700)  # 10 min, 45 min
+    # (seconds red before firing, rung) — ordered, one attempt each per episode.
+    RECOVERY_LADDER = (
+        (600, "containers"),
+        (1800, "device"),
+    )
+    # How each rung is described in the mod-channel notifications.
+    RUNG_LABELS = {
+        "containers": "a recriar containers do scanner",
+        "device": "a reiniciar Pokémon GO + Pokémod no telemóvel",
+    }
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._red_since: float | None = None
-        # Recreate attempts used in the current red episode (0..len(RECREATE_THRESHOLDS)).
-        self._recreate_attempts: int = 0
+        # Rungs used in the current red episode (0..len(RECOVERY_LADDER)).
+        self._recovery_attempts: int = 0
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
@@ -41,17 +55,26 @@ class StackRecovery(LoggingMixin):
     async def set_auto_recreate_enabled(self, value: bool) -> None:
         await self._auto_recreate_setting.set(value)
 
-    async def observe(self, all_red: bool) -> bool:
+    async def observe(self, all_red: bool | None) -> bool:
         """Advance the red escalation ladder one tick.
 
         Called every scheduler tick from the voice-channel status pass.
-        Returns True when a recreate attempt was made and succeeded.
+        ``True`` advances a confirmed all-red episode, ``False`` resets it
+        after confirmed scanner activity, and ``None`` preserves the current
+        episode while scanner status is unavailable.
+        Returns True when a recovery rung was run and succeeded.
         """
         now = time.time()
 
+        if all_red is None:
+            # A forced recreate briefly makes Dragonite's status endpoint
+            # unavailable.  Treating that as recovery would re-arm the ladder
+            # and let attempts 1/2 and 2/2 repeat forever.
+            return False
+
         if not all_red:
             self._red_since = None
-            self._recreate_attempts = 0
+            self._recovery_attempts = 0
             return False
 
         if self._red_since is None:
@@ -60,54 +83,75 @@ class StackRecovery(LoggingMixin):
         if not await self.get_auto_recreate_enabled():
             return False
 
-        total = len(self.RECREATE_THRESHOLDS)
-        if self._recreate_attempts >= total:
-            # Both attempts already used up for this episode — stop attempting
+        total = len(self.RECOVERY_LADDER)
+        if self._recovery_attempts >= total:
+            # Every rung already used up for this episode — stop attempting
             # and just wait for manual intervention.
             return False
 
         red_duration = now - self._red_since
-        if red_duration < self.RECREATE_THRESHOLDS[self._recreate_attempts]:
+        threshold, rung = self.RECOVERY_LADDER[self._recovery_attempts]
+        if red_duration < threshold:
             return False
 
-        self._recreate_attempts += 1
-        attempt = self._recreate_attempts
+        self._recovery_attempts += 1
+        attempt = self._recovery_attempts
         self._log(
-            f"Map fully red for {int(red_duration // 60)} min — recreating "
-            f"{Config.RECREATE_SERVICES} (attempt {attempt}/{total})",
+            f"Map fully red for {int(red_duration // 60)} min — running "
+            f"'{rung}' recovery (attempt {attempt}/{total})",
             "INFO",
         )
-        ok = await self.recreate_services()
-        if ok:
-            if attempt < total:
-                next_in = int((self.RECREATE_THRESHOLDS[attempt] - red_duration) // 60)
-                await self._notify(
-                    "Recuperação automática",
-                    f"Contas em baixo — a reiniciar sistema (tentativa {attempt}/{total}).\n"
-                    f"Nova tentativa em **{next_in} min** se continuar.",
-                    discord.Color.orange(),
-                )
-            else:
-                await self._notify(
-                    "Recuperação automática",
-                    f"Contas em baixo — a reiniciar sistema (tentativa {attempt}/{total}, "
-                    f"última tentativa automática).\n"
-                    f"Se continuar em baixo, intervenção manual é necessária.",
-                    discord.Color.orange(),
-                )
-        else:
+        ok = await self._run_rung(rung)
+        await self._announce(rung, attempt, total, red_duration, ok)
+        return ok
+
+    async def _run_rung(self, rung: str) -> bool:
+        if rung == "containers":
+            return await self.recreate_services()
+        return await self.poliswag.device_manager.restart_scanner_apps()
+
+    def _minutes_to_next_rung(self, attempt: int, red_duration: float) -> int:
+        """Minutes from now until rung ``attempt`` (0-based) fires."""
+        return max(0, int((self.RECOVERY_LADDER[attempt][0] - red_duration) // 60))
+
+    async def _announce(
+        self, rung: str, attempt: int, total: int, red_duration: float, ok: bool
+    ) -> None:
+        label = self.RUNG_LABELS[rung]
+        last_attempt = attempt >= total
+
+        if not ok:
             remaining = (
-                "Nova tentativa mais tarde."
-                if attempt < total
-                else "Sem mais tentativas automáticas — intervenção manual necessária."
+                "Sem mais tentativas automáticas — intervenção manual necessária."
+                if last_attempt
+                else f"Nova tentativa em "
+                f"**{self._minutes_to_next_rung(attempt, red_duration)} min** "
+                f"({self.RUNG_LABELS[self.RECOVERY_LADDER[attempt][1]]}) se continuar."
             )
             await self._notify(
                 "Recuperação automática — falhou",
-                f"Contas em baixo — reinício do sistema falhou (tentativa {attempt}/{total}).\n"
+                f"Contas em baixo — {label} falhou (tentativa {attempt}/{total}).\n"
                 f"{remaining}",
                 discord.Color.red(),
             )
-        return ok
+            return
+
+        if last_attempt:
+            description = (
+                f"Contas em baixo — {label} (tentativa {attempt}/{total}, "
+                f"última tentativa automática).\n"
+                f"Se continuar em baixo, intervenção manual é necessária."
+            )
+        else:
+            description = (
+                f"Contas em baixo — {label} (tentativa {attempt}/{total}).\n"
+                f"Nova tentativa em "
+                f"**{self._minutes_to_next_rung(attempt, red_duration)} min** "
+                f"({self.RUNG_LABELS[self.RECOVERY_LADDER[attempt][1]]}) se continuar."
+            )
+        await self._notify(
+            "Recuperação automática", description, discord.Color.orange()
+        )
 
     async def recreate_services(self) -> bool:
         """Run docker compose up -d --force-recreate on the scanner services."""

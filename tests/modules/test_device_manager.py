@@ -162,6 +162,62 @@ class TestRestartApp:
         assert await device_manager.restart_app() is False
 
 
+class TestRestartScannerApps:
+    """Device rung: force-stop both apps, then start Aegis mapping via su."""
+
+    @pytest.fixture(autouse=True)
+    def _no_settle_delay(self, mocker):
+        mocker.patch(
+            "modules.device_manager.asyncio.sleep", new=AsyncMock(return_value=None)
+        )
+
+    async def test_force_stops_both_apps_then_starts_mapping(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("Starting service", "", 0))
+
+        assert await device_manager.restart_scanner_apps() is True
+
+        commands = [call.args[-1] for call in device_manager.run.await_args_list]
+        assert commands == [
+            f"am force-stop {DeviceManager.POGO_PACKAGE}",
+            f"am force-stop {DeviceManager.AEGIS_PACKAGE}",
+            f"am start-foreground-service -n {DeviceManager.AEGIS_MAPPING_SERVICE}",
+        ]
+        # MappingService is not exported, so every step goes through su
+        assert all(
+            call.args[:3] == ("shell", "su", "-c")
+            for call in device_manager.run.await_args_list
+        )
+
+    async def test_pogo_is_not_relaunched(self, device_manager):
+        """Aegis relaunches and re-injects the game itself once mapping is up."""
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+
+        await device_manager.restart_scanner_apps()
+
+        commands = [call.args[-1] for call in device_manager.run.await_args_list]
+        assert not any("am start -n" in command for command in commands)
+
+    async def test_failed_force_stop_short_circuits(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.restart_scanner_apps() is False
+        assert device_manager.run.await_count == 1
+
+    async def test_rejected_service_start_is_a_failure(self, device_manager):
+        """am prints the rejection on stdout and still exits 0."""
+        device_manager.run = AsyncMock(
+            side_effect=[
+                ("", "", 0),
+                ("", "", 0),
+                ("Error: Not allowed to start service Intent", "", 0),
+            ]
+        )
+        assert await device_manager.restart_scanner_apps() is False
+
+    async def test_runtime_error_returns_false(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.restart_scanner_apps() is False
+
+
 class TestAlertIfOffline:
     """Offline watchdog: alert-only after 15 min offline — never reboots."""
 
