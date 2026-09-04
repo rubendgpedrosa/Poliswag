@@ -1085,9 +1085,9 @@ class TestRenameVoiceChannels:
     async def test_dragonite_unreachable_renders_as_cross(self, scanner_status, mocker):
         # get_workers_with_issues() returns all-None when the Dragonite fetch
         # fails entirely — that renders as ❌ (it still means the map isn't
-        # being scanned), but critically must NOT feed the recovery ladder.
-        # Otherwise a transient status-endpoint hiccup would trigger container
-        # recreates / a device reboot for no real reason.
+        # being scanned), but critically must preserve the recovery ladder's
+        # current episode. A forced recreate causes this transient state; it
+        # must not re-arm already exhausted attempts.
         mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
         mocker.patch.object(
             scanner_status, "_get_seconds_since_last_pokemon", return_value=1
@@ -1101,7 +1101,7 @@ class TestRenameVoiceChannels:
         await scanner_status.rename_voice_channels(_ws(None, None, None, None))
         assert scanner_status.channelStatusName == "STATUS: ❌"
         is_connected.assert_not_called()
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(None)
 
     async def test_rate_limit_is_logged_not_raised(self, scanner_status, mocker):
         import discord

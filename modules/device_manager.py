@@ -18,6 +18,14 @@ class DeviceManager(LoggingMixin):
         "com.nianticproject.holoholo.libholoholo.unity.UnityMainActivity"
     )
 
+    # Pokémod Aegis is the MITM. Its "Start" button does nothing more than
+    # startForegroundService on MappingService with a bare component intent,
+    # so restarting mapping is fully scriptable -- no UI automation needed.
+    AEGIS_PACKAGE = "com.pokemod.aegis"
+    AEGIS_MAPPING_SERVICE = "com.pokemod.aegis/.services.MappingService"
+    # Let the force-stops settle before Aegis is started again.
+    APP_RESTART_SETTLE = 5
+
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._offline_since: float | None = None
@@ -168,6 +176,51 @@ class DeviceManager(LoggingMixin):
         except RuntimeError as e:
             self._log(f"App restart failed: {e}")
             return False
+
+    async def run_as_root(
+        self, command: str, timeout: int = 15
+    ) -> tuple[str, str, int]:
+        """Run a shell command on the device through su (Magisk).
+
+        MappingService is not exported, so starting it is not something adb's
+        plain shell uid can be relied on to do.
+        """
+        return await self.run("shell", "su", "-c", command, timeout=timeout)
+
+    async def restart_scanner_apps(self) -> bool:
+        """Force-stop Pokémon GO + Pokémod, then start Aegis mapping again.
+
+        The device-side rung of the recovery ladder: recreating the scanner
+        containers cannot fix a wedged MITM, only restarting the apps on the
+        phone can. Aegis relaunches and re-injects Pokémon GO itself once its
+        mapping service is up, so the game is deliberately not started here.
+        """
+        try:
+            for package in (self.POGO_PACKAGE, self.AEGIS_PACKAGE):
+                _, _, rc = await self.run_as_root(
+                    f"am force-stop {package}", timeout=20
+                )
+                if rc != 0:
+                    self._log(f"Force-stop of {package} failed (rc={rc})")
+                    return False
+
+            await asyncio.sleep(self.APP_RESTART_SETTLE)
+
+            stdout, stderr, rc = await self.run_as_root(
+                f"am start-foreground-service -n {self.AEGIS_MAPPING_SERVICE}",
+                timeout=20,
+            )
+            # am prints "Error: ..." on stdout; belt and braces alongside rc.
+            output = f"{stdout} {stderr}"
+            if rc != 0 or "Error" in output:
+                self._log(f"Starting Aegis mapping service failed: {output.strip()}")
+                return False
+        except RuntimeError as e:
+            self._log(f"Scanner app restart failed: {e}")
+            return False
+
+        self._log("Restarted Pokémon GO + Pokémod Aegis on the device", "INFO")
+        return True
 
     def _next_notify_interval(self, offline_duration: float) -> float:
         """Escalating gap between repeated offline notifications."""
