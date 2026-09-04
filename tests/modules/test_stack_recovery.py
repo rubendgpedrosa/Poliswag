@@ -11,6 +11,7 @@ def stack_recovery(mocker):
     """A StackRecovery with a mocked poliswag and auto-recreate enabled."""
     sr = StackRecovery(poliswag=MagicMock())
     sr.poliswag.MOD_CHANNEL = None
+    sr.poliswag.device_manager.restart_scanner_apps = AsyncMock(return_value=True)
     mocker.patch.object(
         sr, "get_auto_recreate_enabled", new=AsyncMock(return_value=True)
     )
@@ -73,15 +74,34 @@ class TestAutoRecreateEnabledCache:
 
 
 class TestObserve:
-    """Red ladder: recreate at 10 min and 45 min into red, then stop — never reboots."""
+    """Red ladder: containers at 10 min, device apps at 30 min, then stop.
+
+    Both rungs are timed from the start of the red episode, and no rung ever
+    reboots the device.
+    """
 
     async def test_not_red_resets_tracking(self, stack_recovery, mocker):
         _at(mocker, 10_000)
         stack_recovery._red_since = 9_000
-        stack_recovery._recreate_attempts = 1
+        stack_recovery._recovery_attempts = 1
         assert await stack_recovery.observe(False) is False
         assert stack_recovery._red_since is None
-        assert stack_recovery._recreate_attempts == 0
+        assert stack_recovery._recovery_attempts == 0
+
+    async def test_unknown_status_preserves_exhausted_episode(
+        self, stack_recovery, mocker
+    ):
+        _at(mocker, 10_000)
+        stack_recovery._red_since = 9_000
+        stack_recovery._recovery_attempts = 2
+        stack_recovery.recreate_services = AsyncMock()
+
+        assert await stack_recovery.observe(None) is False
+
+        assert stack_recovery._red_since == 9_000
+        assert stack_recovery._recovery_attempts == 2
+        stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.get_auto_recreate_enabled.assert_not_called()
 
     async def test_fresh_red_does_not_recreate_immediately(
         self, stack_recovery, mocker
@@ -91,7 +111,7 @@ class TestObserve:
         assert await stack_recovery.observe(True) is False
         stack_recovery.recreate_services.assert_not_called()
         assert stack_recovery._red_since == 10_000
-        assert stack_recovery._recreate_attempts == 0
+        assert stack_recovery._recovery_attempts == 0
 
     async def test_first_attempt_fires_at_10min(self, stack_recovery, mocker):
         _at(mocker, 10_000)
@@ -101,8 +121,8 @@ class TestObserve:
         assert await stack_recovery.observe(True) is True
 
         stack_recovery.recreate_services.assert_awaited_once()
-        assert stack_recovery._recreate_attempts == 1
-        # episode stays armed — the second attempt can still fire at 45 min
+        assert stack_recovery._recovery_attempts == 1
+        # episode stays armed — the device rung can still fire at 30 min
         assert stack_recovery._red_since == 10_000 - 600
 
     async def test_first_attempt_not_yet_due(self, stack_recovery, mocker):
@@ -114,41 +134,59 @@ class TestObserve:
 
         stack_recovery.recreate_services.assert_not_called()
 
-    async def test_second_attempt_waits_until_45min(self, stack_recovery, mocker):
+    async def test_second_attempt_waits_until_30min(self, stack_recovery, mocker):
         _at(mocker, 10_000)
-        stack_recovery._red_since = (
-            10_000 - 1200
-        )  # 20 min red, 1st attempt already used
-        stack_recovery._recreate_attempts = 1
+        stack_recovery._red_since = 10_000 - 1200  # 20 min red, 1st rung used
+        stack_recovery._recovery_attempts = 1
         stack_recovery.recreate_services = AsyncMock()
 
         assert await stack_recovery.observe(True) is False
 
         stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
 
-    async def test_second_attempt_fires_at_45min(self, stack_recovery, mocker):
+    async def test_second_attempt_restarts_device_apps_at_30min(
+        self, stack_recovery, mocker
+    ):
         _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 2700  # 45 min red
-        stack_recovery._recreate_attempts = 1
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        stack_recovery._red_since = 10_000 - 1800  # 30 min red
+        stack_recovery._recovery_attempts = 1
+        stack_recovery.recreate_services = AsyncMock()
 
         assert await stack_recovery.observe(True) is True
 
-        stack_recovery.recreate_services.assert_awaited_once()
-        assert stack_recovery._recreate_attempts == 2
+        # the second rung reaches the phone, it does not recreate again
+        stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
+        assert stack_recovery._recovery_attempts == 2
+
+    async def test_failed_device_rung_still_counts_the_attempt(
+        self, stack_recovery, mocker
+    ):
+        _at(mocker, 10_000)
+        stack_recovery._red_since = 10_000 - 1800
+        stack_recovery._recovery_attempts = 1
+        stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
+            return_value=False
+        )
+
+        assert await stack_recovery.observe(True) is False
+
+        assert stack_recovery._recovery_attempts == 2
 
     async def test_stops_attempting_after_both_used(self, stack_recovery, mocker):
         _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 999_999  # still red, way past 45 min
-        stack_recovery._recreate_attempts = 2
+        stack_recovery._red_since = 10_000 - 999_999  # still red, way past 30 min
+        stack_recovery._recovery_attempts = 2
         stack_recovery.recreate_services = AsyncMock()
 
         assert await stack_recovery.observe(True) is False
 
         stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
         # no reboot escalation exists — the ladder just waits
         assert stack_recovery._red_since == 10_000 - 999_999
-        assert stack_recovery._recreate_attempts == 2
+        assert stack_recovery._recovery_attempts == 2
 
     async def test_disabled_toggle_blocks_ladder(self, stack_recovery, mocker):
         _at(mocker, 10_000)
@@ -170,7 +208,7 @@ class TestObserve:
         stack_recovery.recreate_services = AsyncMock(return_value=False)
         assert await stack_recovery.observe(True) is False
         # attempt is consumed even on failure, so it doesn't retry every tick
-        assert stack_recovery._recreate_attempts == 1
+        assert stack_recovery._recovery_attempts == 1
         assert stack_recovery._red_since == 10_000 - 600
 
 

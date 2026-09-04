@@ -122,13 +122,11 @@ class ScannerStatus(LoggingMixin):
             device_connected = await self.poliswag.account_monitor.is_device_connected()
 
         # Fully red — regardless of the device flag (❌ is only a display
-        # distinction) — feeds the StackRecovery ladder: containers first,
-        # device reboot if red persists. indicator is None (Dragonite
-        # unreachable or missing data) deliberately does NOT count as red,
-        # even though get_status_message below will also render it as ❌ —
-        # a status-endpoint hiccup must never itself trigger container
-        # recreates or a device reboot.
-        all_red = indicator == "🔴"
+        # distinction) — feeds the StackRecovery ladder.  Preserve None when
+        # Dragonite is unreachable or missing data: a forced recreate causes
+        # exactly that transient state, and collapsing it to False would reset
+        # the attempt counter before the scanner had actually recovered.
+        all_red: bool | None = None if indicator is None else indicator == "🔴"
         await self.poliswag.stack_recovery.observe(all_red)
 
         status = self.get_status_message(
