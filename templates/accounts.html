@@ -39,7 +39,6 @@
         border-radius: 18px;
         background: linear-gradient(160deg, #24262b 0%, #1b1c1f 100%);
         border: 1px solid rgba(255, 255, 255, 0.07);
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
     }
 
     /* Status accent strip on the left edge — the single fastest
@@ -96,8 +95,8 @@
     }
 
     .device-dot {
-        width: 9px;
-        height: 9px;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
         margin-right: 8px;
         flex: 0 0 auto;
@@ -107,7 +106,7 @@
 
     .device-text {
         font-weight: 700;
-        font-size: 12px;
+        font-size: 15px;
         letter-spacing: 0.6px;
         text-transform: uppercase;
     }
@@ -194,23 +193,25 @@
     .area-item {
         display: flex;
         align-items: baseline;
-        margin: 0 18px;
+        /* Tightened from 18px: at the larger footer type the two areas
+           ran past the card edge and clipped "LEIRIA"/"COVERAGE". */
+        margin: 0 12px;
     }
 
     .area-name {
-        font-size: 15px;
+        font-size: 16px;
         font-weight: 700;
         color: #8b8e93;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        margin-right: 10px;
+        margin-right: 8px;
     }
 
     .area-value {
-        font-size: 19px;
+        font-size: 22px;
         font-weight: 800;
         color: #d8dadd;
-        margin-right: 5px;
+        margin-right: 4px;
     }
 
     /* Units spelled out per figure rather than a single row label:
@@ -218,12 +219,12 @@
        IV" already carries elsewhere in the bot -- when it actually means
        the share of spawns whose IV the scanner managed to read. */
     .area-unit {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         color: #6f7276;
         text-transform: uppercase;
         letter-spacing: 0.6px;
-        margin-right: 14px;
+        margin-right: 10px;
     }
 
     .area-unit:last-child {
@@ -243,11 +244,22 @@
             <div class="status-bar status-{{ status }}"></div>
             <div class="card-inner">
                 <div class="header-row">
-                    <div class="title"><strong>Poliswag</strong> &middot; Account Pool</div>
+                    <div class="title">Account Pool</div>
                     <div class="device-pill">
                         {% if device_status %}
                             <div class="device-dot device-on"></div>
-                            <div class="device-text on">Device Online</div>
+                            {#- The green dot (and the card's left accent bar)
+                                already carry "online", so the pill spends its
+                                text on the worker count instead of repeating
+                                it. Falls back to the plain wording only for
+                                legacy Rotom, which reports no worker figures. -#}
+                            <div class="device-text on">
+                                {%- if workers and workers.total -%}
+                                    {{ workers.in_use }}/{{ workers.total }} Workers
+                                {%- else -%}
+                                    Device Online
+                                {%- endif -%}
+                            </div>
                         {% else %}
                             <div class="device-dot device-off"></div>
                             <div class="device-text off">Device Offline</div>
