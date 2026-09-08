@@ -76,6 +76,11 @@ def refresh_device_status() -> None:
                 "noMessagesSent": 114,
                 "origin": "MITM-PoGoLeiria",
                 "version": 20241005,
+                # RotomNG-only worker figures, which the account card's
+                # worker chip renders. Kept alongside the legacy `isAlive`
+                # shape above so dev mode exercises both readers at once.
+                "worker_count": 16,
+                "worker_in_use_count": 14,
             }
         ]
     }
