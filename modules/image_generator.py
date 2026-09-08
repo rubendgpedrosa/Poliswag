@@ -69,7 +69,7 @@ class ImageGenerator:
         return await self._render_png(html_content, options, "quest image")
 
     async def generate_image_from_account_stats(
-        self, account_data, device_status, area_performance=None
+        self, account_data, device_status, area_performance=None, workers=None
     ):
         if self._accounts_template is None:
             self._accounts_template = self._get_env().get_template(
@@ -88,6 +88,10 @@ class ImageGenerator:
             disabled=account_data.get("disabled", 0),
             device_status=device_status,
             area_lines=area_lines,
+            # Falsy/zero totals render nothing at all in the template --
+            # only RotomNG reports worker figures, so a legacy Rotom
+            # payload hides the chip instead of claiming "0 workers".
+            workers=workers or {},
         )
         options = {
             "format": "png",
