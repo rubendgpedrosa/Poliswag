@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from modules.account_monitor import DISABLED_STATUSES, AccountMonitor
+from modules.account_monitor import (
+    DISABLED_STATUSES,
+    AccountMonitor,
+    _worker_counts,
+)
 
 
 @pytest.fixture
@@ -417,3 +421,133 @@ class TestUpdateChannelAccountsStats:
         channel.history.assert_not_called()
         channel.send.assert_awaited_once()
         assert account_monitor._accounts_message is new_message
+
+
+class TestWorkerCounts:
+    """_worker_counts summarises the Rotom worker pool for the card chip."""
+
+    def test_no_devices_is_zeroed(self):
+        assert _worker_counts([]) == {"total": 0, "in_use": 0}
+
+    def test_sums_across_connected_devices(self):
+        devices = [
+            {"is_connected": True, "worker_count": 16, "worker_in_use_count": 14},
+            {"is_connected": True, "worker_count": 4, "worker_in_use_count": 1},
+        ]
+        assert _worker_counts(devices) == {"total": 20, "in_use": 15}
+
+    def test_disconnected_devices_are_excluded(self):
+        # Rotom keeps reporting a dropped device's last-known worker_count;
+        # counting it would show a full pool for a device that is offline.
+        devices = [
+            {"is_connected": True, "worker_count": 16, "worker_in_use_count": 14},
+            {"is_connected": False, "worker_count": 99, "worker_in_use_count": 99},
+        ]
+        assert _worker_counts(devices) == {"total": 16, "in_use": 14}
+
+    def test_legacy_rotom_payload_yields_zero(self):
+        # The legacy Node Rotom shape has no worker fields at all -- zero
+        # totals are what make the template hide the chip.
+        assert _worker_counts([{"isAlive": True}]) == {"total": 0, "in_use": 0}
+
+    def test_null_worker_fields_are_treated_as_zero(self):
+        assert _worker_counts(
+            [{"is_connected": True, "worker_count": None, "worker_in_use_count": None}]
+        ) == {"total": 0, "in_use": 0}
+
+
+class TestGetDeviceSnapshot:
+    """get_device_snapshot returns connectivity and workers from one fetch."""
+
+    async def test_single_fetch_serves_both_fields(self, account_monitor, mocker):
+        fetch = _mock_fetch(
+            mocker,
+            {
+                "devices": [
+                    {"is_connected": True, "worker_count": 16, "worker_in_use_count": 9}
+                ]
+            },
+        )
+        snapshot = await account_monitor.get_device_snapshot()
+        assert snapshot["connected"] is True
+        assert snapshot["workers"] == {"total": 16, "in_use": 9}
+        # One Rotom call per tick, not one per field.
+        fetch.assert_awaited_once()
+
+    async def test_none_payload_is_safe(self, account_monitor, mocker):
+        _mock_fetch(mocker, None)
+        snapshot = await account_monitor.get_device_snapshot()
+        assert snapshot == {"connected": False, "workers": {"total": 0, "in_use": 0}}
+
+
+class TestStatusBody:
+    """The message body carries a live last-update timestamp."""
+
+    def test_body_uses_discord_timestamp_markup(self, mocker):
+        mocker.patch("modules.account_monitor.time.time", return_value=1788853091.7)
+        body = AccountMonitor._build_status_body()
+        # Absolute for the date the user asked for, relative so a stalled
+        # card keeps visibly ageing between ticks.
+        assert "<t:1788853091:f>" in body
+        assert "<t:1788853091:R>" in body
+
+    def test_body_advances_between_ticks(self, mocker):
+        t = mocker.patch("modules.account_monitor.time.time", return_value=100.0)
+        first = AccountMonitor._build_status_body()
+        t.return_value = 200.0
+        assert AccountMonitor._build_status_body() != first
+
+
+class TestStatusBodyIsPublished:
+    """Both the edit and the send paths must carry the body + workers."""
+
+    async def _run(self, account_monitor, mocker, existing_messages=()):
+        channel = MagicMock()
+        channel.history = MagicMock(
+            return_value=_AsyncChannelHistory(list(existing_messages))
+        )
+        channel.send = AsyncMock()
+        account_monitor.poliswag.ACCOUNTS_CHANNEL = channel
+        mocker.patch(
+            "modules.account_monitor.fetch_data",
+            new=AsyncMock(
+                side_effect=[
+                    {"good": 5},
+                    {
+                        "devices": [
+                            {
+                                "is_connected": True,
+                                "worker_count": 16,
+                                "worker_in_use_count": 14,
+                            }
+                        ]
+                    },
+                ]
+            ),
+        )
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
+            AsyncMock(return_value=b"PNG")
+        )
+        await account_monitor.update_channel_accounts_stats()
+        return channel
+
+    async def test_send_path_includes_body(self, account_monitor, mocker):
+        channel = await self._run(account_monitor, mocker)
+        assert "<t:" in channel.send.call_args.kwargs["content"]
+
+    async def test_edit_path_includes_body(self, account_monitor, mocker):
+        # Authored by the bot so the history scan adopts it as the message
+        # to edit rather than sending a new one.
+        existing = MagicMock()
+        existing.edit = AsyncMock()
+        existing.author = account_monitor.poliswag.user
+        channel = await self._run(account_monitor, mocker, [existing])
+        channel.send.assert_not_called()
+        assert "<t:" in existing.edit.call_args.kwargs["content"]
+
+    async def test_worker_counts_reach_the_image_generator(
+        self, account_monitor, mocker
+    ):
+        await self._run(account_monitor, mocker)
+        gen = account_monitor.poliswag.image_generator.generate_image_from_account_stats
+        assert gen.call_args.kwargs["workers"] == {"total": 16, "in_use": 14}
