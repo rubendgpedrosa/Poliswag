@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 from modules.config import Config
 from modules.embeds import build_embed, status_embed
 from modules.locale_pt import PT_DAYS_SHORT
+from modules.pokemon_name_sync import sync_pokemon_names
 
 
 class Scheduled(commands.Cog):
@@ -18,6 +19,10 @@ class Scheduled(commands.Cog):
         self._last_quest_export = None
         self._last_error_digest_at = None
         self._last_lure_status_count = None
+        # False until the first successful write to poliswag.pokemon_name.
+        # The masterfile is loaded before this cog exists, so without the
+        # flag the table would stay empty until the next 24h reload.
+        self._pokemon_names_synced = False
 
     async def _load_digest_date(self):
         try:
@@ -145,6 +150,15 @@ class Scheduled(commands.Cog):
                 self.poliswag.quest_search.generate_pokemon_item_name_map
             )
             await asyncio.to_thread(self.poliswag.mega_exporter.export)
+        if masterfile_refreshed or not self._pokemon_names_synced:
+            await self._sync_pokemon_names()
+
+    async def _sync_pokemon_names(self):
+        masterfile = self.poliswag.quest_search.masterfile_data
+        if not masterfile:
+            return
+        await sync_pokemon_names(self.poliswag.db, masterfile)
+        self._pokemon_names_synced = True
 
     async def _run_tick_step(self, step):
         """Run one scheduled_tasks step in isolation.
