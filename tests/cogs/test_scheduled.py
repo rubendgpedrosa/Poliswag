@@ -1040,3 +1040,64 @@ class TestSetup:
         await setup(poliswag)
         poliswag.add_cog.assert_awaited_once()
         assert isinstance(poliswag.add_cog.call_args.args[0], Scheduled)
+
+
+class TestRefreshMasterfileData:
+    """Names must reach poliswag.pokemon_name on the first tick after startup
+    (QuestSearch loads the masterfile in __init__, so that tick never sees a
+    reload), again whenever the masterfile reloads, and not on every tick."""
+
+    MASTERFILE = {"pokemon": {"25": {"name": "Pikachu"}}}
+
+    def _prime(self, cog, reloaded):
+        cog.poliswag.quest_search.load_translation_data = MagicMock()
+        cog.poliswag.quest_search.load_masterfile_data = MagicMock(
+            return_value=reloaded
+        )
+        cog.poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
+        cog.poliswag.quest_search.masterfile_data = self.MASTERFILE
+        cog.poliswag.mega_exporter.export = MagicMock()
+
+    async def test_syncs_on_first_tick_without_a_reload(self, cog):
+        self._prime(cog, reloaded=False)
+        with patch(
+            "cogs.scheduled.sync_pokemon_names", new=AsyncMock(return_value=1)
+        ) as sync:
+            await cog._refresh_masterfile_data()
+        sync.assert_awaited_once_with(cog.poliswag.db, self.MASTERFILE)
+        assert cog._pokemon_names_synced is True
+
+    async def test_does_not_resync_on_a_quiet_tick(self, cog):
+        self._prime(cog, reloaded=False)
+        cog._pokemon_names_synced = True
+        with patch("cogs.scheduled.sync_pokemon_names", new=AsyncMock()) as sync:
+            await cog._refresh_masterfile_data()
+        sync.assert_not_awaited()
+
+    async def test_resyncs_after_a_reload(self, cog):
+        self._prime(cog, reloaded=True)
+        cog._pokemon_names_synced = True
+        with patch(
+            "cogs.scheduled.sync_pokemon_names", new=AsyncMock(return_value=1)
+        ) as sync:
+            await cog._refresh_masterfile_data()
+        sync.assert_awaited_once()
+        cog.poliswag.mega_exporter.export.assert_called_once()
+
+    async def test_failed_sync_is_retried_next_tick(self, cog):
+        self._prime(cog, reloaded=False)
+        with patch(
+            "cogs.scheduled.sync_pokemon_names",
+            new=AsyncMock(side_effect=RuntimeError("no table")),
+        ):
+            with pytest.raises(RuntimeError):
+                await cog._refresh_masterfile_data()
+        assert cog._pokemon_names_synced is False
+
+    async def test_no_masterfile_yet_means_no_sync(self, cog):
+        self._prime(cog, reloaded=False)
+        cog.poliswag.quest_search.masterfile_data = None
+        with patch("cogs.scheduled.sync_pokemon_names", new=AsyncMock()) as sync:
+            await cog._refresh_masterfile_data()
+        sync.assert_not_awaited()
+        assert cog._pokemon_names_synced is False
