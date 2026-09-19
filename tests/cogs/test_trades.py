@@ -44,7 +44,7 @@ def member(discord_id=123, name="jmboyz", display_name="JMBoyz"):
 
 async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
     author = member()
-    await cog.trocas(ctx_for(author))
+    await Trades.trocas.callback(cog, ctx_for(author))
 
     sent = author.send.call_args[1]["embed"].description
     code = next(w for w in sent.split() if is_valid(w))
@@ -59,14 +59,14 @@ async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
 
 async def test_trocas_dm_includes_the_login_link(cog):
     author = member()
-    await cog.trocas(ctx_for(author))
+    await Trades.trocas.callback(cog, ctx_for(author))
     assert "/entrar/" in author.send.call_args[1]["embed"].description
 
 
 async def test_trocas_confirms_in_channel_without_the_code(cog):
     author = member()
     ctx = ctx_for(author)
-    await cog.trocas(ctx)
+    await Trades.trocas.callback(cog, ctx)
     reply = ctx.send.call_args[1]["embed"].description
     assert not any(is_valid(word) for word in reply.split())
 
@@ -76,7 +76,7 @@ async def test_trocas_reports_closed_dms_and_stores_nothing(cog, poliswag):
     author.send.side_effect = discord.Forbidden(MagicMock(status=403), "closed")
     ctx = ctx_for(author)
 
-    await cog.trocas(ctx)
+    await Trades.trocas.callback(cog, ctx)
 
     poliswag.trade_player_store.upsert.assert_not_awaited()
     assert "DM" in ctx.send.call_args[1]["embed"].description
