@@ -17,6 +17,7 @@ from modules.account_monitor import AccountMonitor
 from modules.poracle_client import PoracleClient
 from modules.device_manager import DeviceManager
 from modules.lure_manager import LureManager
+from modules.page_view_stats import PageViewStats
 from modules.lure_watcher import LureWatcher
 from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
@@ -49,6 +50,7 @@ class Poliswag(commands.Bot):
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
         self.lure_manager = LureManager(self)
+        self.page_view_stats = PageViewStats(self)
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
 
@@ -80,6 +82,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.notifications")
         await self.load_extension("cogs.scheduled")
         await self.load_extension("cogs.lures")
+        await self.load_extension("cogs.webstats")
         await self.tree.sync()
 
     async def get_channels(self):

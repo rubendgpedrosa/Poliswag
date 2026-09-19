@@ -974,5 +974,60 @@ VALUES
   ('bad_invalid','pw_bad',0,0,0,1,0,100,200,NULL);
 UNLOCK TABLES;
 
+-- The landing app's analytics schema (pogoleiria.pt), read by
+-- modules/page_view_stats.py. Deliberately WITHOUT the seven optional columns
+-- from that repo's 002 migration (os_version, browser_version, model, arch,
+-- bitness, cpu_cores, device_memory), so `make up` exercises the
+-- column-not-there path the information_schema detection exists for.
+CREATE DATABASE IF NOT EXISTS `pogoleiria`;
+USE `pogoleiria`;
+
+CREATE TABLE IF NOT EXISTS `page_view` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `view` varchar(16) NOT NULL,
+  `path` varchar(255) NOT NULL,
+  `is_load` tinyint(1) NOT NULL,
+  `load_id` char(16) NOT NULL,
+  `visitor` char(16) NOT NULL,
+  `device` enum('mobile','tablet','desktop') NOT NULL,
+  `os` varchar(20) DEFAULT NULL,
+  `browser` varchar(20) DEFAULT NULL,
+  `standalone` tinyint(1) NOT NULL,
+  `screen_w` smallint(5) unsigned DEFAULT NULL,
+  `lang` varchar(16) DEFAULT NULL,
+  `country` char(2) DEFAULT NULL,
+  `referrer` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_created` (`created_at`),
+  KEY `idx_view_created` (`view`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+LOCK TABLES `page_view` WRITE;
+INSERT INTO `page_view`
+  (`created_at`,`view`,`path`,`is_load`,`load_id`,`visitor`,`device`,`os`,`browser`,`standalone`,`screen_w`,`lang`,`country`,`referrer`)
+VALUES
+  (NOW() - INTERVAL 2 DAY + INTERVAL 9 HOUR, 'home','/',1,'aaaa000000000001','v001aaaaaaaaaaaa','mobile','Android','Chrome',0,384,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 2 DAY + INTERVAL 9 HOUR, 'map','/mapa',0,'aaaa000000000001','v001aaaaaaaaaaaa','mobile','Android','Chrome',0,384,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 2 DAY + INTERVAL 10 HOUR,'map','/mapa',1,'aaaa000000000002','v002aaaaaaaaaaaa','desktop','Windows','Chrome',0,1920,'en-US','PT','discord.com'),
+  (NOW() - INTERVAL 2 DAY + INTERVAL 10 HOUR,'quests','/quests',0,'aaaa000000000002','v002aaaaaaaaaaaa','desktop','Windows','Chrome',0,1920,'en-US','PT',NULL),
+  (NOW() - INTERVAL 2 DAY + INTERVAL 18 HOUR,'home','/',1,'aaaa000000000003','v003aaaaaaaaaaaa','mobile','iOS','Safari',0,390,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 8 HOUR, 'home','/',1,'bbbb000000000001','v101bbbbbbbbbbbb','mobile','Android','Samsung Internet',1,412,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 8 HOUR, 'map','/mapa',0,'bbbb000000000001','v101bbbbbbbbbbbb','mobile','Android','Samsung Internet',1,412,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 8 HOUR, 'dex','/dex',0,'bbbb000000000001','v101bbbbbbbbbbbb','mobile','Android','Samsung Internet',1,412,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 12 HOUR,'map','/mapa/pokemon/25',1,'bbbb000000000002','v102bbbbbbbbbbbb','mobile','Android','Chrome',0,360,'pt-BR','BR','t.co'),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 12 HOUR,'home','/',0,'bbbb000000000002','v102bbbbbbbbbbbb','mobile','Android','Chrome',0,360,'pt-BR','BR',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 13 HOUR,'map','/mapa',1,'bbbb000000000003','v103bbbbbbbbbbbb','tablet','Android','Chrome',0,800,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 20 HOUR,'quests','/quests',1,'bbbb000000000004','v104bbbbbbbbbbbb','desktop','Linux','Firefox',0,2560,'en-GB',NULL,NULL),
+  (NOW() - INTERVAL 1 DAY + INTERVAL 21 HOUR,'home','/',1,'bbbb000000000005','v105bbbbbbbbbbbb','desktop','Windows','Opera',0,1366,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 2 HOUR,'home','/',1,'cccc000000000001','v201cccccccccccc','mobile','Android','Chrome',0,384,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 2 HOUR,'map','/mapa',0,'cccc000000000001','v201cccccccccccc','mobile','Android','Chrome',0,384,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 2 HOUR,'map','/mapa/pokestop/12345',0,'cccc000000000001','v201cccccccccccc','mobile','Android','Chrome',0,384,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 HOUR,'map','/mapa',1,'cccc000000000002','v202cccccccccccc','mobile','iOS','Safari',1,393,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 1 HOUR,'dex','/dex',0,'cccc000000000002','v202cccccccccccc','mobile','iOS','Safari',1,393,'pt-PT','PT',NULL),
+  (NOW() - INTERVAL 30 MINUTE,'home','/',1,'cccc000000000003','v203cccccccccccc','desktop','Windows','Chrome',0,1920,'en-US','PT','google.com'),
+  (NOW() - INTERVAL 10 MINUTE,'map','/mapa',1,'cccc000000000004','v204cccccccccccc','mobile','Android','Chrome',0,412,'pt-PT','PT',NULL);
+UNLOCK TABLES;
+
 GRANT ALL PRIVILEGES ON *.* TO 'poliswag'@'%' IDENTIFIED BY 'poliswag';
 FLUSH PRIVILEGES;
