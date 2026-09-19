@@ -90,6 +90,12 @@ Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a 
 - `!lures` — list up to 5 free, healthy accounts with lures available
 - `!uselure <username> <n>` — adjust an account's lure count (positive adds, negative removes)
 
+### Estatísticas *(MY_ID only)*
+
+| Command | Does |
+|---|---|
+| `!webstats [período]` | DMs `MY_ID` the site's page-view statistics. `hoje`, `7d` (default), `30d`, `Nd` (1-365) or `all`. Only `MY_ID` may run it, and the report only ever arrives by DM — the invoking message is deleted from the channel. |
+
 ### Operations
 - `!accounts` — render the current account-pool status as an image
 - `!status` *(admin)* — live diagnostic snapshot: last pokémon seen, Rotom devices, Dragonite workers, account pool
