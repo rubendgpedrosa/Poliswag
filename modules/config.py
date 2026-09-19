@@ -50,6 +50,7 @@ class Config:
     # Deliberately not in _REQUIRED_ENV_VARS: the default is correct and an
     # unreachable analytics schema must not stop the bot booting.
     DB_POGOLEIRIA = os.environ.get("DB_POGOLEIRIA", "pogoleiria")
+    TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/trocas")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
