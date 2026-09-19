@@ -1,9 +1,13 @@
 """Tests for modules.image_generator.ImageGenerator.
 
 Focuses on the pure-logic static-map URL builder and the error branches of
-the async HTML→PNG helpers (by making imgkit.from_string raise).
+the async HTML→PNG helpers (by making imgkit.from_file raise).
+
+The renderer writes the page to a temp file it deletes, so a test that wants
+the rendered HTML reads the path it was handed.
 """
 
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,6 +34,11 @@ class TestInit:
         assert g._env is None
         assert g._quest_template is None
         assert g._accounts_template is None
+
+
+def rendered(path):
+    """What the template produced, without the charset tag the renderer prepends."""
+    return open(path, encoding="utf-8").read().removeprefix('<meta charset="UTF-8">')
 
 
 @pytest.fixture
@@ -91,7 +100,7 @@ class TestGenerateImageFromQuestData:
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "quests.html").write_text("<html>{{ has_leiria }}</html>")
         mocker.patch(
-            "modules.image_generator.imgkit.from_string",
+            "modules.image_generator.imgkit.from_file",
             side_effect=OSError("wkhtmltopdf missing"),
         )
         result = await ig.generate_image_from_quest_data([], [], True, False)
@@ -105,7 +114,7 @@ class TestGenerateImageFromQuestData:
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "quests.html").write_text("<html>ok</html>")
         mocker.patch(
-            "modules.image_generator.imgkit.from_string",
+            "modules.image_generator.imgkit.from_file",
             return_value=b"PNGDATA",
         )
         result = await ig.generate_image_from_quest_data([], [], False, False)
@@ -117,7 +126,7 @@ class TestGenerateImageFromAccountStats:
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "accounts.html").write_text("<html>{{ good }}</html>")
         mocker.patch(
-            "modules.image_generator.imgkit.from_string",
+            "modules.image_generator.imgkit.from_file",
             side_effect=RuntimeError("render failed"),
         )
         result = await ig.generate_image_from_account_stats(
@@ -136,12 +145,12 @@ class TestGenerateImageFromAccountStats:
         (tmp_path / "accounts.html").write_text("<html>{{ good }}</html>")
         captured = {}
 
-        def fake_from_string(html, out, options):
-            captured["html"] = html
+        def fake_from_file(path, out, options):
+            captured["html"] = rendered(path)
             return b"IMG"
 
         mocker.patch(
-            "modules.image_generator.imgkit.from_string", side_effect=fake_from_string
+            "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
         )
         # Empty dict — .get() defaults all fields to 0.
         result = await ig.generate_image_from_account_stats({}, False)
@@ -157,8 +166,10 @@ class TestGenerateImageFromAccountStats:
         )
         captured = {}
         mocker.patch(
-            "modules.image_generator.imgkit.from_string",
-            side_effect=lambda html, out, options: captured.setdefault("html", html)
+            "modules.image_generator.imgkit.from_file",
+            side_effect=lambda path, out, options: captured.setdefault(
+                "html", rendered(path)
+            )
             or b"IMG",
         )
         await ig.generate_image_from_account_stats(
@@ -226,12 +237,12 @@ class TestGenerateImageFromAccountStats:
         (tmp_path / "accounts.html").write_text("<html>{{ good }}-v1</html>")
         captured = []
 
-        def fake_from_string(html, out, options):
-            captured.append(html)
+        def fake_from_file(path, out, options):
+            captured.append(rendered(path))
             return b"IMG"
 
         mocker.patch(
-            "modules.image_generator.imgkit.from_string", side_effect=fake_from_string
+            "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
         )
 
         await ig.generate_image_from_account_stats({"good": 1}, True)
@@ -244,3 +255,66 @@ class TestGenerateImageFromAccountStats:
         await ig.generate_image_from_account_stats({"good": 2}, True)
 
         assert captured == ["<html>1-v1</html>", "<html>2-v1</html>"]
+
+
+class TestRenderPngLeavesNothingBehind:
+    """wkhtmltoimage 0.12.6 spools stdin into /tmp/wktemp-<uuid>.html and never
+    deletes it, and imgkit.from_string always uses stdin — one leaked file per
+    render, ~1440/day on the 60s account tick. Rendering from a file we own and
+    delete is the fix; these tests hold that seam in place."""
+
+    async def test_renders_from_a_file_it_owns_and_then_removes_it(self, ig, mocker):
+        seen = {}
+
+        def fake_from_file(path, out, options):
+            seen["path"] = path
+            seen["content"] = open(path, encoding="utf-8").read()
+            return b"PNG"
+
+        mocker.patch(
+            "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
+        )
+        result = await ig._render_png(
+            "<html>olá</html>", {"format": "png"}, "test image"
+        )
+
+        assert result == b"PNG"
+        assert seen["content"].endswith("<html>olá</html>")
+        assert not os.path.exists(seen["path"])
+
+    async def test_keeps_the_charset_prefix_the_string_path_used_to_add(
+        self, ig, mocker
+    ):
+        seen = {}
+
+        def fake_from_file(path, out, options):
+            seen["content"] = open(path, encoding="utf-8").read()
+            return b"PNG"
+
+        mocker.patch(
+            "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
+        )
+        await ig._render_png("<html>x</html>", {"format": "png"}, "test image")
+
+        # imgkit prepended this for every string source; a template without its
+        # own charset tag would otherwise start rendering accents differently.
+        assert seen["content"].startswith('<meta charset="UTF-8">')
+
+    async def test_removes_the_file_even_when_the_render_blows_up(self, ig, mocker):
+        paths = []
+
+        def boom(path, out, options):
+            paths.append(path)
+            raise OSError("wkhtmltopdf missing")
+
+        mocker.patch("modules.image_generator.imgkit.from_file", side_effect=boom)
+        result = await ig._render_png("<html>x</html>", {"format": "png"}, "test image")
+
+        assert result is None
+        assert not os.path.exists(paths[0])
+
+    async def test_never_touches_the_leaking_stdin_path(self, ig, mocker):
+        from_string = mocker.patch("modules.image_generator.imgkit.from_string")
+        mocker.patch("modules.image_generator.imgkit.from_file", return_value=b"PNG")
+        await ig._render_png("<html>x</html>", {"format": "png"}, "test image")
+        from_string.assert_not_called()
