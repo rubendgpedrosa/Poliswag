@@ -1,4 +1,8 @@
 import asyncio
+import contextlib
+import os
+import tempfile
+
 import imgkit
 from jinja2 import Environment, FileSystemLoader
 
@@ -8,6 +12,10 @@ from modules.config import Config
 # footer -- fixed order so Leiria always renders before Marinha
 # regardless of dict/query row order.
 _AREA_LABELS = (("Leiria", "Leiria"), ("MarinhaGrande", "Marinha"))
+
+# What imgkit.from_string prepends to every source it pipes; kept so rendering
+# from a file cannot change how a template without its own charset tag renders.
+_CHARSET_META = '<meta charset="UTF-8">'
 
 
 class ImageGenerator:
@@ -33,15 +41,25 @@ class ImageGenerator:
         return self._env
 
     async def _render_png(self, html_content, options, error_label):
+        # Renders from a file we own rather than imgkit.from_string, which
+        # pipes through stdin -- and wkhtmltoimage 0.12.6 spools stdin into
+        # /tmp/wktemp-<uuid>.html and never deletes it, even on a clean exit.
+        # That leaked one file per render, ~1440 a day on the 60s account tick.
+        # The charset tag is the one imgkit prepends to every string source, so
+        # wkhtmltoimage still receives byte-identical input.
+        handle, path = tempfile.mkstemp(suffix=".html", prefix="poliswag-render-")
         try:
-            return await asyncio.to_thread(
-                imgkit.from_string, html_content, False, options
-            )
+            with os.fdopen(handle, "w", encoding="utf-8") as page:
+                page.write(_CHARSET_META + html_content)
+            return await asyncio.to_thread(imgkit.from_file, path, False, options)
         except Exception as e:
             self.poliswag.utility.log_to_file(
                 f"Error generating {error_label}: {e}", "ERROR"
             )
             return None
+        finally:
+            with contextlib.suppress(OSError):
+                os.unlink(path)
 
     async def generate_image_from_quest_data(
         self, quests_leiria, quests_marinha, has_leiria, has_marinha
