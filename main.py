@@ -19,6 +19,7 @@ from modules.device_manager import DeviceManager
 from modules.lure_manager import LureManager
 from modules.page_view_stats import PageViewStats
 from modules.lure_watcher import LureWatcher
+from modules.trade_player_store import TradePlayerStore
 from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
@@ -51,6 +52,7 @@ class Poliswag(commands.Bot):
         self.device_manager = DeviceManager(self)
         self.lure_manager = LureManager(self)
         self.page_view_stats = PageViewStats(self)
+        self.trade_player_store = TradePlayerStore()
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
 
@@ -83,6 +85,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.scheduled")
         await self.load_extension("cogs.lures")
         await self.load_extension("cogs.webstats")
+        await self.load_extension("cogs.trades")
         await self.tree.sync()
 
     async def get_channels(self):
