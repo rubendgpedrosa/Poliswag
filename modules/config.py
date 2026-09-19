@@ -46,6 +46,10 @@ class Config:
     DB_POLISWAG = os.environ.get("DB_POLISWAG")
     DB_SCANNER_NAME = os.environ.get("DB_SCANNER_NAME")
     DB_DRAGONITE = os.environ.get("DB_DRAGONITE", "dragonite")
+    # The landing app's analytics schema, read by modules/page_view_stats.py.
+    # Deliberately not in _REQUIRED_ENV_VARS: the default is correct and an
+    # unreachable analytics schema must not stop the bot booting.
+    DB_POGOLEIRIA = os.environ.get("DB_POGOLEIRIA", "pogoleiria")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
