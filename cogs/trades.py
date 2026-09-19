@@ -22,11 +22,6 @@ class Trades(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.store = poliswag.trade_player_store
-        # add_cog() binds this the same way once the cog is actually loaded;
-        # set eagerly so unit tests can call cog.trocas(ctx) directly, the
-        # way the test suite for this cog does, without going through
-        # add_cog first.
-        self.trocas.cog = self
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
