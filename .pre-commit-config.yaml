@@ -17,6 +17,18 @@ repos:
         language_version: python3
         description: "Black: Python code formatter"
 
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        description: "Vulture: dead code detector, same invocation CI runs"
+        # Whole-project scan, not the changed files: vulture decides something
+        # is unused by finding no reference to it, so handing it a subset makes
+        # it report everything the rest of the tree uses.
+        args: ["--min-confidence", "70", "."]
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

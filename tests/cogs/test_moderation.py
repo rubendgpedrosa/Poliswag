@@ -237,7 +237,7 @@ class TestGetOrCreateTrapMessage:
         other_message = MagicMock()
         other_message.author = _member(111)
 
-        async def _history(limit):
+        async def _history(**_kwargs):
             for m in [other_message, own_message]:
                 yield m
 
@@ -247,9 +247,9 @@ class TestGetOrCreateTrapMessage:
         cog.poliswag.TRAP_CHANNEL.send.assert_not_called()
 
     async def test_creates_new_message_when_none_found(self, cog):
-        async def _history(limit):
-            return
-            yield  # pragma: no cover - makes this an async generator
+        async def _history(**_kwargs):
+            for message in []:  # an async generator that yields nothing
+                yield message  # pragma: no cover
 
         cog.poliswag.TRAP_CHANNEL.history = _history
         posted = MagicMock()
@@ -375,9 +375,9 @@ class TestRefreshTrapMessage:
         )
         cog._trap_message = stale_message
 
-        async def _empty_history(limit):
-            return
-            yield  # pragma: no cover - makes this an async generator
+        async def _empty_history(**_kwargs):
+            for message in []:  # an async generator that yields nothing
+                yield message  # pragma: no cover
 
         new_message = MagicMock()
         channel = MagicMock()
@@ -398,9 +398,9 @@ class TestRefreshTrapMessage:
         )
         cog._trap_message = stale_message
 
-        async def _empty_history(limit):
-            return
-            yield  # pragma: no cover - makes this an async generator
+        async def _empty_history(**_kwargs):
+            for message in []:  # an async generator that yields nothing
+                yield message  # pragma: no cover
 
         channel = MagicMock()
         channel.history = _empty_history
