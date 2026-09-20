@@ -20,6 +20,7 @@ from modules.lure_manager import LureManager
 from modules.page_view_stats import PageViewStats
 from modules.lure_watcher import LureWatcher
 from modules.trade_player_store import TradePlayerStore
+from modules.trade_stats import TradeStats
 from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
@@ -53,6 +54,7 @@ class Poliswag(commands.Bot):
         self.lure_manager = LureManager(self)
         self.page_view_stats = PageViewStats(self)
         self.trade_player_store = TradePlayerStore()
+        self.trade_stats = TradeStats()
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
 
