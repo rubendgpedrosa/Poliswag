@@ -19,7 +19,13 @@ class TradePlayerStore:
         self.db = DatabaseConnector(Config.DB_POGOLEIRIA)
 
     async def upsert(self, discord_id, username, display_name, avatar_url, code_hash):
-        """Issue (or re-issue) a code. Also refreshes identity and un-leaves."""
+        """Issue (or re-issue) a code. Also refreshes identity and un-leaves.
+
+        The un-leave self-heals a join the bot slept through, so it is only
+        safe while the caller knows the player is a member: cogs/trades.py
+        checks that before calling this in a DM, where the DM channel can
+        outlive the membership.
+        """
         await self.db.execute_query_to_database(
             """
             INSERT INTO trade_player

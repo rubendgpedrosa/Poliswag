@@ -17,6 +17,9 @@ def poliswag():
         clear_left=AsyncMock(),
         reconcile=AsyncMock(return_value=([], [])),
     )
+    # The default caller is a member, which is what every test but the
+    # membership ones is about.
+    bot.guilds = [guild_with(123)]
     return bot
 
 
@@ -32,6 +35,15 @@ def ctx_for(author, in_guild=True):
     ctx.guild = MagicMock() if in_guild else None
     ctx.message = MagicMock(delete=AsyncMock())
     return ctx
+
+
+def guild_with(*member_ids):
+    """A guild whose member cache holds exactly these ids, and nobody else."""
+    members = {i: member(i) for i in member_ids}
+    guild = MagicMock()
+    guild.members = list(members.values())
+    guild.get_member = lambda user_id: members.get(user_id)
+    return guild
 
 
 def member(discord_id=123, name="jmboyz", display_name="JMBoyz"):
@@ -213,3 +225,40 @@ def test_trocas_still_reaches_the_command():
     """Half the server learned !trocas on day one; it must keep working."""
     assert "trocas" in Trades.trades.aliases
     assert Trades.trades.name == "trades"
+
+
+async def test_trocas_in_a_dm_refuses_someone_who_left_the_server(cog, poliswag):
+    """The DM channel outlives the membership, so the command must not.
+
+    Without this, upsert() would clear left_at and hand a departed — or
+    removed — player a working login straight back.
+    """
+    author = member(999)
+    poliswag.guilds = [guild_with(123)]
+    ctx = ctx_for(author, in_guild=False)
+
+    await Trades.trades.callback(cog, ctx)
+
+    author.send.assert_not_awaited()
+    poliswag.trade_player_store.upsert.assert_not_awaited()
+    ctx.send.assert_awaited_once()
+
+
+async def test_trocas_in_a_channel_never_asks_about_membership(cog, poliswag):
+    """Posting in a guild channel is the proof; the cache isn't consulted."""
+    author = member(999)
+    poliswag.guilds = [guild_with(123)]
+
+    await Trades.trades.callback(cog, ctx_for(author))
+
+    poliswag.trade_player_store.upsert.assert_awaited_once()
+
+
+async def test_trocas_in_a_dm_proceeds_when_no_members_are_cached(cog, poliswag):
+    """An empty cache is the bot's problem, not the player's — fail open."""
+    author = member(999)
+    poliswag.guilds = []
+
+    await Trades.trades.callback(cog, ctx_for(author, in_guild=False))
+
+    poliswag.trade_player_store.upsert.assert_awaited_once()
