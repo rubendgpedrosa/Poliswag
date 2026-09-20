@@ -25,10 +25,12 @@ def cog(poliswag):
     return Trades(poliswag)
 
 
-def ctx_for(author):
+def ctx_for(author, in_guild=True):
     ctx = MagicMock()
     ctx.author = author
     ctx.send = AsyncMock()
+    ctx.guild = MagicMock() if in_guild else None
+    ctx.message = MagicMock(delete=AsyncMock())
     return ctx
 
 
@@ -107,3 +109,62 @@ async def test_reconcile_passes_the_guild_member_ids(cog, poliswag):
     await cog.reconcile()
 
     poliswag.trade_player_store.reconcile.assert_awaited_once_with({1, 2})
+
+
+async def test_trocas_deletes_the_command_message_in_a_channel(cog):
+    ctx = ctx_for(member())
+    await Trades.trocas.callback(cog, ctx)
+    ctx.message.delete.assert_awaited_once()
+
+
+async def test_trocas_deletes_the_command_before_sending_the_dm(cog):
+    """The code must never sit beside a visible !trocas in the channel."""
+    order = []
+    author = member()
+    ctx = ctx_for(author)
+    ctx.message.delete.side_effect = lambda *a, **k: order.append("delete")
+    author.send.side_effect = lambda *a, **k: order.append("dm")
+
+    await Trades.trocas.callback(cog, ctx)
+
+    assert order == ["delete", "dm"]
+
+
+async def test_trocas_survives_missing_manage_messages(cog, poliswag):
+    ctx = ctx_for(member())
+    ctx.message.delete.side_effect = discord.Forbidden(
+        MagicMock(status=403), "no perms"
+    )
+
+    await Trades.trocas.callback(cog, ctx)
+
+    poliswag.trade_player_store.upsert.assert_awaited_once()
+
+
+async def test_trocas_channel_confirmation_self_destructs(cog):
+    ctx = ctx_for(member())
+    await Trades.trocas.callback(cog, ctx)
+    assert ctx.send.call_args[1]["delete_after"] > 0
+
+
+async def test_trocas_in_a_dm_deletes_nothing_and_adds_no_second_message(cog, poliswag):
+    author = member()
+    ctx = ctx_for(author, in_guild=False)
+
+    await Trades.trocas.callback(cog, ctx)
+
+    ctx.message.delete.assert_not_awaited()
+    ctx.send.assert_not_awaited()
+    author.send.assert_awaited_once()
+    poliswag.trade_player_store.upsert.assert_awaited_once()
+
+
+async def test_trocas_in_a_dm_reports_nothing_to_delete_on_forbidden(cog):
+    """A DM channel message can't be deleted by the bot; it must not crash."""
+    author = member()
+    ctx = ctx_for(author, in_guild=False)
+    ctx.message.delete.side_effect = AssertionError("must not be called in a DM")
+
+    await Trades.trocas.callback(cog, ctx)
+
+    author.send.assert_awaited_once()
