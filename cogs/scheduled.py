@@ -9,6 +9,7 @@ from modules.embeds import build_embed, status_embed
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
+from modules.trade_announcer import TradeAnnouncer
 
 
 class Scheduled(commands.Cog):
@@ -26,6 +27,7 @@ class Scheduled(commands.Cog):
         # The masterfile is loaded before this cog exists, so without the
         # flag the table would stay empty until the next 24h reload.
         self._pokemon_names_synced = False
+        self._trade_announcer = TradeAnnouncer(poliswag)
 
     async def _load_digest_date(self):
         try:
@@ -196,6 +198,7 @@ class Scheduled(commands.Cog):
             self._check_weekly_digest,
             self._check_daily_error_digest,
             self._check_tracking_health,
+            self._trade_announcer.tick,
         ):
             await self._run_tick_step(step)
 

@@ -47,6 +47,21 @@ class Trades(commands.Cog):
     )
     async def trades(self, ctx):
         author = ctx.author
+
+        # In a channel, being here is proof of membership. In a DM it is not:
+        # the DM channel outlives the membership that created it, so without
+        # this someone who left — or was removed — could type !trades and have
+        # upsert() clear their left_at, undoing the block on their way out.
+        if ctx.guild is None and not self.is_member(author.id):
+            await ctx.send(
+                embed=build_embed(
+                    "TRADES",
+                    "As Trades são para membros do servidor PoGo Leiria. "
+                    "Entra no servidor e escreve `!trades` outra vez.",
+                )
+            )
+            return
+
         code = format_code(generate())
         link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}"
 
@@ -81,9 +96,10 @@ class Trades(commands.Cog):
             await ctx.send(
                 embed=build_embed(
                     "TRADES",
-                    f"{author.mention} não consegui enviar-te DM. Ativa "
-                    "*Mensagens privadas de membros do servidor* nas "
-                    "definições de privacidade e tenta outra vez.",
+                    f"{author.mention} não consegui enviar-te DM. No servidor "
+                    "PoGo Leiria: toca no nome do servidor → **Privacidade** "
+                    "→ liga **Mensagens diretas**. Depois escreve `!trades` "
+                    "outra vez.",
                 ),
                 delete_after=CONFIRMATION_SECONDS,
             )
@@ -107,6 +123,25 @@ class Trades(commands.Cog):
             ),
             delete_after=CONFIRMATION_SECONDS,
         )
+
+    def is_member(self, user_id):
+        """Is this user in a guild the bot serves?
+
+        Reads the member cache rather than fetching: `Intents.all()` keeps it
+        populated, and a login command shouldn't wait on an API call.
+
+        Fails open when no guild has any member cached at all — the same call
+        reconcile() makes, for the same reason. An empty cache is the bot's
+        problem, and locking every player out of their lists over it is worse
+        than the hole it would close.
+        """
+        guilds = list(getattr(self.poliswag, "guilds", None) or [])
+        cached = False
+        for guild in guilds:
+            if guild.get_member(user_id) is not None:
+                return True
+            cached = cached or bool(getattr(guild, "members", None))
+        return not cached
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
