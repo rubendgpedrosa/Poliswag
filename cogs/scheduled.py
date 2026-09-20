@@ -8,6 +8,7 @@ from modules.config import Config
 from modules.embeds import build_embed, status_embed
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
+from modules import tracking_health
 
 
 class Scheduled(commands.Cog):
@@ -19,6 +20,8 @@ class Scheduled(commands.Cog):
         self._last_quest_export = None
         self._last_error_digest_at = None
         self._last_lure_status_count = None
+        self._tracking = tracking_health.TrackingHealth()
+        self._last_tracking_alert_at = None
         # False until the first successful write to poliswag.pokemon_name.
         # The masterfile is loaded before this cog exists, so without the
         # flag the table would stay empty until the next 24h reload.
@@ -76,6 +79,7 @@ class Scheduled(commands.Cog):
         print(f"{self.__class__.__name__} loaded!")
         self._last_weekly_digest_monday = await self._load_digest_date()
         self._last_error_digest_at = await self._load_error_digest_at()
+        self._last_tracking_alert_at = await self._load_tracking_alert_at()
         self.scheduled_tasks.start()
 
     async def cog_unload(self):
@@ -191,6 +195,7 @@ class Scheduled(commands.Cog):
             self._update_accounts_display,
             self._check_weekly_digest,
             self._check_daily_error_digest,
+            self._check_tracking_health,
         ):
             await self._run_tick_step(step)
 
@@ -528,6 +533,64 @@ class Scheduled(commands.Cog):
             description[:4000],
         )
         await self.poliswag.MOD_CHANNEL.send(embed=embed)
+
+    async def _check_tracking_health(self):
+        """Tell MY_ID when the site stops recording, and when it starts again.
+
+        The statistics report cannot do this job: it only speaks to whoever
+        opens it, and a dead collector looks exactly like a quiet week on the
+        page. This is the one analytics fact worth pushing.
+        """
+        if not Config.MY_ID:
+            return
+
+        last_event_at = await self._tracking.last_event_at()
+        action, silence = tracking_health.decide(
+            last_event_at, self._last_tracking_alert_at
+        )
+        if action is None:
+            return
+
+        now = datetime.datetime.utcnow()
+        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
+            Config.MY_ID
+        )
+        try:
+            await user.send(tracking_health.message(action, silence))
+        except discord.HTTPException:
+            # A failed DM must not burn the alert: leaving the state alone
+            # means the next tick tries again.
+            self.poliswag.utility.log_to_file(
+                "Could not DM the tracking-health alert", "ERROR"
+            )
+            return
+
+        self._last_tracking_alert_at = now if action == "alert" else None
+        await self._save_tracking_alert_at(self._last_tracking_alert_at)
+
+    async def _load_tracking_alert_at(self):
+        try:
+            rows = await self.poliswag.db.get_data_from_database(
+                "SELECT last_tracking_alert_at FROM poliswag"
+            )
+            if rows and rows[0]["last_tracking_alert_at"]:
+                value = rows[0]["last_tracking_alert_at"]
+                return (
+                    value
+                    if isinstance(value, datetime.datetime)
+                    else datetime.datetime.fromisoformat(str(value))
+                )
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Failed to load last_tracking_alert_at: {e}"
+            )
+        return None
+
+    async def _save_tracking_alert_at(self, when):
+        await self.poliswag.db.execute_query_to_database(
+            "UPDATE poliswag SET last_tracking_alert_at = %s",
+            params=(when.strftime("%Y-%m-%d %H:%M:%S") if when else None,),
+        )
 
 
 async def setup(poliswag):
