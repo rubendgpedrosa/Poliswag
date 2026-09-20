@@ -48,8 +48,9 @@ async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
     author = member()
     await Trades.trocas.callback(cog, ctx_for(author))
 
-    sent = author.send.call_args[1]["embed"].description
-    code = next(w for w in sent.split() if is_valid(w))
+    # The code now travels alone, in its own copyable message.
+    code = author.send.call_args_list[1].args[0]
+    assert is_valid(code)
     poliswag.trade_player_store.upsert.assert_awaited_once()
     kwargs = poliswag.trade_player_store.upsert.await_args[1]
     assert kwargs["discord_id"] == 123
@@ -62,7 +63,7 @@ async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
 async def test_trocas_dm_includes_the_login_link(cog):
     author = member()
     await Trades.trocas.callback(cog, ctx_for(author))
-    assert "/entrar/" in author.send.call_args[1]["embed"].description
+    assert "/entrar/" in author.send.call_args_list[0].kwargs["embed"].description
 
 
 async def test_trocas_confirms_in_channel_without_the_code(cog):
@@ -127,7 +128,8 @@ async def test_trocas_deletes_the_command_before_sending_the_dm(cog):
 
     await Trades.trocas.callback(cog, ctx)
 
-    assert order == ["delete", "dm"]
+    assert order[0] == "delete"
+    assert order[1:] == ["dm", "dm"]
 
 
 async def test_trocas_survives_missing_manage_messages(cog, poliswag):
@@ -155,7 +157,8 @@ async def test_trocas_in_a_dm_deletes_nothing_and_adds_no_second_message(cog, po
 
     ctx.message.delete.assert_not_awaited()
     ctx.send.assert_not_awaited()
-    author.send.assert_awaited_once()
+    # Explanation plus the bare code, and nothing in the channel.
+    assert author.send.await_count == 2
     poliswag.trade_player_store.upsert.assert_awaited_once()
 
 
@@ -167,4 +170,40 @@ async def test_trocas_in_a_dm_reports_nothing_to_delete_on_forbidden(cog):
 
     await Trades.trocas.callback(cog, ctx)
 
-    author.send.assert_awaited_once()
+    assert author.send.await_count == 2
+
+
+async def test_the_code_arrives_in_a_message_of_its_own(cog):
+    """Long-press -> Copy Text must yield the code and nothing else."""
+    author = member()
+    await Trades.trocas.callback(cog, ctx_for(author))
+
+    bare = [
+        call.args[0]
+        for call in author.send.call_args_list
+        if call.args and isinstance(call.args[0], str)
+    ]
+    assert len(bare) == 1
+    assert is_valid(bare[0])
+    assert bare[0] == bare[0].strip()
+    assert "`" not in bare[0]
+
+
+async def test_the_explanation_arrives_before_the_code(cog):
+    author = member()
+    await Trades.trocas.callback(cog, ctx_for(author))
+
+    first, second = author.send.call_args_list
+    assert "embed" in first.kwargs
+    assert second.args and isinstance(second.args[0], str)
+
+
+async def test_the_explanation_carries_the_login_link_not_the_code(cog):
+    author = member()
+    await Trades.trocas.callback(cog, ctx_for(author))
+
+    described = author.send.call_args_list[0].kwargs["embed"].description
+    assert "/entrar/" in described
+    # The dashed code belongs to the copyable message; only the link's own
+    # undashed copy may appear here.
+    assert not any(is_valid(word) and "-" in word for word in described.split())
