@@ -61,13 +61,18 @@ class Trades(commands.Cog):
             await author.send(
                 embed=build_embed(
                     "TROCAS — O TEU CÓDIGO",
-                    f"🔑 `{code}`\n\n"
-                    f"Entrar: {link}\n\n"
-                    "Guarda-o: serve como password, e podes usá-lo em vários "
-                    "dispositivos. `!trocas` gera um novo, desativa este e "
-                    "termina a sessão em todos.",
+                    f"🔑 Toca para entrares: {link}\n\n"
+                    "Noutro dispositivo, copia o código da mensagem a seguir "
+                    "e escreve-o no site.\n\n"
+                    "É a tua password: funciona em vários dispositivos ao "
+                    "mesmo tempo e dura até pedires outro com `!trocas`, que "
+                    "desliga este.",
                 )
             )
+            # The code goes in a message of its own, plain and unformatted:
+            # on a phone, long-press -> Copy Text copies a whole message, so
+            # anything else in here comes along with it. Backticks would too.
+            await author.send(code)
         except discord.Forbidden:
             await ctx.send(
                 embed=build_embed(
