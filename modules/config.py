@@ -51,6 +51,9 @@ class Config:
     # unreachable analytics schema must not stop the bot booting.
     DB_POGOLEIRIA = os.environ.get("DB_POGOLEIRIA", "pogoleiria")
     TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/trades")
+    # The private statistics report. The token issued by !stats is appended to
+    # this, and the landing app renders the report live at that address.
+    WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
