@@ -10,6 +10,17 @@ import pytest
 
 from modules.page_view_stats import resolve_period, since_for
 
+from unittest.mock import MagicMock, patch
+import sqlite3
+import threading
+
+from modules.page_view_stats import (
+    PageViewStats,
+    _DIMENSIONS,
+    _STATEMENTS,
+    dimension_sql,
+)
+
 NOW = datetime(2026, 9, 19, 14, 30, 0, tzinfo=timezone.utc)
 
 
@@ -59,54 +70,30 @@ class TestSinceFor:
         assert since_for(1, now=late) == datetime(2026, 9, 19, 0, 0, 0)
 
 
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
+class SQLFixture:
+    """Run the real aggregation SQL over synthetic events, never production DBs."""
 
-from modules.page_view_stats import (  # noqa: E402
-    _OPTIONAL_COLUMNS,
-    _OPTIONAL_STATEMENTS,
-    _STATEMENTS,
-    PageViewStats,
-)
-
-SINCE = datetime(2026, 9, 13)
-
-
-@pytest.fixture
-def stats():
-    poliswag = MagicMock()
-    return PageViewStats(poliswag)
-
-
-def fake_connector(available=()):
-    db = AsyncMock()
-
-    async def answer(query, params=None, **kwargs):
-        if "information_schema" in query:
-            return [{"COLUMN_NAME": name} for name in available]
-        return [{"n": 1}]
-
-    db.get_data_from_database.side_effect = answer
-    return db
-
-
-class TestStatementSafety:
-    @pytest.mark.parametrize("name,sql", sorted(_STATEMENTS.items()))
-    def test_every_placeholder_is_a_bare_param(self, name, sql):
-        # pymysql runs `query % args` whenever params are passed, so a stray
-        # % (from DATE_FORMAT, say) raises "unsupported format character".
-        assert sql.count("%") == sql.count("%s")
-
-    @pytest.mark.parametrize("name,sql", sorted(_STATEMENTS.items()))
-    def test_every_statement_takes_exactly_the_since_param(self, name, sql):
-        assert sql.count("%s") == 1
-
-    @pytest.mark.parametrize("name", sorted(_OPTIONAL_STATEMENTS))
-    def test_optional_statements_are_equally_safe(self, name):
-        _column, sql = _OPTIONAL_STATEMENTS[name]
-        assert sql.count("%") == sql.count("%s") == 1
-
-    def test_optional_columns_are_the_seven_the_sibling_spec_defines(self):
-        assert _OPTIONAL_COLUMNS == (
+    def __init__(self):
+        self.db = sqlite3.connect(":memory:")
+        self.db.row_factory = sqlite3.Row
+        self.db.create_function("HOUR", 1, lambda value: int(value[11:13]))
+        self.columns = [
+            "created_at",
+            "load_id",
+            "visitor",
+            "view",
+            "is_load",
+            "standalone",
+            "referrer",
+            "event_name",
+            "schema_version",
+            "event_id",
+            "device",
+            "os",
+            "browser",
+            "screen_w",
+            "lang",
+            "country",
             "os_version",
             "browser_version",
             "model",
@@ -114,75 +101,189 @@ class TestStatementSafety:
             "bitness",
             "cpu_cores",
             "device_memory",
+        ]
+        self.db.execute("CREATE TABLE page_view (" + ",".join(self.columns) + ")")
+        self.sql = []
+
+    def add(self, **patch):
+        row = dict(
+            created_at="2026-09-19 12:00:00",
+            load_id="a",
+            visitor="visitor-a",
+            view="home",
+            is_load=1,
+            standalone=0,
+            referrer="discord.com",
+            event_name="tool_view",
+            schema_version=2,
+            device="mobile",
+            os="Android",
+            browser="Chrome",
+            model="Pixel",
+            arch="arm",
+            bitness="64",
+            cpu_cores=8,
+            device_memory=4,
+        )
+        row.update(patch)
+        self.db.execute(
+            "INSERT INTO page_view ("
+            + ",".join(row)
+            + ") VALUES ("
+            + ",".join("?" for _ in row)
+            + ")",
+            list(row.values()),
         )
 
-    def test_every_optional_statement_guards_its_own_column(self):
-        for _name, (column, sql) in _OPTIONAL_STATEMENTS.items():
-            assert f"{column} IS NOT NULL" in sql
+    def execute(self, sql, params=()):
+        self.sql.append((sql, params))
+        if "information_schema" in sql:
+            self.rows = [{"COLUMN_NAME": c} for c in self.columns]
+        else:
+            self.rows = [
+                dict(r) for r in self.db.execute(sql.replace("%s", "?"), params)
+            ]
+            for row in self.rows:
+                for key in ("first_seen", "last_seen"):
+                    if row.get(key):
+                        row[key] = datetime.fromisoformat(row[key])
+
+    def fetchall(self):
+        return self.rows
 
 
-class TestLazyConnection:
-    def test_building_the_service_opens_no_connection(self, stats):
-        with patch("modules.page_view_stats.DatabaseConnector") as connector:
-            assert connector.call_count == 0
-        assert stats._db is None
-
-    async def test_the_first_collect_connects_and_the_second_reuses(self, stats):
-        with patch(
-            "modules.page_view_stats.DatabaseConnector", return_value=fake_connector()
-        ) as connector:
-            await stats.collect(SINCE)
-            await stats.collect(SINCE)
-        assert connector.call_count == 1
-
-    async def test_a_dead_connection_is_the_cogs_problem(self, stats):
-        with patch(
-            "modules.page_view_stats.DatabaseConnector",
-            side_effect=RuntimeError("down"),
-        ):
-            with pytest.raises(RuntimeError):
-                await stats.collect(SINCE)
+SINCE = datetime(2026, 9, 19)
+UNTIL = datetime(2026, 9, 20)
 
 
-class TestCollect:
-    async def test_runs_every_always_on_statement_with_the_period(self, stats):
-        db = fake_connector()
-        with patch("modules.page_view_stats.DatabaseConnector", return_value=db):
-            out = await stats.collect(SINCE)
-        assert set(_STATEMENTS) <= set(out)
-        for call in db.get_data_from_database.await_args_list:
-            if "information_schema" in call.args[0]:
-                continue
-            assert call.kwargs["params"] == (SINCE,)
+@pytest.fixture
+def data():
+    fixture = SQLFixture()
+    yield fixture
+    fixture.db.close()
 
-    async def test_skips_every_optional_statement_when_the_columns_are_absent(
-        self, stats
-    ):
-        db = fake_connector(available=())
-        with patch("modules.page_view_stats.DatabaseConnector", return_value=db):
-            out = await stats.collect(SINCE)
-        assert not set(_OPTIONAL_STATEMENTS) & set(out)
 
-    async def test_runs_only_the_optional_statements_whose_column_exists(self, stats):
-        db = fake_connector(available=("model",))
-        with patch("modules.page_view_stats.DatabaseConnector", return_value=db):
-            out = await stats.collect(SINCE)
-        assert "models" in out
-        assert "os_versions" not in out
+def collect(data, detail="export"):
+    return PageViewStats(None)._read(data, SINCE, UNTIL, detail)
 
-    async def test_runs_them_all_once_the_alter_has_run(self, stats):
-        db = fake_connector(available=_OPTIONAL_COLUMNS)
-        with patch("modules.page_view_stats.DatabaseConnector", return_value=db):
-            out = await stats.collect(SINCE)
-        assert set(_OPTIONAL_STATEMENTS) <= set(out)
 
-    async def test_asks_for_the_optional_columns_as_one_tuple_param(self, stats):
-        db = fake_connector()
-        with patch("modules.page_view_stats.DatabaseConnector", return_value=db):
-            await stats.collect(SINCE)
-        detect = [
-            c
-            for c in db.get_data_from_database.await_args_list
-            if "information_schema" in c.args[0]
-        ][0]
-        assert detect.kwargs["params"][1] == _OPTIONAL_COLUMNS
+def test_referral_partition_counts_entries_once_not_switches(data):
+    data.add()
+    data.add(view="quests", is_load=0, referrer=None)
+    out = collect(data)
+    assert out["totals"][0]["sessions"] == 1
+    assert out["totals"][0]["entries"] == 1
+    assert out["referrers"] == [{"referrer": "discord.com", "sessions": 1}]
+
+
+def test_continuation_without_entry_is_not_invented_direct_traffic(data):
+    data.add(is_load=0, referrer=None)
+    out = collect(data)
+    assert out["totals"][0]["sessions"] == 1
+    assert out["totals"][0]["entries"] == 0
+    assert out["referrers"] == []
+
+
+def test_actions_do_not_inflate_traffic_or_loads(data):
+    data.add()
+    data.add(event_name="friend_code_copied", is_load=0, view="trades")
+    out = collect(data)
+    assert out["totals"][0]["views"] == 1
+    assert out["actions"][0]["events"] == 1
+
+
+def test_end_is_exclusive_in_every_breakdown(data):
+    data.add()
+    data.add(load_id="future", created_at="2026-09-20 00:00:00")
+    out = collect(data)
+    assert out["totals"][0]["sessions"] == 1
+    assert out["models"] == [{"model": "Pixel", "sessions": 1}]
+    assert out["health"][0]["last_seen"] == datetime(2026, 9, 19, 12)
+
+
+def test_dimensions_partition_documents_and_keep_all_values_for_coverage(data):
+    for i in range(12):
+        data.add(load_id=str(i), model=f"Model-{i}")
+    data.add(load_id="0", model="Model-Z", is_load=0)
+    out = collect(data)
+    assert len(out["models"]) == 12
+    for dimension in _DIMENSIONS:
+        assert sum(row["sessions"] for row in out[dimension]) == 12
+
+
+def test_daily_hash_counts_only_its_day_and_documents_can_span_midnight(data):
+    data.add(created_at="2026-09-19 23:59:00")
+    data.add(created_at="2026-09-20 00:01:00", visitor="next-day", is_load=0)
+    out = PageViewStats(None)._read(data, SINCE, datetime(2026, 9, 21), "summary")
+    assert out["totals"][0]["sessions"] == 1
+    assert [r["visitors"] for r in out["daily"]] == [1, 1]
+
+
+def test_previous_window_matches_elapsed_time_of_day(data):
+    # Only the export carries a baseline now: the live report computes its own
+    # comparison, and the Discord snapshot shows no deltas.
+    out = PageViewStats(None)._read(data, SINCE, datetime(2026, 9, 19, 8), "export")
+    assert out["previous_start"] == datetime(2026, 9, 18)
+    assert out["previous_end"] == datetime(2026, 9, 18, 8)
+
+
+def test_the_snapshot_does_not_pay_for_a_baseline_or_hardware_it_never_shows(data):
+    data.add()
+    out = PageViewStats(None)._read(data, SINCE, datetime(2026, 9, 19, 8), "summary")
+    assert "previous" not in out
+    assert "models" not in out
+    assert "browser_versions" not in out
+    # What the embed actually reads.
+    assert {"totals", "daily", "views"} <= set(out)
+
+
+def test_legacy_schema_has_no_optional_column_queries(data):
+    for column in ("event_id", "event_name", "schema_version", "model"):
+        data.columns.remove(column)
+    data.add()
+    out = collect(data)
+    assert not out["schema_v2"]
+    assert "actions" not in out
+    assert "models" not in out
+
+
+def test_all_queries_use_bound_placeholders():
+    for sql in [
+        *_STATEMENTS.values(),
+        *[dimension_sql(c) for c in _DIMENSIONS.values()],
+    ]:
+        assert sql.count("%") == sql.count("%s") == 2
+
+
+async def test_connection_work_is_off_loop_and_cached_results_are_isolated():
+    service = PageViewStats(None)
+    main_thread = threading.get_ident()
+    threads = []
+
+    def read(since, until, detail):
+        threads.append(threading.get_ident())
+        return {"as_of": until, "totals": [{"views": 1}]}
+
+    with patch.object(service, "_collect_sync", side_effect=read) as query:
+        a = await service.collect(SINCE, UNTIL)
+        a["totals"][0]["views"] = 100
+        b = await service.collect(SINCE, UNTIL)
+    assert query.call_count == 1
+    assert b["totals"][0]["views"] == 1
+    assert threads[0] != main_thread
+
+
+def test_snapshot_is_read_only_and_connection_closes_on_failure():
+    db = MagicMock()
+    with patch(
+        "modules.page_view_stats.pymysql.connect", return_value=db
+    ), patch.object(PageViewStats, "_read", side_effect=RuntimeError("test")):
+        with pytest.raises(RuntimeError):
+            PageViewStats(None)._collect_sync(SINCE, UNTIL, "summary")
+    sql = [
+        call.args[0]
+        for call in db.cursor.return_value.__enter__.return_value.execute.call_args_list
+    ]
+    assert "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY" in sql
+    db.rollback.assert_called_once()
+    db.close.assert_called_once()
