@@ -111,11 +111,22 @@ class TestDelivery:
         assert "embed" in user.send.await_args_list[0].kwargs
         ctx.send.assert_not_awaited()
 
-    async def test_the_link_is_sent_in_a_message_of_its_own_to_be_copied(self, cog):
+    async def test_the_link_appears_exactly_once(self, cog):
+        # It used to go into the embed AND into a message of its own, so a
+        # single !stats printed the same URL twice.
         ctx = make_ctx()
         user = cog.poliswag.fetch_user.return_value
         await WebStats.webstats.callback(cog, ctx, None)
-        assert LINK in user.send.await_args_list[1].args[0]
+        sent = "".join(
+            str(call.args)
+            + str(
+                call.kwargs.get("embed", "").description
+                if call.kwargs.get("embed") is not None
+                else ""
+            )
+            for call in user.send.await_args_list
+        )
+        assert sent.count(LINK) == 1
 
     async def test_rotation_issues_a_new_link_and_says_the_old_one_is_dead(self, cog):
         ctx = make_ctx()
@@ -123,7 +134,10 @@ class TestDelivery:
         await WebStats.webstats.callback(cog, ctx, "novocodigo")
         cog.access.rotate.assert_awaited_once()
         cog.access.current_or_issue.assert_not_awaited()
-        assert "deixou de funcionar" in user.send.await_args_list[1].args[0]
+        note = user.send.await_args_list[1].args[0]
+        assert "deixou de funcionar" in note
+        # The warning must not reprint the link the embed already carries.
+        assert LINK not in note
 
     async def test_an_existing_link_cannot_be_reprinted_so_it_says_so(self, cog):
         # Only the hash is stored. Silently sending no link would read as a
