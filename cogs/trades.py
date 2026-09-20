@@ -1,8 +1,9 @@
-"""!trocas — issues a player's login code for the trades tool.
+"""!trades — issues a player's login code for the trades tool.
 
 The code is a password, not a one-time token: it works on as many devices as
-the player likes and lasts until they run !trocas again, which replaces it and
-ends every session opened with the old one.
+the player likes and lasts until they run !trades again, which replaces it and
+ends every session opened with the old one. It answers to !trocas too, the
+name the tool shipped under for a day.
 
 Identity lives in pogoleiria.trade_player. This cog is also where membership is
 tracked — leaving the server hides a player's lists and blocks their login,
@@ -34,19 +35,22 @@ class Trades(commands.Cog):
         print(f"{self.__class__.__name__} unloaded!")
 
     @commands.command(
-        name="trocas",
-        brief="Envia-te por DM o código de acesso às trocas",
+        name="trades",
+        # The tool was called Trocas first; the alias is what half the server
+        # already learned, and it costs nothing to keep answering to it.
+        aliases=["trocas"],
+        brief="Envia-te por DM o código de acesso às Trades",
         help="Gera um código novo e envia-o por mensagem privada. Podes "
         "escrevê-lo aqui ou em DM ao bot; num canal, a mensagem é apagada "
-        "logo. O código serve como password no site das trocas e funciona em "
-        "vários dispositivos. Cada !trocas gera um novo e desliga o antigo.",
+        "logo. O código serve como password no site das Trades e funciona em "
+        "vários dispositivos. Cada !trades gera um novo e desliga o antigo.",
     )
-    async def trocas(self, ctx):
+    async def trades(self, ctx):
         author = ctx.author
         code = format_code(generate())
         link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}"
 
-        # First, before anything can go wrong: a !trocas sitting in a channel
+        # First, before anything can go wrong: a !trades sitting in a channel
         # tells everyone this player just took a fresh code, and the reply
         # below points at it. In a DM there is nothing to hide and the bot
         # can't delete someone else's message anyway.
@@ -60,12 +64,12 @@ class Trades(commands.Cog):
         try:
             await author.send(
                 embed=build_embed(
-                    "TROCAS — O TEU CÓDIGO",
+                    "TRADES — O TEU CÓDIGO",
                     f"🔑 Toca para entrares: {link}\n\n"
                     "Noutro dispositivo, copia o código da mensagem a seguir "
                     "e escreve-o no site.\n\n"
                     "É a tua password: funciona em vários dispositivos ao "
-                    "mesmo tempo e dura até pedires outro com `!trocas`, que "
+                    "mesmo tempo e dura até pedires outro com `!trades`, que "
                     "desliga este.",
                 )
             )
@@ -76,7 +80,7 @@ class Trades(commands.Cog):
         except discord.Forbidden:
             await ctx.send(
                 embed=build_embed(
-                    "TROCAS",
+                    "TRADES",
                     f"{author.mention} não consegui enviar-te DM. Ativa "
                     "*Mensagens privadas de membros do servidor* nas "
                     "definições de privacidade e tenta outra vez.",
@@ -99,7 +103,7 @@ class Trades(commands.Cog):
 
         await ctx.send(
             embed=build_embed(
-                "TROCAS", f"{author.mention} enviei-te o código por DM. 📬"
+                "TRADES", f"{author.mention} enviei-te o código por DM. 📬"
             ),
             delete_after=CONFIRMATION_SECONDS,
         )
