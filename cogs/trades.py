@@ -17,6 +17,10 @@ from modules.config import Config
 from modules.embeds import build_embed
 from modules.trade_codes import format_code, generate, hash_code
 
+# How long the in-channel reply lives. Long enough to read on a phone, short
+# enough that the channel doesn't fill with them.
+CONFIRMATION_SECONDS = 15
+
 
 class Trades(commands.Cog):
     def __init__(self, poliswag):
@@ -32,14 +36,26 @@ class Trades(commands.Cog):
     @commands.command(
         name="trocas",
         brief="Envia-te por DM o código de acesso às trocas",
-        help="Gera um código novo e envia-o por mensagem privada. O código "
-        "serve como password no site das trocas e funciona em vários "
-        "dispositivos. Cada !trocas gera um código novo e desliga o antigo.",
+        help="Gera um código novo e envia-o por mensagem privada. Podes "
+        "escrevê-lo aqui ou em DM ao bot; num canal, a mensagem é apagada "
+        "logo. O código serve como password no site das trocas e funciona em "
+        "vários dispositivos. Cada !trocas gera um novo e desliga o antigo.",
     )
     async def trocas(self, ctx):
         author = ctx.author
         code = format_code(generate())
         link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}"
+
+        # First, before anything can go wrong: a !trocas sitting in a channel
+        # tells everyone this player just took a fresh code, and the reply
+        # below points at it. In a DM there is nothing to hide and the bot
+        # can't delete someone else's message anyway.
+        if ctx.guild is not None:
+            try:
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                # Missing Manage Messages, or someone deleted it first.
+                pass
 
         try:
             await author.send(
@@ -59,7 +75,8 @@ class Trades(commands.Cog):
                     f"{author.mention} não consegui enviar-te DM. Ativa "
                     "*Mensagens privadas de membros do servidor* nas "
                     "definições de privacidade e tenta outra vez.",
-                )
+                ),
+                delete_after=CONFIRMATION_SECONDS,
             )
             return
 
@@ -70,10 +87,16 @@ class Trades(commands.Cog):
             avatar_url=str(author.display_avatar.url),
             code_hash=hash_code(code),
         )
+        # In a DM the code has already arrived in this same conversation, so a
+        # second "check your DMs" message would just be noise.
+        if ctx.guild is None:
+            return
+
         await ctx.send(
             embed=build_embed(
                 "TROCAS", f"{author.mention} enviei-te o código por DM. 📬"
-            )
+            ),
+            delete_after=CONFIRMATION_SECONDS,
         )
 
     @commands.Cog.listener()
