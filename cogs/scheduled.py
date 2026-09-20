@@ -10,6 +10,7 @@ from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
 from modules.trade_announcer import TradeAnnouncer
+from modules.trade_digest import TradeDigest
 
 
 class Scheduled(commands.Cog):
@@ -28,6 +29,7 @@ class Scheduled(commands.Cog):
         # flag the table would stay empty until the next 24h reload.
         self._pokemon_names_synced = False
         self._trade_announcer = TradeAnnouncer(poliswag)
+        self._trade_digest = TradeDigest(poliswag)
 
     async def _load_digest_date(self):
         try:
@@ -199,6 +201,7 @@ class Scheduled(commands.Cog):
             self._check_daily_error_digest,
             self._check_tracking_health,
             self._trade_announcer.tick,
+            self._check_trade_digest,
         ):
             await self._run_tick_step(step)
 
@@ -504,6 +507,11 @@ class Scheduled(commands.Cog):
         self._last_weekly_digest_monday = today
         await self._save_digest_date(today)
         await self._send_weekly_digest()
+
+    async def _check_trade_digest(self):
+        """The 09:00 post naming what was added to the lists since yesterday.
+        Silent on a quiet day; the module owns the timing and the watermark."""
+        await self._trade_digest.tick(datetime.datetime.now())
 
     async def _check_daily_error_digest(self):
         """Once a day, if anything new landed in error.log, summarize it in
