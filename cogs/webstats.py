@@ -220,11 +220,17 @@ class WebStats(commands.Cog, LoggingMixin):
                 Config.MY_ID
             ) or await self.poliswag.fetch_user(Config.MY_ID)
             await user.send(embed=build_snapshot_embed(stats, trade_stats, url))
-            if url:
-                # Its own message, so the link can be copied without the embed
-                # around it, and so a rotation is unmistakable.
+            if url and rotating:
+                # The card above already carries the link. What it cannot say
+                # is that every link before it just stopped working.
                 await user.send(
-                    f"{'Link novo, o anterior deixou de funcionar:' if rotating else 'Relatório completo:'}\n{url}"
+                    "Link novo — o anterior deixou de funcionar. "
+                    "Está no cartão acima; guarda-o, não consigo reenviá-lo."
+                )
+            elif url:
+                await user.send(
+                    "Guarda o link do cartão acima: só guardo o hash, "
+                    "por isso não consigo reenviá-lo depois."
                 )
             else:
                 # Only the hash is stored, so an existing link cannot be read
