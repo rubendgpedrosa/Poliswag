@@ -7,6 +7,7 @@ handle_click directly instead of going through component dispatch.
 
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from cogs.event_panel import EventPanelView
@@ -112,3 +113,86 @@ class TestHandleClick:
         view = EventPanelView(poliswag)
         assert view.timeout is None
         assert [child.custom_id for child in view.children] == ["event_panel:toggle"]
+
+
+class TestHandleClickFailures:
+    async def test_missing_role_warns_the_user_and_logs(self, poliswag):
+        interaction = _interaction(guild=_guild(role=None, member=_member()))
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        assert "admin" in interaction.response.send_message.await_args.args[0]
+        assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
+
+    async def test_dm_click_resolves_the_member_through_the_panel_channel(
+        self, poliswag
+    ):
+        role = _role()
+        member = _member()
+        guild = _guild(role=role, member=member)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        interaction = _interaction(guild=None)
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        guild.get_member.assert_called_once_with(_USER_ID)
+        member.add_roles.assert_awaited_once()
+
+    async def test_dm_click_falls_back_to_fetching_the_member(self, poliswag):
+        """An uncached member must not look like a non-member."""
+        role = _role()
+        member = _member()
+        guild = _guild(role=role, member=member)
+        guild.get_member.return_value = None
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        interaction = _interaction(guild=None)
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        guild.fetch_member.assert_awaited_once_with(_USER_ID)
+        member.add_roles.assert_awaited_once()
+
+    async def test_non_member_is_told_so_and_no_role_is_touched(self, poliswag):
+        role = _role()
+        guild = _guild(role=role, member=None)
+        guild.fetch_member = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404), "unknown member")
+        )
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        interaction = _interaction(guild=None)
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        assert "servidor" in interaction.response.send_message.await_args.args[0]
+
+    async def test_forbidden_apologises_and_tells_the_mods(self, poliswag):
+        role = _role()
+        member = _member()
+        member.add_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "missing perms")
+        )
+        interaction = _interaction(guild=_guild(role=role, member=member))
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
+        poliswag.utility.send_embed_to_channel.assert_awaited_once()
+        assert (
+            poliswag.utility.send_embed_to_channel.await_args.args[0]
+            is poliswag.MOD_CHANNEL
+        )
+
+    async def test_forbidden_without_a_mod_channel_still_replies(self, poliswag):
+        role = _role()
+        member = _member()
+        member.add_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "missing perms")
+        )
+        poliswag.MOD_CHANNEL = None
+        interaction = _interaction(guild=_guild(role=role, member=member))
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
