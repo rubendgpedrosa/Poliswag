@@ -4,25 +4,26 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import status_embed
 
-# Edited per event: put the event's name in below, then re-run
-# !eventpanel to post a fresh message. A plain line rather than an embed,
-# and it does its own @everyone -- the panel IS the announcement.
+# Edited per event -- name, dates and place all live here, so re-read
+# the whole thing before re-running !eventpanel rather than just swapping
+# the title. A plain line rather than an embed, and it does its own
+# @everyone: the panel IS the announcement.
 #
-# It names no channel on purpose: the audience is precisely the people
-# who cannot see it yet, and Discord renders a hidden channel's mention
-# as a dead link for them.
+# It names no Discord channel on purpose: the audience is precisely the
+# people who cannot see it yet, and Discord renders a hidden channel's
+# mention as a dead link for them.
 #
 # Every !eventpanel run pings the whole server, including a re-run to fix
 # a typo. eventpanel_test sends the identical text with mentions
 # suppressed, so a rehearsal can never fire it.
 _PANEL_TEXT = (
     "@everyone\n"
-    "Olá, treinadores! 🎉 Já temos canal para o evento **<NOME DO EVENTO>**.\n"
-    "Se quiseres juntar-te, carrega aqui em baixo."
+    "Olá, treinadores! 🎉 Criámos um canal dedicado ao **Pokémon GO City "
+    "Safari**, que decorre no próximo fim de semana — dias **26 e 27 de "
+    "setembro**, em **Lisboa**.\n"
+    "Carrega no botão aqui em baixo para acederes ao canal.\n"
+    "https://pokemongo.com/featured-in-person-events/citysafari/lisbon"
 )
-# Left in _PANEL_TEXT means the template was never filled in. Blocked
-# on the live post only -- a rehearsal is exactly where you want to
-# see it.
 _PLACEHOLDER = "<NOME DO EVENTO>"
 _BUTTON_LABEL = "Quero participar"
 _BUTTON_CUSTOM_ID = "event_panel:toggle"
