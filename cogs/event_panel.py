@@ -17,7 +17,7 @@ from modules.embeds import status_embed
 # suppressed, so a rehearsal can never fire it.
 _PANEL_TEXT = (
     "@everyone\n"
-    "Olá a todos! 🎉 Já temos um canal para o **<NOME DO EVENTO>**.\n"
+    "Olá, treinadores! 🎉 Já temos canal para o evento **<NOME DO EVENTO>**.\n"
     "Se quiseres juntar-te, carrega aqui em baixo."
 )
 # Left in _PANEL_TEXT means the template was never filled in. Blocked
