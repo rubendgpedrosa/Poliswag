@@ -526,3 +526,36 @@ class TestSetup:
         poliswag.add_cog = AsyncMock()
         await setup(poliswag)
         poliswag.add_cog.assert_awaited_once()
+
+
+class TestWiring:
+    """main.py is what turns this from a module into a feature. These
+    check placement, not just presence: add_view in __init__ would raise
+    RuntimeError at startup, and the channel attribute has to exist
+    before on_ready resolves it."""
+
+    def test_the_cog_is_loaded_and_the_view_registered_in_setup_hook(self):
+        import inspect
+
+        import main
+
+        source = inspect.getsource(main.Poliswag.setup_hook)
+        assert 'await self.load_extension("cogs.event_panel")' in source
+        assert "self.add_view(EventPanelView(self))" in source
+
+    def test_the_channel_attribute_exists_before_on_ready(self):
+        import inspect
+
+        import main
+
+        source = inspect.getsource(main.Poliswag.__init__)
+        assert "self.EVENT_PANEL_CHANNEL = None" in source
+        assert "add_view" not in source
+
+    def test_the_panel_channel_is_resolved_on_ready(self):
+        import inspect
+
+        import main
+
+        source = inspect.getsource(main.Poliswag.get_channels)
+        assert '"EVENT_PANEL_CHANNEL": Config.EVENT_PANEL_CHANNEL_ID' in source
