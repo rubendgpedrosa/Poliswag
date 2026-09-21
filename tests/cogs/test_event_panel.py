@@ -334,6 +334,8 @@ class TestTestCommand:
         kwargs = ctx.author.send.await_args.kwargs
         assert isinstance(kwargs["view"], EventPanelView)
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+        assert "DM" in ctx.send.await_args.kwargs["embed"].title
 
     async def test_reports_when_dms_are_closed(self, poliswag):
         guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
