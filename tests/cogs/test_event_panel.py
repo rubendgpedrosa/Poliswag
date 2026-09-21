@@ -244,6 +244,8 @@ class TestPostCommand:
 
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Arrasta-o" in description
 
     async def test_refuses_when_the_role_ties_with_the_bot(self, poliswag):
         """Equal position is still unmanageable: Discord only lets a bot
@@ -257,6 +259,8 @@ class TestPostCommand:
 
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Arrasta-o" in description
 
     async def test_refuses_when_the_role_is_missing(self, poliswag):
         poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
@@ -267,6 +271,8 @@ class TestPostCommand:
 
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "EVENTS_ROLE_ID" in description
 
     async def test_refuses_when_the_panel_channel_is_unset(self, poliswag):
         poliswag.EVENT_PANEL_CHANNEL = None
@@ -276,6 +282,38 @@ class TestPostCommand:
         await cog.eventpanel(cog, ctx)
 
         ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "EVENT_PANEL_CHANNEL_ID" in description
+
+    async def test_the_confirmation_names_the_role_and_the_channel(self, poliswag):
+        role = _role(position=1)
+        role.name = "Eventos"
+        guild = _guild(role=role, member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        poliswag.EVENT_PANEL_CHANNEL.mention = "#anuncios"
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Eventos" in description
+        assert "#anuncios" in description
+
+    async def test_reports_when_the_channel_refuses_the_post(self, poliswag):
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        poliswag.EVENT_PANEL_CHANNEL.send = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "no perms")
+        )
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        ctx.send.assert_awaited_once()
+        assert "❌" in ctx.send.await_args.kwargs["embed"].title
+        assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
 
     def test_only_admins_may_run_it(self, poliswag):
         cog = EventPanel(poliswag)
