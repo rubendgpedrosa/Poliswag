@@ -18,6 +18,8 @@ _BUTTON_CUSTOM_ID = "event_panel:toggle"
 
 _AUDIT_REASON = "Auto-atribuição via !eventpanel"
 _CLEAR_REASON = "Limpeza do cargo Eventos via !eventpanel clear"
+# Enough to chase by hand; the log has the rest.
+_FAILED_SHOWN = 10
 
 _JOINED = "✅ Já tens o cargo **Eventos** — o canal do evento aparece-te agora."
 _LEFT = "👋 Removi-te o cargo **Eventos**. Carrega outra vez quando quiseres voltar."
@@ -239,6 +241,25 @@ class EventPanel(commands.Cog):
             )
         )
 
+    async def _sweep(self, holders, role):
+        """Removes the role from everyone, counting instead of raising:
+        one awkward member must not abort the rest of the sweep. Returns
+        (removed, failed_members)."""
+        removed = 0
+        failed = []
+        for member in holders:
+            try:
+                await member.remove_roles(role, atomic=True, reason=_CLEAR_REASON)
+                removed += 1
+            except discord.HTTPException as e:
+                failed.append(member)
+                self.poliswag.utility.log_to_file(
+                    f"[EVENTPANEL] Failed to clear role from {member} "
+                    f"({member.id}): {e}",
+                    "ERROR",
+                )
+        return removed, failed
+
     @eventpanel.command(
         name="clear",
         brief="Tira o cargo Eventos a toda a gente",
@@ -274,25 +295,22 @@ class EventPanel(commands.Cog):
             )
             return
 
-        removed = 0
-        failed = 0
-        for member in holders:
-            try:
-                await member.remove_roles(role, atomic=True, reason=_CLEAR_REASON)
-                removed += 1
-            except discord.HTTPException as e:
-                # One awkward member must not abort the rest of the sweep.
-                failed += 1
-                self.poliswag.utility.log_to_file(
-                    f"[EVENTPANEL] Failed to clear role from {member} "
-                    f"({member.id}): {e}",
-                    "ERROR",
-                )
+        async with ctx.typing():
+            removed, failed = await self._sweep(holders, role)
 
         description = f"Cargo **{role.name}** removido a **{removed}** pessoas."
         if failed:
-            description += f"\n⚠️ Falhou em **{failed}** (ver logs)."
-        await ctx.send(embed=status_embed("🧹 Lista limpa", description))
+            names = ", ".join(m.mention for m in failed[:_FAILED_SHOWN])
+            if len(failed) > _FAILED_SHOWN:
+                names += f" (+{len(failed) - _FAILED_SHOWN})"
+            description += f"\n⚠️ Falhou em **{len(failed)}**: {names}"
+        await ctx.send(
+            embed=status_embed(
+                "🧹 Lista limpa",
+                description,
+                color=0xE74C3C if failed else None,
+            )
+        )
 
 
 async def setup(poliswag):
