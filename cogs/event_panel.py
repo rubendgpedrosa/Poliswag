@@ -102,7 +102,7 @@ class EventPanelView(discord.ui.View):
             return
         embed = status_embed(
             "⚠️ Painel de eventos falhou",
-            f"Não consegui {action} o cargo **Eventos** a {member}.\n"
+            f"Não consegui {action} o cargo **Eventos** a {member.mention}.\n"
             f"`{error}`\n\nVerifica se o cargo está abaixo do cargo do Poliswag.",
             color=0xE74C3C,
         )
