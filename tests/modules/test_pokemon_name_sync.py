@@ -45,6 +45,34 @@ class TestBuildPokemonNameRows:
         rows = build_pokemon_name_rows(MASTERFILE)
         assert (25, 950, "Pikachu", "Libre", None, 1) in rows
 
+    def test_treats_dated_and_numbered_event_forms_as_costumes(self):
+        rows = build_pokemon_name_rows(
+            {
+                "pokemon": {
+                    "4": {
+                        "name": "Charmander",
+                        "forms": {
+                            "3354": {"name": "Goggles 2026"},
+                            "10": {"name": "Tshirt 04"},
+                            "11": {"name": "Flying 05"},
+                        },
+                    },
+                    "493": {
+                        "name": "Arceus",
+                        "forms": {"12": {"name": "Flying"}, "13": {"name": "Galarian"}},
+                    },
+                }
+            }
+        )
+        flags = {r[3]: r[5] for r in rows if r[1] != 0}
+        assert flags == {
+            "Goggles 2026": 1,
+            "Tshirt 04": 1,
+            "Flying 05": 1,
+            "Flying": 0,
+            "Galarian": 0,
+        }
+
     def test_skips_default_normal_and_unnamed_forms(self):
         form_ids = {r[1] for r in build_pokemon_name_rows(MASTERFILE) if r[1] != 0}
         assert form_ids == {2576, 950}
