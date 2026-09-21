@@ -28,6 +28,14 @@ class DatabaseConnector:
                 user=Config.DB_USER,
                 password=Config.DB_PASSWORD,
                 db=self.database,
+                # Bound every wait: an unbounded read hangs the caller, and
+                # callers here run inside the 60s scheduler tick. Loose enough
+                # for the reporting queries this connector also serves; a read
+                # timeout arrives as errno 2013, which _execute_query_sync
+                # already reconnects and retries.
+                connect_timeout=5,
+                read_timeout=30,
+                write_timeout=30,
             )
             logging.info("Successfully connected to the database.")
             return db
