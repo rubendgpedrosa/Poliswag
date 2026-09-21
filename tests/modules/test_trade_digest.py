@@ -133,6 +133,18 @@ class TestBuildDigest:
         assert "2" in embed.footer.text
         assert "!trades" in embed.footer.text
 
+    # An embed title is a link, but it does not look like one. The address is
+    # the whole point of the post, so it is also in the body, where it reads
+    # as something to tap.
+    def test_shows_the_address_in_the_body(self):
+        embed = build_digest([row()])
+        assert Config.TRADES_URL in embed.description
+        assert "pogoleiria.pt/trades" in embed.description
+
+    def test_writes_the_address_without_the_scheme(self):
+        embed = build_digest([row()])
+        assert "https://pogoleiria.pt" not in embed.description.split("](")[0]
+
     # Same colour as every other Poliswag embed; only the layout changes.
     def test_keeps_the_bot_colour_and_links_the_page(self):
         embed = build_digest([row()])
