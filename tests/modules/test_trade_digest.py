@@ -166,3 +166,19 @@ class TestBuildDigest:
         value = field(embed, "✨ Para trocar")
         assert "e mais 8" in value
         assert len(value) <= 1024
+
+
+class TestConnectionTimeouts:
+    """The digest runs inside the 60s tick; an unbounded read stalls it."""
+
+    def test_connect_sets_timeouts(self):
+        import unittest.mock as mock
+
+        from modules.trade_digest import _connect_pool
+
+        with mock.patch("pymysql.connect") as connect:
+            _connect_pool()
+        kwargs = connect.call_args.kwargs
+        assert kwargs["connect_timeout"]
+        assert kwargs["read_timeout"]
+        assert kwargs["write_timeout"]

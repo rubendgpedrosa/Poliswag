@@ -14,8 +14,6 @@ from modules.config import Config
 
 _CUTOFF_SQL = "UTC_TIMESTAMP() - INTERVAL 90 SECOND"
 _DETAIL_LIMIT = 8
-_MENTION_LIMIT = 20
-TRADES_CHANNEL_ID = 799442640910549022
 
 
 class TradeAnnouncer:
@@ -47,7 +45,6 @@ class TradeAnnouncer:
         grouped = defaultdict(list)
         for row in batch["connections"]:
             grouped[str(row["actor_id"])].append(row)
-        covered = []
         for actor_id, rows in grouped.items():
             content, embed, mentions, _collapsed = self._message(actor_id, rows)
             await channel.send(
@@ -60,8 +57,13 @@ class TradeAnnouncer:
                     replied_user=False,
                 ),
             )
-            covered.extend(rows)
-        await asyncio.to_thread(self._record, covered, batch["cutoff"])
+            # Record each group the moment it lands. Recording the whole batch
+            # at the end meant one failing group re-announced every group
+            # before it on the next tick, and every 60s after that.
+            await asyncio.to_thread(self._record_notices, rows)
+        # Only once the whole batch is out: the watermark is a time bound, and
+        # moving it past a group that never got sent would drop it for good.
+        await asyncio.to_thread(self._advance_watermark, batch["cutoff"])
 
     def _connect(self):
         return pymysql.connect(
@@ -70,6 +72,12 @@ class TradeAnnouncer:
             user=Config.DB_USER,
             password=Config.DB_PASSWORD,
             database=Config.DB_POGOLEIRIA,
+            # Without these a stalled read blocks the 60s tick for good, and
+            # every later step with it -- including _check_workers, which feeds
+            # StackRecovery's self-healing.
+            connect_timeout=3,
+            read_timeout=5,
+            write_timeout=3,
             cursorclass=pymysql.cursors.DictCursor,
             autocommit=False,
         )
@@ -81,7 +89,10 @@ class TradeAnnouncer:
                 cursor.execute("SELECT " + _CUTOFF_SQL + " AS cutoff")
                 cutoff = cursor.fetchone()["cutoff"]
                 cursor.execute("SELECT last_trade_notice_at FROM poliswag.poliswag")
-                watermark = cursor.fetchone()["last_trade_notice_at"]
+                # No settings row at all reads the same as no watermark: set
+                # one and announce nothing, rather than raising every tick.
+                settings = cursor.fetchone()
+                watermark = settings["last_trade_notice_at"] if settings else None
                 if watermark is None:
                     return {"cutoff": cutoff, "initialise": True, "connections": []}
                 cursor.execute(
@@ -133,9 +144,12 @@ class TradeAnnouncer:
             db.close()
 
     def _advance(self, cutoff):
-        self._record([], cutoff)
+        self._advance_watermark(cutoff)
 
-    def _record(self, rows, cutoff):
+    def _record_notices(self, rows):
+        """Mark these connections as announced, so they are never sent twice."""
+        if not rows:
+            return
         db = self._connect()
         try:
             with db.cursor() as cursor:
@@ -150,6 +164,14 @@ class TradeAnnouncer:
                             row["category"],
                         ),
                     )
+            db.commit()
+        finally:
+            db.close()
+
+    def _advance_watermark(self, cutoff):
+        db = self._connect()
+        try:
+            with db.cursor() as cursor:
                 cursor.execute(
                     "UPDATE poliswag.poliswag SET last_trade_notice_at = %s", (cutoff,)
                 )
@@ -159,6 +181,13 @@ class TradeAnnouncer:
 
     def _message(self, actor_id, rows):
         actor = next(row for row in rows if str(row["actor_id"]) == str(actor_id))
+        # The actor is whichever side posted last, so their name is under the
+        # holder or the wanter column. There is no bare display_name.
+        actor_name = (
+            actor["holder_display_name"]
+            if str(actor["actor_id"]) == str(actor["holder_id"])
+            else actor["wanter_display_name"]
+        )
         mentions = {str(actor_id)}
         lines = []
         for row in rows[:_DETAIL_LIMIT]:
@@ -172,16 +201,18 @@ class TradeAnnouncer:
             lines.append(
                 f"{pokemon} — {direction}: <@{row['wanter_id'] if direction == 'procura' else row['holder_id']}>"
             )
-        if len(mentions) > _MENTION_LIMIT or len(rows) > _DETAIL_LIMIT:
+        # Only rows[:_DETAIL_LIMIT] contribute mentions, so the row count is
+        # the only thing that can overflow a message.
+        if len(rows) > _DETAIL_LIMIT:
             embed = discord.Embed(
-                description=f"{actor['display_name']} atualizou as listas; {len(rows)} pessoas encontram algo nelas",
+                description=f"{actor_name} atualizou as listas; {len(rows)} pessoas encontram algo nelas",
                 color=Config.EMBED_COLOR,
             )
             return None, embed, set(), True
         embed = discord.Embed(description="\n".join(lines), color=Config.EMBED_COLOR)
         embed.title = f"🔄 TRADES — <@{actor_id}> atualizou as listas"
         embed.url = f"{Config.TRADES_URL}/possiveis"
-        content = f"<#{TRADES_CHANNEL_ID}> " + " ".join(
+        content = f"<#{Config.TRADES_CHANNEL_ID}> " + " ".join(
             f"<@{user_id}>" for user_id in sorted(mentions)
         )
         return content, embed, mentions, False
