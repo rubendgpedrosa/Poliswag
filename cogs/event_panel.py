@@ -1,6 +1,7 @@
 import discord
 
 from modules.config import Config
+from modules.embeds import status_embed
 
 # Edited per event: the channel mention below is the event channel the
 # Eventos role unlocks. Nothing else needs changing -- the role is
@@ -59,17 +60,50 @@ class EventPanelView(discord.ui.View):
             await interaction.response.send_message(_ERR_CONFIG, ephemeral=True)
             return
 
-        member = guild.get_member(interaction.user.id)
+        member = await self._member(guild, interaction.user.id)
         if member is None:
             await interaction.response.send_message(_ERR_NOT_MEMBER, ephemeral=True)
             return
 
         had_role = role in member.roles
-        if had_role:
-            await member.remove_roles(role, atomic=True, reason=_AUDIT_REASON)
-        else:
-            await member.add_roles(role, atomic=True, reason=_AUDIT_REASON)
+        try:
+            if had_role:
+                await member.remove_roles(role, atomic=True, reason=_AUDIT_REASON)
+            else:
+                await member.add_roles(role, atomic=True, reason=_AUDIT_REASON)
+        except discord.HTTPException as e:
+            # Forbidden subclasses HTTPException: the usual cause is the
+            # Eventos role sitting above Poliswag's own role.
+            await self._report_failure(interaction, member, had_role, e)
+            return
 
         await interaction.response.send_message(
             _LEFT if had_role else _JOINED, ephemeral=True
         )
+
+    async def _member(self, guild, user_id):
+        member = guild.get_member(user_id)
+        if member is not None:
+            return member
+        try:
+            return await guild.fetch_member(user_id)
+        except discord.HTTPException:
+            return None
+
+    async def _report_failure(self, interaction, member, had_role, error):
+        action = "remover" if had_role else "dar"
+        self.poliswag.utility.log_to_file(
+            f"[EVENTPANEL] Failed to {action} role for {member} ({member.id}): {error}",
+            "ERROR",
+        )
+        await interaction.response.send_message(_ERR_FAILED, ephemeral=True)
+        mod_channel = self.poliswag.MOD_CHANNEL
+        if mod_channel is None:
+            return
+        embed = status_embed(
+            "⚠️ Painel de eventos falhou",
+            f"Não consegui {action} o cargo **Eventos** a {member}.\n"
+            f"`{error}`\n\nVerifica se o cargo está abaixo do cargo do Poliswag.",
+            color=0xE74C3C,
+        )
+        await self.poliswag.utility.send_embed_to_channel(mod_channel, embed)
