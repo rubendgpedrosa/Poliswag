@@ -10,7 +10,13 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from cogs.event_panel import _CLEAR_REASON, EventPanel, EventPanelView, setup
+from cogs.event_panel import (
+    _CLEAR_REASON,
+    _PANEL_TEXT,
+    EventPanel,
+    EventPanelView,
+    setup,
+)
 from modules.config import Config
 
 _ROLE_ID = 4242
@@ -264,7 +270,11 @@ class TestPostCommand:
         poliswag.EVENT_PANEL_CHANNEL.send.assert_awaited_once()
         kwargs = poliswag.EVENT_PANEL_CHANNEL.send.await_args.kwargs
         assert isinstance(kwargs["view"], EventPanelView)
-        assert isinstance(kwargs["embed"], discord.Embed)
+        # A plain line, not an embed: the admin's own @everyone
+        # announcement carries the wording, and a second boxed copy of it
+        # underneath just says the same thing twice.
+        assert kwargs["content"] == _PANEL_TEXT
+        assert "embed" not in kwargs
 
     async def test_refuses_when_the_role_outranks_the_bot(self, poliswag):
         guild = _guild(role=_role(position=20), member=_member(), bot_top_position=10)
@@ -365,6 +375,8 @@ class TestTestCommand:
         ctx.author.send.assert_awaited_once()
         kwargs = ctx.author.send.await_args.kwargs
         assert isinstance(kwargs["view"], EventPanelView)
+        assert kwargs["content"] == _PANEL_TEXT
+        assert "embed" not in kwargs
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
         assert "DM" in ctx.send.await_args.kwargs["embed"].title
