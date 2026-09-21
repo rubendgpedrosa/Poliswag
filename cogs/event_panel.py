@@ -17,6 +17,7 @@ _BUTTON_LABEL = "Quero participar"
 _BUTTON_CUSTOM_ID = "event_panel:toggle"
 
 _AUDIT_REASON = "Auto-atribuição via !eventpanel"
+_CLEAR_REASON = "Limpeza do cargo Eventos via !eventpanel clear"
 
 _JOINED = "✅ Já tens o cargo **Eventos** — o canal do evento aparece-te agora."
 _LEFT = "👋 Removi-te o cargo **Eventos**. Carrega outra vez quando quiseres voltar."
@@ -237,6 +238,61 @@ class EventPanel(commands.Cog):
                 "O botão funciona a sério — o cargo é mesmo atribuído.",
             )
         )
+
+    @eventpanel.command(
+        name="clear",
+        brief="Tira o cargo Eventos a toda a gente",
+        help=(
+            "Remove o cargo **Eventos** a todos os membros que o têm, para "
+            "limpar a lista no fim de um evento. Sem argumento só conta "
+            "quantas pessoas seriam afectadas; `!eventpanel clear confirm` "
+            "é que remove mesmo."
+        ),
+    )
+    async def eventpanel_clear(self, ctx, confirm: str | None = None):
+        role, channel, error = self._preflight()
+        if error:
+            await ctx.send(embed=status_embed("❌ Não limpei nada", error))
+            return
+
+        holders = [m for m in channel.guild.members if role in m.roles]
+        if not holders:
+            await ctx.send(
+                embed=status_embed(
+                    "Nada a limpar", f"Ninguém tem o cargo **{role.name}**."
+                )
+            )
+            return
+
+        if confirm != "confirm":
+            await ctx.send(
+                embed=status_embed(
+                    "⚠️ Confirmação necessária",
+                    f"**{len(holders)}** pessoas têm o cargo **{role.name}**.\n"
+                    "Corre `!eventpanel clear confirm` para lhes tirar o cargo.",
+                )
+            )
+            return
+
+        removed = 0
+        failed = 0
+        for member in holders:
+            try:
+                await member.remove_roles(role, atomic=True, reason=_CLEAR_REASON)
+                removed += 1
+            except discord.HTTPException as e:
+                # One awkward member must not abort the rest of the sweep.
+                failed += 1
+                self.poliswag.utility.log_to_file(
+                    f"[EVENTPANEL] Failed to clear role from {member} "
+                    f"({member.id}): {e}",
+                    "ERROR",
+                )
+
+        description = f"Cargo **{role.name}** removido a **{removed}** pessoas."
+        if failed:
+            description += f"\n⚠️ Falhou em **{failed}** (ver logs)."
+        await ctx.send(embed=status_embed("🧹 Lista limpa", description))
 
 
 async def setup(poliswag):

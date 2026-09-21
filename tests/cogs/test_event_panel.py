@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from cogs.event_panel import EventPanel, EventPanelView, setup
+from cogs.event_panel import _CLEAR_REASON, EventPanel, EventPanelView, setup
 from modules.config import Config
 
 _ROLE_ID = 4242
@@ -380,6 +380,105 @@ class TestTestCommand:
 
         member.add_roles.assert_awaited_once()
         assert member.add_roles.await_args.args[0] is role
+
+
+class TestClearCommand:
+    async def test_without_confirm_it_only_counts(self, poliswag):
+        role = _role(position=1)
+        holder = _member(roles=[role])
+        guild = _guild(role=role, member=holder, bot_top_position=10)
+        guild.members = [holder, _member()]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, None)
+
+        holder.remove_roles.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "1" in description
+        assert "confirm" in description
+
+    async def test_confirm_removes_the_role_from_every_holder(self, poliswag):
+        role = _role(position=1)
+        first = _member(roles=[role])
+        second = _member(roles=[role])
+        guild = _guild(role=role, member=first, bot_top_position=10)
+        guild.members = [first, second, _member()]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        first.remove_roles.assert_awaited_once()
+        second.remove_roles.assert_awaited_once()
+        assert first.remove_roles.await_args.args[0] is role
+        assert first.remove_roles.await_args.kwargs["reason"] == _CLEAR_REASON
+        assert second.remove_roles.await_args.kwargs["reason"] == _CLEAR_REASON
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "2" in description
+
+    async def test_one_failing_member_does_not_abort_the_sweep(self, poliswag):
+        role = _role(position=1)
+        broken = _member(roles=[role])
+        broken.remove_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "nope")
+        )
+        ok = _member(roles=[role])
+        guild = _guild(role=role, member=broken, bot_top_position=10)
+        guild.members = [broken, ok]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        ok.remove_roles.assert_awaited_once()
+        assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
+        ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "1" in description
+        assert "Falhou" in description
+
+    async def test_nobody_to_clear_says_so(self, poliswag):
+        role = _role(position=1)
+        guild = _guild(role=role, member=_member(), bot_top_position=10)
+        guild.members = [_member()]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Ninguém" in description
+
+    async def test_still_runs_the_preflight(self, poliswag):
+        poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        ctx.send.assert_awaited_once()
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "EVENTS_ROLE_ID" in description
+
+    async def test_the_count_ignores_members_without_the_role(self, poliswag):
+        role = _role(position=1)
+        holders = [_member(roles=[role]), _member(roles=[role])]
+        guild = _guild(role=role, member=holders[0], bot_top_position=10)
+        guild.members = holders + [_member(), _member(), _member()]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, None)
+
+        assert "2" in ctx.send.await_args.kwargs["embed"].description
 
 
 class TestSetup:
