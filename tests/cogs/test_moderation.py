@@ -24,6 +24,7 @@ def cog():
     poliswag.QUEST_CHANNEL = MagicMock()
     poliswag.QUEST_CHANNEL.id = 2
     poliswag.user = MagicMock(name="bot_user")
+    poliswag.get_context = AsyncMock(return_value=MagicMock(valid=False))
     poliswag.role_manager.response_user_role_selection = AsyncMock()
     poliswag.db = AsyncMock()
     poliswag.db.get_data_from_database = AsyncMock(return_value=[])
@@ -133,6 +134,15 @@ class TestOnMessageDelete:
     async def test_bot_own_deletion_skipped(self, cog):
         msg = self._msg(5, 123)
         msg.author = cog.poliswag.user
+        await cog.on_message_delete(msg)
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
+
+    async def test_command_invocation_deletion_skipped(self, cog):
+        """!trades and friends delete their own command message; that is the
+        bot tidying up, not someone removing a message."""
+        cog.poliswag.get_context.return_value = MagicMock(valid=True)
+        msg = self._msg(5, 123)
+        msg.content = "!trades"
         await cog.on_message_delete(msg)
         cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
