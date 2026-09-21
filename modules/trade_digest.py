@@ -39,6 +39,19 @@ _QUALITY = {
 }
 
 
+_ROWS_SQL = """
+    SELECT e.discord_id, e.list, e.category, e.pokemon_id, e.form_id,
+           COALESCE(p.trainer_name, p.display_name) AS display_name,
+           pn.name AS pokemon_name, pn.form_name
+    FROM trade_entry e
+    JOIN trade_player p ON p.discord_id = e.discord_id AND p.left_at IS NULL
+    LEFT JOIN poliswag.pokemon_name pn
+      ON pn.pokemon_id = e.pokemon_id AND pn.form_id = e.form_id
+    WHERE e.created_at > %s AND e.created_at <= %s
+    ORDER BY e.created_at, e.discord_id, e.pokemon_id, e.form_id
+"""
+
+
 def is_due(now, watermark):
     """True once a day, from DIGEST_HOUR onwards.
 
@@ -121,6 +134,18 @@ def build_digest(rows):
     return embed
 
 
+def _connect_pool():
+    return pymysql.connect(
+        host=Config.DB_HOST,
+        port=Config.DB_PORT,
+        user=Config.DB_USER,
+        password=Config.DB_PASSWORD,
+        database=Config.DB_POGOLEIRIA,
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=False,
+    )
+
+
 class TradeDigest:
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -150,15 +175,7 @@ class TradeDigest:
         await asyncio.to_thread(self._record, batch["cutoff"])
 
     def _connect(self):
-        return pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=False,
-        )
+        return _connect_pool()
 
     def _read_batch(self, now):
         """Everything added since the last digest, or None if it isn't time.
@@ -177,20 +194,7 @@ class TradeDigest:
                     return None
                 if watermark is None:
                     return {"cutoff": cutoff, "rows": []}
-                cursor.execute(
-                    """
-                    SELECT e.discord_id, e.list, e.category, e.pokemon_id, e.form_id,
-                           COALESCE(p.trainer_name, p.display_name) AS display_name,
-                           pn.name AS pokemon_name, pn.form_name
-                    FROM trade_entry e
-                    JOIN trade_player p ON p.discord_id = e.discord_id AND p.left_at IS NULL
-                    LEFT JOIN poliswag.pokemon_name pn
-                      ON pn.pokemon_id = e.pokemon_id AND pn.form_id = e.form_id
-                    WHERE e.created_at > %s AND e.created_at <= %s
-                    ORDER BY e.created_at, e.discord_id, e.pokemon_id, e.form_id
-                    """,
-                    (watermark, cutoff),
-                )
+                cursor.execute(_ROWS_SQL, (watermark, cutoff))
                 return {"cutoff": cutoff, "rows": list(cursor.fetchall())}
         finally:
             db.rollback()
@@ -206,3 +210,25 @@ class TradeDigest:
             db.commit()
         finally:
             db.close()
+
+
+def rows_since(days):
+    """The same rows the 09:00 post would use, over a window you choose.
+
+    For !resumo, which exists because a silent digest and a broken one look
+    identical from the channel. It reads only: the watermark belongs to the
+    scheduled run, and a preview must not consume a morning's news.
+    """
+    db = _connect_pool()
+    try:
+        with db.cursor() as cursor:
+            cursor.execute(
+                "SELECT UTC_TIMESTAMP() - INTERVAL %s DAY AS since, UTC_TIMESTAMP() AS cutoff",
+                (days,),
+            )
+            window = cursor.fetchone()
+            cursor.execute(_ROWS_SQL, (window["since"], window["cutoff"]))
+            return list(cursor.fetchall())
+    finally:
+        db.rollback()
+        db.close()

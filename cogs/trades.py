@@ -11,11 +11,14 @@ rejoining restores them — including a reconcile on startup for whatever change
 while the bot was down.
 """
 
+import asyncio
+
 import discord
 from discord.ext import commands
 
 from modules.config import Config
 from modules.embeds import build_embed
+from modules.trade_digest import build_digest, rows_since
 from modules.trade_codes import format_code, generate, hash_code
 
 # How long the in-channel reply lives. Long enough to read on a phone, short
@@ -123,6 +126,58 @@ class Trades(commands.Cog):
             ),
             delete_after=CONFIRMATION_SECONDS,
         )
+
+    @commands.command(
+        name="resumo",
+        aliases=["novidades"],
+        brief="Envia-te por DM o resumo das novidades nas trocas",
+        help="Mostra o mesmo resumo que sai todas as manhãs às 9h, mas para "
+        "os últimos dias e só para ti. `!resumo 7` cobre uma semana. O post "
+        "das 9h cala-se quando não há nada novo, e isto é como confirmas que "
+        "está vivo sem esperar pela manhã seguinte.",
+    )
+    async def resumo(self, ctx, dias: int = 1):
+        author = ctx.author
+        if ctx.guild is None and not self.is_member(author.id):
+            await ctx.send(
+                embed=build_embed(
+                    "TRADES",
+                    "As Trades são para membros do servidor PoGo Leiria.",
+                )
+            )
+            return
+
+        # A window, not a watermark: a preview must never eat a morning's news.
+        dias = max(1, min(30, dias))
+        rows = await asyncio.to_thread(rows_since, dias)
+        janela = "no último dia" if dias == 1 else f"nos últimos {dias} dias"
+        embed = (
+            build_digest(rows)
+            if rows
+            else build_embed("Novidades nas trocas", f"Sem novidades {janela}.")
+        )
+
+        try:
+            await author.send(embed=embed)
+        except discord.Forbidden:
+            await ctx.send(
+                embed=build_embed(
+                    "TRADES",
+                    f"{author.mention} não consegui enviar-te DM. No servidor "
+                    "PoGo Leiria: toca no nome do servidor → **Privacidade** "
+                    "→ liga **Mensagens diretas**.",
+                ),
+                delete_after=CONFIRMATION_SECONDS,
+            )
+            return
+
+        if ctx.guild is not None:
+            await ctx.send(
+                embed=build_embed(
+                    "TRADES", f"{author.mention} enviei-te o resumo por DM. 📬"
+                ),
+                delete_after=CONFIRMATION_SECONDS,
+            )
 
     def is_member(self, user_id):
         """Is this user in a guild the bot serves?
