@@ -8,7 +8,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 - Docker Compose (dev + prod) · `pytest` · `black` + `ruff` (pre-commit) · `vulture`
 
 ## Entry point
-`main.py` — `Poliswag(commands.Bot)` instantiates all service modules and loads all cogs in `setup_hook`. Bot channels (`QUEST_CHANNEL`, `CONVIVIO_CHANNEL`, `MOD_CHANNEL`, `ACCOUNTS_CHANNEL`) are resolved in `on_ready`.
+`main.py` — `Poliswag(commands.Bot)` instantiates all service modules and loads all cogs in `setup_hook`. Bot channels are resolved in `on_ready` → `get_channels()`, which is the list to read; an unset id logs an ERROR and leaves the attribute `None` rather than raising.
 
 ## Module map (`modules/`)
 
@@ -27,7 +27,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `poracle_client.py` | `PoracleClient` — async REST client for Poracle-NG (`X-Poracle-Secret` header). Methods: `get_channels`, `get_pokemon`, `add_pokemon`, `delete_pokemon`, `set_enabled`, `register_channel`, `send_test`. Raises `PoracleError` on non-2xx. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward` table. |
 | `lure_manager.py` | `LureManager` — owns a read-only `DatabaseConnector(DB_DRAGONITE)`. `list_available_with_lures()` reads available+healthy accounts from `dragonite.account` (not banned/suspended/warned/invalid/auth_banned, off cooldown, `last_released >= last_selected`), seeds new usernames into `account_lure` at 12, returns up to 5 fewest-first with `{username, password, nb_lures}`. `adjust_lure_count(username, delta)` → `GREATEST(nb_lures+delta, 0)` UPDATE. Writes only `poliswag.account_lure`; dragonite is read-only. |
-| `role_manager.py` | Handles Discord role button interactions (team + notification roles). |
+| `role_manager.py` | Handles Discord role button interactions for the **legacy** team/notification panel: resolves roles by *name*, auto-grants all `Alertas*` roles to a brand-new member, and `defer()`s with no reply. `cogs/event_panel.py` deliberately does not reuse it — see that file's header. |
 | `image_generator.py` | `imgkit` + Jinja2 → PNG bytes. Two templates: `followed_events.html` (quest map) and `accounts.html`. |
 | `embeds.py` | Shared embed builders (`build_embed`, `build_tracked_list_embed`, `build_excluded_list_embed`). Discord limits: 25 fields, 256 field name, 1024 field value, 4096 description. |
 | `utility.py` | `log_to_file(msg, level)` — dual-logger (`poliswag` info + `poliswag.error`). `time_now()`. |
@@ -46,6 +46,18 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete` | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
+| `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | admin-only (`cog_check`) |
+
+## Events role panel (`cogs/event_panel.py`)
+
+Self-serve opt-in: a button in the announcements channel grants/removes the permanent **Eventos** role, and a channel permission overwrite turns that role into access to the current event channel.
+
+- A new event = a new channel with the role's overwrite. **No code change and no redeploy**; everyone already opted in sees it immediately. The event channel is written inline in `_PANEL_BODY` as `<#id>`, deliberately not configured.
+- `EventPanelView` is persistent (`timeout=None`, `custom_id="event_panel:toggle"`), re-registered by `main.py`'s `setup_hook` via `add_view` — without that, buttons on panels from past events die on the next restart. It must stay in `setup_hook`: `discord.ui.View.__init__` needs a running loop, so `__init__` would raise `RuntimeError` at boot.
+- The role is resolved **by id**, and the clicker is resolved through the panel channel's guild — so the button behaves identically in a DM, which is what makes `!eventpanel test` a real rehearsal rather than a preview.
+- `_preflight()` → `(role, channel, error)` refuses to publish when the channel is unset, the role is missing, or the role's position is `>=` Poliswag's top role. That last one would otherwise surface as a `Forbidden` once per member who clicks, hours later.
+- Does **not** reuse `modules/role_manager.py`: that one is name-based, grants every `Alertas*` role to a brand-new member, and `defer()`s without replying.
+- Role and channel overwrites are set up by hand in Discord; the bot only adds/removes the role, never touches channel permissions.
 
 ## Database schema (Poliswag DB)
 
@@ -88,6 +100,8 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 DISCORD_API_KEY, ADMIN_USERS_IDS (comma-sep), MY_ID
 QUEST_CHANNEL_ID, CONVIVIO_CHANNEL_ID, MOD_CHANNEL_ID, ACCOUNTS_CHANNEL_ID
 VOICE_CHANNEL_LEIRIA_ID  (combined MAPA status channel; var name kept for continuity)
+EVENT_PANEL_CHANNEL_ID   (announcements channel holding the !eventpanel message)
+EVENTS_ROLE_ID           (permanent Eventos role the panel button grants)
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME, DB_DRAGONITE
 SCANNER_CONTAINER_NAME
 ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
