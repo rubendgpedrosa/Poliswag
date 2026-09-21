@@ -89,8 +89,13 @@ def build_digest(rows):
     haves = [row for row in rows if row["list"] == "have"]
     wants = [row for row in rows if row["list"] == "want"]
 
+    # The title carries the same link, but an embed title does not look like
+    # one -- least of all on a phone. The address goes in the body too, written
+    # out so people can see where they are going, and read it aloud to someone.
+    address = Config.TRADES_URL.split("://", 1)[-1].rstrip("/")
     embed = discord.Embed(
         title="Novidades nas trocas",
+        description=f"Vê as listas todas em **[{address}]({Config.TRADES_URL})**",
         color=Config.EMBED_COLOR,
         timestamp=datetime.datetime.now(),
     )
