@@ -49,7 +49,8 @@ def _interaction(guild=None, user_id=_USER_ID):
     interaction.guild = guild
     interaction.user = MagicMock()
     interaction.user.id = user_id
-    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.followup.send = AsyncMock()
     return interaction
 
 
@@ -81,8 +82,8 @@ class TestHandleClick:
         member.add_roles.assert_awaited_once()
         assert member.add_roles.await_args.args[0] is role
         member.remove_roles.assert_not_awaited()
-        interaction.response.send_message.assert_awaited_once()
-        assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
+        interaction.followup.send.assert_awaited_once()
+        assert interaction.followup.send.await_args.kwargs["ephemeral"] is True
 
     async def test_removes_the_role_when_the_member_already_has_it(self, poliswag):
         role = _role()
@@ -104,8 +105,8 @@ class TestHandleClick:
         await EventPanelView(poliswag).handle_click(left)
 
         assert (
-            joined.response.send_message.await_args.args[0]
-            != left.response.send_message.await_args.args[0]
+            joined.followup.send.await_args.args[0]
+            != left.followup.send.await_args.args[0]
         )
 
     async def test_the_view_is_persistent(self, poliswag):
@@ -115,6 +116,36 @@ class TestHandleClick:
         assert view.timeout is None
         assert [child.custom_id for child in view.children] == ["event_panel:toggle"]
 
+    async def test_the_click_is_acknowledged_before_the_role_call(self, poliswag):
+        """Discord drops an interaction that is not acked within 3s, so the
+        ack has to come before the HTTP work rather than after it."""
+        order = []
+        role = _role()
+        member = _member()
+        member.add_roles = AsyncMock(
+            side_effect=lambda *a, **k: order.append("add_roles")
+        )
+        interaction = _interaction(guild=_guild(role=role, member=member))
+        interaction.response.defer = AsyncMock(
+            side_effect=lambda **k: order.append("defer")
+        )
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        assert order == ["defer", "add_roles"]
+
+    async def test_the_button_itself_reaches_handle_click(self, poliswag):
+        """The decorated button callback is what Discord actually invokes;
+        every other test calls handle_click directly, so without this the
+        one wire between a click and the code is untested."""
+        view = EventPanelView(poliswag)
+        view.handle_click = AsyncMock()
+        interaction = _interaction(guild=_guild(role=_role(), member=_member()))
+
+        await view.children[0].callback(interaction)
+
+        view.handle_click.assert_awaited_once_with(interaction)
+
 
 class TestHandleClickFailures:
     async def test_missing_role_warns_the_user_and_logs(self, poliswag):
@@ -122,8 +153,8 @@ class TestHandleClickFailures:
 
         await EventPanelView(poliswag).handle_click(interaction)
 
-        interaction.response.send_message.assert_awaited_once()
-        assert "admin" in interaction.response.send_message.await_args.args[0]
+        interaction.followup.send.assert_awaited_once()
+        assert "admin" in interaction.followup.send.await_args.args[0]
         assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
 
     async def test_dm_click_resolves_the_member_through_the_panel_channel(
@@ -165,7 +196,7 @@ class TestHandleClickFailures:
 
         await EventPanelView(poliswag).handle_click(interaction)
 
-        assert "servidor" in interaction.response.send_message.await_args.args[0]
+        assert "servidor" in interaction.followup.send.await_args.args[0]
 
     async def test_forbidden_apologises_and_tells_the_mods(self, poliswag):
         role = _role()
@@ -177,7 +208,7 @@ class TestHandleClickFailures:
 
         await EventPanelView(poliswag).handle_click(interaction)
 
-        interaction.response.send_message.assert_awaited_once()
+        interaction.followup.send.assert_awaited_once()
         assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
         poliswag.utility.send_embed_to_channel.assert_awaited_once()
         assert (
@@ -196,7 +227,7 @@ class TestHandleClickFailures:
 
         await EventPanelView(poliswag).handle_click(interaction)
 
-        interaction.response.send_message.assert_awaited_once()
+        interaction.followup.send.assert_awaited_once()
         poliswag.utility.send_embed_to_channel.assert_not_awaited()
 
     async def test_forbidden_while_removing_mentions_removal(self, poliswag):
@@ -209,7 +240,7 @@ class TestHandleClickFailures:
 
         await EventPanelView(poliswag).handle_click(interaction)
 
-        interaction.response.send_message.assert_awaited_once()
+        interaction.followup.send.assert_awaited_once()
         assert "remover" in poliswag.utility.log_to_file.call_args.args[0]
 
 
@@ -519,6 +550,27 @@ class TestClearCommand:
         await cog.eventpanel_clear(cog, ctx, None)
 
         assert "2" in ctx.send.await_args.kwargs["embed"].description
+
+    async def test_a_long_failure_list_is_truncated(self, poliswag):
+        role = _role(position=1)
+        holders = []
+        for _ in range(12):
+            holder = _member(roles=[role])
+            holder.remove_roles = AsyncMock(
+                side_effect=discord.Forbidden(MagicMock(status=403), "nope")
+            )
+            holders.append(holder)
+        guild = _guild(role=role, member=holders[0], bot_top_position=10)
+        guild.members = holders
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Falhou em **12**" in description
+        assert "(+2)" in description
 
 
 class TestSetup:
