@@ -220,6 +220,9 @@ class EventPanel(commands.Cog):
                 embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
                 view=EventPanelView(self.poliswag),
             )
+        # Deliberately narrower than eventpanel's HTTPException: closed
+        # DMs are the one expected failure here, and anything else is a
+        # bug worth seeing rather than swallowing.
         except discord.Forbidden:
             await ctx.send(
                 embed=status_embed(
