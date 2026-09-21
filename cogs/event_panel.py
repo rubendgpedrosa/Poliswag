@@ -201,6 +201,40 @@ class EventPanel(commands.Cog):
             )
         )
 
+    @eventpanel.command(
+        name="test",
+        brief="Envia-te o painel por DM",
+        help=(
+            "Envia-te o painel por mensagem privada para veres como fica. O "
+            "botão funciona a sério: carrega nele e o cargo é mesmo "
+            "atribuído no servidor."
+        ),
+    )
+    async def eventpanel_test(self, ctx):
+        _role_obj, _channel, error = self._preflight()
+        if error:
+            await ctx.send(embed=status_embed("❌ Não enviei o painel", error))
+            return
+        try:
+            await ctx.author.send(
+                embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
+                view=EventPanelView(self.poliswag),
+            )
+        except discord.Forbidden:
+            await ctx.send(
+                embed=status_embed(
+                    "❌ Não te consigo enviar DM",
+                    "Abre as mensagens privadas do servidor e tenta outra vez.",
+                )
+            )
+            return
+        await ctx.send(
+            embed=status_embed(
+                "📨 Enviado por DM",
+                "O botão funciona a sério — o cargo é mesmo atribuído.",
+            )
+        )
+
 
 async def setup(poliswag):
     await poliswag.add_cog(EventPanel(poliswag))

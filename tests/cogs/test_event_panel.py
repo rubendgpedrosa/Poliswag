@@ -321,6 +321,65 @@ class TestPostCommand:
         assert cog.cog_check(_ctx(author_id="222")) is False
 
 
+class TestTestCommand:
+    async def test_dms_the_panel_to_the_caller(self, poliswag):
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_test(cog, ctx)
+
+        ctx.author.send.assert_awaited_once()
+        kwargs = ctx.author.send.await_args.kwargs
+        assert isinstance(kwargs["view"], EventPanelView)
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+
+    async def test_reports_when_dms_are_closed(self, poliswag):
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+        ctx.author.send = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "DMs closed")
+        )
+
+        await cog.eventpanel_test(cog, ctx)
+
+        ctx.send.assert_awaited_once()
+        assert "DM" in ctx.send.await_args.kwargs["embed"].title
+
+    async def test_still_runs_the_preflight(self, poliswag):
+        poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_test(cog, ctx)
+
+        ctx.author.send.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+        assert "EVENTS_ROLE_ID" in ctx.send.await_args.kwargs["embed"].description
+
+    async def test_the_dm_button_grants_the_role_for_real(self, poliswag):
+        """A DM interaction has no guild, so the view resolves the clicker
+        back through the panel channel -- the rehearsal is the real thing."""
+        role = _role(position=1)
+        member = _member()
+        guild = _guild(role=role, member=member, bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+
+        ctx = _ctx()
+        await cog.eventpanel_test(cog, ctx)
+        view = ctx.author.send.await_args.kwargs["view"]
+
+        dm_interaction = _interaction(guild=None)
+        await view.handle_click(dm_interaction)
+
+        member.add_roles.assert_awaited_once()
+        assert member.add_roles.await_args.args[0] is role
+
+
 class TestSetup:
     async def test_setup_adds_the_cog(self, poliswag):
         poliswag.add_cog = AsyncMock()
