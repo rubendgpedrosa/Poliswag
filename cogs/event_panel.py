@@ -48,7 +48,7 @@ class EventPanelView(discord.ui.View):
         behind the panel channel -- the bot serves a single guild."""
         if interaction.guild is not None:
             return interaction.guild
-        channel = getattr(self.poliswag, "EVENT_PANEL_CHANNEL", None)
+        channel = self.poliswag.EVENT_PANEL_CHANNEL
         return channel.guild if channel is not None else None
 
     async def handle_click(self, interaction):
@@ -124,25 +124,40 @@ class EventPanel(commands.Cog):
         return str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS
 
     def _preflight(self):
-        """Returns (role, error). A role that outranks Poliswag is the
-        failure that would otherwise surface much later, as a Forbidden
+        """Returns (role, channel, error). A role that outranks Poliswag is
+        the failure that would otherwise surface much later, as a Forbidden
         for every single member who clicks."""
         channel = self.poliswag.EVENT_PANEL_CHANNEL
         if channel is None:
-            return None, (
-                "EVENT_PANEL_CHANNEL_ID não está definido ou o canal não foi "
-                "encontrado."
+            return (
+                None,
+                None,
+                (
+                    "EVENT_PANEL_CHANNEL_ID não está definido ou o canal não foi "
+                    "encontrado."
+                ),
             )
         role = channel.guild.get_role(Config.EVENTS_ROLE_ID)
         if role is None:
-            return None, f"Não existe nenhum cargo com o id `{Config.EVENTS_ROLE_ID}`."
-        if role.position >= channel.guild.me.top_role.position:
-            return None, (
-                f"O cargo **{role.name}** está acima (ou ao nível) do cargo do "
-                "Poliswag, por isso o bot não o consegue atribuir. Arrasta-o "
-                "para baixo nas definições de cargos."
+            return (
+                None,
+                None,
+                (
+                    f"Não existe nenhum cargo com o id `{Config.EVENTS_ROLE_ID}`. "
+                    "Recria o cargo **Eventos** e actualiza `EVENTS_ROLE_ID` no `.env`."
+                ),
             )
-        return role, None
+        if role.position >= channel.guild.me.top_role.position:
+            return (
+                None,
+                None,
+                (
+                    f"O cargo **{role.name}** está acima (ou ao nível) do cargo do "
+                    "Poliswag, por isso o bot não o consegue atribuir. Arrasta-o "
+                    "para baixo nas definições de cargos."
+                ),
+            )
+        return role, channel, None
 
     @commands.group(
         name="eventpanel",
@@ -158,19 +173,31 @@ class EventPanel(commands.Cog):
         ),
     )
     async def eventpanel(self, ctx):
-        role, error = self._preflight()
+        role, channel, error = self._preflight()
         if error:
             await ctx.send(embed=status_embed("❌ Não publiquei o painel", error))
             return
-        await self.poliswag.EVENT_PANEL_CHANNEL.send(
-            embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
-            view=EventPanelView(self.poliswag),
-        )
+        try:
+            await channel.send(
+                embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
+                view=EventPanelView(self.poliswag),
+            )
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[EVENTPANEL] Failed to post the panel: {e}", "ERROR"
+            )
+            await ctx.send(
+                embed=status_embed(
+                    "❌ Não publiquei o painel",
+                    f"O Discord recusou: `{e}`\n\nVerifica se o Poliswag pode "
+                    f"escrever em {channel.mention}.",
+                )
+            )
+            return
         await ctx.send(
             embed=status_embed(
                 "✅ Painel publicado",
-                f"O botão dá o cargo **{role.name}** em "
-                f"{self.poliswag.EVENT_PANEL_CHANNEL.mention}.",
+                f"O botão dá o cargo **{role.name}** em {channel.mention}.",
             )
         )
 
