@@ -146,6 +146,12 @@ class Moderation(commands.Cog):
         ):
             return
 
+        # Commands like !trades delete their own invocation (the code must not
+        # sit beside a visible !trades). That is the bot tidying up, not a
+        # removal worth reporting.
+        if (await self.poliswag.get_context(message)).valid:
+            return
+
         embed = status_embed(f"[{message.channel}] Mensagem removida", color=0x7B83B4)
         embed.add_field(
             name=str(message.author),
