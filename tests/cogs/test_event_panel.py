@@ -196,3 +196,17 @@ class TestHandleClickFailures:
         await EventPanelView(poliswag).handle_click(interaction)
 
         interaction.response.send_message.assert_awaited_once()
+        poliswag.utility.send_embed_to_channel.assert_not_awaited()
+
+    async def test_forbidden_while_removing_mentions_removal(self, poliswag):
+        role = _role()
+        member = _member(roles=[role])
+        member.remove_roles = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "missing perms")
+        )
+        interaction = _interaction(guild=_guild(role=role, member=member))
+
+        await EventPanelView(poliswag).handle_click(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        assert "remover" in poliswag.utility.log_to_file.call_args.args[0]
