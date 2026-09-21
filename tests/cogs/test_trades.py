@@ -262,3 +262,82 @@ async def test_trocas_in_a_dm_proceeds_when_no_members_are_cached(cog, poliswag)
     await Trades.trades.callback(cog, ctx_for(author, in_guild=False))
 
     poliswag.trade_player_store.upsert.assert_awaited_once()
+
+
+# --- !resumo: the digest on demand, in a DM ---------------------------------
+#
+# The scheduled post is silent on a quiet day, which is correct and also means
+# a working digest and a broken one look identical from the channel. This is
+# how you tell them apart without waiting for 09:00.
+
+
+def digest_row(**patch):
+    out = {
+        "discord_id": 1,
+        "display_name": "Faynn",
+        "list": "want",
+        "category": "shiny",
+        "pokemon_id": 60,
+        "form_id": 0,
+        "pokemon_name": "Poliwag",
+        "form_name": None,
+    }
+    out.update(patch)
+    return out
+
+
+async def test_resumo_dms_the_digest(cog, monkeypatch):
+    author = member()
+    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [digest_row()])
+
+    await cog.resumo.callback(cog, ctx_for(author), 2)
+
+    author.send.assert_awaited()
+    embed = author.send.await_args.kwargs["embed"]
+    assert "Poliwag" in embed.fields[0].value
+
+
+async def test_resumo_says_so_when_there_is_nothing(cog, monkeypatch):
+    author = member()
+    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [])
+
+    await cog.resumo.callback(cog, ctx_for(author), 1)
+
+    embed = author.send.await_args.kwargs["embed"]
+    assert "sem novidades" in embed.description.lower()
+
+
+async def test_resumo_keeps_the_window_sane(cog, monkeypatch):
+    asked = []
+    monkeypatch.setattr("cogs.trades.rows_since", lambda days: asked.append(days) or [])
+
+    await cog.resumo.callback(cog, ctx_for(member()), 0)
+    await cog.resumo.callback(cog, ctx_for(member()), 999)
+
+    assert asked == [1, 30]
+
+
+async def test_resumo_is_for_members_only(cog, poliswag, monkeypatch):
+    poliswag.guilds = [guild_with(456)]
+    called = []
+    monkeypatch.setattr(
+        "cogs.trades.rows_since", lambda days: called.append(days) or []
+    )
+    author = member(123)
+    ctx = ctx_for(author, in_guild=False)
+
+    await cog.resumo.callback(cog, ctx, 1)
+
+    assert called == []
+    ctx.send.assert_awaited()
+
+
+async def test_resumo_falls_back_to_the_channel_when_dms_are_shut(cog, monkeypatch):
+    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [digest_row()])
+    author = member()
+    author.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "no"))
+    ctx = ctx_for(author)
+
+    await cog.resumo.callback(cog, ctx, 1)
+
+    ctx.send.assert_awaited()
