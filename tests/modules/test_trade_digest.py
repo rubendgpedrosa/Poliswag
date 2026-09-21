@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from modules.trade_digest import build_digest, describe, group_rows, is_due
+from modules.config import Config
+from modules.trade_digest import build_digest, describe, is_due
 
 
 def row(**patch):
@@ -16,6 +17,10 @@ def row(**patch):
     }
     out.update(patch)
     return out
+
+
+def field(embed, name):
+    return next((f.value for f in embed.fields if f.name == name), None)
 
 
 class TestIsDue:
@@ -40,19 +45,19 @@ class TestIsDue:
 
 class TestDescribe:
     def test_names_the_pokemon_and_its_quality(self):
-        assert describe(row()) == "Poliwag (Shiny)"
+        assert describe(row()) == "Poliwag · Shiny"
 
     def test_leaves_a_plain_pokemon_plain(self):
         assert describe(row(category="normal")) == "Poliwag"
 
     def test_keeps_the_form(self):
-        assert describe(row(form_name="Costume 2020")) == "Poliwag Costume 2020 (Shiny)"
+        assert describe(row(form_name="Costume 2020")) == "Poliwag Costume 2020 · Shiny"
 
     # A want with no species: the category is the whole request.
     def test_says_qualquer_for_a_category_only_want(self):
         assert (
             describe(row(list="want", pokemon_id=0, pokemon_name=None))
-            == "qualquer Shiny"
+            == "Qualquer Shiny"
         )
 
     def test_says_qualquer_pokemon_when_even_the_category_is_open(self):
@@ -60,65 +65,92 @@ class TestDescribe:
             describe(
                 row(list="want", pokemon_id=0, category="normal", pokemon_name=None)
             )
-            == "qualquer Pokémon"
+            == "Qualquer Pokémon"
         )
 
     def test_falls_back_to_the_dex_number(self):
-        assert describe(row(pokemon_name=None)) == "#60 (Shiny)"
-
-
-class TestGroupRows:
-    def test_splits_each_player_into_haves_and_wants(self):
-        groups = group_rows(
-            [
-                row(),
-                row(
-                    list="want", pokemon_id=133, pokemon_name="Eevee", category="normal"
-                ),
-                row(
-                    discord_id=2,
-                    display_name="Ana",
-                    pokemon_id=25,
-                    pokemon_name="Pikachu",
-                ),
-            ]
-        )
-        assert [g["name"] for g in groups] == ["Rui", "Ana"]
-        assert groups[0]["have"] == ["Poliwag (Shiny)"]
-        assert groups[0]["want"] == ["Eevee"]
-        assert groups[1]["want"] == []
+        assert describe(row(pokemon_name=None)) == "#60 · Shiny"
 
 
 class TestBuildDigest:
-    def test_says_what_is_new_and_links_the_page(self):
-        embed = build_digest(group_rows([row()]), 1)
-        assert "Poliwag (Shiny)" in embed.description
-        assert "Rui" in embed.description
+    """Two fields, because people scan for the Pokémon, not for each other."""
+
+    def test_splits_what_is_offered_from_what_is_wanted(self):
+        embed = build_digest(
+            [
+                row(),
+                row(
+                    list="want",
+                    pokemon_id=246,
+                    pokemon_name="Larvitar",
+                    category="normal",
+                ),
+            ]
+        )
+        assert field(embed, "✨ Para trocar") == "Poliwag · Shiny — Rui"
+        assert field(embed, "🔍 Procurados") == "Larvitar — Rui"
+
+    def test_gives_each_pokemon_its_own_line(self):
+        embed = build_digest(
+            [
+                row(),
+                row(pokemon_id=133, pokemon_name="Eevee", category="hundo"),
+            ]
+        )
+        assert (
+            field(embed, "✨ Para trocar")
+            == "Poliwag · Shiny — Rui\nEevee · 100% — Rui"
+        )
+
+    # A morning with only wants should not carry an empty heading.
+    def test_leaves_out_a_side_nobody_added_to(self):
+        embed = build_digest(
+            [row(list="want", pokemon_id=246, pokemon_name="Larvitar")]
+        )
+        assert field(embed, "✨ Para trocar") is None
+        assert field(embed, "🔍 Procurados") is not None
+
+    def test_shows_a_sprite_of_something_real(self):
+        embed = build_digest(
+            [
+                row(list="want", pokemon_id=0, pokemon_name=None),
+                row(pokemon_id=133, pokemon_name="Eevee"),
+            ]
+        )
+        assert embed.thumbnail.url.endswith("/133.png")
+
+    def test_asks_for_the_form_sprite_when_there_is_one(self):
+        embed = build_digest([row(form_id=2332)])
+        assert embed.thumbnail.url.endswith("/60_f2332.png")
+
+    # "Qualquer Shiny" has no sprite, and a broken image is worse than none.
+    def test_shows_no_sprite_when_nothing_has_a_species(self):
+        embed = build_digest([row(list="want", pokemon_id=0, pokemon_name=None)])
+        assert embed.thumbnail.url is None
+
+    def test_carries_the_count_and_the_way_in(self):
+        embed = build_digest([row(), row(pokemon_id=133, pokemon_name="Eevee")])
+        assert "2" in embed.footer.text
+        assert "!trades" in embed.footer.text
+
+    # Same colour as every other Poliswag embed; only the layout changes.
+    def test_keeps_the_bot_colour_and_links_the_page(self):
+        embed = build_digest([row()])
+        assert embed.color.value == Config.EMBED_COLOR
         assert embed.url
 
-    # The point of the post: someone who is not in the app yet learns how.
-    def test_always_carries_the_join_tip(self):
-        embed = build_digest(group_rows([row()]), 1)
-        assert "!trades" in embed.description
-
-    def test_separates_what_they_have_from_what_they_want(self):
+    def test_collapses_a_long_field_rather_than_losing_it_to_the_api(self):
         embed = build_digest(
-            group_rows([row(), row(list="want", pokemon_id=133, pokemon_name="Eevee")]),
-            2,
+            [
+                row(
+                    discord_id=n,
+                    display_name=f"J{n}",
+                    pokemon_id=100 + n,
+                    pokemon_name=f"P{n}",
+                )
+                for n in range(1, 21)
+            ]
         )
-        assert "Tem:" in embed.description
-        assert "Procura:" in embed.description
-
-    def test_collapses_a_long_list_rather_than_running_off_the_screen(self):
-        rows = [
-            row(
-                discord_id=n,
-                display_name=f"J{n}",
-                pokemon_id=100 + n,
-                pokemon_name=f"P{n}",
-            )
-            for n in range(1, 16)
-        ]
-        embed = build_digest(group_rows(rows), 15)
-        assert "e mais 5" in embed.description
-        assert len(embed.description) <= 4096
+        value = field(embed, "✨ Para trocar")
+        assert "e mais 8" in value
+        assert len(value) <= 1024

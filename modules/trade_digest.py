@@ -13,7 +13,7 @@ because there a specific pair of people have something to do.
 """
 
 import asyncio
-from collections import OrderedDict
+import datetime
 
 import discord
 import pymysql
@@ -21,8 +21,13 @@ import pymysql
 from modules.config import Config
 
 DIGEST_HOUR = 9
-_PLAYER_LIMIT = 10
-_ITEM_LIMIT = 6
+# A field holds 1024 characters; twelve lines never comes close, and a longer
+# list is a wall nobody reads anyway.
+_LINE_LIMIT = 12
+
+# The icon set the map, the hub and the trades app all draw with, so a Pokémon
+# looks the same in Discord as it does on the site.
+SPRITE_BASE = "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon"
 
 _QUALITY = {
     "normal": None,
@@ -49,64 +54,65 @@ def is_due(now, watermark):
 
 
 def describe(row):
-    """One entry, as a player would say it."""
+    """One entry as its own line: "Poliwag · Shiny"."""
     quality = _QUALITY.get(row["category"])
     # pokemon_id 0 is the web app's ANY_SPECIES: a want that names only a
-    # category. "qualquer Shiny" is the whole request, not half of one.
+    # category. "Qualquer Shiny" is the whole request, not half of one.
     if not row["pokemon_id"]:
-        return f"qualquer {quality}" if quality else "qualquer Pokémon"
+        return f"Qualquer {quality}" if quality else "Qualquer Pokémon"
     name = row["pokemon_name"] or f"#{row['pokemon_id']}"
     if row["form_name"]:
         name += f" {row['form_name']}"
-    return f"{name} ({quality})" if quality else name
+    return f"{name} · {quality}" if quality else name
 
 
-def group_rows(rows):
-    """Per player, in the order they first appear: their new haves and wants."""
-    groups = OrderedDict()
-    for row in rows:
-        key = str(row["discord_id"])
-        if key not in groups:
-            groups[key] = {"name": row["display_name"], "have": [], "want": []}
-        groups[key][row["list"]].append(describe(row))
-    return list(groups.values())
+def sprite_url(row):
+    form = row.get("form_id") or 0
+    return f"{SPRITE_BASE}/{row['pokemon_id']}{f'_f{form}' if form else ''}.png"
 
 
-def _side(label, items):
-    if not items:
-        return None
-    shown = ", ".join(items[:_ITEM_LIMIT])
-    if len(items) > _ITEM_LIMIT:
-        shown += f" (+{len(items) - _ITEM_LIMIT})"
-    return f"{label} {shown}"
+def _field(rows):
+    lines = [f"{describe(row)} — {row['display_name']}" for row in rows[:_LINE_LIMIT]]
+    if len(rows) > _LINE_LIMIT:
+        lines.append(f"*… e mais {len(rows) - _LINE_LIMIT}*")
+    return "\n".join(lines)
 
 
-def build_digest(groups, total):
-    lines = []
-    for group in groups[:_PLAYER_LIMIT]:
-        sides = [
-            side
-            for side in (_side("Tem:", group["have"]), _side("Procura:", group["want"]))
-            if side
-        ]
-        lines.append(f"**{group['name']}** — " + " · ".join(sides))
-    if len(groups) > _PLAYER_LIMIT:
-        lines.append(f"*e mais {len(groups) - _PLAYER_LIMIT} jogadores.*")
-    lines.append("")
-    lines.append(
-        "Ainda não tens lista? Escreve `!trades` e o Poliswag envia-te o código."
-    )
+def build_digest(rows):
+    """One line per Pokémon, under what it is rather than under who added it.
+
+    The first version put a player per line, with their haves and wants run
+    together behind commas. People read this channel looking for a Pokémon,
+    not for each other, so the two sides are now two fields and every Pokémon
+    gets its own line. The name after the dash is who to talk to.
+    """
+    haves = [row for row in rows if row["list"] == "have"]
+    wants = [row for row in rows if row["list"] == "want"]
 
     embed = discord.Embed(
-        title=(
-            f"🔄 TRADES — {total} novidades nas listas"
-            if total != 1
-            else "🔄 TRADES — uma novidade nas listas"
-        ),
-        description="\n".join(lines),
+        title="Novidades nas trocas",
         color=Config.EMBED_COLOR,
+        timestamp=datetime.datetime.now(),
     )
     embed.url = Config.TRADES_URL
+    if haves:
+        embed.add_field(name="✨ Para trocar", value=_field(haves), inline=False)
+    if wants:
+        embed.add_field(name="🔍 Procurados", value=_field(wants), inline=False)
+
+    # "Qualquer Shiny" has no sprite of its own, so the thumbnail is the first
+    # entry that names a species. A broken image is worse than no image.
+    pictured = next((row for row in haves + wants if row["pokemon_id"]), None)
+    if pictured:
+        embed.set_thumbnail(url=sprite_url(pictured))
+
+    embed.set_footer(
+        text=(
+            f"{len(rows)} novidades · escreve !trades para entrares"
+            if len(rows) != 1
+            else "1 novidade · escreve !trades para entrares"
+        )
+    )
     return embed
 
 
@@ -132,9 +138,8 @@ class TradeDigest:
             channel = self.poliswag.get_channel(Config.TRADES_CHANNEL_ID)
             if channel is None:
                 channel = await self.poliswag.fetch_channel(Config.TRADES_CHANNEL_ID)
-            groups = group_rows(batch["rows"])
             await channel.send(
-                embed=build_digest(groups, len(batch["rows"])),
+                embed=build_digest(batch["rows"]),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         await asyncio.to_thread(self._record, batch["cutoff"])
