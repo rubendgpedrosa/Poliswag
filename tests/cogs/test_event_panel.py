@@ -245,6 +245,19 @@ class TestPostCommand:
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
 
+    async def test_refuses_when_the_role_ties_with_the_bot(self, poliswag):
+        """Equal position is still unmanageable: Discord only lets a bot
+        touch roles strictly below its own."""
+        guild = _guild(role=_role(position=10), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+
     async def test_refuses_when_the_role_is_missing(self, poliswag):
         poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
         cog = EventPanel(poliswag)
