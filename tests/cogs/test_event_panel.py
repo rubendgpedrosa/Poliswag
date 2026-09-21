@@ -456,6 +456,23 @@ class TestClearCommand:
         description = ctx.send.await_args.kwargs["embed"].description
         assert "Ninguém" in description
 
+    async def test_nobody_to_clear_beats_the_confirmation_gate(self, poliswag):
+        """Bare `!eventpanel clear` on an empty role should say there is
+        nothing to do, not ask anyone to confirm removing it from zero
+        people -- which is what happens if these two branches swap."""
+        role = _role(position=1)
+        guild = _guild(role=role, member=_member(), bot_top_position=10)
+        guild.members = [_member()]
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, None)
+
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Ninguém" in description
+        assert "confirm" not in description
+
     async def test_still_runs_the_preflight(self, poliswag):
         poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
         cog = EventPanel(poliswag)
