@@ -17,10 +17,8 @@ from modules.embeds import status_embed
 # suppressed, so a rehearsal can never fire it.
 _PANEL_TEXT = (
     "@everyone\n"
-    "Olá a todos! 🎉 Já temos um canal para o **<NOME DO EVENTO>**.\n\n"
-    "Se quiseres juntar-te, carrega no botão aqui em baixo: recebes o "
-    "cargo **Eventos** e o canal passa a aparecer-te. "
-    "Carrega outra vez para saíres."
+    "Olá a todos! 🎉 Já temos um canal para o **<NOME DO EVENTO>**.\n"
+    "Se quiseres juntar-te, carrega aqui em baixo."
 )
 # Left in _PANEL_TEXT means the template was never filled in. Blocked
 # on the live post only -- a rehearsal is exactly where you want to
@@ -34,11 +32,11 @@ _CLEAR_REASON = "Limpeza do cargo Eventos via !eventpanel clear"
 # Enough to chase by hand; the log has the rest.
 _FAILED_SHOWN = 10
 
-_JOINED = "✅ Já tens o cargo **Eventos** — o canal do evento aparece-te agora."
-_LEFT = "👋 Removi-te o cargo **Eventos**. Carrega outra vez quando quiseres voltar."
+_JOINED = "✅ Estás dentro! O canal do evento já te aparece aqui ao lado."
+_LEFT = "👋 Saíste. Carrega outra vez quando quiseres voltar."
 _ERR_CONFIG = "⚠️ Configuração inválida — avisa um admin."
 _ERR_NOT_MEMBER = "⚠️ Não te encontro no servidor. Entra lá primeiro."
-_ERR_FAILED = "⚠️ Não consegui alterar o teu cargo. Já avisei os admins."
+_ERR_FAILED = "⚠️ Não consegui fazer isso. Já avisei os admins."
 
 
 class EventPanelView(discord.ui.View):
