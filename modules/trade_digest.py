@@ -141,6 +141,11 @@ def _connect_pool():
         user=Config.DB_USER,
         password=Config.DB_PASSWORD,
         database=Config.DB_POGOLEIRIA,
+        # The digest runs inside the 60s tick; an unbounded read stalls it and
+        # every step after it.
+        connect_timeout=3,
+        read_timeout=5,
+        write_timeout=3,
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
     )
