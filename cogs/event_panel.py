@@ -4,15 +4,28 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import status_embed
 
-# A plain line rather than an embed: the admin posts their own @everyone
-# announcement and this sits under it, so a second boxed copy of the same
-# words would just say it twice. Deliberately names no channel -- the
-# audience is precisely the people who cannot see it yet, and Discord
-# renders a mention of a hidden channel as a dead link for them.
+# Edited per event: put the event's name in below, then re-run
+# !eventpanel to post a fresh message. A plain line rather than an embed,
+# and it does its own @everyone -- the panel IS the announcement.
+#
+# It names no channel on purpose: the audience is precisely the people
+# who cannot see it yet, and Discord renders a hidden channel's mention
+# as a dead link for them.
+#
+# Every !eventpanel run pings the whole server, including a re-run to fix
+# a typo. eventpanel_test sends the identical text with mentions
+# suppressed, so a rehearsal can never fire it.
 _PANEL_TEXT = (
-    "Carrega no botão para receberes o cargo **Eventos** e veres o canal "
-    "do evento. Carrega outra vez para saíres."
+    "@everyone\n"
+    "Olá a todos! 🎉 Já temos um canal para o **<NOME DO EVENTO>**.\n\n"
+    "Se quiseres juntar-te, carrega no botão aqui em baixo: recebes o "
+    "cargo **Eventos** e o canal passa a aparecer-te. "
+    "Carrega outra vez para saíres."
 )
+# Left in _PANEL_TEXT means the template was never filled in. Blocked
+# on the live post only -- a rehearsal is exactly where you want to
+# see it.
+_PLACEHOLDER = "<NOME DO EVENTO>"
 _BUTTON_LABEL = "Quero participar"
 _BUTTON_CUSTOM_ID = "event_panel:toggle"
 
@@ -184,10 +197,21 @@ class EventPanel(commands.Cog):
         if error:
             await ctx.send(embed=status_embed("❌ Não publiquei o painel", error))
             return
+        if _PLACEHOLDER in _PANEL_TEXT:
+            await ctx.send(
+                embed=status_embed(
+                    "❌ Não publiquei o painel",
+                    f"O texto ainda tem `{_PLACEHOLDER}`. Escreve o nome do "
+                    "evento em `_PANEL_TEXT` (`cogs/event_panel.py`) antes de "
+                    "publicar — isto ia com **@everyone** para toda a gente.",
+                )
+            )
+            return
         try:
             await channel.send(
                 content=_PANEL_TEXT,
                 view=EventPanelView(self.poliswag),
+                allowed_mentions=discord.AllowedMentions(everyone=True),
             )
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
@@ -204,7 +228,9 @@ class EventPanel(commands.Cog):
         await ctx.send(
             embed=status_embed(
                 "✅ Painel publicado",
-                f"O botão dá o cargo **{role.name}** em {channel.mention}.",
+                f"O botão dá o cargo **{role.name}** em {channel.mention}.\n"
+                "📣 Foi com **@everyone** — cada vez que corres o comando, "
+                "toda a gente leva ping outra vez.",
             )
         )
 
@@ -226,6 +252,7 @@ class EventPanel(commands.Cog):
             await ctx.author.send(
                 content=_PANEL_TEXT,
                 view=EventPanelView(self.poliswag),
+                allowed_mentions=discord.AllowedMentions.none(),
             )
         # Deliberately narrower than eventpanel's HTTPException: closed
         # DMs are the one expected failure here, and anything else is a
