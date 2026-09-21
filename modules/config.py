@@ -34,6 +34,12 @@ class Config:
     # who does is almost certainly a spam bot indiscriminately posting into
     # every channel it can see. See cogs/moderation.py.
     TRAP_CHANNEL_ID = int(os.environ.get("TRAP_CHANNEL_ID", "0"))
+    # Announcements channel holding the !eventpanel opt-in message, and the
+    # permanent Eventos role it grants. The event's own channel is not
+    # configured -- it is written straight into the panel copy in
+    # cogs/event_panel.py, which is edited per event anyway.
+    EVENT_PANEL_CHANNEL_ID = int(os.environ.get("EVENT_PANEL_CHANNEL_ID", "0"))
+    EVENTS_ROLE_ID = int(os.environ.get("EVENTS_ROLE_ID", "0"))
     # Combined Leiria+Marinha map status channel — reuses the old Leiria-only
     # env var name since Leiria's Discord channel is the one that survived
     # the merge (Marinha's separate channel was deleted).
