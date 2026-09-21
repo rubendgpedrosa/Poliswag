@@ -484,6 +484,8 @@ EOF
 
 ### Task 3: `!eventpanel` posts the panel, with a pre-flight check
 
+> **Amended after code review.** `_preflight` as written below returns `(role, error)`. Review pointed out that Tasks 4 and 5 add two more call sites, one of which re-derives the channel `_preflight` had already resolved and thrown away — so it now returns `(role, channel, error)`, and the Task 4/5 code below reflects that. The command also wraps its `channel.send` in `try/except discord.HTTPException`, since a refused post was the one failure in this file that escaped as a raw command error. See the follow-up commit on top of Task 3.
+
 **Files:**
 - Modify: `cogs/event_panel.py`
 - Test: `tests/cogs/test_event_panel.py`
@@ -746,7 +748,7 @@ Append inside the `EventPanel` class, after `eventpanel`:
         ),
     )
     async def eventpanel_test(self, ctx):
-        _role_obj, error = self._preflight()
+        _role_obj, _channel, error = self._preflight()
         if error:
             await ctx.send(embed=status_embed("❌ Não enviei o painel", error))
             return
@@ -897,13 +899,12 @@ Append inside the `EventPanel` class, after `eventpanel_test`:
         ),
     )
     async def eventpanel_clear(self, ctx, confirm: str | None = None):
-        role, error = self._preflight()
+        role, channel, error = self._preflight()
         if error:
             await ctx.send(embed=status_embed("❌ Não limpei nada", error))
             return
 
-        guild = self.poliswag.EVENT_PANEL_CHANNEL.guild
-        holders = [m for m in guild.members if role in m.roles]
+        holders = [m for m in channel.guild.members if role in m.roles]
         if not holders:
             await ctx.send(
                 embed=status_embed(
@@ -943,7 +944,7 @@ Append inside the `EventPanel` class, after `eventpanel_test`:
         await ctx.send(embed=status_embed("🧹 Lista limpa", description))
 ```
 
-`holders` reads the panel channel's `guild.members` — the same guild object the pre-flight resolved the role from. Do **not** use `role.guild`: under test the role is a mock and `role.guild.members` is a `MagicMock`, not an iterable.
+`holders` reads `channel.guild.members`, using the channel `_preflight` already resolved. Do **not** use `role.guild`: under test the role is a mock and `role.guild.members` is a `MagicMock`, not an iterable.
 
 Add the audit-log reason next to `_AUDIT_REASON` at the top of the file:
 
