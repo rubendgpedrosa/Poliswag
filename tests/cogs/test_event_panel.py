@@ -13,6 +13,7 @@ import pytest
 from cogs.event_panel import (
     _CLEAR_REASON,
     _PANEL_TEXT,
+    _PLACEHOLDER,
     EventPanel,
     EventPanelView,
     setup,
@@ -70,6 +71,15 @@ def poliswag():
     bot.EVENT_PANEL_CHANNEL = MagicMock()
     bot.EVENT_PANEL_CHANNEL.send = AsyncMock()
     return bot
+
+
+@pytest.fixture
+def filled_panel(mocker):
+    """The shipped _PANEL_TEXT still holds the placeholder, so publishing
+    is blocked by design. Tests about a successful post need it filled."""
+    text = "@everyone\nOlá a todos! Já temos canal para a Festa do Pikachu."
+    mocker.patch("cogs.event_panel._PANEL_TEXT", text)
+    return text
 
 
 @pytest.fixture(autouse=True)
@@ -260,7 +270,7 @@ def _ctx(author_id="111"):
 
 
 class TestPostCommand:
-    async def test_posts_the_panel_with_a_working_view(self, poliswag):
+    async def test_posts_the_panel_with_a_working_view(self, poliswag, filled_panel):
         guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
         poliswag.EVENT_PANEL_CHANNEL.guild = guild
         cog = EventPanel(poliswag)
@@ -270,11 +280,46 @@ class TestPostCommand:
         poliswag.EVENT_PANEL_CHANNEL.send.assert_awaited_once()
         kwargs = poliswag.EVENT_PANEL_CHANNEL.send.await_args.kwargs
         assert isinstance(kwargs["view"], EventPanelView)
-        # A plain line, not an embed: the admin's own @everyone
-        # announcement carries the wording, and a second boxed copy of it
-        # underneath just says the same thing twice.
-        assert kwargs["content"] == _PANEL_TEXT
+        assert kwargs["content"].startswith("@everyone")
+        # Explicit rather than relying on the library default, which a
+        # future discord.py or a bot-wide allowed_mentions could change.
+        assert kwargs["allowed_mentions"].everyone is True
+        # A plain line, not an embed: the panel is the announcement, so a
+        # boxed copy underneath would just say the same thing twice.
+        assert kwargs["content"] == filled_panel
         assert "embed" not in kwargs
+
+    async def test_refuses_to_ping_the_server_with_the_placeholder(
+        self, poliswag, mocker
+    ):
+        """Every post is an @everyone, and a ping cannot be taken back --
+        so shipping the unedited template is worth blocking."""
+        mocker.patch(
+            "cogs.event_panel._PANEL_TEXT", f"@everyone\nOlá! {_PLACEHOLDER} aí."
+        )
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+        assert _PLACEHOLDER in ctx.send.await_args.kwargs["embed"].description
+
+    async def test_the_rehearsal_still_shows_the_placeholder(self, poliswag, mocker):
+        """Blocking the live post must not block trying it out first."""
+        mocker.patch(
+            "cogs.event_panel._PANEL_TEXT", f"@everyone\nOlá! {_PLACEHOLDER} aí."
+        )
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_test(cog, ctx)
+
+        ctx.author.send.assert_awaited_once()
 
     async def test_refuses_when_the_role_outranks_the_bot(self, poliswag):
         guild = _guild(role=_role(position=20), member=_member(), bot_top_position=10)
@@ -327,7 +372,9 @@ class TestPostCommand:
         description = ctx.send.await_args.kwargs["embed"].description
         assert "EVENT_PANEL_CHANNEL_ID" in description
 
-    async def test_the_confirmation_names_the_role_and_the_channel(self, poliswag):
+    async def test_the_confirmation_names_the_role_and_the_channel(
+        self, poliswag, filled_panel
+    ):
         role = _role(position=1)
         role.name = "Eventos"
         guild = _guild(role=role, member=_member(), bot_top_position=10)
@@ -342,7 +389,9 @@ class TestPostCommand:
         assert "Eventos" in description
         assert "#anuncios" in description
 
-    async def test_reports_when_the_channel_refuses_the_post(self, poliswag):
+    async def test_reports_when_the_channel_refuses_the_post(
+        self, poliswag, filled_panel
+    ):
         guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
         poliswag.EVENT_PANEL_CHANNEL.guild = guild
         poliswag.EVENT_PANEL_CHANNEL.send = AsyncMock(
@@ -376,6 +425,9 @@ class TestTestCommand:
         kwargs = ctx.author.send.await_args.kwargs
         assert isinstance(kwargs["view"], EventPanelView)
         assert kwargs["content"] == _PANEL_TEXT
+        # The rehearsal shows the @everyone line so it matches what will
+        # be posted, but must never be able to fire it.
+        assert kwargs["allowed_mentions"].everyone is False
         assert "embed" not in kwargs
         poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
         ctx.send.assert_awaited_once()
