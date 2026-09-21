@@ -233,3 +233,24 @@ class TestAsyncWrappers:
             )
         # Serialized: start/end pairs never interleave.
         assert order == ["start", "end", "start", "end"]
+
+
+class TestConnectionTimeouts:
+    """A connection with no timeouts can hang a caller indefinitely.
+
+    Everything here runs through asyncio.to_thread from the 60s scheduler
+    tick, so an unbounded read stalls that tick and every step after it. The
+    bound is generous rather than tight: this connector serves reporting
+    queries as well as small lookups, and a read timeout surfaces as errno
+    2013, which _execute_query_sync already reconnects and retries.
+    """
+
+    def test_connect_sets_timeouts(self):
+        import unittest.mock as mock
+
+        with mock.patch("pymysql.connect") as connect:
+            DatabaseConnector(database="poliswag")
+        kwargs = connect.call_args.kwargs
+        assert kwargs["connect_timeout"]
+        assert kwargs["read_timeout"]
+        assert kwargs["write_timeout"]
