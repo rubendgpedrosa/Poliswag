@@ -55,18 +55,24 @@ class EventPanelView(discord.ui.View):
         return channel.guild if channel is not None else None
 
     async def handle_click(self, interaction):
+        # Ack first: resolving the member can cost an HTTP fetch and the
+        # role change is another, which together can outrun Discord's 3s
+        # deadline and show a red "interaction failed" on a click that
+        # actually worked.
+        await interaction.response.defer(ephemeral=True)
+
         guild = self._guild(interaction)
         role = guild.get_role(Config.EVENTS_ROLE_ID) if guild is not None else None
         if role is None:
             self.poliswag.utility.log_to_file(
                 f"[EVENTPANEL] role {Config.EVENTS_ROLE_ID} not found", "ERROR"
             )
-            await interaction.response.send_message(_ERR_CONFIG, ephemeral=True)
+            await interaction.followup.send(_ERR_CONFIG, ephemeral=True)
             return
 
         member = await self._member(guild, interaction.user.id)
         if member is None:
-            await interaction.response.send_message(_ERR_NOT_MEMBER, ephemeral=True)
+            await interaction.followup.send(_ERR_NOT_MEMBER, ephemeral=True)
             return
 
         had_role = role in member.roles
@@ -81,9 +87,7 @@ class EventPanelView(discord.ui.View):
             await self._report_failure(interaction, member, had_role, e)
             return
 
-        await interaction.response.send_message(
-            _LEFT if had_role else _JOINED, ephemeral=True
-        )
+        await interaction.followup.send(_LEFT if had_role else _JOINED, ephemeral=True)
 
     async def _member(self, guild, user_id):
         member = guild.get_member(user_id)
@@ -100,7 +104,7 @@ class EventPanelView(discord.ui.View):
             f"[EVENTPANEL] Failed to {action} role for {member} ({member.id}): {error}",
             "ERROR",
         )
-        await interaction.response.send_message(_ERR_FAILED, ephemeral=True)
+        await interaction.followup.send(_ERR_FAILED, ephemeral=True)
         mod_channel = self.poliswag.MOD_CHANNEL
         if mod_channel is None:
             return
