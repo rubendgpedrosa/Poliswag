@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from cogs.event_panel import EventPanelView
+from cogs.event_panel import EventPanel, EventPanelView, setup
 from modules.config import Config
 
 _ROLE_ID = 4242
@@ -210,3 +210,68 @@ class TestHandleClickFailures:
 
         interaction.response.send_message.assert_awaited_once()
         assert "remover" in poliswag.utility.log_to_file.call_args.args[0]
+
+
+def _ctx(author_id="111"):
+    ctx = MagicMock()
+    ctx.author = MagicMock()
+    ctx.author.id = author_id
+    ctx.author.send = AsyncMock()
+    ctx.send = AsyncMock()
+    return ctx
+
+
+class TestPostCommand:
+    async def test_posts_the_panel_with_a_working_view(self, poliswag):
+        guild = _guild(role=_role(position=1), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+
+        await cog.eventpanel(cog, _ctx())
+
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_awaited_once()
+        kwargs = poliswag.EVENT_PANEL_CHANNEL.send.await_args.kwargs
+        assert isinstance(kwargs["view"], EventPanelView)
+        assert isinstance(kwargs["embed"], discord.Embed)
+
+    async def test_refuses_when_the_role_outranks_the_bot(self, poliswag):
+        guild = _guild(role=_role(position=20), member=_member(), bot_top_position=10)
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+
+    async def test_refuses_when_the_role_is_missing(self, poliswag):
+        poliswag.EVENT_PANEL_CHANNEL.guild = _guild(role=None)
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        poliswag.EVENT_PANEL_CHANNEL.send.assert_not_awaited()
+        ctx.send.assert_awaited_once()
+
+    async def test_refuses_when_the_panel_channel_is_unset(self, poliswag):
+        poliswag.EVENT_PANEL_CHANNEL = None
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel(cog, ctx)
+
+        ctx.send.assert_awaited_once()
+
+    def test_only_admins_may_run_it(self, poliswag):
+        cog = EventPanel(poliswag)
+        assert cog.cog_check(_ctx(author_id="111")) is True
+        assert cog.cog_check(_ctx(author_id="222")) is False
+
+
+class TestSetup:
+    async def test_setup_adds_the_cog(self, poliswag):
+        poliswag.add_cog = AsyncMock()
+        await setup(poliswag)
+        poliswag.add_cog.assert_awaited_once()

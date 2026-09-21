@@ -1,4 +1,5 @@
 import discord
+from discord.ext import commands
 
 from modules.config import Config
 from modules.embeds import status_embed
@@ -107,3 +108,72 @@ class EventPanelView(discord.ui.View):
             color=0xE74C3C,
         )
         await self.poliswag.utility.send_embed_to_channel(mod_channel, embed)
+
+
+class EventPanel(commands.Cog):
+    def __init__(self, poliswag):
+        self.poliswag = poliswag
+
+    async def cog_load(self):
+        print(f"{self.__class__.__name__} loaded!")
+
+    async def cog_unload(self):
+        print(f"{self.__class__.__name__} unloaded!")
+
+    def cog_check(self, ctx):
+        return str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS
+
+    def _preflight(self):
+        """Returns (role, error). A role that outranks Poliswag is the
+        failure that would otherwise surface much later, as a Forbidden
+        for every single member who clicks."""
+        channel = self.poliswag.EVENT_PANEL_CHANNEL
+        if channel is None:
+            return None, (
+                "EVENT_PANEL_CHANNEL_ID não está definido ou o canal não foi "
+                "encontrado."
+            )
+        role = channel.guild.get_role(Config.EVENTS_ROLE_ID)
+        if role is None:
+            return None, f"Não existe nenhum cargo com o id `{Config.EVENTS_ROLE_ID}`."
+        if role.position >= channel.guild.me.top_role.position:
+            return None, (
+                f"O cargo **{role.name}** está acima (ou ao nível) do cargo do "
+                "Poliswag, por isso o bot não o consegue atribuir. Arrasta-o "
+                "para baixo nas definições de cargos."
+            )
+        return role, None
+
+    @commands.group(
+        name="eventpanel",
+        invoke_without_command=True,
+        brief="Publica o painel de auto-atribuição do cargo Eventos",
+        help=(
+            "Publica no canal de anúncios uma mensagem com um botão que dá "
+            "(ou tira) o cargo **Eventos**, o cargo que abre o canal do "
+            "evento actual. Cada vez que corres o comando é publicada uma "
+            "mensagem nova; o texto está em `cogs/event_panel.py`.\n\n"
+            "`!eventpanel test` — envia-te o painel por DM para experimentares\n"
+            "`!eventpanel clear` — tira o cargo a toda a gente"
+        ),
+    )
+    async def eventpanel(self, ctx):
+        role, error = self._preflight()
+        if error:
+            await ctx.send(embed=status_embed("❌ Não publiquei o painel", error))
+            return
+        await self.poliswag.EVENT_PANEL_CHANNEL.send(
+            embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
+            view=EventPanelView(self.poliswag),
+        )
+        await ctx.send(
+            embed=status_embed(
+                "✅ Painel publicado",
+                f"O botão dá o cargo **{role.name}** em "
+                f"{self.poliswag.EVENT_PANEL_CHANNEL.mention}.",
+            )
+        )
+
+
+async def setup(poliswag):
+    await poliswag.add_cog(EventPanel(poliswag))
