@@ -30,6 +30,7 @@ def _member(roles=()):
     member.roles = list(roles)
     member.add_roles = AsyncMock()
     member.remove_roles = AsyncMock()
+    member.mention = f"<@{_USER_ID}>"
     return member
 
 
@@ -441,6 +442,28 @@ class TestClearCommand:
         description = ctx.send.await_args.kwargs["embed"].description
         assert "1" in description
         assert "Falhou" in description
+        embed = ctx.send.await_args.kwargs["embed"]
+        assert "<@123>" in embed.description
+        assert embed.color.value == 0xE74C3C
+
+    async def test_every_removal_failing_is_still_reported(self, poliswag):
+        role = _role(position=1)
+        holders = [_member(roles=[role]), _member(roles=[role])]
+        for holder in holders:
+            holder.remove_roles = AsyncMock(
+                side_effect=discord.Forbidden(MagicMock(status=403), "nope")
+            )
+        guild = _guild(role=role, member=holders[0], bot_top_position=10)
+        guild.members = holders
+        poliswag.EVENT_PANEL_CHANNEL.guild = guild
+        cog = EventPanel(poliswag)
+        ctx = _ctx()
+
+        await cog.eventpanel_clear(cog, ctx, "confirm")
+
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "**0**" in description
+        assert "Falhou em **2**" in description
 
     async def test_nobody_to_clear_says_so(self, poliswag):
         role = _role(position=1)
