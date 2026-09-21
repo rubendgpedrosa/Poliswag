@@ -23,7 +23,7 @@ _PANEL_TEXT = (
     "setembro**, em **Lisboa**.\n"
     "Mais info: https://pokemongo.com/featured-in-person-events/citysafari/lisbon"
     "\n"
-    "Carrega no botão aqui em baixo para acederes ao canal."
+    "Caso queiram ter acesso ao canal, carreguem no botão aqui em baixo."
 )
 _PLACEHOLDER = "<NOME DO EVENTO>"
 _BUTTON_LABEL = "Quero participar"
