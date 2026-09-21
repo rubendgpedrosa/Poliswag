@@ -13,6 +13,7 @@ rows only) and whether a form is a costume, so both ride along.
 """
 
 import logging
+import re
 
 _UPSERT_PREFIX = (
     "INSERT INTO pokemon_name "
@@ -24,6 +25,17 @@ _UPSERT_SUFFIX = (
 )
 
 Row = tuple[int, int, str, str | None, int | None, int]
+
+
+# The masterfile's isCostume is incomplete: event forms are named after their
+# event and year ("Goggles 2026", "Copy 2019", "Halloween 2026 01") or
+# numbered ("Tshirt 04", "Flying 05") and often arrive unflagged. Regional,
+# type and pattern forms never carry a year or a bare number.
+_EVENT_FORM = re.compile(r"\b(19|20)\d{2}\b|^(Tshirt|Flying) \d+$")
+
+
+def _is_costume(form_name: str, form) -> int:
+    return 1 if form.get("isCostume") or _EVENT_FORM.search(form_name) else 0
 
 
 def _family(details) -> int | None:
@@ -46,8 +58,9 @@ def build_pokemon_name_rows(masterfile) -> list[Row]:
             form_name = form.get("name")
             if not form_name or form_name == "Normal" or int(form_id) == default_form:
                 continue
-            is_costume = 1 if form.get("isCostume") else 0
-            rows.append((pid, int(form_id), name, form_name, None, is_costume))
+            rows.append(
+                (pid, int(form_id), name, form_name, None, _is_costume(form_name, form))
+            )
     return rows
 
 
