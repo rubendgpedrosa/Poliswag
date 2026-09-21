@@ -21,8 +21,9 @@ _PANEL_TEXT = (
     "Olá, treinadores! 🎉 Criámos um canal dedicado ao **Pokémon GO City "
     "Safari**, que decorre no próximo fim de semana — dias **26 e 27 de "
     "setembro**, em **Lisboa**.\n"
-    "Carrega no botão aqui em baixo para acederes ao canal.\n"
     "Mais info: https://pokemongo.com/featured-in-person-events/citysafari/lisbon"
+    "\n"
+    "Carrega no botão aqui em baixo para acederes ao canal."
 )
 _PLACEHOLDER = "<NOME DO EVENTO>"
 _BUTTON_LABEL = "Quero participar"
