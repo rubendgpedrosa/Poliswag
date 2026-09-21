@@ -52,7 +52,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 
 Self-serve opt-in: a button in the announcements channel grants/removes the permanent **Eventos** role, and a channel permission overwrite turns that role into access to the current event channel.
 
-- A new event = a new channel with the role's overwrite. **No code change and no redeploy**; everyone already opted in sees it immediately. The event channel is written inline in `_PANEL_BODY` as `<#id>`, deliberately not configured.
+- A new event = a new channel with the role's overwrite. **No code change and no redeploy**; everyone already opted in sees it immediately. The panel is a plain one-line message (`_PANEL_TEXT`) plus the button, not an embed — the admin posts their own @everyone announcement above it. It names no channel on purpose: its audience cannot see the channel yet, and Discord renders a hidden channel's mention as a dead link.
 - `EventPanelView` is persistent (`timeout=None`, `custom_id="event_panel:toggle"`), re-registered by `main.py`'s `setup_hook` via `add_view` — without that, buttons on panels from past events die on the next restart. It must stay in `setup_hook`: `discord.ui.View.__init__` needs a running loop, so `__init__` would raise `RuntimeError` at boot.
 - The role is resolved **by id**, and the clicker is resolved through the panel channel's guild — so the button behaves identically in a DM, which is what makes `!eventpanel test` a real rehearsal rather than a preview.
 - `_preflight()` → `(role, channel, error)` refuses to publish when the channel is unset, the role is missing, or the role's position is `>=` Poliswag's top role. That last one would otherwise surface as a `Forbidden` once per member who clicks, hours later.

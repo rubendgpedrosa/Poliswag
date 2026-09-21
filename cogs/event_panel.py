@@ -4,14 +4,14 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import status_embed
 
-# Edited per event: the channel mention below is the event channel the
-# Eventos role unlocks. Nothing else needs changing -- the role is
-# permanent and shared by every event.
-_PANEL_TITLE = "🎉 Canal de eventos"
-_PANEL_BODY = (
+# A plain line rather than an embed: the admin posts their own @everyone
+# announcement and this sits under it, so a second boxed copy of the same
+# words would just say it twice. Deliberately names no channel -- the
+# audience is precisely the people who cannot see it yet, and Discord
+# renders a mention of a hidden channel as a dead link for them.
+_PANEL_TEXT = (
     "Carrega no botão para receberes o cargo **Eventos** e veres o canal "
-    "do próximo evento: <#1551534974413443082>.\n\n"
-    "Carrega outra vez para saíres e deixares de ver os canais de eventos."
+    "do evento. Carrega outra vez para saíres."
 )
 _BUTTON_LABEL = "Quero participar"
 _BUTTON_CUSTOM_ID = "event_panel:toggle"
@@ -186,7 +186,7 @@ class EventPanel(commands.Cog):
             return
         try:
             await channel.send(
-                embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
+                content=_PANEL_TEXT,
                 view=EventPanelView(self.poliswag),
             )
         except discord.HTTPException as e:
@@ -224,7 +224,7 @@ class EventPanel(commands.Cog):
             return
         try:
             await ctx.author.send(
-                embed=status_embed(_PANEL_TITLE, _PANEL_BODY),
+                content=_PANEL_TEXT,
                 view=EventPanelView(self.poliswag),
             )
         # Deliberately narrower than eventpanel's HTTPException: closed
