@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 
 from modules.role_manager import RoleManager
+from cogs.event_panel import EventPanelView
 from modules.scanner_status import ScannerStatus
 from modules.scanner_manager import ScannerManager
 from modules.utility import Utility
@@ -63,6 +64,7 @@ class Poliswag(commands.Bot):
         self.MOD_CHANNEL = None
         self.ACCOUNTS_CHANNEL = None
         self.TRAP_CHANNEL = None
+        self.EVENT_PANEL_CHANNEL = None
 
         self.ADMIN_USERS_IDS = Config.ADMIN_USERS_IDS
 
@@ -88,6 +90,10 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.lures")
         await self.load_extension("cogs.webstats")
         await self.load_extension("cogs.trades")
+        await self.load_extension("cogs.event_panel")
+        # Re-registers the persistent view so the buttons on panels posted
+        # for previous events keep working across restarts.
+        self.add_view(EventPanelView(self))
         await self.tree.sync()
 
     async def get_channels(self):
@@ -97,6 +103,7 @@ class Poliswag(commands.Bot):
             "MOD_CHANNEL": Config.MOD_CHANNEL_ID,
             "ACCOUNTS_CHANNEL": Config.ACCOUNTS_CHANNEL_ID,
             "TRAP_CHANNEL": Config.TRAP_CHANNEL_ID,
+            "EVENT_PANEL_CHANNEL": Config.EVENT_PANEL_CHANNEL_ID,
         }
         for attr, channel_id in channels.items():
             if not channel_id:
