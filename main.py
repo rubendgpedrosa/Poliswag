@@ -25,6 +25,7 @@ from modules.trade_stats import TradeStats
 from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
+from modules.dm_policy import may_run_in_dm
 from modules.http_client import close_session
 
 
@@ -72,6 +73,21 @@ class Poliswag(commands.Bot):
 
     async def on_ready(self):
         await self.get_channels()
+
+    async def process_commands(self, message):
+        """Drop a DM we don't answer before it ever reaches a command.
+
+        A global check would be the obvious place for this, but a failed
+        check raises CheckFailure, and ContainerManagerCog answers that
+        with "não tens autorização" — which tells a stranger the command
+        exists. Returning before invoke() says nothing at all.
+        """
+        if message.author.bot:
+            return
+        ctx = await self.get_context(message)
+        if ctx.command is not None and not may_run_in_dm(ctx):
+            return
+        await self.invoke(ctx)
 
     async def close(self):
         await close_session()
