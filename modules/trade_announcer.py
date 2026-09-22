@@ -211,7 +211,8 @@ class TradeAnnouncer:
             return None, embed, set(), True
         embed = discord.Embed(description="\n".join(lines), color=Config.EMBED_COLOR)
         embed.title = f"🔄 TRADES — <@{actor_id}> atualizou as listas"
-        embed.url = f"{Config.TRADES_URL}/possiveis"
+        # Combinações became part of Comunidade (/procurar).
+        embed.url = f"{Config.TRADES_URL}/procurar"
         content = f"<#{Config.TRADES_CHANNEL_ID}> " + " ".join(
             f"<@{user_id}>" for user_id in sorted(mentions)
         )
