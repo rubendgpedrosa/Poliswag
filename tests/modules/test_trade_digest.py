@@ -139,7 +139,7 @@ class TestBuildDigest:
     def test_shows_the_address_in_the_body(self):
         embed = build_digest([row()])
         assert Config.TRADES_URL in embed.description
-        assert "pogoleiria.pt/trades" in embed.description
+        assert "pogoleiria.pt/trocas" in embed.description
 
     def test_writes_the_address_without_the_scheme(self):
         embed = build_digest([row()])

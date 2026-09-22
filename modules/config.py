@@ -57,7 +57,9 @@ class Config:
     # Deliberately not in _REQUIRED_ENV_VARS: the default is correct and an
     # unreachable analytics schema must not stop the bot booting.
     DB_POGOLEIRIA = os.environ.get("DB_POGOLEIRIA", "pogoleiria")
-    TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/trades")
+    # The Pokédex/Comunidade tool's public address (it moved from /trades,
+    # which still redirects, on 2026-09-22).
+    TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/trocas")
     # The private statistics report. The token issued by !stats is appended to
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
