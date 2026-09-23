@@ -108,6 +108,35 @@ class TestMessageNamesTheActor:
         assert str(_DETAIL_LIMIT + 1) in embed.description
 
 
+class TestMessageReadsLikeTheSite:
+    """One pair of lists meeting, said the way the site says it."""
+
+    def test_the_title_names_the_actor_rather_than_a_raw_mention(self):
+        # Discord doesn't render <@id> in an embed title: it showed the number.
+        _content, embed, _mentions, _collapsed = announcer()._message("1", [row()])
+        assert "Rui" in embed.title
+        assert "<@" not in embed.title
+
+    def test_a_line_says_which_kind_of_pokemon(self):
+        _content, embed, _mentions, _collapsed = announcer()._message(
+            "1", [row(category="shiny")]
+        )
+        assert "Pikachu · Shiny" in embed.description
+
+    def test_a_plain_pokemon_has_no_label(self):
+        _content, embed, _mentions, _collapsed = announcer()._message(
+            "1", [row(category="normal")]
+        )
+        assert "Pikachu —" in embed.description
+
+    def test_one_holder_tem(self):
+        # The wanter posted last, so the line names who has it: one person.
+        _content, embed, _mentions, _collapsed = announcer()._message(
+            "2", [row(actor_id=2)]
+        )
+        assert "— tem: <@1>" in embed.description
+
+
 class TestMessageLinksTheConfiguredChannel:
     """The channel comes from config, not from a snowflake pasted in source."""
 
