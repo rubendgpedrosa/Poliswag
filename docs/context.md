@@ -47,6 +47,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
 | `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | admin-only (`cog_check`) |
+| `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings | admin-only (`cog_check`) |
 
 ## Events role panel (`cogs/event_panel.py`)
 
