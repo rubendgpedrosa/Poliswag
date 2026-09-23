@@ -16,6 +16,7 @@ _COG_DISPLAY_NAMES = {
     "Scheduled": "⏰ Agendados (admin)",
     "Lures": "🌸 Lures",
     "WebStats": "📊 Estatísticas (admin)",
+    "Announcements": "📢 Anúncios (admin)",
 }
 
 _NO_DESCRIPTION = "Sem descrição."
