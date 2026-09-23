@@ -353,17 +353,34 @@ class Scheduled(commands.Cog):
 
     async def _send_event_change_notifications(self, channel, changed):
         if changed["ended"]:
-            await channel.send(embed=status_embed("Eventos que terminaram"))
+            # A card per event only where there are numbers to show. The
+            # rest (GO Battle League, research, a raid rotation) used to get
+            # a card each with nothing but a title; they are one line apiece
+            # under the header now.
+            with_stats, plain = [], []
             for event in changed["ended"]:
-                embed = await self._build_event_embed(event, is_ended=True)
+                summary = await self.poliswag.event_stats.get_summary(event)
+                if summary:
+                    with_stats.append((event, summary))
+                else:
+                    plain.append(event)
+            lines = ["**Eventos que terminaram**"]
+            for event in plain:
+                emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
+                lines.append(f"{emoji} {event['name']}")
+            await channel.send("\n".join(lines)[:2000])
+            for event, summary in with_stats:
+                embed = await self._build_event_embed(
+                    event, is_ended=True, summary=summary
+                )
                 await channel.send(embed=embed)
         if changed["started"]:
-            await channel.send(embed=status_embed("Novos eventos"))
+            await channel.send("**Novos eventos**")
             for event in changed["started"]:
                 embed = await self._build_event_embed(event)
                 await channel.send(embed=embed)
 
-    async def _build_event_embed(self, event, is_ended=False):
+    async def _build_event_embed(self, event, is_ended=False, summary=None):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
         emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
         event_link = self.poliswag.event_manager.get_event_link(event)
@@ -372,7 +389,7 @@ class Scheduled(commands.Cog):
         )
         color = self.poliswag.event_manager.event_colors.get(event_type_key, 0x3498DB)
         if is_ended:
-            description = await self.poliswag.event_stats.get_summary(event)
+            description = summary
         else:
             description = self.poliswag.event_manager.format_end_time(event_end)
         embed = discord.Embed(
