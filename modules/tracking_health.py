@@ -46,7 +46,13 @@ class TrackingHealth:
         try:
             with db.cursor() as cursor:
                 cursor.execute("SET SESSION max_statement_time = 5")
-                cursor.execute("SELECT MAX(created_at) FROM page_view")
+                # Page views only: /pogoleiria.apk writes its download counts
+                # to the same table, and a download must not make a dead
+                # page-view beacon look alive. (idx_event_created covers it.)
+                cursor.execute(
+                    "SELECT MAX(created_at) FROM page_view"
+                    " WHERE event_name = 'tool_view'"
+                )
                 row = cursor.fetchone()
                 return row[0] if row else None
         finally:
