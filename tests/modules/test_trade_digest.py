@@ -19,6 +19,9 @@ def row(**patch):
     return out
 
 
+RUI = f"[Rui]({Config.TRADES_URL.rstrip('/')}/jogador/1)"
+
+
 def field(embed, name):
     return next((f.value for f in embed.fields if f.name == name), None)
 
@@ -87,8 +90,8 @@ class TestBuildDigest:
                 ),
             ]
         )
-        assert field(embed, "✨ Para trocar") == "Poliwag · Shiny — Rui"
-        assert field(embed, "🔍 Procurados") == "Larvitar — Rui"
+        assert field(embed, "✨ Para trocar") == f"Poliwag · Shiny — {RUI}"
+        assert field(embed, "🔍 Procurados") == f"Larvitar — {RUI}"
 
     def test_gives_each_pokemon_its_own_line(self):
         embed = build_digest(
@@ -99,7 +102,7 @@ class TestBuildDigest:
         )
         assert (
             field(embed, "✨ Para trocar")
-            == "Poliwag · Shiny — Rui\nEevee · 100IV — Rui"
+            == f"Poliwag · Shiny — {RUI}\nEevee · 100IV — {RUI}"
         )
 
     # A morning with only wants should not carry an empty heading.
@@ -115,18 +118,57 @@ class TestBuildDigest:
             [
                 row(list="want", pokemon_id=0, pokemon_name=None),
                 row(pokemon_id=133, pokemon_name="Eevee"),
+                row(pokemon_id=1, pokemon_name="Bulbasaur"),
             ]
         )
-        assert embed.thumbnail.url.endswith("/133.png")
+        assert embed.thumbnail.url.endswith("/UICONS_OS_128/pokemon/133.png")
+        assert embed.image.url is None
+
+    # A post of one or two lines is easy to scroll past; the Pokémon is its
+    # picture, at 512px, instead of a corner thumbnail.
+    def test_a_small_post_shows_the_pokemon_big(self):
+        embed = build_digest([row(), row(pokemon_id=133, pokemon_name="Eevee")])
+        assert embed.image.url.endswith("/UICONS_OS/pokemon/60.png")
+        assert embed.thumbnail.url is None
 
     def test_asks_for_the_form_sprite_when_there_is_one(self):
         embed = build_digest([row(form_id=2332)])
-        assert embed.thumbnail.url.endswith("/60_f2332.png")
+        assert embed.image.url.endswith("/60_f2332.png")
 
     # "Qualquer Shiny" has no sprite, and a broken image is worse than none.
     def test_shows_no_sprite_when_nothing_has_a_species(self):
         embed = build_digest([row(list="want", pokemon_id=0, pokemon_name=None)])
         assert embed.thumbnail.url is None
+        assert embed.image.url is None
+
+    def test_marks_what_already_has_a_partner(self):
+        embed = build_digest(
+            [row(matched=1), row(pokemon_id=133, pokemon_name="Eevee", matched=0)]
+        )
+        assert (
+            field(embed, "✨ Para trocar")
+            == f"Poliwag · Shiny 🤝 — {RUI}\nEevee · Shiny — {RUI}"
+        )
+        assert "🤝 já tem par" in embed.footer.text
+
+    def test_no_legend_without_a_match(self):
+        embed = build_digest([row(matched=0)])
+        assert "🤝" not in embed.footer.text
+
+    def test_a_name_cannot_break_its_link(self):
+        embed = build_digest([row(display_name="[x]_y")])
+        assert "— [(x)\\_y](" in field(embed, "✨ Para trocar")
+
+    # One player adding forty Pokémon used to fill the whole post.
+    def test_collapses_one_players_flood_into_a_line(self):
+        flood = [row(pokemon_id=n, pokemon_name=f"P{n}") for n in range(1, 11)]
+        other = row(
+            discord_id=2, display_name="Ana", pokemon_id=200, pokemon_name="Misdreavus"
+        )
+        value = field(build_digest(flood + [other]), "✨ Para trocar")
+        assert value.count(f"— {RUI}") == 3
+        assert "Misdreavus · Shiny — [Ana]" in value
+        assert value.endswith(f"*+7 de {RUI}*")
 
     def test_carries_the_count_and_the_way_in(self):
         embed = build_digest([row(), row(pokemon_id=133, pokemon_name="Eevee")])
