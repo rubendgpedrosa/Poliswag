@@ -99,7 +99,7 @@ class TestBuildDigest:
         )
         assert (
             field(embed, "✨ Para trocar")
-            == "Poliwag · Shiny — Rui\nEevee · 100% — Rui"
+            == "Poliwag · Shiny — Rui\nEevee · 100IV — Rui"
         )
 
     # A morning with only wants should not carry an empty heading.
@@ -139,6 +139,9 @@ class TestBuildDigest:
     def test_shows_the_address_in_the_body(self):
         embed = build_digest([row()])
         assert Config.TRADES_URL in embed.description
+        # Comunidade, where everyone's lists are; the bare address opens the
+        # reader's own Pokédex.
+        assert embed.url.endswith("/procurar")
         assert "pogoleiria.pt/trocas" in embed.description
 
     def test_writes_the_address_without_the_scheme(self):
