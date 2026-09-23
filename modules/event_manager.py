@@ -105,7 +105,7 @@ class EventManager:
         current_time = (at_time or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
         events = await self.poliswag.db.get_data_from_database(
             """
-            SELECT name, start, end, event_type, image, link, notification_date, notification_end_date,
+            SELECT name, start, end, event_type, image, link, extra_data, notification_date, notification_end_date,
                 CASE
                     WHEN start <= %s AND end >= %s THEN 'active'
                     WHEN start <= %s AND end <= %s THEN 'ended'
@@ -172,7 +172,7 @@ class EventManager:
         window_end = (at_time + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:00")
         started = await self.poliswag.db.get_data_from_database(
             """
-            SELECT e.name, e.start, e.end, e.event_type, e.image, e.link FROM event e
+            SELECT e.name, e.start, e.end, e.event_type, e.image, e.link, e.extra_data FROM event e
             LEFT JOIN excluded_event_type ext ON ext.type = e.event_type
             WHERE e.start >= %s AND e.start < %s AND ext.type IS NULL
             ORDER BY e.start ASC
@@ -181,7 +181,7 @@ class EventManager:
         )
         ended = await self.poliswag.db.get_data_from_database(
             """
-            SELECT e.name, e.start, e.end, e.event_type, e.image, e.link FROM event e
+            SELECT e.name, e.start, e.end, e.event_type, e.image, e.link, e.extra_data FROM event e
             LEFT JOIN excluded_event_type ext ON ext.type = e.event_type
             WHERE e.end >= %s AND e.end < %s AND ext.type IS NULL
             ORDER BY e.end ASC
