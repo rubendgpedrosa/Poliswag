@@ -538,9 +538,43 @@ class TestSendEventChangeNotifications:
             "image": None,
         }
         changed = {"ended": [event], "started": [event]}
+        cog.poliswag.event_stats.get_summary = AsyncMock(return_value="🐾 **5** spawns")
         await cog._send_event_change_notifications(channel, changed)
         # 2 headers + 2 embed sends = 4
         assert channel.send.await_count == 4
+        calls = channel.send.await_args_list
+        assert calls[0].args == ("**Eventos que terminaram**",)
+        assert calls[0].kwargs == {}
+        assert isinstance(calls[1].kwargs["embed"], discord.Embed)
+        assert calls[2].args == ("**Novos eventos**",)
+        assert calls[2].kwargs == {}
+        assert isinstance(calls[3].kwargs["embed"], discord.Embed)
+
+    async def test_ended_without_stats_is_a_line_under_the_header(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        gbl = {
+            "event_type": "go-battle-league",
+            "name": "Great League",
+            "end": "2026-04-07 20:00:00",
+        }
+        cd = {
+            "event_type": "community-day",
+            "name": "Gible Community Day",
+            "end": "2026-04-07 20:00:00",
+            "image": None,
+        }
+        cog.poliswag.event_stats.get_summary = AsyncMock(
+            side_effect=lambda event: "🐾 **5** spawns" if event is cd else None
+        )
+        await cog._send_event_change_notifications(
+            channel, {"ended": [gbl, cd], "started": []}
+        )
+        calls = channel.send.await_args_list
+        assert len(calls) == 2
+        assert calls[0].args == ("**Eventos que terminaram**\n🌟 Great League",)
+        assert calls[1].kwargs["embed"].description == "🐾 **5** spawns"
+        assert "Gible" in calls[1].kwargs["embed"].title
 
     async def test_empty_lists_send_nothing(self, cog):
         channel = MagicMock()
@@ -562,15 +596,13 @@ class TestBuildEventEmbed:
             "end": "2026-04-07 20:00:00",
             "image": None,
         }
-        cog.poliswag.event_stats.get_summary = AsyncMock(
-            return_value="🐾 **5** avistamentos · 💯 **1** 100% IV"
+        embed = await cog._build_event_embed(
+            event, is_ended=True, summary="🐾 **5** spawns · 💯 1 100IV"
         )
-        embed = await cog._build_event_embed(event, is_ended=True)
         assert isinstance(embed, discord.Embed)
         assert "Test" in embed.title
-        assert embed.description == "🐾 **5** avistamentos · 💯 **1** 100% IV"
+        assert embed.description == "🐾 **5** spawns · 💯 1 100IV"
         cog.poliswag.event_manager.format_end_time.assert_not_called()
-        cog.poliswag.event_stats.get_summary.assert_awaited_once_with(event)
 
     async def test_ended_event_omits_description_when_no_stats(self, cog):
         event = {
@@ -579,7 +611,6 @@ class TestBuildEventEmbed:
             "end": "2026-04-07 20:00:00",
             "image": None,
         }
-        # Fixture default: event_stats.get_summary returns None.
         embed = await cog._build_event_embed(event, is_ended=True)
         assert embed.description in (None, "")
 
