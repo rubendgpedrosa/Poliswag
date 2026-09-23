@@ -11,6 +11,7 @@ import discord
 import pymysql
 
 from modules.config import Config
+from modules.trade_digest import CATEGORY_LABELS
 
 _CUTOFF_SQL = "UTC_TIMESTAMP() - INTERVAL 90 SECOND"
 _DETAIL_LIMIT = 8
@@ -195,8 +196,13 @@ class TradeAnnouncer:
             pokemon = row["pokemon_name"] or f"#{row['pokemon_id']}"
             if row["form_name"]:
                 pokemon += f" ({row['form_name']})"
+            # "Pikachu · Shiny", as the site and the morning digest write it:
+            # a Shiny and a plain Pikachu are different trades.
+            label = CATEGORY_LABELS.get(row["category"])
+            if label:
+                pokemon += f" · {label}"
             direction = (
-                "procura" if str(row["actor_id"]) == str(row["holder_id"]) else "têm"
+                "procura" if str(row["actor_id"]) == str(row["holder_id"]) else "tem"
             )
             lines.append(
                 f"{pokemon} — {direction}: <@{row['wanter_id'] if direction == 'procura' else row['holder_id']}>"
@@ -210,7 +216,9 @@ class TradeAnnouncer:
             )
             return None, embed, set(), True
         embed = discord.Embed(description="\n".join(lines), color=Config.EMBED_COLOR)
-        embed.title = f"🔄 TRADES — <@{actor_id}> atualizou as listas"
+        # A name, not <@id>: Discord doesn't render mentions in an embed
+        # title, so the title showed the raw id. The mention is in content.
+        embed.title = f"🔄 TRADES — {actor_name} atualizou as listas"
         # Combinações became part of Comunidade (/procurar).
         embed.url = f"{Config.TRADES_URL}/procurar"
         content = f"<#{Config.TRADES_CHANNEL_ID}> " + " ".join(

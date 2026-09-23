@@ -29,9 +29,11 @@ _LINE_LIMIT = 12
 # looks the same in Discord as it does on the site.
 SPRITE_BASE = "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon"
 
-_QUALITY = {
+# The site's names for each list (apps/trades lib/lists.ts), so a post and the
+# page it links to say the same thing. The announcer uses them too.
+CATEGORY_LABELS = {
     "normal": None,
-    "hundo": "100%",
+    "hundo": "100IV",
     "lucky": "Lucky",
     "shiny": "Shiny",
     "xxl": "XXL",
@@ -68,7 +70,7 @@ def is_due(now, watermark):
 
 def describe(row):
     """One entry as its own line: "Poliwag · Shiny"."""
-    quality = _QUALITY.get(row["category"])
+    quality = CATEGORY_LABELS.get(row["category"])
     # pokemon_id 0 is the web app's ANY_SPECIES: a want that names only a
     # category. "Qualquer Shiny" is the whole request, not half of one.
     if not row["pokemon_id"]:
@@ -105,14 +107,17 @@ def build_digest(rows):
     # The title carries the same link, but an embed title does not look like
     # one -- least of all on a phone. The address goes in the body too, written
     # out so people can see where they are going, and read it aloud to someone.
-    address = Config.TRADES_URL.split("://", 1)[-1].rstrip("/")
+    # Comunidade, where everyone's lists are: TRADES_URL itself opens the
+    # reader's own Pokédex, or the login screen.
+    lists_url = f"{Config.TRADES_URL.rstrip('/')}/procurar"
+    address = lists_url.split("://", 1)[-1]
     embed = discord.Embed(
         title="Novidades nas trocas",
-        description=f"Vê as listas todas em **[{address}]({Config.TRADES_URL})**",
+        description=f"Vê as listas todas em **[{address}]({lists_url})**",
         color=Config.EMBED_COLOR,
         timestamp=datetime.datetime.now(),
     )
-    embed.url = Config.TRADES_URL
+    embed.url = lists_url
     if haves:
         embed.add_field(name="✨ Para trocar", value=_field(haves), inline=False)
     if wants:

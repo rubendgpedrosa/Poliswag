@@ -73,3 +73,22 @@ class TestMessages:
     def test_recovery_does_not_backfill_the_silent_period(self):
         text = message("recovered", timedelta(minutes=5))
         assert "não prova que não houve visitas" in text
+
+
+class TestWhatCountsAsAlive:
+    def test_only_page_views_count_not_apk_downloads(self, monkeypatch):
+        # /pogoleiria.apk writes download counts to the same table; one must
+        # not make a dead page-view beacon look alive.
+        from unittest.mock import MagicMock
+
+        import modules.tracking_health as tracking_health
+
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (NOW,)
+        db = MagicMock()
+        db.cursor.return_value.__enter__.return_value = cursor
+        monkeypatch.setattr(tracking_health.pymysql, "connect", lambda **_: db)
+
+        assert tracking_health.TrackingHealth()._last_event_sync() == NOW
+        query = cursor.execute.call_args_list[-1].args[0]
+        assert "event_name = 'tool_view'" in query
