@@ -14,9 +14,8 @@ import asyncio
 import hashlib
 import secrets
 
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 
 
 class WebStatsAccess:
@@ -43,16 +42,7 @@ class WebStatsAccess:
         return f"{self.base_url}/{token}"
 
     def _connect(self):
-        return pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            connect_timeout=5,
-            read_timeout=5,
-            write_timeout=5,
-        )
+        return connect(Config.DB_POGOLEIRIA)
 
     def _count(self):
         db = self._connect()

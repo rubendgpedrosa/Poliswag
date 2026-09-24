@@ -19,9 +19,8 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import time
 
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 from modules.logging_mixin import LoggingMixin
 
 _DEFAULT_DAYS = 7
@@ -164,17 +163,7 @@ class PageViewStats(LoggingMixin):
             return result
 
     def _collect_sync(self, since, until, detail):
-        db = pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            connect_timeout=5,
-            read_timeout=10,
-            write_timeout=5,
-            cursorclass=pymysql.cursors.DictCursor,
-        )
+        db = connect(Config.DB_POGOLEIRIA, read_timeout=10, dict_rows=True)
         try:
             with db.cursor() as cursor:
                 # Per-statement server budget also bounds CPU use after clients

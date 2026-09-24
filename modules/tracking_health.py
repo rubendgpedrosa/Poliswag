@@ -14,9 +14,8 @@ guessing.
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 
 # The site is quiet overnight, so hours of silence is normal. A full day with
 # nothing at all is not, whatever the hour.
@@ -33,16 +32,7 @@ class TrackingHealth:
         return await asyncio.to_thread(self._last_event_sync)
 
     def _last_event_sync(self):
-        db = pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            connect_timeout=5,
-            read_timeout=5,
-            write_timeout=5,
-        )
+        db = connect(Config.DB_POGOLEIRIA)
         try:
             with db.cursor() as cursor:
                 cursor.execute("SET SESSION max_statement_time = 5")

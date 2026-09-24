@@ -16,9 +16,8 @@ import asyncio
 import datetime
 
 import discord
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 
 DIGEST_HOUR = 9
 # A longer list is a wall nobody reads anyway.
@@ -210,20 +209,7 @@ def build_digest(rows):
 
 
 def _connect_pool():
-    return pymysql.connect(
-        host=Config.DB_HOST,
-        port=Config.DB_PORT,
-        user=Config.DB_USER,
-        password=Config.DB_PASSWORD,
-        database=Config.DB_POGOLEIRIA,
-        # The digest runs inside the 60s tick; an unbounded read stalls it and
-        # every step after it.
-        connect_timeout=3,
-        read_timeout=5,
-        write_timeout=3,
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=False,
-    )
+    return connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
 
 
 class TradeDigest:

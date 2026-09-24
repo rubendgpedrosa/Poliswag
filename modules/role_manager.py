@@ -19,9 +19,6 @@ class RoleManager:
         await interaction.response.defer()
         await self.toggle_role(interaction.data["custom_id"], interaction.user)
 
-    async def add_button_event(self, button):
-        button.callback = self.response_user_role_selection
-
     async def toggle_role(self, role, user):
         role_obj = discord.utils.get(user.guild.roles, name=role)
         if not role_obj:

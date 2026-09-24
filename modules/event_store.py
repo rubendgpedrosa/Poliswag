@@ -2,11 +2,6 @@ class EventStore:
     def __init__(self, db):
         self.db = db
 
-    async def get_excluded_types(self):
-        return await self.db.get_data_from_database(
-            "SELECT type FROM excluded_event_type"
-        )
-
     async def get_all_event_types(self):
         return await self.db.get_data_from_database(
             "SELECT event_type FROM event GROUP BY event_type"

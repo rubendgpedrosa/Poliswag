@@ -2,9 +2,8 @@
 
 import asyncio
 
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 
 
 class TradeStats:
@@ -14,17 +13,7 @@ class TradeStats:
         return await asyncio.to_thread(self._collect_sync, since, until)
 
     def _collect_sync(self, since, until):
-        db = pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            connect_timeout=3,
-            read_timeout=5,
-            write_timeout=3,
-            cursorclass=pymysql.cursors.DictCursor,
-        )
+        db = connect(Config.DB_POGOLEIRIA, dict_rows=True)
         try:
             with db.cursor() as cursor:
                 cursor.execute("SET SESSION max_statement_time = 5")

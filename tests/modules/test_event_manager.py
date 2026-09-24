@@ -233,6 +233,24 @@ class TestFetchEvents:
         assert any("Error processing events" in m for m in log_calls)
 
 
+class TestPruneOldEvents:
+    async def test_deletes_events_ended_before_retention(self, em):
+        from modules.event_manager import EVENT_RETENTION_DAYS
+
+        await em.prune_old_events()
+        sql = em.poliswag.db.execute_query_to_database.call_args.args[0]
+        params = em.poliswag.db.execute_query_to_database.call_args.kwargs["params"]
+        assert sql.startswith("DELETE FROM event WHERE end < NOW() - INTERVAL")
+        assert params == (EVENT_RETENTION_DAYS,)
+
+    async def test_runs_after_each_fetch(self, em, mocker):
+        mocker.patch("modules.event_manager.fetch_data", new=AsyncMock(return_value=[]))
+        mocker.patch.object(em, "process_and_store_events", new=AsyncMock())
+        prune = mocker.patch.object(em, "prune_old_events", new=AsyncMock())
+        await em.fetch_events()
+        prune.assert_awaited_once()
+
+
 class TestProcessAndStoreEvents:
     async def test_does_nothing_when_events_none(self, em):
         em.events = None

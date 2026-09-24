@@ -8,7 +8,6 @@ from modules.embeds import status_embed
 import logging
 
 HTTP_TIMEOUT_SECONDS = 15
-_MARINHA_LON_MAX = -8.9  # stops at or west of this longitude are in Marinha Grande
 
 
 def _cache_fresh(entry, max_age: timedelta) -> bool:
@@ -284,7 +283,7 @@ class QuestSearch:
             lon = float(quest["lon"])
         except (TypeError, ValueError):
             return False
-        in_marinha = lon <= _MARINHA_LON_MAX
+        in_marinha = lon <= Config.MARINHA_LON_MAX
         return not in_marinha if is_leiria else in_marinha
 
     def add_quest_to_found_quests(self, found_quests, quest):

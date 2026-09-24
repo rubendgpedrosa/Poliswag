@@ -112,15 +112,6 @@ class DeviceManager(LoggingMixin):
 
         return await self._adb("-s", device, *args, timeout=timeout)
 
-    async def is_reachable(self) -> bool:
-        """Return True if the device responds to a basic shell command."""
-        try:
-            _, _, rc = await self.run("shell", "echo", "ping", timeout=8)
-            return rc == 0
-        except RuntimeError as e:
-            self._log(f"Reachability check failed: {e}")
-            return False
-
     async def get_model(self) -> str | None:
         """Return the device model string, or None on failure."""
         try:

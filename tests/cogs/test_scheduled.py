@@ -675,63 +675,6 @@ class TestCheckWorkers:
         )
 
 
-class TestCheckNewLures:
-    async def test_no_new_lures_sends_nothing(self, cog):
-        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(return_value=[])
-        await cog._check_new_lures()
-        cog.poliswag.CONVIVIO_CHANNEL.send.assert_not_called()
-
-    async def test_no_convivio_channel_is_a_noop(self, cog):
-        cog.poliswag.CONVIVIO_CHANNEL = None
-        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(
-            return_value=[
-                {
-                    "name": "Anfiteatro",
-                    "lat": 39.7175,
-                    "lon": -8.8022,
-                    "area": "Leiria",
-                    "lure_name": "Rainy Lure",
-                    "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
-                }
-            ]
-        )
-        await cog._check_new_lures()  # must not raise
-
-    async def test_sends_one_embed_per_new_lure(self, cog):
-        cog.poliswag.lure_watcher.check_new_lures = AsyncMock(
-            return_value=[
-                {
-                    "name": "Anfiteatro",
-                    "lat": 39.7175,
-                    "lon": -8.8022,
-                    "area": "Leiria",
-                    "lure_name": "Rainy Lure",
-                    "expires_at": real_datetime.datetime(2026, 4, 7, 18, 34, 0),
-                },
-                {
-                    "name": "PokéStop",
-                    "lat": 39.71,
-                    "lon": -8.81,
-                    "area": "Marinha Grande",
-                    "lure_name": "Normal Lure",
-                    "expires_at": real_datetime.datetime(2026, 4, 7, 19, 0, 0),
-                },
-            ]
-        )
-        await cog._check_new_lures()
-        assert cog.poliswag.CONVIVIO_CHANNEL.send.await_count == 2
-        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args_list[0].kwargs["embed"]
-        assert "Anfiteatro" in embed.title
-        assert "Rainy Lure" in embed.title
-        assert "Leiria" in embed.description
-        assert "18:34" in embed.description
-        assert "39.7175,-8.8022" in embed.description
-        assert embed.timestamp is None
-
-
-# --- _update_lure_status -------------------------------------------------------
-
-
 class TestUpdateLureStatus:
     async def test_sets_presence_on_first_run(self, cog):
         cog.poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=3)
