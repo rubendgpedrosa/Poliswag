@@ -500,3 +500,69 @@ class TestGetWeeklyEvents:
     async def test_empty_rows_return_empty_list(self, em):
         em.poliswag.db.get_data_from_database.return_value = []
         assert await em.get_weekly_events() == []
+
+
+# --- drop_twins ---------------------------------------------------------------
+
+
+class TestDropTwins:
+    """ScrapedDuck lists one event twice ("Halloween 2026 Part I" at 00:00 and
+    at 10:00): announce the start once, from the earliest, and the end once,
+    from the latest."""
+
+    local = {
+        "name": "Halloween",
+        "start": "2026-10-27 00:00:00",
+        "end": "2026-10-31 23:59:00",
+    }
+    ingame = {
+        "name": "Halloween",
+        "start": "2026-10-27 10:00:00",
+        "end": "2026-10-31 20:00:00",
+    }
+    rows = [local, ingame]
+
+    def test_start_only_from_the_earliest_copy(self):
+        from modules.event_manager import drop_twins
+
+        assert drop_twins([self.ingame], [], self.rows) == ([], [])
+        assert drop_twins([self.local], [], self.rows) == ([self.local], [])
+
+    def test_end_only_from_the_latest_copy(self):
+        from modules.event_manager import drop_twins
+
+        assert drop_twins([], [self.ingame], self.rows) == ([], [])
+        assert drop_twins([], [self.local], self.rows) == ([], [self.local])
+
+    def test_one_per_name_in_a_batch(self):
+        from modules.event_manager import drop_twins
+
+        same = {**self.ingame, "start": self.local["start"], "end": self.local["end"]}
+        started, _ = drop_twins([self.local, same], [], [self.local])
+        assert started == [self.local]
+
+    def test_a_same_name_event_at_another_time_is_not_a_twin(self):
+        from modules.event_manager import drop_twins
+
+        next_year = {
+            "name": "Halloween",
+            "start": "2027-10-27 00:00:00",
+            "end": "2027-10-31 23:59:00",
+        }
+        assert drop_twins([next_year], [], self.rows + [next_year]) == ([next_year], [])
+
+    async def test_check_current_events_changes_applies_it(self, em):
+        em.poliswag.db.get_data_from_database.side_effect = [
+            [
+                {
+                    **self.ingame,
+                    "event_status": "active",
+                    "notification_date": None,
+                    "notification_end_date": None,
+                }
+            ],
+            self.rows,
+        ]
+        assert await em.check_current_events_changes() is None
+        # Still marked notified, so it isn't looked at again every minute.
+        em.poliswag.db.execute_query_to_database.assert_called_once()

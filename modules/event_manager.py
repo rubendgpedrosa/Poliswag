@@ -172,9 +172,28 @@ class EventManager:
                     "ERROR",
                 )
 
+        started, ended = await self._without_twins(started, ended)
         if not started and not ended:
             return None
         return {"started": started, "ended": ended}
+
+    async def _without_twins(self, started, ended):
+        """Drop the copies of an event ScrapedDuck lists twice.
+
+        The same event often comes as two rows with different times (the
+        local-time listing and the in-game 10:00 one: "Halloween 2026 Part I"
+        at 00:00 and at 10:00), which announced it twice, hours apart. Its
+        start is announced at the earliest copy and its end at the latest;
+        the others are still marked notified, just not posted.
+        """
+        names = sorted({e["name"] for e in started + ended})
+        if not names:
+            return started, ended
+        rows = await self.poliswag.db.get_data_from_database(
+            f"SELECT name, start, end FROM event WHERE name IN ({', '.join(['%s'] * len(names))})",
+            params=tuple(names),
+        )
+        return drop_twins(started, ended, rows or [])
 
     async def _dry_run_changes(self, at_time):
         """Find events that transitioned within the minute starting at at_time.
@@ -360,3 +379,39 @@ class EventManager:
             event_type_path = "season"
 
         return f"https://www.leekduck.com/{event_type_path}/{url_name}"
+
+
+def drop_twins(started, ended, rows):
+    """`started` and `ended` without the copies of a same-named event whose
+    time overlaps theirs: a start only from the earliest copy, an end only
+    from the latest, and one per name in a batch. `rows` are every stored
+    event with those names. Times compare as "YYYY-MM-DD HH:MM:SS" text."""
+    spans = {}
+    for row in rows:
+        spans.setdefault(row["name"], []).append((str(row["start"]), str(row["end"])))
+
+    def twins(event):
+        me = (str(event["start"]), str(event["end"]))
+        return me, [
+            t
+            for t in spans.get(event["name"], [])
+            if t != me and t[0] < me[1] and me[0] < t[1]
+        ]
+
+    def keep(events, is_first):
+        kept, seen = [], set()
+        for event in events:
+            me, others = twins(event)
+            if event["name"] in seen or not is_first(me, others):
+                continue
+            seen.add(event["name"])
+            kept.append(event)
+        return kept
+
+    def earliest(me, others):
+        return not any(t < me for t in others)
+
+    def latest(me, others):
+        return not any((t[1], t[0]) > (me[1], me[0]) for t in others)
+
+    return keep(started, earliest), keep(ended, latest)
