@@ -54,24 +54,29 @@ Rules that keep the copy honest:
   alerts because the ordinary one is missing.
 - **Humans.** Create each collector as a Poracle `discord:user` with their
   area, start/stop it with their switch (as `!notify` does for channels).
-- **Refused DMs, shown on the site.** Recorded on `trade_player` (the table
-  the site already reads), from two sources:
-  - a welcome DM Poliswag sends itself when a collector is first switched on
-    ("Vais receber aqui os 100IV que te faltam…"): if Discord refuses it,
-    record it at once. This catches DMs closed from the start;
-  - Poracle's own record on `poracle.humans` (`fails`, `admin_disable`,
-    `disabled_date`), copied across on each sync pass. The Pokédex settings
-    then say "Não conseguimos enviar-te DMs" and how to fix it.
+- **Refused DMs, detected by Poliswag.** Poracle-NG does not record a
+  refused DM (`humans.fails` stays untouched), and Discord only reports a
+  refusal when a message is actually sent: opening a DM channel succeeds
+  even with DMs closed. So Poliswag sends its own DMs as the check and
+  records a refusal on `trade_player`, where the Pokédex settings show "Não
+  conseguimos enviar-te DMs" and how to fix it:
+  - a welcome DM when a collector is first switched on ("Vais receber aqui
+    os 100IV que te faltam…"), which catches DMs closed from the start;
+  - a short Monday summary ("Esta semana apareceram 23 100IV que te faltam;
+    marcaste 5"), which is worth reading on its own and catches DMs closed
+    later, within a week.
+  Fallback if a week's delay proves too slow: Poliswag sends every alert
+  itself instead of Poracle (the polling alternative below) and knows each
+  refusal at once. Reading Poracle's logs was rejected: failures there name
+  Discord's DM channel id, not the player, and depend on its log format.
 
 ## Known costs
 
 - Coupled to Poracle-NG's `monsters` schema: an upgrade that changes it
   breaks the sync with a SQL error, which is loud rather than wrong.
 - One DM per spawn; no per-minute bundling.
-- Unverified: that Poracle-NG (the Go rewrite) actually increments `fails` /
-  sets `disabled_date` when Discord refuses a DM, as the original Poracle
-  did. Check first when resuming: a test user with DMs closed, then watch the
-  row. Until confirmed, only the welcome-DM check is certain.
+- A refusal after the welcome DM is only noticed at the next Monday
+  summary; alerts sent in between are lost for that player.
 - Volume at the start: 20–35 DMs a day for a collector missing most species
   (measured over 8 days of `pokemon_hundo_stats`, both areas); it falls as
   the Pokédex fills.
