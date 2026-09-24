@@ -1,10 +1,9 @@
 # Pokédex 100IV alerts (Poliswag side) implementation plan
 
-**Status:** Tasks 1–5 implemented: migration, pure helpers, Poracle
-user creation, the tick, disposable-MariaDB SQL tests (22 pass), and the
-scheduler step. Full suite 1438 passed. The SQL tests caught a collation
-error in the cleanup join (fixed with an explicit COLLATE). Task 6 (template,
-isolated matcher), Task 7 (live pilot) and Task 8 (docs handoff) are pending.
+**Status:** live pilot running for the owner only (Leiria, at their
+request), since 2026-09-24 21:53. Tasks 1–6 done; Task 7 done except a real
+spawn observation and a live opt-out (see "Pilot record"). The site side
+(settings UI, retry, notices) is not started; see Task 8's handoff.
 
 **Goal:** DM a Trades collector (only the owner during the pilot) when a 100IV
 spawns of a Pokémon missing from their 100IV Pokédex.
@@ -1172,31 +1171,31 @@ successful or assuming the API ignores the template.
 Start this task only when implementing/deploying the feature is the authorized
 work. The plan's edit/review is not that deployment. Complete Tasks 1–6 first.
 
-- [ ] Verify the deployed Poracle version/schema, default/current reload
+- [x] Verify the deployed Poracle version/schema, default/current reload
   interval, API area payload, template preview support, `{{areas}}`, and
   current-profile semantics against the references in the spec. Record the
   reload fallback interval; do not silently rely on a different build.
-- [ ] Capture the owner's original settings, collection ticks, and Poracle
+- [x] Capture the owner's original settings, collection ticks, and Poracle
   profile so test changes can be restored. Never decrease a settings revision
   when restoring: restore values with a fresh revision.
-- [ ] Apply migration 014, using the normal startup migration mechanism or
+- [x] Apply migration 014, using the normal startup migration mechanism or
   `modules.migrations.split_statements` and `connect` with autocommit. Verify
   the eight columns/defaults. No player's switch should change during DDL.
-- [ ] Back up `/root/poracleng/config/dts.json` to a unique timestamped filename.
+- [x] Back up `/root/poracleng/config/dts.json` to a unique timestamped filename.
   Add exactly one entry with the Task 6 ID/language/type/platform. Validate
   the complete JSON, then atomically replace the file. Never overwrite an
   earlier backup on a retry. If an identical entry exists, leave it; if it
   differs, review/update that entry instead of appending a duplicate.
-- [ ] Record a deployment timestamp, restart Poracle, and inspect startup logs
+- [x] Record a deployment timestamp, restart Poracle, and inspect startup logs
   **since that timestamp**. Verify this template loads without errors and the
   process is healthy. A hardcoded total template count is not an assertion
   about this entry.
-- [ ] Restart Poliswag directly with Docker Compose using the appropriate
+- [x] Restart Poliswag directly with Docker Compose using the appropriate
   production/dev compose file. Avoid `timeout make reload`: that target also
   follows logs, and a timeout cannot distinguish successful restart from failure.
   Inspect timestamped container logs and new `[HUNDO]` entries over at least one
   tick. Existing `logs/error.log` content is retained; do not expect it to be empty.
-- [ ] Ensure the owner collects hundo, then enable **only** Discord ID
+- [x] Ensure the owner collects hundo, then enable **only** Discord ID
   `98846248865398784` with a fresh revision. Example SQL (via the configured
   connection, without printing credentials):
 
@@ -1208,13 +1207,13 @@ SET hundo_dms = 1, hundo_areas = 'leiria,marinha',
 WHERE discord_id = 98846248865398784;
 ```
 
-- [ ] Within two normal ticks, verify the confirmation arrived and
+- [x] Within two normal ticks, verify the confirmation arrived and
   `hundo_confirmed_revision = hundo_settings_revision > hundo_dm_refused_revision`.
   Check `humans.type`, `enabled`, `admin_disable`, and `current_profile_no`.
   Check managed rules' full values/profile against the missing tiles (including
   default-form mapping); use an exact expected count, not “at least 600”.
   If this human already existed, preserve its area/profile and all other settings.
-- [ ] Preview on the owner using `test_pokemon` and a target containing
+- [x] Preview on the owner using `test_pokemon` and a target containing
   `id`, `name`, `type: discord:user`, `language: en`, and
   `template: pokedex-100iv`. Include a future despawn time and form 45 in the
   Rattata payload. Verify title, area, map link, and pilot footer. This sends a
@@ -1240,6 +1239,39 @@ A queued DM can still arrive; use the isolated matching test for deterministic
 non-delivery. Restore any test tick/area changes. Leave the pilot off unless
 the owner explicitly requested ongoing alerts.
 
+### Pilot record (2026-09-24)
+
+- Poracle 5.2.1-main (c8901ad1), `reload_interval_secs` default 60 (not
+  overridden). Isolated check ran this same image (Task 6).
+- Owner before: collecting `hundo,shiny`, `show_costumes=1`, **0** hundo
+  ticks (1500 missing tiles, 133 costumes); Poracle human already existed
+  (`discord:user`, area `["marinhagrande"]`, profile 1, no profiles rows,
+  no monster rules). Snapshot kept outside the repo.
+- Read-only dry run first: Ogerpon (1017, defaultFormId 0) made
+  `wanted_rules` reject the owner's whole rebuild. Changed to skip that tile
+  (commit 3f9f66f); expected count 1499.
+- Migration 014 applied live twice; 8 columns/defaults verified; all 8
+  players off at revision 0.
+- DTS: backup `dts.json.bak-100iv-20260924-215053`, one entry appended,
+  JSON validated, atomic replace. Restart 21:50:54: "DTS loaded: 77
+  templates", no errors, bot connected.
+- Poliswag restarted with `docker compose -f docker-compose.prod.yaml
+  restart poliswag`; "Migrations up to date", no `[HUNDO]`/CRASH lines.
+- Owner enabled with `hundo_areas='leiria'` (their choice, not both):
+  revision 1 confirmed at 21:53:28 (confirmation DM delivered), refused 0.
+  Human unchanged (area/profile preserved). Exactly 1499 rules, all
+  100/100, profile 1, `["leiria"]`, no form 0; 20 channel rules untouched;
+  reload 200; Poracle state 1519 monsters.
+- Preview via `/api/test` with `template: pokedex-100iv`: DM delivered
+  (DM channel created). Owner to confirm the look.
+- Tick/untick Rattata 19/0: 1499 → 1498 (19/45 gone) → 1499; collection
+  restored to 0 hundo ticks.
+- Not done live: a real spawn (none awaited), a live area change and profile
+  switch (covered by the isolated matcher), and the opt-out test: the owner
+  asked for ongoing alerts, and cleanup/opt-out is covered by the SQL tests
+  and the isolated matcher. The live cleanup statement has run every minute
+  since 21:51 without errors (proves MariaDB accepts it with live collations).
+
 Rollback: disable affected players with fresh revisions while the cleanup
 worker is available, verify managed rows are removed and Poracle has reloaded,
 then disable/revert the worker. If the worker cannot run, delete only
@@ -1249,13 +1281,13 @@ place; do not drop data or modify other users' rules/profiles.
 
 ## Task 8: Documentation and release handoff
 
-- [ ] Add a module-map row in `docs/context.md`: revision-specific confirmation,
+- [x] Add a module-map row in `docs/context.md`: revision-specific confirmation,
   independent cleanup, complete managed-rule comparison, current-profile
   following, reload retry/fallback, and off-by-default setting. Link the spec.
 - [ ] Hand the site implementation the eight-column contract, atomic writer
   SQL, explicit retry behavior, pending/refused notice rules, and tester gating.
   Ordinary save is not a retry. Do not publish a footer linking to settings
   until those controls work.
-- [ ] Record completed unit/SQL/matcher checks and actual pilot observations;
+- [x] Record completed unit/SQL/matcher checks and actual pilot observations;
   leave unperformed checks unchecked. Run Black/Ruff on changed Python files
   and `git diff --check`. Commit only explicit feature paths if committing.
