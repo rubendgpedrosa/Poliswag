@@ -66,7 +66,8 @@ class Trades(commands.Cog):
             return
 
         code = format_code(generate())
-        link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}"
+        # Tagged for the site's stats (see trade_digest.ORIGIN_TAG).
+        link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}?o=trocas-login"
 
         # First, before anything can go wrong: a !trades sitting in a channel
         # tells everyone this player just took a fresh code, and the reply

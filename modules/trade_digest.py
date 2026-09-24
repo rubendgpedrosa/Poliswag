@@ -115,8 +115,13 @@ def sprite_url(row, base=SPRITE_BASE):
     return f"{base}/{row['pokemon_id']}{f'_f{form}' if form else ''}.png"
 
 
+# The site's `?o=` origin tag: Discord's in-app browser sends no referrer, so
+# without it every visit from this post reads as "direct" in the stats.
+ORIGIN_TAG = "o=trocas-resumo"
+
+
 def profile_url(discord_id):
-    return f"{Config.TRADES_URL.rstrip('/')}/jogador/{discord_id}"
+    return f"{Config.TRADES_URL.rstrip('/')}/jogador/{discord_id}?{ORIGIN_TAG}"
 
 
 def _player(row):
@@ -177,6 +182,7 @@ def build_digest(rows):
     # reader's own Pokédex, or the login screen.
     lists_url = f"{Config.TRADES_URL.rstrip('/')}/procurar"
     address = lists_url.split("://", 1)[-1]
+    lists_url += f"?{ORIGIN_TAG}"
     embed = discord.Embed(
         title="Novidades nas trocas",
         description=f"Vê as listas todas em **[{address}]({lists_url})**",
