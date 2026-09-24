@@ -378,33 +378,45 @@ class Scheduled(commands.Cog):
         )
 
     async def _send_event_change_notifications(self, channel, changed):
+        """One post per batch: the header, the events without numbers as a
+        line each, and a card per event with numbers, as embeds of the same
+        message (ten at most, Discord's limit). It used to be a message per
+        event, seven in a row for six new ones."""
         if changed["ended"]:
             # A card per event only where there are numbers to show. The
-            # rest (GO Battle League, research, a raid rotation) used to get
-            # a card each with nothing but a title; they are one line apiece
-            # under the header now.
-            with_stats, plain = [], []
+            # rest (GO Battle League, research, Max Monday) are one line
+            # apiece under the header.
+            cards, plain, seen = [], [], []
             for event in changed["ended"]:
                 summary = await self.poliswag.event_stats.get_summary(event)
-                if summary:
-                    with_stats.append((event, summary))
-                else:
+                if not summary:
                     plain.append(event)
+                elif summary not in seen:
+                    # "Super Mega Raid Day" and "Staraptor Super Mega Raid
+                    # Day" are one event under two names: one card.
+                    seen.append(summary)
+                    cards.append(
+                        await self._build_event_embed(
+                            event, is_ended=True, summary=summary
+                        )
+                    )
             lines = ["**Eventos que terminaram**"]
             for event in plain:
                 emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
                 lines.append(f"{emoji} {event['name']}")
-            await channel.send("\n".join(lines)[:2000])
-            for event, summary in with_stats:
-                embed = await self._build_event_embed(
-                    event, is_ended=True, summary=summary
-                )
-                await channel.send(embed=embed)
+            await self._send_batch(channel, "\n".join(lines)[:2000], cards)
         if changed["started"]:
-            await channel.send("**Novos eventos**")
-            for event in changed["started"]:
-                embed = await self._build_event_embed(event)
-                await channel.send(embed=embed)
+            cards = [
+                await self._build_event_embed(event) for event in changed["started"]
+            ]
+            await self._send_batch(channel, "**Novos eventos**", cards)
+
+    @staticmethod
+    async def _send_batch(channel, header, embeds):
+        """The header with the first ten embeds, then ten more per message."""
+        await channel.send(header, embeds=embeds[:10])
+        for i in range(10, len(embeds), 10):
+            await channel.send(embeds=embeds[i : i + 10])
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
@@ -462,7 +474,13 @@ class Scheduled(commands.Cog):
             return False
 
         week_end = today + datetime.timedelta(days=6)
-        date_range = f"{today.strftime('%d/%m')} – {week_end.strftime('%d/%m/%Y')}"
+        date_range = f"{today.strftime('%d/%m')} a {week_end.strftime('%d/%m')}"
+
+        def when(moment):
+            # The year only when it isn't this one: "até 11/04" read as next
+            # month for an event that ends next April.
+            fmt = "%d/%m" if moment.year == today.year else "%d/%m/%Y"
+            return moment.strftime(fmt)
 
         ongoing = []
         upcoming_by_day = {}
@@ -482,45 +500,42 @@ class Scheduled(commands.Cog):
 
             if event_start <= now:
                 ongoing.append(
-                    f"{emoji} **{event['name']}** · `{event_end.strftime('%d/%m %H:%M')}`"
+                    (event_end, f"{emoji} **{event['name']}** · até {when(event_end)}")
                 )
             else:
                 day_key = (
-                    f"HOJE {event_start.strftime('%d/%m')}"
+                    f"Hoje {event_start.strftime('%d/%m')}"
                     if event_start.date() == today
                     else f"{PT_DAYS_SHORT[event_start.weekday()]} {event_start.strftime('%d/%m')}"
                 )
                 if day_key not in upcoming_by_day:
                     upcoming_by_day[day_key] = []
-                same_day = event_end.date() == event_start.date()
                 end_str = (
                     event_end.strftime("%H:%M")
-                    if same_day
-                    else event_end.strftime("%d/%m %H:%M")
+                    if event_end.date() == event_start.date()
+                    else f"{when(event_end)} {event_end.strftime('%H:%M')}"
                 )
                 upcoming_by_day[day_key].append(
-                    f"{emoji} **{event['name']}** · `{event_start.strftime('%H:%M')} – {end_str}`"
+                    f"{emoji} **{event['name']}** · {event_start.strftime('%H:%M')}–{end_str}"
                 )
 
-        lines = []
+        blocks = []
         if ongoing:
-            lines.append("**A DECORRER**")
-            lines.extend(ongoing)
+            # Soonest to end first: that's the one to hurry for.
+            ongoing.sort(key=lambda item: item[0])
+            blocks.append(
+                "\n".join(["**A decorrer**", *(line for _end, line in ongoing)])
+            )
+        for day, day_events in upcoming_by_day.items():
+            blocks.append("\n".join([f"**{day}**", *day_events]))
 
-        if upcoming_by_day:
-            for i, (day, day_events) in enumerate(upcoming_by_day.items()):
-                if lines or i > 0:
-                    lines.append("")
-                lines.append(f"**{day.upper()}**")
-                lines.extend(day_events)
-
-        if not lines:
+        if not blocks:
             return False
 
         embed = build_embed(
-            f"Eventos desta Semana  |  {date_range}",
-            description="\n".join(lines),
-            footer=f"Actualizado a {now.strftime('%d/%m/%Y %H:%M')}",
+            f"Eventos da semana · {date_range}",
+            description="\n\n".join(blocks),
+            footer=f"Atualizado a {now.strftime('%d/%m/%Y %H:%M')}",
         )
 
         target = channel or self.poliswag.CONVIVIO_CHANNEL

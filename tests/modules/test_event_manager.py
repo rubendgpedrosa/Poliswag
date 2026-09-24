@@ -63,9 +63,13 @@ class TestGetEventEmoji:
     def test_season_returns_leaf(self, em):
         assert em.get_event_emoji("Season Of Light") == "🍂"
 
-    def test_falls_back_to_random_pokemon_emoji(self, em, mocker):
-        mocker.patch("modules.event_manager.random.choice", return_value="🎮")
-        assert em.get_event_emoji("Misc") == "🎮"
+    # Never random: the same event got one emoji starting and another ending.
+    def test_every_type_has_a_fixed_emoji(self, em):
+        assert em.get_event_emoji("max-mondays") == "🌀"
+        assert em.get_event_emoji("max-battles") == "🌀"
+        assert em.get_event_emoji("go-pass") == "🎟️"
+        assert em.get_event_emoji("event") == "📅"
+        assert em.get_event_emoji("event") == em.get_event_emoji("event")
 
 
 class TestFormatEndTime:
@@ -83,7 +87,7 @@ class TestFormatEndTime:
         mock_dt_module.now.return_value = now
         mocker.patch("modules.event_manager.datetime", new=mock_dt_module)
         end = datetime(2024, 8, 3, 18, 30, 0)
-        assert em.format_end_time(end) == "Termina a 03 Ago - 18:30"
+        assert em.format_end_time(end) == "Termina a 03 ago às 18:30"
 
     def test_custom_verb_is_respected(self, em, mocker):
         now = datetime(2024, 5, 10, 10, 0, 0)
