@@ -1,9 +1,9 @@
-"""!trades — issues a player's login code for the trades tool.
+"""!pokedex — issues a player's login code for the Pokédex (pogoleiria.pt/pokedex).
 
 The code is a password, not a one-time token: it works on as many devices as
-the player likes and lasts until they run !trades again, which replaces it and
-ends every session opened with the old one. It answers to !trocas too, the
-name the tool shipped under for a day.
+the player likes and lasts until they run !pokedex again, which replaces it and
+ends every session opened with the old one. It answers to !trades and !trocas
+too, the tool's earlier names (Trades, then Trocas, until 2026-09-24).
 
 Identity lives in pogoleiria.trade_player. This cog is also where membership is
 tracked — leaving the server hides a player's lists and blocks their login,
@@ -26,7 +26,7 @@ from modules.trade_codes import format_code, generate, hash_code
 CONFIRMATION_SECONDS = 15
 
 
-class Trades(commands.Cog):
+class Pokedex(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.store = poliswag.trade_player_store
@@ -38,38 +38,38 @@ class Trades(commands.Cog):
         print(f"{self.__class__.__name__} unloaded!")
 
     @commands.command(
-        name="trades",
-        # The tool was called Trocas first; the alias is what half the server
-        # already learned, and it costs nothing to keep answering to it.
-        aliases=["trocas"],
-        brief="Envia-te por DM o código de acesso às Trades",
+        name="pokedex",
+        # The tool's earlier names; what the server already learned, and it
+        # costs nothing to keep answering to them.
+        aliases=["trades", "trocas"],
+        brief="Envia-te por DM o código de acesso à Pokédex",
         help="Gera um código novo e envia-o por mensagem privada. Podes "
         "escrevê-lo aqui ou em DM ao bot; num canal, a mensagem é apagada "
-        "logo. O código serve como password no site das Trades e funciona em "
-        "vários dispositivos. Cada !trades gera um novo e desliga o antigo.",
+        "logo. O código serve como password na Pokédex do site e funciona em "
+        "vários dispositivos. Cada !pokedex gera um novo e desliga o antigo.",
     )
-    async def trades(self, ctx):
+    async def pokedex(self, ctx):
         author = ctx.author
 
         # In a channel, being here is proof of membership. In a DM it is not:
         # the DM channel outlives the membership that created it, so without
-        # this someone who left — or was removed — could type !trades and have
+        # this someone who left — or was removed — could type !pokedex and have
         # upsert() clear their left_at, undoing the block on their way out.
         if ctx.guild is None and not self.is_member(author.id):
             await ctx.send(
                 embed=build_embed(
-                    "TRADES",
-                    "As Trades são para membros do servidor PoGo Leiria. "
-                    "Entra no servidor e escreve `!trades` outra vez.",
+                    "POKÉDEX",
+                    "A Pokédex é para membros do servidor PoGo Leiria. "
+                    "Entra no servidor e escreve `!pokedex` outra vez.",
                 )
             )
             return
 
         code = format_code(generate())
         # Tagged for the site's stats (see trade_digest.ORIGIN_TAG).
-        link = f"{Config.TRADES_URL}/entrar/{code.replace('-', '')}?o=trocas-login"
+        link = f"{Config.POKEDEX_URL}/entrar/{code.replace('-', '')}?o=pokedex-login"
 
-        # First, before anything can go wrong: a !trades sitting in a channel
+        # First, before anything can go wrong: a !pokedex sitting in a channel
         # tells everyone this player just took a fresh code, and the reply
         # below points at it. In a DM there is nothing to hide and the bot
         # can't delete someone else's message anyway.
@@ -83,12 +83,12 @@ class Trades(commands.Cog):
         try:
             await author.send(
                 embed=build_embed(
-                    "TRADES — O TEU CÓDIGO",
+                    "POKÉDEX — O TEU CÓDIGO",
                     f"🔑 Toca para entrares: {link}\n\n"
                     "Noutro dispositivo, copia o código da mensagem a seguir "
                     "e escreve-o no site.\n\n"
                     "É a tua password: funciona em vários dispositivos ao "
-                    "mesmo tempo e dura até pedires outro com `!trades`, que "
+                    "mesmo tempo e dura até pedires outro com `!pokedex`, que "
                     "desliga este.",
                 )
             )
@@ -99,10 +99,10 @@ class Trades(commands.Cog):
         except discord.Forbidden:
             await ctx.send(
                 embed=build_embed(
-                    "TRADES",
+                    "POKÉDEX",
                     f"{author.mention} não consegui enviar-te DM. No servidor "
                     "PoGo Leiria: toca no nome do servidor → **Privacidade** "
-                    "→ liga **Mensagens diretas**. Depois escreve `!trades` "
+                    "→ liga **Mensagens diretas**. Depois escreve `!pokedex` "
                     "outra vez.",
                 ),
                 delete_after=CONFIRMATION_SECONDS,
@@ -123,7 +123,7 @@ class Trades(commands.Cog):
 
         await ctx.send(
             embed=build_embed(
-                "TRADES", f"{author.mention} enviei-te o código por DM. 📬"
+                "POKÉDEX", f"{author.mention} enviei-te o código por DM. 📬"
             ),
             delete_after=CONFIRMATION_SECONDS,
         )
@@ -142,8 +142,8 @@ class Trades(commands.Cog):
         if ctx.guild is None and not self.is_member(author.id):
             await ctx.send(
                 embed=build_embed(
-                    "TRADES",
-                    "As Trades são para membros do servidor PoGo Leiria.",
+                    "POKÉDEX",
+                    "A Pokédex é para membros do servidor PoGo Leiria.",
                 )
             )
             return
@@ -163,7 +163,7 @@ class Trades(commands.Cog):
         except discord.Forbidden:
             await ctx.send(
                 embed=build_embed(
-                    "TRADES",
+                    "POKÉDEX",
                     f"{author.mention} não consegui enviar-te DM. No servidor "
                     "PoGo Leiria: toca no nome do servidor → **Privacidade** "
                     "→ liga **Mensagens diretas**.",
@@ -175,7 +175,7 @@ class Trades(commands.Cog):
         if ctx.guild is not None:
             await ctx.send(
                 embed=build_embed(
-                    "TRADES", f"{author.mention} enviei-te o resumo por DM. 📬"
+                    "POKÉDEX", f"{author.mention} enviei-te o resumo por DM. 📬"
                 ),
                 delete_after=CONFIRMATION_SECONDS,
             )
@@ -220,7 +220,7 @@ class Trades(commands.Cog):
             return
         left, returned = await self.store.reconcile(member_ids)
         if left or returned:
-            print(f"Trades reconcile: {len(left)} left, {len(returned)} returned")
+            print(f"Pokédex reconcile: {len(left)} left, {len(returned)} returned")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -228,4 +228,4 @@ class Trades(commands.Cog):
 
 
 async def setup(poliswag):
-    await poliswag.add_cog(Trades(poliswag))
+    await poliswag.add_cog(Pokedex(poliswag))

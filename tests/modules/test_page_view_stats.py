@@ -186,7 +186,7 @@ def test_continuation_without_entry_is_not_invented_direct_traffic(data):
 
 def test_actions_do_not_inflate_traffic_or_loads(data):
     data.add()
-    data.add(event_name="friend_code_copied", is_load=0, view="trades")
+    data.add(event_name="friend_code_copied", is_load=0, view="pokedex")
     out = collect(data)
     assert out["totals"][0]["views"] == 1
     assert out["actions"][0]["events"] == 1
