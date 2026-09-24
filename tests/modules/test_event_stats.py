@@ -86,15 +86,17 @@ class TestRaidSummary:
             end="2026-09-16 19:00:00",
         )
         result = await event_stats.get_summary(event)
-        assert result.startswith("🥊 **251** raids 5★ · Zamazenta\n")
-        assert "📈 **3,3×** o dia anterior (77)" in result
-        assert "**Leiria:** 190" in result
-        assert "**Marinha Grande:** 61" in result
-        # Headline, areas, note: three blocks, the note as Discord subtext.
-        assert result == (
-            "🥊 **251** raids 5★ · Zamazenta\n📈 **3,3×** o dia anterior (77)\n\n"
-            "📍 **Leiria:** 190\n📍 **Marinha Grande:** 61\n\n"
-            "-# Totais diários de 16/09 · incluem atividade fora do horário do evento."
+        assert result.text.startswith("🥊 **251** raids 5★ · Zamazenta\n")
+        assert "📈 **3,3×** o dia anterior (77)" in result.text
+        assert result.headline == (
+            "🥊 **251** raids 5★ · Zamazenta\n📈 **3,3×** o dia anterior (77)"
+        )
+        assert result.areas == (
+            ("📍 Leiria", "190 raids"),
+            ("📍 Marinha Grande", "61 raids"),
+        )
+        assert result.note == (
+            "Totais diários de 16/09 · incluem atividade fora do horário do evento."
         )
         day_before = (
             event_stats.poliswag.quest_search.db.get_data_from_database.await_args_list[
@@ -110,9 +112,9 @@ class TestRaidSummary:
         result = await event_stats.get_summary(
             _event("raid-day", "Super Mega Raid Day")
         )
-        assert result.startswith("🥊 **12** raids Mega · #3\n")
-        assert "o dia anterior" not in result
-        assert "**Marinha Grande:** sem dados" in result
+        assert result.text.startswith("🥊 **12** raids Mega · #3\n")
+        assert "o dia anterior" not in result.text
+        assert ("📍 Marinha Grande", "sem dados") in result.areas
 
     async def test_lists_three_bosses_then_a_count(self, event_stats):
         rows = [_raid("Leiria", 5, pid, 10 - pid) for pid in (1, 2, 3, 4, 5)]
@@ -120,7 +122,7 @@ class TestRaidSummary:
             side_effect=[rows, []]
         )
         result = await event_stats.get_summary(_event("raid-hour", "Raid Hour"))
-        assert "· Nickit, #2, #3 +2\n" in result
+        assert "· Nickit, #2, #3 +2\n" in result.text
 
     async def test_no_rows_is_no_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database.return_value = []
@@ -142,10 +144,13 @@ class TestSpeciesSummary:
         )
         event = _event("community-day", "Nickit Community Day")
         result = await event_stats.get_summary(event)
-        assert "🐾 **1 500** spawns · Nickit" in result
-        assert "📈 **15×** o dia anterior (100)" in result
-        assert "**Leiria:** 500 spawns · 💯 3 100IV · 0️⃣ 0 0IV" in result
-        assert "**Marinha Grande:** 1 000 spawns · 💯 0 100IV · 0️⃣ 2 0IV" in result
+        assert "🐾 **1 500** spawns · Nickit" in result.text
+        assert "📈 **15×** o dia anterior (100)" in result.text
+        assert ("📍 Leiria", "500 spawns\n💯 3 100IV\n0️⃣ 0 0IV") in result.areas
+        assert (
+            "📍 Marinha Grande",
+            "1 000 spawns\n💯 0 100IV\n0️⃣ 2 0IV",
+        ) in result.areas
 
     async def test_spotlight_hour_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
@@ -158,9 +163,9 @@ class TestSpeciesSummary:
         )
         event = _event("pokemon-spotlight-hour", "Nickit Spotlight Hour")
         result = await event_stats.get_summary(event)
-        assert "🐾 **80** spawns · Nickit" in result
-        assert "o dia anterior" not in result
-        assert "**Leiria:** 80 spawns · 💯 1 100IV · 0️⃣ 0 0IV" in result
+        assert "🐾 **80** spawns · Nickit" in result.text
+        assert "o dia anterior" not in result.text
+        assert ("📍 Leiria", "80 spawns\n💯 1 100IV\n0️⃣ 0 0IV") in result.areas
 
     async def test_species_come_from_scrapedduck_when_the_name_has_none(
         self, event_stats
@@ -190,7 +195,7 @@ class TestSpeciesSummary:
             extra=extra,
         )
         result = await event_stats.get_summary(event)
-        assert "🐾 **80** spawns · Houndour, Houndoom" in result
+        assert "🐾 **80** spawns · Houndour, Houndoom" in result.text
         call = (
             event_stats.poliswag.quest_search.db.get_data_from_database.await_args_list[
                 0
@@ -333,8 +338,8 @@ class TestResolvePokemonId:
 class TestPeriodNote:
     def test_one_day_and_several(self, event_stats):
         assert event_stats._period_note("2026-09-16", "2026-09-16").startswith(
-            "-# Totais diários de 16/09 ·"
+            "Totais diários de 16/09 ·"
         )
         assert event_stats._period_note("2026-09-16", "2026-09-22").startswith(
-            "-# Totais diários de 16/09 a 22/09 ·"
+            "Totais diários de 16/09 a 22/09 ·"
         )
