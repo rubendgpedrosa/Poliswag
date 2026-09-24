@@ -38,7 +38,7 @@ def _raid(area, level, pokemon_id, total):
 class TestGetSummary:
     @pytest.mark.parametrize(
         "event_type",
-        ["go-battle-league", "research", "event", "raid-battles", "max-mondays"],
+        ["go-battle-league", "research", "event", "max-mondays"],
     )
     async def test_returns_none_for_types_without_stats(self, event_stats, event_type):
         event = _event(event_type, "Mega Venusaur in Mega Raids")
@@ -343,3 +343,73 @@ class TestPeriodNote:
         assert event_stats._period_note("2026-09-16", "2026-09-22").startswith(
             "Totais diários de 16/09 a 22/09 ·"
         )
+
+
+def _rot(area, level, pokemon_id, date, total):
+    return {
+        "area": area,
+        "level": level,
+        "pokemon_id": pokemon_id,
+        "date": date,
+        "total": total,
+    }
+
+
+class TestRotationSummary:
+    """A weekly raid rotation: the named boss's raids over the days counted."""
+
+    async def test_counts_the_named_boss_per_area_and_per_day(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            return_value=[
+                _rot("Leiria", 5, 889, "2026-09-17", 300),
+                _rot("Leiria", 5, 889, "2026-09-18", 200),
+                _rot("MarinhaGrande", 5, 889, "2026-09-18", 100),
+                # Another 5★ boss the same week: not this rotation.
+                _rot("Leiria", 5, 1, "2026-09-18", 999),
+            ]
+        )
+        event = _event(
+            "raid-battles",
+            "Zamazenta (Hero of Many Battles) in 5-star Raid Battles",
+            start="2026-09-16 06:00:00",
+            end="2026-09-22 22:00:00",
+        )
+        result = await event_stats.get_summary(event)
+        assert result.headline == "🥊 **600** raids 5★ · Zamazenta\n📅 ~300 por dia"
+        assert result.areas == (
+            ("📍 Leiria", "500 raids"),
+            ("📍 Marinha Grande", "100 raids"),
+        )
+        # Golbat had lost the 16th: the note says which days were counted,
+        # and a rotation spans whole days, so no "outside the event" caveat.
+        assert result.note == "Totais diários de 17/09 a 18/09."
+        params = event_stats.poliswag.quest_search.db.get_data_from_database.call_args.kwargs[
+            "params"
+        ]
+        assert params[-2:] == (5, 8)
+
+    @pytest.mark.parametrize(
+        "tier, levels",
+        [
+            ("5-star Raid Battles", (5, 8)),
+            ("3-star Raid Battles", (3,)),
+            ("Mega Raids", (6, 7)),
+            ("Shadow Raids", (11, 12, 13, 14, 15)),
+            ("Super Mega Raids", (16,)),
+            ("Max Battles", None),
+        ],
+    )
+    def test_tier_from_the_name(self, event_stats, tier, levels):
+        assert event_stats._rotation_tier(tier) == levels
+
+    async def test_no_boss_named_is_no_summary(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            return_value=[_rot("Leiria", 6, 3, "2026-09-18", 50)]
+        )
+        event = _event("raid-battles", "Mega Venusaur in Mega Raids")
+        assert await event_stats.get_summary(event) is None
+
+    async def test_a_name_without_a_tier_is_no_summary(self, event_stats):
+        event = _event("raid-battles", "Raid Weekend")
+        assert await event_stats.get_summary(event) is None
+        event_stats.poliswag.quest_search.db.get_data_from_database.assert_not_called()

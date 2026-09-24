@@ -40,6 +40,19 @@ class Summary:
 _COMMUNITY_DAY_SUFFIX = re.compile(r"\s*community day\s*$", re.IGNORECASE)
 _SPOTLIGHT_HOUR_SUFFIX = re.compile(r"\s*spotlight hour\s*$", re.IGNORECASE)
 _RAID_HOUR_OR_DAY = re.compile(r"raid[- ](hour|day)", re.IGNORECASE)
+# A weekly rotation: "Zamazenta (Hero of Many Battles) in 5-star Raid
+# Battles", "Mega Venusaur in Mega Raids", "Shadow Landorus in Shadow Raids".
+# The part before " in " names the boss(es); the rest, the tier.
+_ROTATION = re.compile(r"^(?P<bosses>.+?) in (?P<tier>.+?)\s*$", re.IGNORECASE)
+_ROTATION_TIERS = (
+    (re.compile(r"super mega", re.IGNORECASE), (16,)),
+    (re.compile(r"shadow", re.IGNORECASE), (11, 12, 13, 14, 15)),
+    (re.compile(r"mega", re.IGNORECASE), (6, 7)),
+    (re.compile(r"(\d)-star", re.IGNORECASE), None),  # the number itself
+)
+# Golbat files Ultra Beasts under their own level (8), though the game and
+# ScrapedDuck put them in the 5-star rotation.
+_ALSO_AT_5_STAR = (8,)
 # ScrapedDuck's species icons come in two namings: pokemon_icon_443_00.png
 # is Gible, pm4.fGOGGLES_2026.icon.png a Charmander in costume.
 _ICON_POKEMON_ID = re.compile(r"pokemon_icon_(\d+)_|/pm(\d+)\.")
@@ -77,7 +90,7 @@ class EventStats(LoggingMixin):
     async def get_summary(self, event: dict) -> Summary | None:
         """A short PT-PT stats text for a finished event, or None when there
         is nothing to say: an event type with no stats source (GO Battle
-        League, research, a week-long raid rotation), a featured species that
+        League, research, Max Monday), a featured species or raid boss that
         can't be identified, or no rows at all."""
         event_type = (event.get("event_type") or "").lower()
         try:
@@ -89,6 +102,8 @@ class EventStats(LoggingMixin):
         try:
             if _RAID_HOUR_OR_DAY.search(event_type):
                 return await self._raid_summary(start_date, end_date)
+            if event_type == "raid-battles":
+                return await self._rotation_summary(event, start_date, end_date)
             if "community" in event_type:
                 return await self._species_summary(
                     event, _COMMUNITY_DAY_SUFFIX, start_date, end_date
@@ -107,8 +122,10 @@ class EventStats(LoggingMixin):
         return f"{value:,}".replace(",", " ")
 
     @staticmethod
-    def _period_note(start_date, end_date):
-        """The embed footer (already small and grey), dates as people write them."""
+    def _period_note(start_date, end_date, whole_days=False):
+        """The embed footer (already small and grey), dates as people write them.
+        `whole_days`: the event spans whole days, so nothing outside it is in
+        the totals worth warning about (a raid rotation)."""
 
         def short(day):
             return f"{day[8:10]}/{day[5:7]}"
@@ -118,14 +135,16 @@ class EventStats(LoggingMixin):
             if start_date == end_date
             else f"de {short(start_date)} a {short(end_date)}"
         )
+        if whole_days:
+            return f"Totais diários {period}."
         return f"Totais diários {period} · incluem atividade fora do horário do evento."
 
-    def _layout(self, headline, areas, start_date, end_date):
+    def _layout(self, headline, areas, start_date, end_date, whole_days=False):
         """`areas` is (label, value lines) per area."""
         return Summary(
             headline="\n".join(headline),
             areas=tuple((f"📍 {label}", "\n".join(lines)) for label, lines in areas),
-            note=self._period_note(start_date, end_date),
+            note=self._period_note(start_date, end_date, whole_days),
         )
 
     @staticmethod
@@ -218,6 +237,81 @@ class EventStats(LoggingMixin):
             )
             columns.append((_AREA_LABELS[area], [value]))
         return self._layout(lines, columns, start_date, end_date)
+
+    @staticmethod
+    def _rotation_tier(tier_text):
+        """Golbat's raid levels for a rotation's tier words, or None."""
+        for pattern, levels in _ROTATION_TIERS:
+            match = pattern.search(tier_text)
+            if match:
+                if levels:
+                    return levels
+                star = int(match.group(1))
+                return (star, *_ALSO_AT_5_STAR) if star == 5 else (star,)
+        return None
+
+    async def _rotation_summary(self, event, start_date, end_date) -> Summary | None:
+        """A weekly raid rotation: its boss's raids over the week.
+
+        The tier comes from the name; the boss is whichever raid boss of that
+        tier the name mentions ("Mega Venusaur" -> Venusaur at Mega), so two
+        rotations of one tier in the same week don't count each other. Golbat
+        keeps about a week of stats, so the note gives the days actually
+        counted, not the ones the rotation was announced for.
+        """
+        match = _ROTATION.match(event.get("name") or "")
+        levels = self._rotation_tier(match.group("tier")) if match else None
+        if not levels:
+            return None
+        named = match.group("bosses").lower()
+
+        placeholders = ", ".join(["%s"] * len(_STATS_AREAS))
+        level_marks = ", ".join(["%s"] * len(levels))
+        rows = await self.poliswag.quest_search.db.get_data_from_database(
+            "SELECT area, level, pokemon_id, date, SUM(count) AS total FROM raid_stats "
+            f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders}) "
+            f"AND level IN ({level_marks}) GROUP BY area, level, pokemon_id, date",
+            params=(start_date, end_date, *_STATS_AREAS, *levels),
+        )
+        rows = [
+            row
+            for row in rows
+            if self._pokemon_name(int(row["pokemon_id"])).lower() in named
+        ]
+        if not rows:
+            return None
+
+        days = sorted({str(row["date"])[:10] for row in rows})
+        total, areas, bosses = 0, {}, {}
+        for row in rows:
+            count = int(row["total"])
+            total += count
+            areas[row["area"]] = areas.get(row["area"], 0) + count
+            pid = int(row["pokemon_id"])
+            bosses[pid] = bosses.get(pid, 0) + count
+        ranked = sorted(bosses, key=bosses.get, reverse=True)
+        names = ", ".join(self._pokemon_name(pid) for pid in ranked)
+        tier = _RAID_LEVELS.get(int(rows[0]["level"]), f"nível {rows[0]['level']}")
+        if len(levels) > 1:
+            tier = {(6, 7): "Mega", (11, 12, 13, 14, 15): "Shadow"}.get(levels, tier)
+
+        lines = [f"🥊 **{self._number(total)}** raids {tier} · {names}"]
+        if len(days) > 1:
+            lines.append(f"📅 ~{self._number(round(total / len(days)))} por dia")
+        columns = [
+            (
+                _AREA_LABELS[area],
+                [
+                    (
+                        f"{self._number(areas[area])} raids"
+                        if area in areas
+                        else "sem dados"
+                    )
+                ],
+            )
+            for area in _STATS_AREAS
+        ]
+        return self._layout(lines, columns, days[0], days[-1], whole_days=True)
 
     async def _species_summary(
         self, event, suffix_pattern, start_date, end_date
