@@ -176,7 +176,7 @@ class TestExport:
                     "name": "Venusaur",
                     "generation": "Kanto",
                     "types": [{"typeName": "grass"}],
-                    "tempEvolutions": {"1": {"firstEnergyCost": 40}},
+                    "tempEvolutions": {"1": {}},
                 }
             }
         )
@@ -197,7 +197,7 @@ class TestExport:
         mocker.patch("modules.mega_exporter._fetch_webp", return_value=True)
         mocker.patch("modules.mega_exporter.time.sleep")
         exporter.poliswag.quest_search.masterfile_data = _masterfile(
-            {"3": {"name": "Venusaur", "tempEvolutions": {"1": {}}}}
+            {"36": {"name": "Clefable", "tempEvolutions": {"1": {"unreleased": True}}}}
         )
         exporter.export()
         entries = json.loads(exporter.output_path.read_text())
