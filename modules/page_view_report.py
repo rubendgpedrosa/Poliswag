@@ -60,7 +60,9 @@ def build_snapshot_embed(stats, trade_stats=None, report_url=None):
         f"**Hoje:** ~{visitors} visitantes estimados",
         "**Últimas 24h:** "
         f"Mapa {pages.get('map', 0)} · Quests {pages.get('quests', 0)} · "
-        f"Dex {pages.get('dex', 0)} · Trades {pages.get('trades', 0)}",
+        # The Pokédex's view was "dex", then "trades", now "pokedex"; landing
+        # db/012 moves old rows, and a day's report can straddle it.
+        f"Pokédex {sum(pages.get(v, 0) for v in ('pokedex', 'trades', 'dex'))}",
     ]
     if trade_stats:
         lines.append(

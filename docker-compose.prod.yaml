@@ -16,7 +16,7 @@ services:
       - .:/app
       - ./logs:/app/logs
       - /root/PoGoLeiria/apps/quests/public:/pogo-public
-      - /root/PoGoLeiria/apps/trades/public:/dex-public
+      - /root/PoGoLeiria/apps/pokedex/public:/dex-public
       - /root/.android:/root/.android:ro
       # StackRecovery: recreate scanner containers when the map goes fully red.
       # The stack dir is mounted at its host path so compose resolves the

@@ -206,7 +206,7 @@ class TradeAnnouncer:
         embed.title = f"🔄 TRADES — {actor_name} atualizou as listas"
         # Combinações became part of Comunidade (/procurar).
         # Tagged for the site's stats (see trade_digest.ORIGIN_TAG).
-        embed.url = f"{Config.TRADES_URL}/procurar?o=trocas-par"
+        embed.url = f"{Config.POKEDEX_URL}/procurar?o=pokedex-par"
         content = f"<#{Config.TRADES_CHANNEL_ID}> " + " ".join(
             f"<@{user_id}>" for user_id in sorted(mentions)
         )

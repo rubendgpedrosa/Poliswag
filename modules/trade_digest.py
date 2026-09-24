@@ -116,11 +116,11 @@ def sprite_url(row, base=SPRITE_BASE):
 
 # The site's `?o=` origin tag: Discord's in-app browser sends no referrer, so
 # without it every visit from this post reads as "direct" in the stats.
-ORIGIN_TAG = "o=trocas-resumo"
+ORIGIN_TAG = "o=pokedex-resumo"
 
 
 def profile_url(discord_id):
-    return f"{Config.TRADES_URL.rstrip('/')}/jogador/{discord_id}?{ORIGIN_TAG}"
+    return f"{Config.POKEDEX_URL.rstrip('/')}/jogador/{discord_id}?{ORIGIN_TAG}"
 
 
 def _player(row):
@@ -177,9 +177,9 @@ def build_digest(rows):
     # The title carries the same link, but an embed title does not look like
     # one -- least of all on a phone. The address goes in the body too, written
     # out so people can see where they are going, and read it aloud to someone.
-    # Comunidade, where everyone's lists are: TRADES_URL itself opens the
+    # Comunidade, where everyone's lists are: POKEDEX_URL itself opens the
     # reader's own Pokédex, or the login screen.
-    lists_url = f"{Config.TRADES_URL.rstrip('/')}/procurar"
+    lists_url = f"{Config.POKEDEX_URL.rstrip('/')}/procurar"
     address = lists_url.split("://", 1)[-1]
     lists_url += f"?{ORIGIN_TAG}"
     embed = discord.Embed(
