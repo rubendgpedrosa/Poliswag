@@ -1,4 +1,5 @@
 import datetime
+import time
 import traceback
 import asyncio
 import discord
@@ -11,6 +12,12 @@ from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
+
+# A step that alone outlasts the 60s tick interval delays every step after it
+# and the next tick. Logged as ERROR so the daily error review sees it: the
+# 2026-09-23 rename stall ran for 5 hours visible only as discord.http
+# warnings on stdout.
+_SLOW_STEP_SECONDS = 60
 
 
 class Scheduled(commands.Cog):
@@ -176,6 +183,7 @@ class Scheduled(commands.Cog):
         failure in one must not stop the rest from running, especially
         _check_workers, which feeds StackRecovery's self-healing.
         """
+        started = time.monotonic()
         try:
             await step()
         except Exception as e:
@@ -184,6 +192,15 @@ class Scheduled(commands.Cog):
             self.poliswag.utility.log_to_file(
                 f"{str(e)}\n{traceback.format_exc()}", "CRASH"
             )
+        finally:
+            elapsed = time.monotonic() - started
+            if elapsed >= _SLOW_STEP_SECONDS:
+                name = getattr(step, "__qualname__", None) or repr(step)
+                self.poliswag.utility.log_to_file(
+                    f"Scheduler step {name} took {elapsed:.0f}s "
+                    f"(tick interval is 60s); later steps waited on it",
+                    "ERROR",
+                )
 
     @tasks.loop(seconds=60)
     async def scheduled_tasks(self):

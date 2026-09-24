@@ -1204,7 +1204,9 @@ class TestRenameBudget:
         assert scanner_status.channelStatusName == "STATUS: 🔴"
 
     async def test_budget_frees_after_window(self, scanner_status, mocker):
-        clock = mocker.patch("modules.scanner_status.time.monotonic")
+        fake_time = mocker.patch("modules.scanner_status.time")
+        fake_time.time = time.time
+        clock = fake_time.monotonic
         clock.return_value = 1000.0
         channel = self._setup(scanner_status, mocker, AsyncMock())
         await scanner_status.rename_voice_channels(_ws(0, 0))
