@@ -1091,7 +1091,7 @@ Do not pipe pytest into `tail`. If capturing output is needed, use Bash
 
 ## Task 6: Template and deterministic matching verification
 
-- [ ] Prepare this DTS entry and validate its JSON before deployment:
+- [x] Prepare this DTS entry and validate its JSON before deployment:
 
 ```json
 {
@@ -1117,7 +1117,7 @@ The pilot footer does not advertise unavailable settings. When the site switch,
 areas, and retry action have shipped, replace it with:
 `Pokédex · desliga ou muda a área em pogoleiria.pt/trocas`.
 
-- [ ] Run an isolated Poracle instance of the deployed version against the
+- [x] Run an isolated Poracle instance of the deployed version against the
   disposable DB, with a fake delivery sink and local fixture geofences. Use
   the actual generated rules and pass synthetic webhooks through its normal
   matching path. Assert the following delivery counts for the test user:
@@ -1136,6 +1136,31 @@ Use distinct encounter IDs and future despawn times so caching/expiry cannot
 produce false negatives. Make the positive control pass before trusting the
 negative cases. Keep synthetic webhooks away from the production webhook
 endpoint; it also delivers to unrelated channels/users.
+
+Done 2026-09-24 against PoracleNG 5.2.1-main (commit c8901ad1, the live
+image): internal docker network (no Discord, so no delivery), disposable
+MariaDB with the live poracle DDL and migration rows, live geofences and
+resources, `level = "debug"`. The **real** `HundoAlerts.tick` drove it
+(real `PoracleClient` against the isolated API): confirmation DM, user
+created via `POST /api/humans` with `area: ["leiria"]`, two rules
+(Rattata 19/45, Bulbasaur 1/163), reload 200. Matches read from the
+`… and N humans cared` log line:
+
+| Input/state | Expected | Got |
+|---|---:|---:|
+| Missing Rattata 45, 100IV, Leiria (positive control) | 1 | 1 |
+| Same after ticking 19/0 and syncing | 0 | 0 |
+| Marinha Grande spawn, only Leiria selected | 0 | 0 |
+| Both areas selected, Marinha Grande spawn (area positive control) | 1 | 1 |
+| 15/15/14 in Leiria | 0 | 0 |
+| Alolan 46 (owned) while 45 missing | 0 | 0 |
+| Profile 2 after sync (rules rebuilt at profile 2) | 1 | 1 |
+| Switched off, cleanup + reload | 0 | 0 |
+
+Lowercase `override_areas` (`marinhagrande`) match the `MarinhaGrande`
+geofence. Gotcha: the MarinhaGrande polygon's vertex centroid lies outside
+it; use (39.7475, -8.9322). `/api/test` returns `{"status":"ok"}` and does
+not log the rendered embed, so the look is checked by the Task 7 preview DM.
 
 `POST /api/test` supports `target.template` in the reviewed version, but skips
 normal rule matching. Use it for rendering only. If it produces the standard

@@ -217,8 +217,7 @@ def test_species_with_alternative_forms_requires_a_usable_default(default):
         {"19": {"defaultFormId": default, "forms": {"46": {"name": "Alola"}}}}
     )
     assert forms == {19: None}
-    with pytest.raises(ValueError, match="No safe ordinary form for species 19"):
-        wanted_rules([(19, 0)], forms)
+    assert wanted_rules([(19, 0), (19, 46)], forms) == {(19, 46)}
 
 
 def test_missing_ordinary_tile_uses_exact_default_form():
@@ -242,9 +241,17 @@ def test_known_species_without_forms_can_use_zero():
     assert wanted_rules([(132, 0)], default_forms({"132": {}})) == {(132, 0)}
 
 
-def test_missing_species_does_not_fall_back_to_wildcard():
-    with pytest.raises(ValueError, match="No safe ordinary form for species 19"):
-        wanted_rules([(132, 0), (19, 0)], {132: 0})
+def test_unresolved_ordinary_tile_is_skipped_not_widened_to_wildcard():
+    # Ogerpon: defaultFormId 0 with named forms. Its ordinary tile must not
+    # become form 0 (every form), nor block the other rules.
+    forms = default_forms(
+        {"1017": {"defaultFormId": 0, "forms": {"0": {}, "2875": {}}}, "132": {}}
+    )
+    assert wanted_rules([(132, 0), (1017, 0), (1017, 2875)], forms) == {
+        (132, 0),
+        (1017, 2875),
+    }
+    assert wanted_rules([(132, 0), (19, 0)], {132: 0}) == {(132, 0)}
 
 
 def test_named_tile_does_not_require_ordinary_form_mapping():
