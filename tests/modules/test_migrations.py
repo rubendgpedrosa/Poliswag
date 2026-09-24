@@ -52,14 +52,45 @@ class TestApplyMigrations:
 
 # Every file is replayed on every start, so each statement must be a no-op
 # the second time. Anything else needs a real migration-tracking table first.
-_RERUNNABLE = [
-    re.compile(r"^CREATE TABLE IF NOT EXISTS\b", re.I),
-    re.compile(
-        r"^ALTER TABLE \S+\s+ADD COLUMN IF NOT EXISTS\b"
-        r"(?:[^,]*?,\s*ADD COLUMN IF NOT EXISTS\b)*[^,]*$",
-        re.I | re.S,
-    ),
-]
+def is_rerunnable(statement):
+    if re.match(r"^CREATE TABLE IF NOT EXISTS\b", statement, re.I):
+        return True
+    match = re.fullmatch(r"ALTER TABLE \S+\s+(.+)", statement, re.I | re.S)
+    if not match:
+        return False
+    text = match.group(1)
+    clauses = []
+    start = depth = index = 0
+    quote = None
+    while index < len(text):
+        char = text[index]
+        if quote:
+            if char == "\\":
+                index += 2
+                continue
+            if char == quote:
+                if index + 1 < len(text) and text[index + 1] == quote:
+                    index += 2
+                    continue
+                quote = None
+        elif char in "'\"`":
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+        elif char == "," and depth == 0:
+            clauses.append(text[start:index].strip())
+            start = index + 1
+        index += 1
+    if quote or depth:
+        return False
+    clauses.append(text[start:].strip())
+    return all(
+        re.match(r"ADD COLUMN IF NOT EXISTS\b", clause, re.I) for clause in clauses
+    )
 
 
 @pytest.mark.parametrize(
@@ -67,7 +98,45 @@ _RERUNNABLE = [
 )
 def test_every_migration_is_rerunnable(path):
     for statement in split_statements(path.read_text()):
-        assert any(p.match(statement) for p in _RERUNNABLE), (
+        assert is_rerunnable(statement), (
             f"{path.name} has a statement that is not safe to replay on every "
             f"start:\n{statement}"
         )
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        "areas SET('leiria','marinha') NOT NULL DEFAULT 'leiria,marinha'",
+        "mode ENUM('on','off') DEFAULT 'off'",
+        "label VARCHAR(64) DEFAULT 'a,b'",
+        "label VARCHAR(64) DEFAULT 'can''t, split'",
+        r"label VARCHAR(64) DEFAULT 'can\'t, split'",
+        "`column,with,commas` INT DEFAULT 0",
+    ],
+)
+def test_rerunnable_accepts_commas_inside_column_definitions(definition):
+    sql = (
+        f"ALTER TABLE t ADD COLUMN IF NOT EXISTS {definition},\n"
+        "ADD COLUMN IF NOT EXISTS settings_at DATETIME(6) NULL"
+    )
+    assert is_rerunnable(sql)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "ALTER TABLE t ADD COLUMN a INT",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT, DROP COLUMN b",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT, ADD COLUMN b INT",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT, MODIFY COLUMN b INT",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT,",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a SET('a','b'",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a INT)",
+        "ALTER TABLE t ADD COLUMN IF NOT EXISTS a VARCHAR(64) DEFAULT 'unclosed",
+        "CREATE TABLE t (id INT)",
+        "DROP TABLE t",
+    ],
+)
+def test_rerunnable_rejects_unsafe_or_unbalanced_statements(statement):
+    assert not is_rerunnable(statement)

@@ -1,171 +1,177 @@
 # Pokédex 100IV alerts — design
 
-**Status:** approved 2026-09-24. Poliswag side first; the site's switch
-follows. Tested on the owner's account before anyone else sees it.
+**Status:** design approved 2026-09-24; revised after implementation-plan review.
+Poliswag side first; the site's controls follow. Test on the owner's account
+before enabling other players. This document specifies future work; editing
+it does not apply migrations, deploy code, or send messages.
 
-## Goal
+## Goal and scope
 
-A player who collects 100IV in the Trades Pokédex gets a private Discord DM
-when a 100IV spawns of a Pokémon they haven't ticked there.
+Send a private Discord alert when a 100IV spawns of a Pokémon the player
+has not ticked in the Trades Pokédex. Poracle receives Golbat's webhooks and
+sends the spawn alerts; Poliswag maintains the rules once per minute.
 
-## Decisions
+- Off by default. Eligible players have `hundo` in `collecting`,
+  `left_at IS NULL`, and `hundo_dms = 1`.
+- Areas: Leiria, Marinha Grande, or both (default both).
+- Each missing tile gets a rule; costumes follow `show_costumes`.
+- No daily cap, quiet hours, or bundling added by Poliswag. Poracle's existing
+  delivery limits, stops, restrictions, and permissions still apply.
+- Manage only `monsters.template = 'pokedex-100iv'`. Do not modify existing
+  humans, profiles, or rules using other templates.
+- During the pilot, only the owner is enabled by SQL. The later site controls
+  are available only to `HUNDO_DM_TESTERS` until the site release.
 
-| Question | Decision |
-|---|---|
-| Who | Trades players with `hundo` in `trade_player.collecting`, still in the server (`left_at IS NULL`), who switched it on |
-| On/off | **Off by default for everyone.** A switch in the Pokédex settings; while testing it is shown only to Discord ids in the Trades setting `HUNDO_DM_TESTERS` |
-| Delivery | Private DM (not a channel ping, not per-Pokémon roles: Discord caps a server at 250 roles) |
-| Which spawns | Every 100IV spawn of a Pokémon they haven't ticked; no daily cap, no quiet hours |
-| Area | Each player picks Leiria, Marinha Grande or both (default both) |
-| Engine | **Poracle sends; Poliswag keeps each collector's Poracle rules in step with their Pokédex**, as `cogs/notifications.py` (`!notify`) does for channels |
+## Data and settings revisions
 
-Poracle already watches spawns (pushed by Golbat, seconds of latency),
-resolves areas from its geofences and sends DMs with the channel alerts'
-look. It signs in with Poliswag's bot token, so the DMs come from Poliswag.
+Migration `014` adds eight columns to `pogoleiria.trade_player`. The future
+Trades migration uses the same re-runnable DDL.
 
-## Data: five columns on `trade_player`
-
-One migration (Poliswag `014`; the same re-runnable statement as a Trades
-`db/` file when the site part lands).
-
-| Column | Default | Written by | Meaning |
+| Column | Default | Writer | Meaning |
 |---|---|---|---|
-| `hundo_dms` | 0 | site | the switch |
-| `hundo_areas` | `leiria,marinha` | site | SET of areas to alert on |
-| `hundo_settings_at` | NULL | site | set on every change to the two above, and only then |
-| `hundo_confirmed_at` | NULL | Poliswag | when the last confirmation DM was delivered |
-| `hundo_dm_refused_at` | NULL | Poliswag | when Discord last refused a confirmation DM |
+| `hundo_dms` | 0 | site / pilot operator | switch |
+| `hundo_areas` | `leiria,marinha` | site / pilot operator | SET of area keys |
+| `hundo_settings_revision` | 0 | site / pilot operator | monotonic integer identifying settings or an explicit retry |
+| `hundo_settings_at` | NULL | site / pilot operator | audit time of that revision, `DATETIME(6)` |
+| `hundo_confirmed_revision` | 0 | Poliswag | revision whose confirmation was delivered |
+| `hundo_confirmed_at` | NULL | Poliswag | delivery audit time, `DATETIME(6)` |
+| `hundo_dm_refused_revision` | 0 | Poliswag | revision whose confirmation Discord refused |
+| `hundo_dm_refused_at` | NULL | Poliswag | refusal audit time, `DATETIME(6)` |
 
-A dedicated stamp, not `updated_at`: that one moves on any edit (trainer
-name, note, collections) and on Poliswag's own writes, which would send
-confirmations nobody asked for and loop.
+The settings writer changes the switch/areas and increments the revision
+**in the same SQL UPDATE**, using `revision = revision + 1`. Increment only
+when either value changes, or when the player explicitly requests **Tentar
+novamente**. An ordinary save of identical values does not retry. Unrelated
+profile/collection edits do not increment this revision. Do not use
+`updated_at` or timestamps to order confirmation outcomes.
 
-## Poliswag: `modules/hundo_alerts.py`
+A confirmation captures revision R and the settings read with it. Record its
+outcome only if the database still has revision R and neither outcome has
+already recorded R. A stale completion never acknowledges a newer revision.
+Re-read players after the confirmation phase rather than mutating stale
+in-memory snapshots. Delivery audit times are never used for eligibility.
 
-One scheduled step per minute, like `trade_dm.py`, in two phases.
+## Tick and failure handling
 
-### 1. Confirmations (the delivery check)
+The tick has independent cleanup, confirmation, and rule-building work:
 
-Poracle-NG does not record a refused DM, and Discord only reports a refusal
-when a message is actually sent (opening a DM channel succeeds with DMs
-closed). So Poliswag's own confirmation DM is the check.
+1. **Cleanup first.** Delete this template's rows for missing/ineligible
+   players, unconfirmed current revisions, missing humans, and stopped humans.
+   Compute eligibility from current database rows. No Discord request,
+   masterfile, or Poracle HTTP API call is required for cleanup.
+2. **Confirm settings.** Send due confirmations independently per player.
+   Record `Forbidden` / `NotFound` as refusals. Log transient failures without
+   recording an outcome; retry on a later tick and continue other players.
+   Skip departed players and enabled players no longer collecting hundo;
+   still allow an off confirmation for a current member.
+3. **Re-read, then build.** Read current players again, obtain the masterfile,
+   and synchronize active users. Missing form data prevents rule creation,
+   never cleanup. Isolate human-provisioning and rule-write failures per
+   player. Each player's replacement is one transaction.
+4. **Cleanup again in `finally`.** Catch settings/refusal changes made during
+   the tick, including when another phase failed. Always attempt a pending
+   reload afterwards, even if this cleanup fails.
 
-- Due when `hundo_settings_at` is newer than both `hundo_confirmed_at` and
-  `hundo_dm_refused_at`.
-- The DM states the full current state, never a diff (several changes in one
-  minute are read at once):
-  - on: "100IV por DM: **ligado** · Leiria e Marinha Grande. Vais receber
-    aqui os 100IV que te faltam na Pokédex." (or "só Leiria" / "só Marinha
-    Grande")
-  - off: "100IV por DM: **desligado**. Já não te enviamos 100IV."
-- Delivered: `hundo_confirmed_at = NOW()`. Refused (`Forbidden`,
-  `NotFound`): `hundo_dm_refused_at = NOW()`; not retried until the
-  settings change again (saving them is the retry).
-- The site shows "Não conseguimos enviar-te DMs…" when the refusal is newer
-  than the confirmation.
+A player is **active** when eligible, settings revision R is positive,
+`hundo_confirmed_revision = R`, and `hundo_dm_refused_revision < R`.
+A changed setting suspends the old managed rules until that revision is
+confirmed. A refused confirmation is not retried automatically.
 
-### 2. Rule sync
+Confirmation is **due** when R exceeds both recorded outcome revisions.
+Its Portuguese text states the whole current choice:
 
-A collector is **active** when: `hundo_dms = 1`, `hundo` in `collecting`,
-`left_at IS NULL`, a delivered confirmation (`hundo_confirmed_at` not NULL)
-and no refusal since it (`hundo_dm_refused_at` NULL or older).
+- On: "100IV por DM: **ligado** · Leiria e Marinha Grande. Vais receber aqui
+  os 100IV que te faltam na Pokédex." (or "só Leiria" / "só Marinha Grande").
+- Off: "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV."
 
-For each active collector:
+The site shows a refusal when the current revision equals the refused
+revision and exceeds the confirmed revision. Show pending while the current
+revision has no outcome; a prior refusal must not label a newer retry failed.
 
-- **Wanted rules.** Every Pokédex tile missing at 100IV: rows of
-  `poliswag.pokemon_name` (species at form 0 plus named forms; costumes only
-  when `show_costumes = 1`) with no `collection_entry` tick in `hundo`. The
-  same "missing" as `trade_dm.py`.
-- **Forms.** In Poracle `form = 0` means any form, so:
-  - a missing form-0 tile becomes a rule on the species' `defaultFormId`
-    from the masterfile Poliswag already loads (Rattata → 45); a species
-    with no forms stays at 0;
-  - a missing named form becomes a rule on that form id.
-  So an owned Alolan never alerts because the ordinary one is missing.
-- **Rule shape.** Copied from the existing channel rules, with: `id` = the
-  player's Discord id, `template = 'pokedex-100iv'`, `pokemon_id`, `form`,
-  `min_iv = max_iv = 100`, `distance = 0` (area-based), `override_areas`
-  from `hundo_areas` (`["leiria","marinhagrande"]`), everything else wide
-  open, `profile_no = 1`, `clean = 0`, `ping = ''`. The area lives on the
-  rules, not on the Poracle user, so a player's own Poracle alerts keep
-  their own area.
-- **Poracle user.** A `humans` row `discord:user` for the player, created if
-  missing (API, as `!notify` creates channels, then started), with the same
-  area as the rules. An existing human is left as it is.
-- **Compare, then rebuild.** Read the player's current rows with that
-  template; if the (pokemon_id, form) set or the area differs, one
-  transaction on the `poracle` DB deletes their `pokedex-100iv` rows and
-  inserts the wanted ones (the area is part of each row). Comparing actual
-  rows makes every pass
-  self-healing, with no stored hash.
-- **Everyone not active** (switched off, refused, left, stopped collecting
-  100IV) loses their `pokedex-100iv` rows. Their own Poracle alerts, other
-  templates, are never touched, and neither is an existing Poracle user.
-- **One reload.** `POST /api/reload` once per tick, only if something
-  changed.
-- **Poracle's alert limit** (`[alert_limits]`: 20 DMs per user per 240 s;
-  10 breaches in 24 h stops the user). Our volume is ~30–46 100IV spawns a
-  day across both areas, so it isn't expected to trigger. If Poracle has
-  stopped a player (`humans.enabled = 0` not set by us), the sync leaves
-  them stopped and logs it, rather than switching them back on.
+## Rules and existing Poracle users
 
-### The alert DM (Poracle template)
+- Read `poliswag.pokemon_name`, excluding tiles ticked in
+  `pogoleiria.collection_entry` for `category = 'hundo'`; filter costumes by
+  the player's setting. This matches the Pokédex tile model.
+- Map ordinary tile form 0 to the species' masterfile `defaultFormId`, because
+  Poracle's form 0 is a wildcard. Named forms keep their IDs. Only species
+  explicitly present with no forms may retain 0. If an ordinary tile cannot
+  be resolved safely (missing species or forms without a usable default),
+  skip that player's rebuild and log it; do not introduce wildcard rules.
+- Rules use IV 100–100, distance 0, area overrides from the setting,
+  `clean = 0`, `ping = ''`, and otherwise the existing broad channel-rule
+  defaults. All fields are managed except the generated `uid`.
+- Rules **follow the human's current profile**, read each tick. A profile
+  change rebuilds managed rules for that profile and removes the previous
+  profile's managed rows. Never switch the user's profile. A switch can cause
+  a gap until the next successful tick/reload; this is accepted.
+- Create a missing `discord:user` through the API with its initial area
+  supplied in the creation payload. The API creates an enabled human and its
+  default profile. Do not separately call `start` or patch its area afterwards.
+  Re-read the created human. On conflict/timeout, look it up again on the next
+  tick; never infer a successful creation or restart an existing stopped user.
+- Compare the complete managed row multiset, including profile, IV bounds,
+  costume, distance, and all remaining filters. Compare parsed area arrays
+  canonically. Duplicates and malformed area JSON require replacement.
+- Replace only the player's managed rows in one transaction; rollback on
+  failure, preserving their previous rows. A failure for one player must not
+  roll back another player's successful cleanup or rule update.
 
-A new DTS entry `id: pokedex-100iv`, `type: monster`, `platform: discord`,
-in `/root/poracleng/config/dts.json` (not in git; back it up first):
+## Reload and operational limits
 
-- title "100IV que te falta: {{fullName}}", sprite thumbnail;
-- CP, level, area;
-- "até {{time}} · faltam {{tthm}} min";
-- link `{{{reactMapUrl}}}?o=dm-100iv` (counts as its own origin in the
-  site's stats).
+After a committed change, set an in-memory pending-reload flag. Attempt
+`POST /api/reload` once at the end of the tick. Clear the flag only on success;
+retry next tick even if the database already matches. Do not add HTTP reloads
+inside individual player operations.
 
-## Rollout
+The reviewed Poracle build (`c8901ad1`, 5.2.1-main) independently reloads
+tracking state every 60 seconds by default. This is the recovery fallback if
+Poliswag restarts after a commit or an explicit reload fails, not a guarantee
+of immediate removal. Verify the installed version/interval during rollout.
+Cleanup normally takes one tick plus a reload; outages can extend that delay,
+and already queued messages cannot be recalled.
 
-1. Poliswag: migration 014, `hundo_alerts.py`, scheduler step, tests.
-2. Poracle: the `pokedex-100iv` DTS entry (backup first), restart.
-3. Owner test: owner adds 100IV to their collections on the site, then
-   their row is switched on by SQL (`hundo_dms = 1`, both areas,
-   `hundo_settings_at = NOW()`). Expect the confirmation DM on the next
-   tick, their rules in Poracle, then real 100IV DMs. With nothing ticked
-   that is ~35 a day until they tick what they own.
-4. Site: the switch, area choice and refusal notice in "Perfil e outras
-   opções", shown to `HUNDO_DM_TESTERS`; release by emptying it.
+Existing stops and restrictions remain authoritative. A confirmation proves
+DM delivery, not that an existing Poracle account is enabled. Log stopped
+accounts without re-enabling them. Closing DMs after a successful confirmation
+remains undetected until another settings revision or explicit retry.
 
-## Testing
+## Template and rollout
 
-Unit (pytest, mocked DB/Discord like `trade_dm.py`'s tests):
-- missing tiles → rules, including default-form translation, named forms,
-  species without forms, costumes vs `show_costumes`;
-- wanted vs current → rebuild or skip; an area change alone triggers it;
-- the human is created only when missing and never edited otherwise;
-- who is active (switch, collecting, left, confirmed, refused ordering);
-- confirmation due/not due; delivered vs refused writes; DM wording for
-  on/off and each area choice;
-- inactive players lose only `pokedex-100iv` rows; reload only on change;
-- a stopped human is not re-enabled.
-Live: the owner test above.
+Add `pokedex-100iv` (`monster`, `discord`, language `en`) to DTS after backing
+up the file. Include Pokémon name, sprite, CP, level, `{{areas}}`, time left,
+and `{{{reactMapUrl}}}?o=dm-100iv`.
 
-## Known costs
+During the owner-only pilot the footer is simply **Pokédex · teste 100IV**.
+The operator disables it with the documented SQL switch-off/revision update.
+Only after the site's controls and retry action work should the footer direct
+players to `pogoleiria.pt/trocas`.
 
-- Coupled to Poracle-NG's `monsters` schema; an upgrade that changes it
-  fails the sync loudly (SQL error) rather than wrongly.
-- One DM per spawn, no bundling.
-- DMs closed after the last settings change go unnoticed until the player
-  changes something again; alerts in between are lost for them. Accepted
-  rather than sending unrequested messages.
-- Early volume: 20–35 DMs a day for a collector missing most species
-  (8 days of `pokemon_hundo_stats`, both areas); it falls as the Pokédex
-  fills.
+Implement and validate code first, then apply the migration/template and
+restart services as a separate deployment phase. Do not infer that a document
+review or edit authorizes executing the deployment or DM tests.
 
-## Alternatives considered
+Before wider release:
 
-- **Poliswag polls Golbat and DMs itself:** no rule copy, can bundle and
-  see every refusal, but up to a minute late and all delivery rebuilt. The
-  fallback if the confirmation check proves too blind.
-- **Reading Poracle's logs for refusals:** they name the DM channel, not the
-  player, and depend on the log format.
-- **Pings instead of DMs** (mentions on the alert, a shared thread, a
-  private thread each): Poracle can't mention specific people.
-- **A role per Pokémon:** over the 250-role cap, clutters profiles, needs
-  constant role sync.
+- Validate the real sync helpers with fake connections and rollback failures,
+  then use a disposable MariaDB schema to exercise the actual SQL and SET type.
+- Test the scheduler invoking the real new tick with its dependencies faked;
+  assert successful work and no swallowed crash.
+- In an isolated Poracle instance with a fake delivery sink, pass synthetic
+  webhooks through real matching: missing/owned tile, wrong area, non-100IV,
+  alternate profile, and opt-out. Do not send synthetic webhooks to production.
+- Preview the template on the owner only during the authorized rollout.
+  `/api/test` supports `target.template`, but bypasses normal rule matching;
+  it is not evidence that filtering works.
+- Verify real rules, a real alert, tile removal, area/profile changes, and
+  opt-out. Inspect only logs emitted after deployment. Restore pilot settings
+  and profile after tests unless the owner explicitly wants alerts left on.
+
+## Verified Poracle references
+
+These describe the reviewed build; check compatibility before deployment:
+
+- [Profile matching](https://github.com/jfberry/PoracleNG/blob/c8901ad146020e1a0174c18e59134af00853fd4d/processor/internal/matching/human.go)
+- [Human creation with area and default profile](https://github.com/jfberry/PoracleNG/blob/c8901ad146020e1a0174c18e59134af00853fd4d/processor/internal/api/humans.go)
+- [Periodic state reload](https://github.com/jfberry/PoracleNG/blob/c8901ad146020e1a0174c18e59134af00853fd4d/processor/cmd/processor/main.go)
+- [Template preview target](https://github.com/jfberry/PoracleNG/blob/c8901ad146020e1a0174c18e59134af00853fd4d/processor/internal/api/test.go)

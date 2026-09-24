@@ -316,6 +316,104 @@ class TestScheduledTasksLoop:
         cog._check_daily_error_digest.assert_awaited_once()
 
 
+class TestHundoAlertsStep:
+    """The real HundoAlerts.tick inside the scheduler, its I/O faked."""
+
+    @staticmethod
+    def _quiet_other_steps(cog):
+        for name in (
+            "_refresh_masterfile_data",
+            "_check_version_update",
+            "_check_quest_scan_progress",
+            "_check_quest_export",
+            "_check_events",
+            "_check_workers",
+            "_update_lure_status",
+            "_update_accounts_display",
+            "_check_weekly_digest",
+            "_check_daily_error_digest",
+            "_check_tracking_health",
+            "_check_trade_digest",
+        ):
+            setattr(cog, name, AsyncMock())
+        cog._trade_announcer.tick = AsyncMock()
+        cog._trade_dm.tick = AsyncMock()
+
+    @staticmethod
+    def _fake_io(cog, rows_before, rows_after):
+        poliswag = cog.poliswag
+        poliswag.quest_search.masterfile_data = {
+            "pokemon": {"19": {"defaultFormId": 45}}
+        }
+        poliswag.poracle.reload = AsyncMock()
+        poliswag.poracle.create_user = AsyncMock()
+        poliswag.get_user.return_value.send = AsyncMock()
+        alerts = cog._hundo_alerts
+        alerts._read_players = MagicMock(side_effect=[rows_before, rows_after])
+        alerts._cleanup = MagicMock(return_value=False)
+        alerts._human = MagicMock(
+            return_value={
+                "id": "1",
+                "type": "discord:user",
+                "enabled": 1,
+                "admin_disable": 0,
+                "current_profile_no": 1,
+            }
+        )
+        alerts._sync_player = MagicMock(return_value=True)
+        alerts._record = MagicMock(return_value=True)
+        return alerts
+
+    @staticmethod
+    def _player(**patch):
+        return {
+            "discord_id": 1,
+            "display_name": "Rui",
+            "collecting": "hundo",
+            "show_costumes": 1,
+            "left_at": None,
+            "hundo_dms": 1,
+            "hundo_areas": "leiria,marinha",
+            "hundo_settings_revision": 2,
+            "hundo_confirmed_revision": 1,
+            "hundo_dm_refused_revision": 0,
+            **patch,
+        }
+
+    def _logged(self, cog):
+        return [
+            " ".join(map(str, c.args))
+            for c in cog.poliswag.utility.log_to_file.call_args_list
+        ]
+
+    async def test_confirms_syncs_and_reloads_once_then_later_steps_run(self, cog):
+        self._quiet_other_steps(cog)
+        alerts = self._fake_io(
+            cog, [self._player()], [self._player(hundo_confirmed_revision=2)]
+        )
+        await cog.scheduled_tasks.coro(cog)
+        alerts._record.assert_called_once_with(1, 2, delivered=True)
+        alerts._sync_player.assert_called_once()
+        cog.poliswag.poracle.reload.assert_awaited_once()
+        cog._check_trade_digest.assert_awaited_once()
+        logged = self._logged(cog)
+        assert not any("CRASH" in line for line in logged)
+        assert not any("[HUNDO]" in line and "failed" in line for line in logged)
+
+    async def test_transient_confirmation_failure_still_cleans_and_continues(self, cog):
+        self._quiet_other_steps(cog)
+        alerts = self._fake_io(cog, [self._player()], [self._player()])
+        cog.poliswag.get_user.return_value.send.side_effect = discord.HTTPException(
+            MagicMock(status=503), "unavailable"
+        )
+        await cog.scheduled_tasks.coro(cog)
+        alerts._record.assert_not_called()
+        alerts._sync_player.assert_not_called()
+        assert alerts._cleanup.call_count == 2
+        cog._check_trade_digest.assert_awaited_once()
+        assert not any("CRASH" in line for line in self._logged(cog))
+
+
 class TestCheckQuestExport:
     async def test_exports_on_first_run(self, cog):
         cog._last_quest_export = None
