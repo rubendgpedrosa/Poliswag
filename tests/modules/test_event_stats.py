@@ -90,7 +90,12 @@ class TestRaidSummary:
         assert "📈 **3,3×** o dia anterior (77)" in result
         assert "**Leiria:** 190" in result
         assert "**Marinha Grande:** 61" in result
-        assert "Totais diários · 2026-09-16" in result
+        # Headline, areas, note: three blocks, the note as Discord subtext.
+        assert result == (
+            "🥊 **251** raids 5★ · Zamazenta\n📈 **3,3×** o dia anterior (77)\n\n"
+            "📍 **Leiria:** 190\n📍 **Marinha Grande:** 61\n\n"
+            "-# Totais diários de 16/09 · incluem atividade fora do horário do evento."
+        )
         day_before = (
             event_stats.poliswag.quest_search.db.get_data_from_database.await_args_list[
                 1
@@ -323,3 +328,13 @@ class TestResolvePokemonId:
             MagicMock(return_value=[])
         )
         assert event_stats._resolve_pokemon_id("zzz") is None
+
+
+class TestPeriodNote:
+    def test_one_day_and_several(self, event_stats):
+        assert event_stats._period_note("2026-09-16", "2026-09-16").startswith(
+            "-# Totais diários de 16/09 ·"
+        )
+        assert event_stats._period_note("2026-09-16", "2026-09-22").startswith(
+            "-# Totais diários de 16/09 a 22/09 ·"
+        )

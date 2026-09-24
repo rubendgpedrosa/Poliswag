@@ -88,8 +88,30 @@ class EventStats(LoggingMixin):
 
     @staticmethod
     def _period_note(start_date, end_date):
-        period = start_date if start_date == end_date else f"{start_date} a {end_date}"
-        return f"_Totais diários · {period} · incluem atividade fora do horário do evento._"
+        """Discord's small grey subtext, with the dates as people write them."""
+
+        def short(day):
+            return f"{day[8:10]}/{day[5:7]}"
+
+        period = (
+            f"de {short(start_date)}"
+            if start_date == end_date
+            else f"de {short(start_date)} a {short(end_date)}"
+        )
+        return (
+            f"-# Totais diários {period} · incluem atividade fora do horário do evento."
+        )
+
+    def _layout(self, headline, areas, start_date, end_date):
+        """The headline, then one 📍 line per area, then the note: three
+        blocks with a blank line between, not one run of lines."""
+        return "\n\n".join(
+            [
+                "\n".join(headline),
+                "\n".join(f"📍 {line}" for line in areas),
+                self._period_note(start_date, end_date),
+            ]
+        )
 
     @staticmethod
     def _day_before(start_date):
@@ -174,10 +196,11 @@ class EventStats(LoggingMixin):
         versus = self._versus(by_level[level], before_by_level.get(level, 0))
         if versus:
             lines.append(versus)
+        area_lines = []
         for area in _STATS_AREAS:
             value = self._number(areas[area]) if area in areas else "sem dados"
-            lines.append(f"**{_AREA_LABELS[area]}:** {value}")
-        return "\n".join(lines) + "\n\n" + self._period_note(start_date, end_date)
+            area_lines.append(f"**{_AREA_LABELS[area]}:** {value}")
+        return self._layout(lines, area_lines, start_date, end_date)
 
     async def _species_summary(
         self, event, suffix_pattern, start_date, end_date
@@ -200,17 +223,18 @@ class EventStats(LoggingMixin):
         versus = self._versus(total, sum(before.values()))
         if versus:
             lines.append(versus)
+        area_lines = []
         for area in _STATS_AREAS:
             label = _AREA_LABELS[area]
             if area not in spawns:
-                lines.append(f"**{label}:** sem dados")
+                area_lines.append(f"**{label}:** sem dados")
                 continue
-            lines.append(
+            area_lines.append(
                 f"**{label}:** {self._number(spawns[area])} spawns · "
                 f"💯 {self._number(hundos.get(area, 0))} 100IV · "
                 f"0️⃣ {self._number(nundos.get(area, 0))} 0IV"
             )
-        return "\n".join(lines) + "\n\n" + self._period_note(start_date, end_date)
+        return self._layout(lines, area_lines, start_date, end_date)
 
     def _featured_species(self, event, suffix_pattern):
         """[(pokemon_id, name)] the event features.
