@@ -129,15 +129,18 @@ def default_forms(pokemon):
 def wanted_rules(missing_tiles, forms):
     """Translate missing tiles into unique species/form pairs for Poracle.
 
-    Named forms keep their IDs. An unresolved ordinary tile rejects the
-    rebuild so the caller can preserve existing rules and log the problem.
+    Named forms keep their IDs. An ordinary tile with no safe form is
+    skipped, never widened to Poracle's form-0 wildcard: such a species
+    (Ogerpon, defaultFormId 0) only spawns in named forms, which have tiles
+    and rules of their own. Rejecting the whole rebuild instead left anyone
+    missing Ogerpon with no rules at all.
     """
     result = set()
     for pokemon_id, form_id in missing_tiles:
         if form_id == 0:
             form_id = forms.get(pokemon_id)
             if form_id is None:
-                raise ValueError(f"No safe ordinary form for species {pokemon_id}")
+                continue
         result.add((pokemon_id, form_id))
     return result
 
