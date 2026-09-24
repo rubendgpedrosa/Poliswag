@@ -59,7 +59,7 @@ class Config:
     DB_POGOLEIRIA = os.environ.get("DB_POGOLEIRIA", "pogoleiria")
     # The Pokédex/Comunidade tool's public address (it moved from /trades,
     # which still redirects, on 2026-09-22).
-    TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/trocas")
+    TRADES_URL = os.environ.get("TRADES_URL", "https://pogoleiria.pt/pokedex")
     # The private statistics report. The token issued by !stats is appended to
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
