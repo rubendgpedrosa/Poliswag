@@ -69,7 +69,7 @@ class PoracleClient(LoggingMixin):
             self._log(f"Poracle {method} {path} failed: {e}")
             raise PoracleError(str(e)) from e
 
-    # ---- Humans (channels) ---------------------------------------------------
+    # ---- Humans (channels and users) -----------------------------------------
 
     async def get_human(self, human_id: str | int) -> dict | None:
         try:
@@ -82,6 +82,23 @@ class PoracleClient(LoggingMixin):
             "POST",
             "/api/humans",
             json={"id": str(channel_id), "name": name, "type": "discord:channel"},
+        )
+
+    async def create_user(self, user_id: str | int, name: str, *, area: str) -> dict:
+        """Create a Discord user with its initial area as a JSON-array string.
+
+        Poracle creates the enabled human and default profile. Conflicts and
+        failures propagate without restarting or modifying an existing user.
+        """
+        return await self._request(
+            "POST",
+            "/api/humans",
+            json={
+                "id": str(user_id),
+                "name": name,
+                "type": "discord:user",
+                "area": area,
+            },
         )
 
     async def start(self, human_id: str | int, *, silent: bool = True) -> None:
