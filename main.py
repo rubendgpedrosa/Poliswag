@@ -27,6 +27,7 @@ from modules.help_command import EmbedHelpCommand
 from modules.config import Config
 from modules.dm_policy import may_run_in_dm
 from modules.http_client import close_session
+from modules.migrations import apply_migrations
 
 
 class Poliswag(commands.Bot):
@@ -95,6 +96,8 @@ class Poliswag(commands.Bot):
         await super().close()
 
     async def setup_hook(self):
+        # Before any cog: several read their state columns in cog_load.
+        await apply_migrations(self.db, self.utility.log_to_file)
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")
         await self.load_extension("cogs.tracker")
