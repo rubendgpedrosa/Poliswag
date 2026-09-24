@@ -54,6 +54,9 @@ _RULE_DEFAULTS = {
     "costume": 9000,
 }
 
+# Where the switch lives on the site, named as the site names it.
+SETTINGS_WHERE = "pogoleiria.pt/pokedex → Perfil e outras opções"
+
 # Site key, Poracle geofence, and display name, in display order.
 _AREAS = (
     ("leiria", "leiria", "Leiria"),
@@ -77,7 +80,10 @@ def areas_json(hundo_areas):
 def confirmation_text(on, hundo_areas):
     """Describe the full settings, without promising immediate rule removal."""
     if not on:
-        return "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV."
+        return (
+            "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV. "
+            f"Para voltar a ligar: {SETTINGS_WHERE}."
+        )
     labels = {key: label for key, _geofence, label in _AREAS}
     keys = _area_keys(hundo_areas)
     where = (
@@ -87,7 +93,8 @@ def confirmation_text(on, hundo_areas):
     )
     return (
         f"100IV por DM: **ligado** · {where}. "
-        "Vais receber aqui os 100IV que te faltam na Pokédex."
+        "Vais receber aqui os 100IV que te faltam na Pokédex. "
+        f"Para mudar a zona ou desligar: {SETTINGS_WHERE}."
     )
 
 
