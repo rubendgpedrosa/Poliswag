@@ -26,7 +26,7 @@ make up                  # ENV=DEVELOPMENT by default, PRODUCTION via .env
 | `make watch` | Like `make up` but restarts the bot on every saved `.py` file |
 | `make down` | Stop + remove containers and volumes |
 | `make stop` | Stop without removing |
-| `make reload` | Restart the bot and truncate log files |
+| `make reload` | Restart the bot (keeps log files) |
 | `make logs` | Tail the container logs |
 | `make test` | Run `pytest` inside the container |
 | `make test-local` | Run `pytest` locally (no Docker needed — requires `pip install -r requirements-dev.txt`) |

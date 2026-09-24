@@ -14,8 +14,10 @@ _NOTIF_ROLES = [
 
 class RoleManager:
     async def response_user_role_selection(self, interaction):
-        await self.toggle_role(interaction.data["custom_id"], interaction.user)
+        # Acknowledge first: Discord voids the interaction after 3s, and
+        # toggle_role can take longer (a new member gets every Alertas* role).
         await interaction.response.defer()
+        await self.toggle_role(interaction.data["custom_id"], interaction.user)
 
     async def add_button_event(self, button):
         button.callback = self.response_user_role_selection

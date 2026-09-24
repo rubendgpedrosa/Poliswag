@@ -82,9 +82,7 @@ dead-code: ## Check for dead code with vulture inside the container (CI-equivale
 	@echo "Running vulture inside $(CONTAINER_NAME) container..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) vulture . --min-confidence 70
 
-reload: ## Reload the Python script inside the container, cleaning log files.
-	@echo "Cleaning log files..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag /bin/bash -c "truncate -s 0 /app/logs/actions.log && truncate -s 0 /app/logs/error.log"
+reload: ## Reload the Python script inside the container (logs are kept for the daily error review)
 	@echo "Reloading Poliswag application..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) restart poliswag
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
