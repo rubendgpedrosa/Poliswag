@@ -262,6 +262,31 @@ class TestScheduledTasksLoop:
         out = capsys.readouterr().out
         assert "CRASH" in out
 
+    async def test_slow_step_logged_as_error(self, cog, mocker):
+        clock = mocker.patch("cogs.scheduled.time").monotonic
+        clock.side_effect = [0.0, 75.0]
+
+        async def slow_step():
+            pass
+
+        await cog._run_tick_step(slow_step)
+        msg, level = cog.poliswag.utility.log_to_file.call_args.args
+        assert level == "ERROR"
+        assert "slow_step" in msg and "75s" in msg
+
+    async def test_fast_step_not_logged(self, cog, mocker):
+        clock = mocker.patch("cogs.scheduled.time").monotonic
+        clock.side_effect = [0.0, 5.0]
+        await cog._run_tick_step(AsyncMock())
+        cog.poliswag.utility.log_to_file.assert_not_called()
+
+    async def test_slow_failing_step_logs_crash_and_slowness(self, cog, mocker):
+        clock = mocker.patch("cogs.scheduled.time").monotonic
+        clock.side_effect = [0.0, 120.0]
+        await cog._run_tick_step(AsyncMock(side_effect=RuntimeError("boom")))
+        levels = [c.args[1] for c in cog.poliswag.utility.log_to_file.call_args_list]
+        assert levels == ["CRASH", "ERROR"]
+
     async def test_one_failing_step_does_not_block_the_rest(self, cog):
         # A failure in an earlier step (e.g. the version check) must not
         # starve later steps -- especially _check_workers, which feeds
