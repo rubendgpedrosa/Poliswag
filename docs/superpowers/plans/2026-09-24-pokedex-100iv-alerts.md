@@ -1270,6 +1270,12 @@ the owner explicitly requested ongoing alerts.
   second preview sent.
 - Tick/untick Rattata 19/0: 1499 → 1498 (19/45 gone) → 1499; collection
   restored to 0 hundo ticks.
+- Owner confirmed the preview DM arrived (with the map tile). Footer switched
+  22:39 to "Pokédex · muda a zona ou desliga em pogoleiria.pt/pokedex" once the
+  site controls shipped (testers only, HUNDO_DM_TESTERS). The confirmation DM
+  names the same place. No 100IV spawned between 21:53 and midnight (Golbat
+  saw 0), so the first real alert is still pending; release to everyone waits
+  for it.
 - Not done live: a real spawn (none awaited), a live area change and profile
   switch (covered by the isolated matcher), and the opt-out test: the owner
   asked for ongoing alerts, and cleanup/opt-out is covered by the SQL tests
