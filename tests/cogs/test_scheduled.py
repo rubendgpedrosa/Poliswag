@@ -19,6 +19,13 @@ import discord
 import pytest
 
 from cogs.scheduled import Scheduled, setup
+from modules.event_stats import Summary
+
+SUMMARY = Summary(
+    headline="🐾 **5** spawns · Gible",
+    areas=(("📍 Leiria", "3 spawns\n💯 1 100IV"), ("📍 Marinha Grande", "sem dados")),
+    note="Totais diários de 07/04 · incluem atividade fora do horário do evento.",
+)
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -563,7 +570,7 @@ class TestSendEventChangeNotifications:
             "image": None,
         }
         changed = {"ended": [event], "started": [event]}
-        cog.poliswag.event_stats.get_summary = AsyncMock(return_value="🐾 **5** spawns")
+        cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
         await cog._send_event_change_notifications(channel, changed)
         # 2 headers + 2 embed sends = 4
         assert channel.send.await_count == 4
@@ -590,7 +597,7 @@ class TestSendEventChangeNotifications:
             "image": None,
         }
         cog.poliswag.event_stats.get_summary = AsyncMock(
-            side_effect=lambda event: "🐾 **5** spawns" if event is cd else None
+            side_effect=lambda event: SUMMARY if event is cd else None
         )
         await cog._send_event_change_notifications(
             channel, {"ended": [gbl, cd], "started": []}
@@ -598,7 +605,7 @@ class TestSendEventChangeNotifications:
         calls = channel.send.await_args_list
         assert len(calls) == 2
         assert calls[0].args == ("**Eventos que terminaram**\n🌟 Great League",)
-        assert calls[1].kwargs["embed"].description == "🐾 **5** spawns"
+        assert calls[1].kwargs["embed"].description == SUMMARY.headline
         assert "Gible" in calls[1].kwargs["embed"].title
 
     async def test_empty_lists_send_nothing(self, cog):
@@ -614,19 +621,24 @@ class TestSendEventChangeNotifications:
 
 
 class TestBuildEventEmbed:
-    async def test_ended_event_uses_stats_summary_as_description(self, cog):
+    async def test_ended_event_lays_the_stats_out_in_columns(self, cog):
         event = {
             "event_type": "Community Day",
             "name": "Test",
             "end": "2026-04-07 20:00:00",
             "image": None,
         }
-        embed = await cog._build_event_embed(
-            event, is_ended=True, summary="🐾 **5** spawns · 💯 1 100IV"
-        )
+        embed = await cog._build_event_embed(event, is_ended=True, summary=SUMMARY)
         assert isinstance(embed, discord.Embed)
         assert "Test" in embed.title
-        assert embed.description == "🐾 **5** spawns · 💯 1 100IV"
+        # The headline on top, one column per area side by side, the caveat
+        # small at the bottom: one line per area was too dense to read.
+        assert embed.description == SUMMARY.headline
+        assert [(f.name, f.value, f.inline) for f in embed.fields] == [
+            ("📍 Leiria", "3 spawns\n💯 1 100IV", True),
+            ("📍 Marinha Grande", "sem dados", True),
+        ]
+        assert embed.footer.text == SUMMARY.note
         cog.poliswag.event_manager.format_end_time.assert_not_called()
 
     async def test_ended_event_omits_description_when_no_stats(self, cog):

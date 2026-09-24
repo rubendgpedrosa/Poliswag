@@ -415,7 +415,7 @@ class Scheduled(commands.Cog):
         )
         color = self.poliswag.event_manager.event_colors.get(event_type_key, 0x3498DB)
         if is_ended:
-            description = summary
+            description = summary.headline if summary else None
         else:
             description = self.poliswag.event_manager.format_end_time(event_end)
         embed = discord.Embed(
@@ -424,6 +424,11 @@ class Scheduled(commands.Cog):
             description=description,
             color=color,
         )
+        if is_ended and summary:
+            # One column per area, side by side; the caveat as the footer.
+            for name, value in summary.areas:
+                embed.add_field(name=name, value=value, inline=True)
+            embed.set_footer(text=summary.note)
         if event.get("image"):
             embed.set_thumbnail(url=event["image"])
         return embed
