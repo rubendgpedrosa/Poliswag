@@ -87,7 +87,7 @@ class TestWhatCountsAsAlive:
         cursor.fetchone.return_value = (NOW,)
         db = MagicMock()
         db.cursor.return_value.__enter__.return_value = cursor
-        monkeypatch.setattr(tracking_health.pymysql, "connect", lambda **_: db)
+        monkeypatch.setattr(tracking_health, "connect", lambda *_, **__: db)
 
         assert tracking_health.TrackingHealth()._last_event_sync() == NOW
         query = cursor.execute.call_args_list[-1].args[0]

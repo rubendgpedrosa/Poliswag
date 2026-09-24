@@ -8,9 +8,8 @@ import asyncio
 from collections import defaultdict
 
 import discord
-import pymysql
-
 from modules.config import Config
+from modules.database_connector import connect
 from modules.trade_digest import CATEGORY_LABELS
 
 _CUTOFF_SQL = "UTC_TIMESTAMP() - INTERVAL 90 SECOND"
@@ -67,21 +66,7 @@ class TradeAnnouncer:
         await asyncio.to_thread(self._advance_watermark, batch["cutoff"])
 
     def _connect(self):
-        return pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_POGOLEIRIA,
-            # Without these a stalled read blocks the 60s tick for good, and
-            # every later step with it -- including _check_workers, which feeds
-            # StackRecovery's self-healing.
-            connect_timeout=3,
-            read_timeout=5,
-            write_timeout=3,
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=False,
-        )
+        return connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
 
     def _read_batch(self):
         db = self._connect()

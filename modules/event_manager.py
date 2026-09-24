@@ -9,6 +9,10 @@ from modules.locale_pt import MONTH_NAMES, PT_MONTHS_SHORT
 # LeekDuck's scraped source rarely changes within a 15-minute window; hitting
 # it every minute is wasted load on both our DB and their CDN.
 FETCH_EVENTS_INTERVAL_SECONDS = 900
+# Ended events older than this are deleted. Nothing reads past events beyond
+# the end-of-event notice, and ScrapedDuck stops listing an event long before
+# this, so a pruned one is never re-inserted and announced again.
+EVENT_RETENTION_DAYS = 90
 
 
 class EventManager:
@@ -44,10 +48,17 @@ class EventManager:
                 json.loads(response) if isinstance(response, str) else response
             )
             await self.process_and_store_events()
+            await self.prune_old_events()
         except Exception as e:
             self.poliswag.utility.log_to_file(
                 f"Error processing events: {str(e)}", "ERROR"
             )
+
+    async def prune_old_events(self):
+        await self.poliswag.db.execute_query_to_database(
+            "DELETE FROM event WHERE end < NOW() - INTERVAL %s DAY",
+            params=(EVENT_RETENTION_DAYS,),
+        )
 
     async def process_and_store_events(self):
         if self.events is None:

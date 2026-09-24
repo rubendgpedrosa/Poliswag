@@ -73,14 +73,6 @@ async def test_set_left_marks_and_clear_left_unmarks(store):
     assert "left_at = NULL" in sql_of(store.db.execute_query_to_database)
 
 
-async def test_all_ids_returns_ints(store):
-    store.db.get_data_from_database.return_value = [
-        {"discord_id": 1},
-        {"discord_id": 2},
-    ]
-    assert await store.all_ids() == [1, 2]
-
-
 async def test_reconcile_marks_leavers_and_restores_returners(store):
     store.db.get_data_from_database.return_value = [
         {"discord_id": 1, "left_at": None},

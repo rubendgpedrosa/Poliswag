@@ -424,24 +424,8 @@ class Scheduled(commands.Cog):
         await self.poliswag.scanner_status.rename_voice_channels(workers_status)
         await self.poliswag.device_manager.alert_if_offline()
 
-    async def _check_new_lures(self):
-        new_lures = await self.poliswag.lure_watcher.check_new_lures()
-        if not new_lures or not self.poliswag.CONVIVIO_CHANNEL:
-            return
-        for stop in new_lures:
-            maps_url = f"https://www.google.com/maps?q={stop['lat']},{stop['lon']}"
-            embed = status_embed(
-                f"🌸 {stop['lure_name']} colocada na PokéStop {stop['name']}",
-                f"**Área:** {stop['area']}\n"
-                f"Activa até às {stop['expires_at'].strftime('%H:%M')}\n"
-                f"[Ver no mapa]({maps_url})",
-            )
-            await self.poliswag.CONVIVIO_CHANNEL.send(embed=embed)
-
     async def _update_lure_status(self):
-        """Reflect the live active-lure count in the bot's Discord presence
-        instead of posting a message per lure to CONVIVIO_CHANNEL -- see
-        _check_new_lures (currently unwired from the tick) for that version.
+        """Reflect the live active-lure count in the bot's Discord presence.
         Skips the API call when the count has not changed since last tick."""
         count = await self.poliswag.lure_watcher.count_active_lures()
         if count == self._last_lure_status_count:

@@ -16,22 +16,6 @@ def tracker_store(db):
     return TrackerStore(db)
 
 
-class TestGetAll:
-    async def test_returns_rows_from_db_ordered_by_createddate_desc(
-        self, tracker_store, db
-    ):
-        rows = [
-            {"target": "charmander", "creator": "alice", "createddate": "2024-01-01"}
-        ]
-        db.get_data_from_database.return_value = rows
-        result = await tracker_store.get_all()
-        assert result is rows
-        db.get_data_from_database.assert_called_once()
-        sql = db.get_data_from_database.call_args.args[0]
-        assert "FROM tracked_quest_reward" in sql
-        assert "ORDER BY createddate DESC" in sql
-
-
 class TestExists:
     async def test_returns_true_when_row_present(self, tracker_store, db):
         db.get_data_from_database.return_value = [{"target": "pikachu"}]

@@ -254,3 +254,30 @@ class TestConnectionTimeouts:
         assert kwargs["connect_timeout"]
         assert kwargs["read_timeout"]
         assert kwargs["write_timeout"]
+
+
+class TestShortLivedConnect:
+    def test_bounded_waits_and_passthrough(self):
+        import unittest.mock as mock
+
+        import pymysql
+
+        from modules.database_connector import connect
+
+        with mock.patch("pymysql.connect") as pm:
+            connect("pogoleiria", read_timeout=10, dict_rows=True, autocommit=False)
+        kwargs = pm.call_args.kwargs
+        assert kwargs["database"] == "pogoleiria"
+        assert kwargs["connect_timeout"] and kwargs["write_timeout"]
+        assert kwargs["read_timeout"] == 10
+        assert kwargs["cursorclass"] is pymysql.cursors.DictCursor
+        assert kwargs["autocommit"] is False
+
+    def test_tuple_rows_by_default(self):
+        import unittest.mock as mock
+
+        from modules.database_connector import connect
+
+        with mock.patch("pymysql.connect") as pm:
+            connect("pogoleiria")
+        assert "cursorclass" not in pm.call_args.kwargs

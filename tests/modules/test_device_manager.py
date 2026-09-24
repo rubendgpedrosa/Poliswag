@@ -347,21 +347,6 @@ class TestAdb:
         proc.wait.assert_awaited_once()
 
 
-class TestIsReachable:
-    async def test_returns_true_on_rc_zero(self, device_manager):
-        device_manager.run = AsyncMock(return_value=("pong", "", 0))
-        assert await device_manager.is_reachable() is True
-
-    async def test_returns_false_on_nonzero_rc(self, device_manager):
-        device_manager.run = AsyncMock(return_value=("", "err", 1))
-        assert await device_manager.is_reachable() is False
-
-    async def test_returns_false_and_logs_on_runtime_error(self, device_manager):
-        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
-        assert await device_manager.is_reachable() is False
-        device_manager.poliswag.utility.log_to_file.assert_called_once()
-
-
 class TestGetModel:
     async def test_returns_model_string(self, device_manager):
         device_manager.run = AsyncMock(return_value=("Pixel 6", "", 0))

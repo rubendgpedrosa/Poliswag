@@ -20,7 +20,6 @@ class TestInit:
     def test_reads_config_and_starts_with_no_cache(self, mocker):
         mocker.patch.object(Config, "GOOGLE_API_KEY", "KEY")
         mocker.patch.object(Config, "TEMPLATE_HTML_DIR", "/templates")
-        mocker.patch.object(Config, "FOLLOWED_EVENTS_TEMPLATE_HTML_FILE", "quests.html")
         mocker.patch.object(Config, "ACCOUNTS_TEMPLATE_HTML_FILE", "accounts.html")
         mocker.patch.object(Config, "UI_ICONS_URL", "https://icons/")
 
@@ -28,11 +27,9 @@ class TestInit:
 
         assert g.google_api_key == "KEY"
         assert g.TEMPLATE_HTML_DIR == "/templates"
-        assert g.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE == "quests.html"
         assert g.ACCOUNTS_TEMPLATE_HTML_FILE == "accounts.html"
         assert g.QUEST_ICON_BASE_URL == "https://icons/"
         assert g._env is None
-        assert g._quest_template is None
         assert g._accounts_template is None
 
 
@@ -47,11 +44,9 @@ def ig():
     g.poliswag = MagicMock()
     g.google_api_key = "KEY"
     g.TEMPLATE_HTML_DIR = "/tmp"
-    g.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = "quests.html"
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
     g.QUEST_ICON_BASE_URL = "https://icons/"
     g._env = None
-    g._quest_template = None
     g._accounts_template = None
     return g
 
@@ -92,33 +87,6 @@ class TestGenerateStaticMapForGroupOfQuests:
         url = ig.generate_static_map_for_group_of_quests(stops)
         assert "b.png" in url
         assert "a.png" not in url
-
-
-class TestGenerateImageFromQuestData:
-    async def test_returns_none_and_logs_on_error(self, ig, mocker, tmp_path):
-        # Prepare a real template file so Jinja can render.
-        ig.TEMPLATE_HTML_DIR = str(tmp_path)
-        (tmp_path / "quests.html").write_text("<html>{{ has_leiria }}</html>")
-        mocker.patch(
-            "modules.image_generator.imgkit.from_file",
-            side_effect=OSError("wkhtmltopdf missing"),
-        )
-        result = await ig.generate_image_from_quest_data([], [], True, False)
-        assert result is None
-        ig.poliswag.utility.log_to_file.assert_called_once()
-        msg, level = ig.poliswag.utility.log_to_file.call_args.args
-        assert "quest image" in msg
-        assert level == "ERROR"
-
-    async def test_returns_bytes_on_success(self, ig, mocker, tmp_path):
-        ig.TEMPLATE_HTML_DIR = str(tmp_path)
-        (tmp_path / "quests.html").write_text("<html>ok</html>")
-        mocker.patch(
-            "modules.image_generator.imgkit.from_file",
-            return_value=b"PNGDATA",
-        )
-        result = await ig.generate_image_from_quest_data([], [], False, False)
-        assert result == b"PNGDATA"
 
 
 class TestGenerateImageFromAccountStats:
