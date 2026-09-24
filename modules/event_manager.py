@@ -1,7 +1,6 @@
 import time
 from datetime import datetime, timedelta
 import json
-import random
 import re
 from modules.http_client import fetch_data
 from modules.locale_pt import MONTH_NAMES, PT_MONTHS_SHORT
@@ -227,8 +226,8 @@ class EventManager:
         if end_time.date() == now.date():
             return f"{verb} às {end_time.strftime('%H:%M')}"
         return (
-            f"{verb} a {end_time.day:02d} {PT_MONTHS_SHORT[end_time.month]} "
-            f"- {end_time.strftime('%H:%M')}"
+            f"{verb} a {end_time.day:02d} {PT_MONTHS_SHORT[end_time.month].lower()} "
+            f"às {end_time.strftime('%H:%M')}"
         )
 
     def build_upsert_query(self, name, start, end, image, event_type, link, event):
@@ -297,14 +296,25 @@ class EventManager:
             return "🔦"
         if "raid" in event_type:
             return "🛡️"
+        # Dynamax, before "battle" catches "max-battles".
+        if "max-" in event_type:
+            return "🌀"
         if "battle" in event_type:
             return "⚔️"
         if "research" in event_type:
             return "🔍"
         if "season" in event_type:
             return "🍂"
-
-        return random.choice(["🎮", "🎯", "🎪", "🎨", "🎭", "🎡"])
+        # One emoji per type, never a random one: the same event used to get
+        # 🎯 when it started and 🎡 when it ended.
+        return {
+            "go-pass": "🎟️",
+            "choose-your-path": "🧭",
+            "pokemon-go-fest": "🎪",
+            "pokemon-go-tour": "🎪",
+            "wild-area": "🎪",
+            "twitch-drops": "📺",
+        }.get(event_type, "📅")
 
     async def get_weekly_events(self):
         now = datetime.now()
