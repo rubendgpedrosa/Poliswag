@@ -12,6 +12,7 @@ from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
+from modules.trade_dm import TradeDM
 
 # A step that alone outlasts the 60s tick interval delays every step after it
 # and the next tick. Logged as ERROR so the daily error review sees it: the
@@ -37,6 +38,7 @@ class Scheduled(commands.Cog):
         self._pokemon_names_synced = False
         self._trade_announcer = TradeAnnouncer(poliswag)
         self._trade_digest = TradeDigest(poliswag)
+        self._trade_dm = TradeDM(poliswag)
 
     async def _load_digest_date(self):
         try:
@@ -218,6 +220,7 @@ class Scheduled(commands.Cog):
             self._check_daily_error_digest,
             self._check_tracking_health,
             self._trade_announcer.tick,
+            self._trade_dm.tick,
             self._check_trade_digest,
         ):
             await self._run_tick_step(step)
