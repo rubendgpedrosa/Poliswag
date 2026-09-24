@@ -236,6 +236,21 @@ class TestHttpBranchFailures:
         result = await http_client.fetch_data("scanner_status", log_fn=log)
         assert result is None
         assert "Empty response" in log.call_args.args[0]
+        assert log.call_args.args[1] == "ERROR"
+
+    async def test_empty_webhook_ack_is_not_an_error(self, mocker):
+        # Home Assistant acks the all_down webhook with an empty 200.
+        mocker.patch.object(http_client.Config, "IS_PRODUCTION", True)
+        mocker.patch.object(
+            http_client.Config,
+            "ENDPOINTS",
+            {"all_down": "https://example.invalid/api/webhook/x"},
+        )
+        _install_aiohttp_mock(mocker, text_data="", content_type="text/plain")
+        log = MagicMock()
+        result = await http_client.fetch_data("all_down", log_fn=log, method="POST")
+        assert result is None
+        assert log.call_args.args[1] == "INFO"
 
     async def test_invalid_json_text_for_non_events_returns_none(self, mocker):
         mocker.patch.object(http_client.Config, "IS_PRODUCTION", True)

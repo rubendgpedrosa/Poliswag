@@ -5,6 +5,8 @@ from modules.config import Config
 
 _shared_session: aiohttp.ClientSession | None = None
 
+_WEBHOOK_ENDPOINTS = frozenset({"all_down"})
+
 
 def get_session() -> aiohttp.ClientSession:
     """Lazy-init a single aiohttp session so we reuse the TCP/DNS pool.
@@ -76,7 +78,10 @@ async def fetch_data(endpoint_key, log_fn=None, timeout=20, method="GET", data=N
 
             text = await response.text()
             if not text.strip():
-                _log(f"Empty response from {endpoint_key}")
+                # A webhook (all_down → Home Assistant) acks with an empty
+                # 2xx body: that is delivery, not a failure.
+                level = "INFO" if endpoint_key in _WEBHOOK_ENDPOINTS else "ERROR"
+                _log(f"Empty response from {endpoint_key}", level)
                 return None
 
             try:

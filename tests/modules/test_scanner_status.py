@@ -1174,6 +1174,81 @@ def _poliswag_db_handler(*, scanning_ongoing=False, expected=(371, 109)):
     return _handler
 
 
+class TestRenameBudget:
+    """Discord allows two channel renames per 10 min and answers a third with
+    a ~600s 429 that discord.py sleeps out inside channel.edit(). That sleep
+    stalled the whole scheduler tick, so the budget is enforced locally and
+    the edit is capped by RENAME_TIMEOUT."""
+
+    def _setup(self, scanner_status, mocker, edit):
+        mocker.patch.object(scanner_status, "trigger_all_down_action", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=1
+        )
+        scanner_status.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=True
+        )
+        channel = MagicMock()
+        channel.edit = edit
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=channel)
+        )
+        return channel
+
+    async def test_third_rename_in_window_is_skipped(self, scanner_status, mocker):
+        channel = self._setup(scanner_status, mocker, AsyncMock())
+        await scanner_status.rename_voice_channels(_ws(0, 0))  # 🟢
+        await scanner_status.rename_voice_channels(_ws(7, 1))  # 🔴
+        await scanner_status.rename_voice_channels(_ws(0, 0))  # 🟢 — no budget
+        assert channel.edit.await_count == 2
+        assert scanner_status.channelStatusName == "STATUS: 🔴"
+
+    async def test_budget_frees_after_window(self, scanner_status, mocker):
+        clock = mocker.patch("modules.scanner_status.time.monotonic")
+        clock.return_value = 1000.0
+        channel = self._setup(scanner_status, mocker, AsyncMock())
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        await scanner_status.rename_voice_channels(_ws(7, 1))
+        clock.return_value = 1000.0 + scanner_status.RENAME_WINDOW + 1
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        assert channel.edit.await_count == 3
+        assert scanner_status.channelStatusName == "STATUS: 🟢"
+
+    async def test_slow_edit_times_out_instead_of_blocking(
+        self, scanner_status, mocker
+    ):
+        import asyncio
+
+        async def rate_limited_edit(**_kwargs):
+            await asyncio.sleep(600)  # what discord.py does on a 429
+
+        channel = self._setup(
+            scanner_status, mocker, AsyncMock(side_effect=rate_limited_edit)
+        )
+        scanner_status.RENAME_TIMEOUT = 0.01
+        await asyncio.wait_for(
+            scanner_status.rename_voice_channels(_ws(0, 0)), timeout=2
+        )
+        assert scanner_status.channelStatusName is None
+        # The timed-out rename spends the whole window: the next tick must
+        # not walk straight back into the same 429.
+        await scanner_status.rename_voice_channels(_ws(7, 1))
+        assert channel.edit.await_count == 1
+
+    async def test_failed_rename_still_counts_against_budget(
+        self, scanner_status, mocker
+    ):
+        import discord
+
+        exc = discord.errors.HTTPException(
+            MagicMock(status=500, reason=""), {"message": "boom", "code": 0}
+        )
+        channel = self._setup(scanner_status, mocker, AsyncMock(side_effect=exc))
+        for _ in range(3):
+            await scanner_status.rename_voice_channels(_ws(0, 0))
+        assert channel.edit.await_count == 2
+
+
 class TestIsQuestScanningComplete:
     """The completion detector is plateau-based: it fires only after the live
     quest count stops growing for ``PLATEAU_TICKS`` checks, is past the floor,
