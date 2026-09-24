@@ -190,14 +190,16 @@ def test_area_mapping_matches_confirmation(setting, geofences, label):
     assert json.loads(areas_json(setting)) == geofences
     assert confirmation_text(True, setting) == (
         f"100IV por DM: **ligado** · {label}. "
-        "Vais receber aqui os 100IV que te faltam na Pokédex."
+        "Vais receber aqui os 100IV que te faltam na Pokédex. "
+        "Para mudar a zona ou desligar: pogoleiria.pt/pokedex → Perfil e outras opções."
     )
 
 
 @pytest.mark.parametrize("setting", ["leiria", "marinha", "leiria,marinha", "", None])
 def test_off_confirmation_does_not_depend_on_area(setting):
     assert confirmation_text(False, setting) == (
-        "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV."
+        "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV. "
+        "Para voltar a ligar: pogoleiria.pt/pokedex → Perfil e outras opções."
     )
 
 
