@@ -124,7 +124,12 @@ class MegaExporter:
                         "gen": generation,
                         "types": types,
                         "category": "primal" if label_prefix == "Primal" else "mega",
-                        "released": tevo.get("firstEnergyCost") is not None,
+                        # The masterfile flags datamined Megas not yet in the
+                        # game (`unreleased`). It used to carry firstEnergyCost
+                        # on released ones instead; that field is gone, which
+                        # left every Mega "unreleased" and the site counting
+                        # all 95 against the 62 a player can actually get.
+                        "released": not tevo.get("unreleased", False),
                     }
                 )
 
