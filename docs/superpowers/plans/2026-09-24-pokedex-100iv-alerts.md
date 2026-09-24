@@ -1106,6 +1106,7 @@ Do not pipe pytest into `tail`. If capturing output is needed, use Bash
       "url": "{{{reactMapUrl}}}?o=dm-100iv",
       "description": "CP {{cp}} · Lvl {{level}}\n📍 {{areas}}\n⏰ até {{time}} · faltam {{tthm}} min\n[Ver no mapa]({{{reactMapUrl}}}?o=dm-100iv)",
       "thumbnail": {"url": "{{{imgUrl}}}"},
+      "image": {"url": "{{{staticMap}}}"},
       "footer": {"text": "Pokédex · teste 100IV"}
     }
   }
@@ -1264,6 +1265,9 @@ the owner explicitly requested ongoing alerts.
   reload 200; Poracle state 1519 monsters.
 - Preview via `/api/test` with `template: pokedex-100iv`: DM delivered
   (DM channel created). Owner to confirm the look.
+- 22:07: map tile added (`image: {{{staticMap}}}`, as the channels'
+  `standard` has; owner asked). Backup `dts.json.bak-100iv-20260924-2207*`,
+  second preview sent.
 - Tick/untick Rattata 19/0: 1499 → 1498 (19/45 gone) → 1499; collection
   restored to 0 hundo ticks.
 - Not done live: a real spawn (none awaited), a live area change and profile
