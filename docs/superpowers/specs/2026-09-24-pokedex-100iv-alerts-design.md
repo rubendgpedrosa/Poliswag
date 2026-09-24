@@ -84,20 +84,23 @@ For each active collector:
   So an owned Alolan never alerts because the ordinary one is missing.
 - **Rule shape.** Copied from the existing channel rules, with: `id` = the
   player's Discord id, `template = 'pokedex-100iv'`, `pokemon_id`, `form`,
-  `min_iv = max_iv = 100`, `distance = 0` (area-based), everything else wide
-  open, `profile_no = 1`, `clean = 0`, `ping = ''`.
+  `min_iv = max_iv = 100`, `distance = 0` (area-based), `override_areas`
+  from `hundo_areas` (`["leiria","marinhagrande"]`), everything else wide
+  open, `profile_no = 1`, `clean = 0`, `ping = ''`. The area lives on the
+  rules, not on the Poracle user, so a player's own Poracle alerts keep
+  their own area.
 - **Poracle user.** A `humans` row `discord:user` for the player, created if
-  missing (API, as `!notify` creates channels) with `area` from
-  `hundo_areas` (`leiria`, `marinhagrande`), updated when it differs.
+  missing (API, as `!notify` creates channels, then started), with the same
+  area as the rules. An existing human is left as it is.
 - **Compare, then rebuild.** Read the player's current rows with that
   template; if the (pokemon_id, form) set or the area differs, one
   transaction on the `poracle` DB deletes their `pokedex-100iv` rows and
-  inserts the wanted ones. Comparing actual rows makes every pass
+  inserts the wanted ones (the area is part of each row). Comparing actual
+  rows makes every pass
   self-healing, with no stored hash.
 - **Everyone not active** (switched off, refused, left, stopped collecting
   100IV) loses their `pokedex-100iv` rows. Their own Poracle alerts, other
-  templates, are never touched, and neither is a human Poliswag didn't
-  create beyond the area.
+  templates, are never touched, and neither is an existing Poracle user.
 - **One reload.** `POST /api/reload` once per tick, only if something
   changed.
 - **Poracle's alert limit** (`[alert_limits]`: 20 DMs per user per 240 s;
@@ -134,7 +137,8 @@ in `/root/poracleng/config/dts.json` (not in git; back it up first):
 Unit (pytest, mocked DB/Discord like `trade_dm.py`'s tests):
 - missing tiles → rules, including default-form translation, named forms,
   species without forms, costumes vs `show_costumes`;
-- wanted vs current → rebuild or skip; area change alone triggers it;
+- wanted vs current → rebuild or skip; an area change alone triggers it;
+- the human is created only when missing and never edited otherwise;
 - who is active (switch, collecting, left, confirmed, refused ordering);
 - confirmation due/not due; delivered vs refused writes; DM wording for
   on/off and each area choice;
