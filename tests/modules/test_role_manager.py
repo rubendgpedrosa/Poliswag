@@ -196,6 +196,25 @@ class TestResponseUserRoleSelection:
         rm.toggle_role.assert_called_once_with("AlertasLeiria", interaction.user)
         interaction.response.defer.assert_called_once()
 
+    async def test_defers_before_toggling(self, rm, mocker):
+        # Discord voids an interaction not acknowledged within 3s; granting a
+        # new member every Alertas* role can take longer than that.
+        order = []
+        interaction = MagicMock()
+        interaction.data = {"custom_id": "AlertasLeiria"}
+        interaction.response.defer = AsyncMock(
+            side_effect=lambda: order.append("defer")
+        )
+        mocker.patch.object(
+            rm,
+            "toggle_role",
+            new=AsyncMock(side_effect=lambda *_: order.append("toggle")),
+        )
+
+        await rm.response_user_role_selection(interaction)
+
+        assert order == ["defer", "toggle"]
+
 
 class TestAddButtonEvent:
     async def test_assigns_callback(self, rm):

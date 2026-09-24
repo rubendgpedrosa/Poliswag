@@ -1,3 +1,5 @@
+import asyncio
+import collections
 import datetime
 import time
 import discord
@@ -17,6 +19,20 @@ class ScannerStatus(LoggingMixin):
         # None by a restart, so the first tick of a new process always renames
         # once — accepted as cheap next to a per-tick name lookup.
         self.channelStatusName: str | None = None
+
+        # Discord allows two channel renames per 10 minutes. Past that it
+        # answers 429 with a ~600s retry_after, and discord.py sleeps it out
+        # inside channel.edit() -- which stalled the whole 60s scheduler tick
+        # for 10 min at a time while a flapping device kept changing the
+        # status. So the budget is tracked here and a rename that would
+        # exceed it is skipped; the next tick with budget writes whatever the
+        # status is by then. RENAME_TIMEOUT is the backstop for a 429 the
+        # local count didn't foresee (e.g. renames spent by a previous
+        # process just before a restart).
+        self.RENAME_BUDGET = 2
+        self.RENAME_WINDOW = 600
+        self.RENAME_TIMEOUT = 15
+        self._rename_attempts: collections.deque[float] = collections.deque()
 
         # Fallback only: get_workers_with_issues() prefers the live
         # expected_workers Dragonite reports per area on every call, so this
@@ -136,17 +152,39 @@ class ScannerStatus(LoggingMixin):
             marinhaExpected,
             device_connected,
         )
-        if self.should_update_channel(status):
+        if self.should_update_channel(status) and self._rename_budget_available():
             channel = await self.get_voice_channel()
             if channel:
+                self._rename_attempts.append(time.monotonic())
                 try:
-                    await channel.edit(name=status)
+                    await asyncio.wait_for(
+                        channel.edit(name=status), timeout=self.RENAME_TIMEOUT
+                    )
                     self.channelStatusName = status
+                except asyncio.TimeoutError:
+                    # Almost certainly a 429 discord.py was waiting out. Mark
+                    # the whole window spent so no tick retries into it.
+                    now = time.monotonic()
+                    self._rename_attempts.extend([now] * self.RENAME_BUDGET)
+                    self._log(
+                        f"Status channel rename to {status!r} timed out "
+                        "(rate limited); retrying once the rename budget frees up",
+                        "INFO",
+                    )
                 except discord.errors.HTTPException as e:
                     if e.code == 429:
                         self._log(f"Rate limited while updating status channel: {e}")
                     else:
                         self._log(f"Error updating status channel: {e}")
+
+    def _rename_budget_available(self):
+        """True while fewer than RENAME_BUDGET renames were attempted in the
+        last RENAME_WINDOW seconds. Attempts count, not successes: a 429'd
+        PATCH still spends Discord's budget."""
+        cutoff = time.monotonic() - self.RENAME_WINDOW
+        while self._rename_attempts and self._rename_attempts[0] <= cutoff:
+            self._rename_attempts.popleft()
+        return len(self._rename_attempts) < self.RENAME_BUDGET
 
     def should_update_channel(self, new_status):
         """True only when the channel name would actually change.
