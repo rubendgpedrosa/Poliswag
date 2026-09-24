@@ -291,6 +291,8 @@ def test_missing_tiles_follow_ticks_forms_and_costumes(show_costumes, expected):
     tick_off(1, 19, 46)
     tick_off(1, 1, 0)
     tick_off(2, 132, 0)  # another player's tick is not theirs
+    # The change marker counts this player's 100IV ticks only.
+    assert settings(1)["hundo_ticks"] == 2 and settings(1)["hundo_ticked_at"]
     MANY = {**FORMS, 1: 163, 25: 0}
     assert HundoAlerts(None)._sync_player(settings(1), MANY, 2)
     got = rules(1)
