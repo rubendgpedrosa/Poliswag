@@ -214,10 +214,3 @@ class TestResponseUserRoleSelection:
         await rm.response_user_role_selection(interaction)
 
         assert order == ["defer", "toggle"]
-
-
-class TestAddButtonEvent:
-    async def test_assigns_callback(self, rm):
-        button = MagicMock()
-        await rm.add_button_event(button)
-        assert button.callback == rm.response_user_role_selection

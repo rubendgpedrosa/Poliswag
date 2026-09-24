@@ -15,15 +15,6 @@ def event_store(db):
     return EventStore(db)
 
 
-class TestGetExcludedTypes:
-    async def test_returns_db_rows_verbatim(self, event_store, db):
-        rows = [{"type": "community_day"}, {"type": "raid_hour"}]
-        db.get_data_from_database.return_value = rows
-        assert await event_store.get_excluded_types() is rows
-        sql = db.get_data_from_database.call_args.args[0]
-        assert "SELECT type FROM excluded_event_type" in sql
-
-
 class TestGetAllEventTypes:
     async def test_returns_db_rows_verbatim(self, event_store, db):
         rows = [{"event_type": "community_day"}]
