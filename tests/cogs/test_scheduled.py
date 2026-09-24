@@ -1066,6 +1066,14 @@ class TestRefreshMasterfileData:
         sync.assert_awaited_once_with(cog.poliswag.db, self.MASTERFILE)
         assert cog._pokemon_names_synced is True
 
+    async def test_exports_megas_on_first_tick_without_a_reload(self, cog):
+        self._prime(cog, reloaded=False)
+        with patch("cogs.scheduled.sync_pokemon_names", new=AsyncMock(return_value=1)):
+            await cog._refresh_masterfile_data()
+            cog.poliswag.mega_exporter.export.assert_called_once()
+            await cog._refresh_masterfile_data()
+        cog.poliswag.mega_exporter.export.assert_called_once()
+
     async def test_does_not_resync_on_a_quiet_tick(self, cog):
         self._prime(cog, reloaded=False)
         cog._pokemon_names_synced = True
