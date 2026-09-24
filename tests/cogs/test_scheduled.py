@@ -572,15 +572,13 @@ class TestSendEventChangeNotifications:
         changed = {"ended": [event], "started": [event]}
         cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
         await cog._send_event_change_notifications(channel, changed)
-        # 2 headers + 2 embed sends = 4
-        assert channel.send.await_count == 4
+        # One message per batch: the header with its cards as embeds.
         calls = channel.send.await_args_list
+        assert len(calls) == 2
         assert calls[0].args == ("**Eventos que terminaram**",)
-        assert calls[0].kwargs == {}
-        assert isinstance(calls[1].kwargs["embed"], discord.Embed)
-        assert calls[2].args == ("**Novos eventos**",)
-        assert calls[2].kwargs == {}
-        assert isinstance(calls[3].kwargs["embed"], discord.Embed)
+        assert len(calls[0].kwargs["embeds"]) == 1
+        assert calls[1].args == ("**Novos eventos**",)
+        assert len(calls[1].kwargs["embeds"]) == 1
 
     async def test_ended_without_stats_is_a_line_under_the_header(self, cog):
         channel = MagicMock()
@@ -603,10 +601,44 @@ class TestSendEventChangeNotifications:
             channel, {"ended": [gbl, cd], "started": []}
         )
         calls = channel.send.await_args_list
-        assert len(calls) == 2
+        assert len(calls) == 1
         assert calls[0].args == ("**Eventos que terminaram**\n🌟 Great League",)
-        assert calls[1].kwargs["embed"].description == SUMMARY.headline
-        assert "Gible" in calls[1].kwargs["embed"].title
+        [card] = calls[0].kwargs["embeds"]
+        assert card.description == SUMMARY.headline
+        assert "Gible" in card.title
+
+    # "Super Mega Raid Day" and "Staraptor Super Mega Raid Day": one event
+    # under two names, one card.
+    async def test_identical_stats_are_one_card(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        a = {
+            "event_type": "raid-day",
+            "name": "Super Mega Raid Day",
+            "end": "2026-04-07 17:00:00",
+        }
+        b = {**a, "name": "Staraptor Super Mega Raid Day"}
+        cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
+        await cog._send_event_change_notifications(
+            channel, {"ended": [a, b], "started": []}
+        )
+        [call] = channel.send.await_args_list
+        assert len(call.kwargs["embeds"]) == 1
+
+    async def test_more_than_ten_cards_continue_in_another_message(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        events = [
+            {"event_type": "event", "name": f"E{i}", "end": "2026-04-07 20:00:00"}
+            for i in range(12)
+        ]
+        await cog._send_event_change_notifications(
+            channel, {"ended": [], "started": events}
+        )
+        calls = channel.send.await_args_list
+        assert [len(c.kwargs["embeds"]) for c in calls] == [10, 2]
+        assert calls[0].args == ("**Novos eventos**",)
+        assert calls[1].args == ()
 
     async def test_empty_lists_send_nothing(self, cog):
         channel = MagicMock()
@@ -796,7 +828,7 @@ class TestSendWeeklyDigest:
             mock_dt.timedelta = real_datetime.timedelta
             await cog._send_weekly_digest()
         embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args.kwargs["embed"]
-        assert "HOJE" in embed.description
+        assert "**Hoje " in embed.description
 
     async def test_explicit_channel_overrides_default(self, cog):
         now = real_datetime.datetime(2026, 4, 7, 12, 0)
