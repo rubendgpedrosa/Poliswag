@@ -34,7 +34,7 @@ make up                  # ENV=DEVELOPMENT by default, PRODUCTION via .env
 | `make format` / `make format-check` | `black` in write / check mode |
 | `make lint` | Run all pre-commit hooks |
 | `make dead-code` | `vulture` scan |
-| `make migrate` | Apply SQL migrations in `migrations/` to the dev DB |
+| `make migrate` | Apply SQL migrations in `migrations/` by hand (the bot also replays them on every start) |
 | `make mock-data` | Refresh `mock_data/` timestamps (run after a long dev gap) |
 
 ## Local test runs (no Docker)
@@ -121,7 +121,7 @@ templates/   HTML/Jinja templates for image generation (quests, accounts)
 data/        Static + persistent JSON (events, pokemon/item name maps)
 mock_data/   Fixture responses used in DEVELOPMENT
 mock_database/data.sql  Seed data for the dev DB
-migrations/  SQL migrations for the poliswag table
+migrations/  SQL migrations, replayed on every bot start — must be re-runnable (IF NOT EXISTS)
 tests/       pytest suite
 logs/        actions.log (activity) + error.log (errors)
 ```
