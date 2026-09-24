@@ -10,6 +10,7 @@ from modules.embeds import build_embed, status_embed
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
+from modules.hundo_alerts import HundoAlerts
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
@@ -43,6 +44,7 @@ class Scheduled(commands.Cog):
         self._trade_announcer = TradeAnnouncer(poliswag)
         self._trade_digest = TradeDigest(poliswag)
         self._trade_dm = TradeDM(poliswag)
+        self._hundo_alerts = HundoAlerts(poliswag)
 
     async def _load_digest_date(self):
         try:
@@ -227,6 +229,7 @@ class Scheduled(commands.Cog):
             self._check_tracking_health,
             self._trade_announcer.tick,
             self._trade_dm.tick,
+            self._hundo_alerts.tick,
             self._check_trade_digest,
         ):
             await self._run_tick_step(step)
