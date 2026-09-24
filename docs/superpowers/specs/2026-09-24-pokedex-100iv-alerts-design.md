@@ -57,17 +57,20 @@ Rules that keep the copy honest:
 - **Refused DMs, detected by Poliswag.** Poracle-NG does not record a
   refused DM (`humans.fails` stays untouched), and Discord only reports a
   refusal when a message is actually sent: opening a DM channel succeeds
-  even with DMs closed. So Poliswag sends its own DMs as the check and
-  records a refusal on `trade_player`, where the Pokédex settings show "Não
-  conseguimos enviar-te DMs" and how to fix it:
-  - a welcome DM when a collector is first switched on ("Vais receber aqui
-    os 100IV que te faltam…"), which catches DMs closed from the start;
-  - a short Monday summary ("Esta semana apareceram 23 100IV que te faltam;
-    marcaste 5"), which is worth reading on its own and catches DMs closed
-    later, within a week.
-  Fallback if a week's delay proves too slow: Poliswag sends every alert
-  itself instead of Poracle (the polling alternative below) and knows each
-  refusal at once. Reading Poracle's logs was rejected: failures there name
+  even with DMs closed. So Poliswag sends its own DM as the check, and
+  only when the collector changes something:
+  - the site stamps `trade_player` with the time the 100IV settings last
+    changed (switched on, switched off, area changed); the first switch-on
+    counts as a change;
+  - on its tick, Poliswag DMs a confirmation to every player whose stamp is
+    newer than the last confirmation it sent ("100IV por DM: ligado · Leiria
+    e Marinha Grande", or "desligado");
+  - delivered: record the confirmation time and clear any refusal; refused
+    by Discord: record the refusal on `trade_player`, and the Pokédex
+    settings show "Não conseguimos enviar-te DMs" and how to fix it.
+  Fallback if that proves too blind: Poliswag sends every alert itself
+  instead of Poracle (the polling alternative below) and knows each refusal
+  at once. Reading Poracle's logs was rejected: failures there name
   Discord's DM channel id, not the player, and depend on its log format.
 
 ## Known costs
@@ -75,8 +78,9 @@ Rules that keep the copy honest:
 - Coupled to Poracle-NG's `monsters` schema: an upgrade that changes it
   breaks the sync with a SQL error, which is loud rather than wrong.
 - One DM per spawn; no per-minute bundling.
-- A refusal after the welcome DM is only noticed at the next Monday
-  summary; alerts sent in between are lost for that player.
+- DMs closed after the last settings change go unnoticed until the player
+  changes something again; alerts in between are lost for them. Accepted
+  rather than sending messages nobody asked for.
 - Volume at the start: 20–35 DMs a day for a collector missing most species
   (measured over 8 days of `pokemon_hundo_stats`, both areas); it falls as
   the Pokédex fills.
@@ -99,5 +103,6 @@ Rules that keep the copy honest:
 - DM template copy (Portuguese, English game terms) and the `pokedex-100iv`
   DTS entry, which lives in `/root/poracleng/config/dts.json` (not in git).
 - How often the sync runs (every tick with a no-change skip is the default).
-- The refused-DM column(s) on `trade_player`, and whether a refusal also
-  stops the collector in Poracle until they fix it.
+- Columns on `trade_player`: the settings-changed stamp (written by the
+  site), the last confirmation sent and the refusal (written by Poliswag);
+  and whether a refusal also stops the collector in Poracle until fixed.
