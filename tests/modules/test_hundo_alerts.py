@@ -39,7 +39,9 @@ def test_read_players_returns_current_settings_and_closes_connection(hundo_db):
     assert HundoAlerts(MagicMock())._read_players() == rows
     connector.assert_called_once_with(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=True)
     cursor.execute.assert_called_once_with(hundo_alerts._PLAYERS_SQL)
-    assert "hundo_dms = 1 OR hundo_settings_revision > 0" in hundo_alerts._PLAYERS_SQL
+    assert (
+        "p.hundo_dms = 1 OR p.hundo_settings_revision > 0" in hundo_alerts._PLAYERS_SQL
+    )
     db.close.assert_called_once()
 
 
@@ -624,3 +626,73 @@ def test_cleanup_failure_rolls_back(monkeypatch):
     db.rollback.assert_called_once()
     db.commit.assert_not_called()
     db.close.assert_called_once()
+
+
+async def test_unchanged_player_is_not_rebuilt_every_tick():
+    alerts, _ = sender([player(hundo_ticks=3, hundo_ticked_at="t1")])
+    alerts._sync_player.return_value = True
+    await alerts.tick()
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"hundo_ticks": 4},  # a tick or an untick
+        {"hundo_ticked_at": "t2"},  # untick one, tick another
+        {"hundo_settings_revision": 2, "hundo_confirmed_revision": 2},
+        {"show_costumes": 0},
+    ],
+)
+async def test_any_input_change_rebuilds(patch):
+    before = player(hundo_ticks=3, hundo_ticked_at="t1")
+    alerts, _ = sender([before])
+    await alerts.tick()
+    alerts._read_players.return_value = [{**before, **patch}]
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 2
+
+
+async def test_profile_switch_masterfile_reload_and_cleanup_rebuild():
+    alerts, bot = sender([player()])
+    await alerts.tick()
+    alerts._human.return_value = human(current_profile_no=3)
+    await alerts.tick()
+    bot.quest_search.masterfile_data = {
+        **bot.quest_search.masterfile_data,
+        "date": "new",
+    }
+    await alerts.tick()
+    alerts._cleanup.side_effect = [True, False]
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 4
+
+
+async def test_unchanged_player_is_still_rebuilt_hourly(monkeypatch):
+    clock = iter([0.0, 10.0, 4000.0, 4000.0])
+    monkeypatch.setattr(hundo_alerts, "_monotonic", lambda: next(clock))
+    alerts, _ = sender([player()])
+    await alerts.tick()  # sync, stamped 0
+    await alerts.tick()  # 10s later: skipped
+    await alerts.tick()  # past the hour: rebuilt, stamped 4000
+    assert alerts._sync_player.call_count == 2
+
+
+async def test_failed_sync_is_retried_next_tick():
+    alerts, _ = sender([player()])
+    alerts._sync_player.side_effect = [RuntimeError("down"), False]
+    await alerts.tick()
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 2
+
+
+async def test_player_who_leaves_and_returns_is_rebuilt():
+    row = player()
+    alerts, _ = sender([row])
+    await alerts.tick()
+    alerts._read_players.return_value = [{**row, "hundo_dms": 0}]
+    await alerts.tick()
+    alerts._read_players.return_value = [row]
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 2

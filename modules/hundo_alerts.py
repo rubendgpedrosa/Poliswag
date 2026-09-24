@@ -10,6 +10,7 @@ only. Spec: docs/superpowers/specs/2026-09-24-pokedex-100iv-alerts-design.md
 
 import asyncio
 import json
+import time
 from collections import Counter
 from contextlib import closing
 
@@ -105,13 +106,24 @@ def confirmation_due(row):
     )
 
 
+def collects_hundo(row):
+    """A current member collecting 100IV: the only players alerts are for."""
+    return row["left_at"] is None and "hundo" in (row["collecting"] or "").split(",")
+
+
+def may_confirm(row):
+    """Who gets a confirmation DM: an "off" goes to any current member (the
+    site allows switching off after un-collecting), an "on" only to a
+    collector (the site refuses it otherwise)."""
+    return row["left_at"] is None and (row["hundo_dms"] == 0 or collects_hundo(row))
+
+
 def is_active(row):
     """An eligible collector has a delivered confirmation of current settings."""
     revision = row["hundo_settings_revision"]
     return (
         row["hundo_dms"] == 1
-        and "hundo" in (row["collecting"] or "").split(",")
-        and row["left_at"] is None
+        and collects_hundo(row)
         and revision > 0
         and row["hundo_confirmed_revision"] == revision
         and row["hundo_dm_refused_revision"] < revision
@@ -191,13 +203,28 @@ def rules_equal(current, wanted):
         return False
 
 
+# hundo_ticks/hundo_ticked_at are a cheap change marker for the player's
+# 100IV ticks (a tick adds a row, an untick removes one), so an unchanged
+# player's ~1500-row rebuild check can be skipped (HundoAlerts._unchanged).
 _PLAYERS_SQL = """
-SELECT discord_id, COALESCE(NULLIF(trainer_name, ''), display_name) AS display_name,
-       collecting, show_costumes, left_at, hundo_dms, hundo_areas,
-       hundo_settings_revision, hundo_confirmed_revision, hundo_dm_refused_revision
-FROM trade_player
-WHERE hundo_dms = 1 OR hundo_settings_revision > 0
+SELECT p.discord_id, COALESCE(NULLIF(p.trainer_name, ''), p.display_name) AS display_name,
+       p.collecting, p.show_costumes, p.left_at, p.hundo_dms, p.hundo_areas,
+       p.hundo_settings_revision, p.hundo_confirmed_revision, p.hundo_dm_refused_revision,
+       COALESCE(t.ticks, 0) AS hundo_ticks, t.ticked_at AS hundo_ticked_at
+FROM trade_player p
+LEFT JOIN (
+    SELECT discord_id, COUNT(*) AS ticks, MAX(created_at) AS ticked_at
+    FROM collection_entry WHERE category = 'hundo' GROUP BY discord_id
+) t ON t.discord_id = p.discord_id
+WHERE p.hundo_dms = 1 OR p.hundo_settings_revision > 0
 """
+
+# A player whose marker hasn't moved is still rebuilt this often: catches
+# what the marker can't see (a rule edited by hand, a pokemon_name change).
+FULL_RESYNC_SECONDS = 3600
+
+# The clock _synced is stamped with (a hook for tests: asyncio shares time).
+_monotonic = time.monotonic
 
 _MISSING_SQL = """
 SELECT pn.pokemon_id, pn.form_id
@@ -230,6 +257,21 @@ WHERE m.template = %s AND (
 """
 
 
+def _signature(row, profile_no, masterfile_date):
+    """Everything a player's wanted rules are built from, cheaply: settings
+    revision (switch/areas), costumes, the 100IV tick marker, the Poracle
+    profile they follow, and the masterfile load (default forms, names)."""
+    return (
+        row["hundo_settings_revision"],
+        row["hundo_areas"],
+        row["show_costumes"],
+        row.get("hundo_ticks"),
+        str(row.get("hundo_ticked_at")),
+        profile_no,
+        masterfile_date,
+    )
+
+
 class HundoAlerts:
     """The scheduled tick; the sole writer of this template's rules."""
 
@@ -239,6 +281,9 @@ class HundoAlerts:
         # also reloads its state periodically, which covers a restart.
         self._reload_pending = False
         self._stopped_logged = set()
+        # discord_id -> (signature, monotonic time) of the last sync that
+        # left the player's rules matching; in memory only (a restart syncs).
+        self._synced = {}
 
     def _log(self, message):
         self.poliswag.utility.log_to_file(f"[HUNDO] {message}")
@@ -247,6 +292,9 @@ class HundoAlerts:
         try:
             changed = await asyncio.to_thread(self._cleanup)
             self._reload_pending |= changed
+            if changed:
+                # Someone's rules were deleted; don't trust any "unchanged".
+                self._synced.clear()
         except Exception as exc:
             self._log(f"cleanup failed: {exc}")
 
@@ -265,11 +313,7 @@ class HundoAlerts:
             await self._cleanup_rules()
             players = await asyncio.to_thread(self._read_players)
             for row in players:
-                eligible_for_confirmation = row["left_at"] is None and (
-                    row["hundo_dms"] == 0
-                    or "hundo" in (row["collecting"] or "").split(",")
-                )
-                if not eligible_for_confirmation or not confirmation_due(row):
+                if not may_confirm(row) or not confirmation_due(row):
                     continue
                 try:
                     await self._confirm(row)
@@ -285,14 +329,18 @@ class HundoAlerts:
                 self._log("rule creation skipped: masterfile unavailable")
                 return
             forms = default_forms(pokemon)
+            masterfile_date = masterfile.get("date")
             for row in players:
                 if is_active(row):
-                    await self._sync_active(row, forms)
+                    await self._sync_active(row, forms, masterfile_date)
+                else:
+                    # Its rules go in cleanup; a later return must rebuild.
+                    self._synced.pop(row["discord_id"], None)
         finally:
             await self._cleanup_rules()
             await self._reload_if_pending()
 
-    async def _sync_active(self, row, forms):
+    async def _sync_active(self, row, forms, masterfile_date=None):
         """One player's rules; a failure here leaves other players alone."""
         discord_id = row["discord_id"]
         try:
@@ -313,14 +361,28 @@ class HundoAlerts:
                 if discord_id not in self._stopped_logged:
                     self._log(f"Poracle user {discord_id} is stopped")
                     self._stopped_logged.add(discord_id)
+                self._synced.pop(discord_id, None)
                 return
             self._stopped_logged.discard(discord_id)
+            signature = _signature(row, human["current_profile_no"], masterfile_date)
+            if self._unchanged(discord_id, signature):
+                return
+            self._synced.pop(discord_id, None)
             changed = await asyncio.to_thread(
                 self._sync_player, row, forms, human["current_profile_no"]
             )
             self._reload_pending |= changed
+            self._synced[discord_id] = (signature, _monotonic())
         except Exception as exc:
             self._log(f"rule sync for {discord_id} failed: {exc}")
+
+    def _unchanged(self, discord_id, signature):
+        synced = self._synced.get(discord_id)
+        return (
+            synced is not None
+            and synced[0] == signature
+            and _monotonic() - synced[1] < FULL_RESYNC_SECONDS
+        )
 
     async def _confirm(self, row):
         try:
