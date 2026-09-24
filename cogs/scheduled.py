@@ -36,6 +36,10 @@ class Scheduled(commands.Cog):
         # The masterfile is loaded before this cog exists, so without the
         # flag the table would stay empty until the next 24h reload.
         self._pokemon_names_synced = False
+        # As the names: QuestSearch loads the masterfile in __init__, so the
+        # first tick never sees a reload, and megas.json waited up to a day
+        # after a restart (a fix to the exporter reached the site only then).
+        self._megas_exported = False
         self._trade_announcer = TradeAnnouncer(poliswag)
         self._trade_digest = TradeDigest(poliswag)
         self._trade_dm = TradeDM(poliswag)
@@ -166,7 +170,9 @@ class Scheduled(commands.Cog):
             await asyncio.to_thread(
                 self.poliswag.quest_search.generate_pokemon_item_name_map
             )
+        if masterfile_refreshed or not self._megas_exported:
             await asyncio.to_thread(self.poliswag.mega_exporter.export)
+            self._megas_exported = True
         if masterfile_refreshed or not self._pokemon_names_synced:
             await self._sync_pokemon_names()
 
