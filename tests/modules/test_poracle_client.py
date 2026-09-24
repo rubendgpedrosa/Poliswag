@@ -125,6 +125,41 @@ class TestHumans:
         _, kwargs = session.request.call_args
         assert kwargs["params"] == {"silent": "true"}
 
+    @pytest.mark.parametrize("user_id", [123, "123"])
+    async def test_create_user_sends_initial_area_in_creation_payload(
+        self, client, user_id
+    ):
+        response = {"human": {"id": "123"}, "status": "ok"}
+        session = _install_session(client, _response(json_data=response))
+        area = '["leiria", "marinhagrande"]'
+        result = await client.create_user(user_id, "Rui", area=area)
+        assert result == response
+        session.request.assert_called_once()
+        args, kwargs = session.request.call_args
+        assert args == ("POST", "http://poracle.test:3030/api/humans")
+        assert kwargs["json"] == {
+            "id": "123",
+            "name": "Rui",
+            "type": "discord:user",
+            "area": area,
+        }
+
+    @pytest.mark.parametrize("status", [409, 500])
+    async def test_create_user_propagates_failure_without_followup_requests(
+        self, client, status
+    ):
+        session = _install_session(client, _response(status=status, text_data="failed"))
+        with pytest.raises(PoracleError, match=str(status)):
+            await client.create_user(123, "Rui", area='["leiria"]')
+        session.request.assert_called_once()
+
+    async def test_create_user_timeout_is_not_treated_as_success(self, client):
+        session = _install_session(client, _response())
+        session.request.return_value.__aenter__.side_effect = TimeoutError("timed out")
+        with pytest.raises(TimeoutError, match="timed out"):
+            await client.create_user(123, "Rui", area='["leiria"]')
+        session.request.assert_called_once()
+
     async def test_stop_sends_silent_by_default(self, client):
         session = _install_session(client, _response(status=204, content_length=0))
         await client.stop(123)
