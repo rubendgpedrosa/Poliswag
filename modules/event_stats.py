@@ -1,8 +1,28 @@
 import datetime
 import json
 import re
+from dataclasses import dataclass
 
 from modules.logging_mixin import LoggingMixin
+
+
+@dataclass(frozen=True)
+class Summary:
+    """A finished event's numbers, shaped for its Discord embed: the
+    headline as the description, one column (an inline field) per area, and
+    the caveat as the footer. Areas side by side read at a glance where one
+    dense line per area did not; on a phone Discord stacks them."""
+
+    headline: str
+    areas: tuple  # ((field name, field value), ...)
+    note: str
+
+    @property
+    def text(self):
+        """Everything as plain text, for logs and tests."""
+        columns = "\n".join(f"{name}: {value}" for name, value in self.areas)
+        return f"{self.headline}\n\n{columns}\n\n{self.note}"
+
 
 # Golbat's *_stats tables (populated by golbat itself, not written by
 # poliswag) are date-granularity, not per-minute -- there's no way to
@@ -54,7 +74,7 @@ class EventStats(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
 
-    async def get_summary(self, event: dict) -> str | None:
+    async def get_summary(self, event: dict) -> Summary | None:
         """A short PT-PT stats text for a finished event, or None when there
         is nothing to say: an event type with no stats source (GO Battle
         League, research, a week-long raid rotation), a featured species that
@@ -88,7 +108,7 @@ class EventStats(LoggingMixin):
 
     @staticmethod
     def _period_note(start_date, end_date):
-        """Discord's small grey subtext, with the dates as people write them."""
+        """The embed footer (already small and grey), dates as people write them."""
 
         def short(day):
             return f"{day[8:10]}/{day[5:7]}"
@@ -98,19 +118,14 @@ class EventStats(LoggingMixin):
             if start_date == end_date
             else f"de {short(start_date)} a {short(end_date)}"
         )
-        return (
-            f"-# Totais diários {period} · incluem atividade fora do horário do evento."
-        )
+        return f"Totais diários {period} · incluem atividade fora do horário do evento."
 
     def _layout(self, headline, areas, start_date, end_date):
-        """The headline, then one 📍 line per area, then the note: three
-        blocks with a blank line between, not one run of lines."""
-        return "\n\n".join(
-            [
-                "\n".join(headline),
-                "\n".join(f"📍 {line}" for line in areas),
-                self._period_note(start_date, end_date),
-            ]
+        """`areas` is (label, value lines) per area."""
+        return Summary(
+            headline="\n".join(headline),
+            areas=tuple((f"📍 {label}", "\n".join(lines)) for label, lines in areas),
+            note=self._period_note(start_date, end_date),
         )
 
     @staticmethod
@@ -156,7 +171,7 @@ class EventStats(LoggingMixin):
             for row in rows
         ]
 
-    async def _raid_summary(self, start_date, end_date) -> str | None:
+    async def _raid_summary(self, start_date, end_date) -> Summary | None:
         """The raids the event was about, against the day before.
 
         A day's raids are every tier at once, so the plain total said little:
@@ -196,15 +211,17 @@ class EventStats(LoggingMixin):
         versus = self._versus(by_level[level], before_by_level.get(level, 0))
         if versus:
             lines.append(versus)
-        area_lines = []
+        columns = []
         for area in _STATS_AREAS:
-            value = self._number(areas[area]) if area in areas else "sem dados"
-            area_lines.append(f"**{_AREA_LABELS[area]}:** {value}")
-        return self._layout(lines, area_lines, start_date, end_date)
+            value = (
+                f"{self._number(areas[area])} raids" if area in areas else "sem dados"
+            )
+            columns.append((_AREA_LABELS[area], [value]))
+        return self._layout(lines, columns, start_date, end_date)
 
     async def _species_summary(
         self, event, suffix_pattern, start_date, end_date
-    ) -> str | None:
+    ) -> Summary | None:
         featured = self._featured_species(event, suffix_pattern)
         if not featured:
             return None
@@ -223,18 +240,23 @@ class EventStats(LoggingMixin):
         versus = self._versus(total, sum(before.values()))
         if versus:
             lines.append(versus)
-        area_lines = []
+        columns = []
         for area in _STATS_AREAS:
             label = _AREA_LABELS[area]
             if area not in spawns:
-                area_lines.append(f"**{label}:** sem dados")
+                columns.append((label, ["sem dados"]))
                 continue
-            area_lines.append(
-                f"**{label}:** {self._number(spawns[area])} spawns · "
-                f"💯 {self._number(hundos.get(area, 0))} 100IV · "
-                f"0️⃣ {self._number(nundos.get(area, 0))} 0IV"
+            columns.append(
+                (
+                    label,
+                    [
+                        f"{self._number(spawns[area])} spawns",
+                        f"💯 {self._number(hundos.get(area, 0))} 100IV",
+                        f"0️⃣ {self._number(nundos.get(area, 0))} 0IV",
+                    ],
+                )
             )
-        return self._layout(lines, area_lines, start_date, end_date)
+        return self._layout(lines, columns, start_date, end_date)
 
     def _featured_species(self, event, suffix_pattern):
         """[(pokemon_id, name)] the event features.
