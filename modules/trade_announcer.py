@@ -220,7 +220,8 @@ class TradeAnnouncer:
         # title, so the title showed the raw id. The mention is in content.
         embed.title = f"🔄 TRADES — {actor_name} atualizou as listas"
         # Combinações became part of Comunidade (/procurar).
-        embed.url = f"{Config.TRADES_URL}/procurar"
+        # Tagged for the site's stats (see trade_digest.ORIGIN_TAG).
+        embed.url = f"{Config.TRADES_URL}/procurar?o=trocas-par"
         content = f"<#{Config.TRADES_CHANNEL_ID}> " + " ".join(
             f"<@{user_id}>" for user_id in sorted(mentions)
         )
