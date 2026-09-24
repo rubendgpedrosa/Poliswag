@@ -62,12 +62,12 @@ class TestInADm:
         assert may_run_in_dm(ctx) is True
 
 
-class TestTradesIsExempt:
+class TestPokedexIsExempt:
     """!trades and !resumo exist to be used in a DM — the help text says
     so — and they carry their own server-membership check."""
 
     def test_a_stranger_reaches_the_trades_cog(self):
-        assert may_run_in_dm(make_ctx(cog="Trades", invoked="trades")) is True
+        assert may_run_in_dm(make_ctx(cog="Pokedex", invoked="pokedex")) is True
 
     def test_only_the_trades_cog_is_exempt(self):
         assert may_run_in_dm(make_ctx(cog="Accounts", invoked="accounts")) is False
@@ -112,3 +112,11 @@ class TestWiring:
         source = inspect.getsource(main.Poliswag.process_commands)
         assert "may_run_in_dm(ctx)" in source
         assert source.index("may_run_in_dm") < source.index("self.invoke(ctx)")
+
+
+def test_exemption_names_the_real_pokedex_cog():
+    # A cog rename must carry this set along, or members' DM logins drop.
+    from cogs.pokedex import Pokedex
+    from modules.dm_policy import DM_EXEMPT_COGS
+
+    assert Pokedex.__cog_name__ in DM_EXEMPT_COGS

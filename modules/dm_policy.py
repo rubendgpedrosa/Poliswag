@@ -6,13 +6,16 @@ an author id, which a DM satisfies exactly as well as the mod channel
 does. Neither is a gate on DMs, so without this a stranger who opens one
 gets `!questleiria` and `!accounts` for free.
 
-Trades is the exception, and a deliberate one: `!trades` and `!resumo`
-are advertised as DM commands and carry their own membership check.
+The Pokédex cog (cogs/pokedex.py) is the exception, and a deliberate one:
+`!pokedex` (alias `!trades`, `!trocas`) and `!resumo` are advertised as DM
+commands and carry their own membership check.
 """
 
 from modules.config import Config
 
-DM_EXEMPT_COGS = frozenset({"Trades"})
+# Cog qualified names. The cog was "Trades" until 2026-09-24; a rename that
+# forgets this set silently drops members' DM logins (a test pins it).
+DM_EXEMPT_COGS = frozenset({"Pokedex"})
 
 
 def may_run_in_dm(ctx) -> bool:
