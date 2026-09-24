@@ -10,6 +10,26 @@ from modules.config import Config
 _RECONNECT_ERRNOS = {2006, 2013}
 
 
+def connect(database, *, read_timeout=5, dict_rows=False, **extra):
+    """A short-lived connection for a one-off read or write; the caller
+    closes it. Every wait is bounded because callers run inside the 60s
+    scheduler tick, where an unbounded read stalls every later step.
+    `extra` passes through to pymysql (e.g. autocommit=False)."""
+    if dict_rows:
+        extra["cursorclass"] = pymysql.cursors.DictCursor
+    return pymysql.connect(
+        host=Config.DB_HOST,
+        port=Config.DB_PORT,
+        user=Config.DB_USER,
+        password=Config.DB_PASSWORD,
+        database=database,
+        connect_timeout=3,
+        read_timeout=read_timeout,
+        write_timeout=3,
+        **extra,
+    )
+
+
 class DatabaseConnector:
     def __init__(self, database=None):
         self.database = database or Config.DB_POLISWAG

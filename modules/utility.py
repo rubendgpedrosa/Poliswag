@@ -101,23 +101,6 @@ class Utility:
         else:
             self.logger.info(message)
 
-    async def add_button_event(self, button, callback):
-        try:
-            button.callback = callback
-        except Exception as e:
-            self.log_to_file(f"Failed to add button callback: {e}", "ERROR")
-
-    def read_last_lines_from_log(self, numLines=10):
-        try:
-            with open(self.LOG_FILE, "r") as file:
-                from collections import deque
-
-                lines = deque(file, maxlen=numLines)
-                return "".join(lines)
-        except Exception as e:
-            self.log_to_file(f"Error reading log file: {e}", "ERROR")
-            return "Error reading logs"
-
     def read_new_error_entries(self, since: datetime) -> list[str]:
         """Return the first line of every error-log entry logged after `since`.
 
@@ -153,16 +136,6 @@ class Utility:
 
     def time_now(self):
         return datetime.combine(datetime.now().date(), time.min).isoformat()
-
-    async def send_message_to_channel(self, channel, message):
-        try:
-            await channel.send(message)
-        except discord.errors.Forbidden:
-            self.log_to_file(
-                f"No permission to send message in {channel.name}", "ERROR"
-            )
-        except Exception as e:
-            self.log_to_file(f"Failed to send message: {e}", "ERROR")
 
     async def send_embed_to_channel(self, channel, embed):
         try:

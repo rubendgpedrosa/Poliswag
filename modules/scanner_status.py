@@ -7,8 +7,6 @@ from modules.http_client import fetch_data
 from modules.config import Config
 from modules.logging_mixin import LoggingMixin
 
-_MARINHA_LON_MAX = -8.9  # pokestops at or west of this longitude are in Marinha Grande
-
 
 class ScannerStatus(LoggingMixin):
     def __init__(self, poliswag):
@@ -531,7 +529,7 @@ class ScannerStatus(LoggingMixin):
         """Count pokestops in an area whose quest (AR or standard) is still valid.
 
         The area split is by longitude (Marinha Grande is at or west of
-        ``_MARINHA_LON_MAX``). Unlike the old logic this does NOT restrict the
+        ``Config.MARINHA_LON_MAX``). Unlike the old logic this does NOT restrict the
         universe to stops that already carry quest data — it just counts the
         live quests, which climbs from 0 toward the area's natural ceiling as the
         scan progresses. Returns ``None`` if the query yields no row.
@@ -544,7 +542,7 @@ class ScannerStatus(LoggingMixin):
                                      THEN 1 ELSE 0 END), 0) AS scanned
             FROM pokestop WHERE deleted = 0 AND lon {op} %s
             """,
-            params=(_MARINHA_LON_MAX,),
+            params=(Config.MARINHA_LON_MAX,),
         )
         if not rows:
             return None

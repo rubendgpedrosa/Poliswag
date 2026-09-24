@@ -5,11 +5,6 @@ class TrackerStore:
     def __init__(self, db):
         self.db = db
 
-    async def get_all(self):
-        return await self.db.get_data_from_database(
-            "SELECT target, creator, createddate FROM tracked_quest_reward ORDER BY createddate DESC"
-        )
-
     async def exists(self, target):
         rows = await self.db.get_data_from_database(
             "SELECT target FROM tracked_quest_reward WHERE target = %s",

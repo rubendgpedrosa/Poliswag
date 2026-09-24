@@ -23,16 +23,12 @@ class ImageGenerator:
         self.poliswag = poliswag
         self.google_api_key = Config.GOOGLE_API_KEY
         self.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
-        self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = (
-            Config.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE
-        )
         self.ACCOUNTS_TEMPLATE_HTML_FILE = Config.ACCOUNTS_TEMPLATE_HTML_FILE
         self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
         # Lazily-cached Jinja environment/templates — loaded and parsed from
         # disk once instead of on every render call (generate_image_from_
         # account_stats runs every 60s tick).
         self._env = None
-        self._quest_template = None
         self._accounts_template = None
 
     def _get_env(self):
@@ -60,31 +56,6 @@ class ImageGenerator:
         finally:
             with contextlib.suppress(OSError):
                 os.unlink(path)
-
-    async def generate_image_from_quest_data(
-        self, quests_leiria, quests_marinha, has_leiria, has_marinha
-    ):
-        if self._quest_template is None:
-            self._quest_template = self._get_env().get_template(
-                self.FOLLOWED_EVENTS_TEMPLATE_HTML_FILE
-            )
-        html_content = self._quest_template.render(
-            quests_leiria=quests_leiria,
-            quests_marinha=quests_marinha,
-            has_leiria=has_leiria,
-            has_marinha=has_marinha,
-        )
-        options = {
-            "format": "png",
-            "encoding": "UTF-8",
-            "width": "550",
-            "height": "600",
-            "quality": "100",
-            "transparent": "",
-            "javascript-delay": "1000",
-            "quiet": "",
-        }
-        return await self._render_png(html_content, options, "quest image")
 
     async def generate_image_from_account_stats(
         self, account_data, device_status, area_performance=None, workers=None

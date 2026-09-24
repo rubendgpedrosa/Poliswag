@@ -15,13 +15,13 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | Module | Responsibility |
 |--------|---------------|
 | `config.py` | Single `Config` class reading all env vars via `dotenv`. Source of truth for all settings. |
-| `database_connector.py` | `DatabaseConnector(database?)` — pymysql wrapper with retry (3 attempts), auto-reconnect on errno 2006/2013, returns `list[dict]` from `cursor.description`. Default DB = `Config.DB_POLISWAG`; scanner DB passed explicitly. |
+| `database_connector.py` | `DatabaseConnector(database?)` — pymysql wrapper with retry (3 attempts), auto-reconnect on errno 2006/2013, returns `list[dict]` from `cursor.description`. Default DB = `Config.DB_POLISWAG`; scanner DB passed explicitly. Module-level `connect(database, read_timeout=5, dict_rows=False, **extra)` is the one way to open a short-lived connection (all `pogoleiria` readers use it) — bounded timeouts, caller closes. |
 | `http_client.py` | `fetch_data(endpoint_key, …)` — single shared `aiohttp.ClientSession`, reads from `Config.ENDPOINTS[key]`. In DEV (`not IS_PRODUCTION`) returns mock JSON from `mock_data/` for infra endpoints. |
 | `scanner_status.py` | `ScannerStatus` — polls Dragonite (`/status`) + Rotom (`/api/status`) + Golbat DB. Renames a single `MAPA` Discord voice channel with a combined down/expected-worker indicator (expected counts read live from Dragonite per area, not hardcoded), fires HA webhook when scanner is fully down (15 min cooldown). Renames are budgeted locally (2 attempts / 10 min, 15 s timeout) because discord.py sleeps out a rename 429 (~600 s) inside `channel.edit()`, which used to stall the whole scheduler tick. Missing/unreachable data renders as ❌ but is excluded from the recovery-ladder trigger. |
 | `scanner_manager.py` | Docker control (via `docker-py`) + `poliswag` table state (`last_scanned_date`, `scanned` flag). `is_day_change()` triggers a new scan cycle. |
-| `quest_search.py` | `QuestSearch` — owns scanner DB connection. Loads pokemon/item name maps + masterfile. `find_quest_by_search_keyword(term, is_leiria)` queries `pokestop` table. Area split: Marinha Grande = lon ≤ −8.9. Handles AR/standard quest field duality via `_quest_fields()`. |
+| `quest_search.py` | `QuestSearch` — owns scanner DB connection. Loads pokemon/item name maps + masterfile. `find_quest_by_search_keyword(term, is_leiria)` queries `pokestop` table. Area split: Marinha Grande = lon ≤ `Config.MARINHA_LON_MAX` (−8.9), shared with `quest_exporter` and `scanner_status`. Handles AR/standard quest field duality via `_quest_fields()`. |
 | `quest_exporter.py` | `QuestExporter.export(force=False)` — reads `pokestop` and writes a JSON file to `QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) for the PWA. Skips the write when quest content is unchanged (md5 hash stored as `contentHash` in `quests-meta.json`); returns `True` only when rewritten. `force=True` always rewrites. Triggered on scan completion, every 30 min by `scheduled.py` as a safety net, and via `!exportquests`. |
-| `event_manager.py` | Fetches events from ScrapedDuck (15 min cache). Stores/updates `event` table. Dispatches embed notifications to `CONVIVIO_CHANNEL` when events start/end, respecting `excluded_event_type`. Weekly digest on Mondays. |
+| `event_manager.py` | Fetches events from ScrapedDuck (15 min cache). Stores/updates `event` table; deletes events that ended more than `EVENT_RETENTION_DAYS` (90) ago. Dispatches embed notifications to `CONVIVIO_CHANNEL` when events start/end, respecting `excluded_event_type`. Weekly digest on Mondays. |
 | `event_store.py` | Thin DB wrapper for `excluded_event_type` and `event` tables. |
 | `event_stats.py` | `EventStats.get_summary(event)` → stats text for an ended CD / Spotlight (species from ScrapedDuck `extra_data` icons, name as fallback) or Raid Hour/Day (the tier that grew vs. the day before, and its bosses); `None` for every other type, which then gets one line under the "Eventos que terminaram" header instead of a card. Golbat daily `*_stats` tables, ~7 days kept. |
 | `trade_digest.py` | 09:00 post of trade entries added since the last one (`last_trade_digest_at`); names link to `/trocas/jogador/<id>`, 🤝 marks entries that already have a partner, 3 lines per player. `trade_announcer.py` posts matches as they happen. |
@@ -30,7 +30,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `tracker_store.py` | CRUD for `tracked_quest_reward` table. |
 | `lure_manager.py` | `LureManager` — owns a read-only `DatabaseConnector(DB_DRAGONITE)`. `list_available_with_lures()` reads available+healthy accounts from `dragonite.account` (not banned/suspended/warned/invalid/auth_banned, off cooldown, `last_released >= last_selected`), seeds new usernames into `account_lure` at 12, returns up to 5 fewest-first with `{username, password, nb_lures}`. `adjust_lure_count(username, delta)` → `GREATEST(nb_lures+delta, 0)` UPDATE. Writes only `poliswag.account_lure`; dragonite is read-only. |
 | `role_manager.py` | Handles Discord role button interactions for the **legacy** team/notification panel: resolves roles by *name*, auto-grants all `Alertas*` roles to a brand-new member, and `defer()`s with no reply. `cogs/event_panel.py` deliberately does not reuse it — see that file's header. |
-| `image_generator.py` | `imgkit` + Jinja2 → PNG bytes. Two templates: `followed_events.html` (quest map) and `accounts.html`. |
+| `image_generator.py` | `imgkit` + Jinja2 → PNG bytes from `accounts.html` (the accounts card); also builds the Google static-map URL for quest results. |
 | `embeds.py` | Shared embed builders (`build_embed`, `build_tracked_list_embed`, `build_excluded_list_embed`). Discord limits: 25 fields, 256 field name, 1024 field value, 4096 description. |
 | `utility.py` | `log_to_file(msg, level)` — dual-logger (`poliswag` info + `poliswag.error`). `time_now()`. |
 | `locale_pt.py` | Portuguese month/day short-name dicts (`PT_MONTHS_SHORT`, `PT_DAYS_SHORT`, `MONTH_NAMES`). |
@@ -114,7 +114,7 @@ ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
 PORACLE_API_URL, PORACLE_API_SECRET
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
-UI_ICONS_URL, TEMPLATE_HTML_DIR, FOLLOWED_EVENTS_TEMPLATE_HTML_FILE, ACCOUNTS_TEMPLATE_HTML_FILE
+UI_ICONS_URL, TEMPLATE_HTML_DIR, ACCOUNTS_TEMPLATE_HTML_FILE
 QUEST_JSON_OUTPUT  (default /pogo-public/quests.json)
 LOG_FILE, ERROR_LOG_FILE
 ```

@@ -119,12 +119,6 @@ class TestHumans:
             "type": "discord:channel",
         }
 
-    async def test_set_areas_posts_array(self, client):
-        session = _install_session(client, _response(status=204, content_length=0))
-        await client.set_areas(123, ["leiria"])
-        _, kwargs = session.request.call_args
-        assert kwargs["json"] == ["leiria"]
-
     async def test_start_sends_silent_by_default(self, client):
         session = _install_session(client, _response(status=204, content_length=0))
         await client.start(123)

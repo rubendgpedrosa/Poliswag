@@ -98,11 +98,6 @@ class PoracleClient(LoggingMixin):
             params={"silent": "true"} if silent else None,
         )
 
-    async def set_areas(self, human_id: str | int, areas: list[str]) -> None:
-        await self._request("POST", f"/api/humans/{human_id}/setAreas", json=areas)
-
-    # ---- Pokemon tracking ----------------------------------------------------
-
     async def list_pokemon_tracking(self, human_id: str | int) -> list[dict]:
         data = await self._request("GET", f"/api/tracking/pokemon/{human_id}")
         if isinstance(data, dict):

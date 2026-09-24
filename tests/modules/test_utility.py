@@ -148,27 +148,6 @@ class TestFormatDatetimeString:
         )
 
 
-class TestReadLastLinesFromLog:
-    def test_returns_last_n_lines(self, util, tmp_path):
-        log = tmp_path / "actions.log"
-        log.write_text("line1\nline2\nline3\nline4\nline5\n")
-        util.LOG_FILE = log
-        assert util.read_last_lines_from_log(numLines=2) == "line4\nline5\n"
-
-    def test_default_ten_lines(self, util, tmp_path):
-        log = tmp_path / "actions.log"
-        log.write_text("".join(f"l{i}\n" for i in range(20)))
-        util.LOG_FILE = log
-        result = util.read_last_lines_from_log()
-        assert result.count("\n") == 10
-        assert result.startswith("l10\n")
-
-    def test_returns_error_string_on_missing_file(self, util, tmp_path):
-        util.LOG_FILE = tmp_path / "nope.log"
-        assert util.read_last_lines_from_log() == "Error reading logs"
-        util.error_logger.error.assert_called_once()
-
-
 class TestReadNewErrorEntries:
     def test_returns_entries_strictly_after_since(self, util, tmp_path):
         log = tmp_path / "error.log"
@@ -224,65 +203,6 @@ class TestReadNewErrorEntries:
         util.ERROR_LOG_FILE = log
         entries = util.read_new_error_entries(datetime(2026, 4, 7, 9, 0, 0))
         assert entries == ["2026-04-07 10:00:00,000 - ERROR - real one"]
-
-
-class TestAddButtonEvent:
-    async def test_assigns_callback_to_button(self, util):
-        button = MagicMock()
-        cb = MagicMock()
-        await util.add_button_event(button, cb)
-        assert button.callback is cb
-
-    async def test_logs_error_when_callback_assignment_fails(self, util):
-        # A button whose callback setter raises.
-        class BadButton:
-            @property
-            def callback(self):
-                return None
-
-            @callback.setter
-            def callback(self, value):
-                raise RuntimeError("no setter")
-
-        await util.add_button_event(BadButton(), lambda: None)
-        util.error_logger.error.assert_called_once()
-
-
-class TestSendMessageToChannel:
-    async def test_sends_message(self, util):
-        channel = MagicMock()
-        channel.send = MagicMock()
-
-        async def fake_send(msg):
-            channel.sent = msg
-
-        channel.send = fake_send
-        await util.send_message_to_channel(channel, "hi")
-        assert channel.sent == "hi"
-
-    async def test_logs_on_forbidden(self, util, mocker):
-        channel = MagicMock()
-        channel.name = "general"
-
-        async def raise_forbidden(msg):
-            raise discord.errors.Forbidden(MagicMock(status=403, reason=""), "nope")
-
-        channel.send = raise_forbidden
-        await util.send_message_to_channel(channel, "hi")
-        util.error_logger.error.assert_called_once()
-        assert "No permission" in util.error_logger.error.call_args.args[0]
-
-    async def test_logs_on_generic_exception(self, util):
-        channel = MagicMock()
-        channel.name = "general"
-
-        async def raise_boom(msg):
-            raise RuntimeError("boom")
-
-        channel.send = raise_boom
-        await util.send_message_to_channel(channel, "hi")
-        util.error_logger.error.assert_called_once()
-        assert "Failed to send message" in util.error_logger.error.call_args.args[0]
 
 
 class TestSendEmbedToChannel:

@@ -89,9 +89,6 @@ class Config:
     # Image generation
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
     TEMPLATE_HTML_DIR = os.environ.get("TEMPLATE_HTML_DIR")
-    FOLLOWED_EVENTS_TEMPLATE_HTML_FILE = os.environ.get(
-        "FOLLOWED_EVENTS_TEMPLATE_HTML_FILE"
-    )
     ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
 
     # PWA export
@@ -115,6 +112,11 @@ class Config:
 
     # UI
     EMBED_COLOR = 0x4169E1
+
+    # Pokestops at or west of this longitude are Marinha Grande, the rest
+    # Leiria. Quest search, the quest export and the scan-progress counts
+    # all split on it, so moving it here keeps them in agreement.
+    MARINHA_LON_MAX = -8.9
     MOCK_DATA_DIR = "mock_data"
 
     @classmethod

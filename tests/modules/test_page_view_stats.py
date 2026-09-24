@@ -275,9 +275,9 @@ async def test_connection_work_is_off_loop_and_cached_results_are_isolated():
 
 def test_snapshot_is_read_only_and_connection_closes_on_failure():
     db = MagicMock()
-    with patch(
-        "modules.page_view_stats.pymysql.connect", return_value=db
-    ), patch.object(PageViewStats, "_read", side_effect=RuntimeError("test")):
+    with patch("modules.page_view_stats.connect", return_value=db), patch.object(
+        PageViewStats, "_read", side_effect=RuntimeError("test")
+    ):
         with pytest.raises(RuntimeError):
             PageViewStats(None)._collect_sync(SINCE, UNTIL, "summary")
     sql = [

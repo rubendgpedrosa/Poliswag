@@ -66,12 +66,6 @@ class TradePlayerStore:
             params=(discord_id,),
         )
 
-    async def all_ids(self):
-        rows = await self.db.get_data_from_database(
-            "SELECT discord_id FROM trade_player"
-        )
-        return [int(row["discord_id"]) for row in rows]
-
     async def reconcile(self, member_ids):
         """Align left_at with who is actually in the guild.
 
