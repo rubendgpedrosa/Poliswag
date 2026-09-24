@@ -19,7 +19,7 @@ def row(**patch):
     return out
 
 
-RUI = f"[Rui]({Config.TRADES_URL.rstrip('/')}/jogador/1?o=trocas-resumo)"
+RUI = f"[Rui]({Config.POKEDEX_URL.rstrip('/')}/jogador/1?o=pokedex-resumo)"
 
 
 def field(embed, name):
@@ -180,16 +180,16 @@ class TestBuildDigest:
     # as something to tap.
     def test_shows_the_address_in_the_body(self):
         embed = build_digest([row()])
-        assert Config.TRADES_URL in embed.description
+        assert Config.POKEDEX_URL in embed.description
         # Comunidade, where everyone's lists are; the bare address opens the
         # reader's own Pokédex.
-        assert embed.url.endswith("/procurar?o=trocas-resumo")
+        assert embed.url.endswith("/procurar?o=pokedex-resumo")
         assert "pogoleiria.pt/pokedex" in embed.description
 
     # The tag is for the site's stats; the address people read stays clean.
     def test_tags_the_link_but_not_the_written_address(self):
         embed = build_digest([row()])
-        assert "?o=trocas-resumo)" in embed.description
+        assert "?o=pokedex-resumo)" in embed.description
         assert "**[pogoleiria.pt/pokedex/procurar](" in embed.description
 
     def test_writes_the_address_without_the_scheme(self):

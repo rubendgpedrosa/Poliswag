@@ -108,7 +108,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.scheduled")
         await self.load_extension("cogs.lures")
         await self.load_extension("cogs.webstats")
-        await self.load_extension("cogs.trades")
+        await self.load_extension("cogs.pokedex")
         await self.load_extension("cogs.event_panel")
         await self.load_extension("cogs.announcements")
         # Re-registers the persistent view so the buttons on panels posted

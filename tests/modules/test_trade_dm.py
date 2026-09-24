@@ -37,7 +37,7 @@ class TestMessage:
         assert text.startswith("🔄 Tens uma troca nova com **Rita**")
         assert "Tem para ti: Pikachu · Shiny" in text
         assert "Quer de ti: Eevee · Shiny" in text
-        assert "/jogador/1?o=trocas-dm>" in text
+        assert "/jogador/1?o=pokedex-dm>" in text
         assert "Perfil e outras opções" in text
 
     def test_several_trainers_are_named_and_capped(self):

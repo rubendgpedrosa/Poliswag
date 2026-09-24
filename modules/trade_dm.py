@@ -37,7 +37,7 @@ _RECIPIENTS_PER_TICK = 20
 # Trainers per message, and Pokémon per line.
 _HOLDERS_PER_DM = 5
 _ITEMS_PER_LINE = 4
-ORIGIN_TAG = "o=trocas-dm"
+ORIGIN_TAG = "o=pokedex-dm"
 
 # A spare nobody has been told about, whose holder the recipient could give
 # something back to: `r` lacks it, and has a spare `hp` lacks.
@@ -110,7 +110,7 @@ def message(holders):
         else f"🔄 Tens {len(holders)} trocas novas"
     )
     parts = [title]
-    base = Config.TRADES_URL.rstrip("/")
+    base = Config.POKEDEX_URL.rstrip("/")
     for holder_id, name, gives, wants in shown:
         block = [] if len(holders) == 1 else [f"**{name}**"]
         block.append(f"Tem para ti: {items_line(gives)}")

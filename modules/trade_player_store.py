@@ -22,7 +22,7 @@ class TradePlayerStore:
         """Issue (or re-issue) a code. Also refreshes identity and un-leaves.
 
         The un-leave self-heals a join the bot slept through, so it is only
-        safe while the caller knows the player is a member: cogs/trades.py
+        safe while the caller knows the player is a member: cogs/pokedex.py
         checks that before calling this in a DM, where the DM channel can
         outlive the membership.
         """

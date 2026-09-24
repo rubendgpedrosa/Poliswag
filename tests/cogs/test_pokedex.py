@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from cogs.trades import Trades
+from cogs.pokedex import Pokedex
 from modules.trade_codes import is_valid, normalise
 
 
@@ -25,7 +25,7 @@ def poliswag():
 
 @pytest.fixture
 def cog(poliswag):
-    return Trades(poliswag)
+    return Pokedex(poliswag)
 
 
 def ctx_for(author, in_guild=True):
@@ -58,7 +58,7 @@ def member(discord_id=123, name="jmboyz", display_name="JMBoyz"):
 
 async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
     author = member()
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
 
     # The code now travels alone, in its own copyable message.
     code = author.send.call_args_list[1].args[0]
@@ -74,14 +74,14 @@ async def test_trocas_dms_a_valid_code_and_stores_its_hash(cog, poliswag):
 
 async def test_trocas_dm_includes_the_login_link(cog):
     author = member()
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
     assert "/entrar/" in author.send.call_args_list[0].kwargs["embed"].description
 
 
 async def test_trocas_confirms_in_channel_without_the_code(cog):
     author = member()
     ctx = ctx_for(author)
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
     reply = ctx.send.call_args[1]["embed"].description
     assert not any(is_valid(word) for word in reply.split())
 
@@ -91,7 +91,7 @@ async def test_trocas_reports_closed_dms_and_stores_nothing(cog, poliswag):
     author.send.side_effect = discord.Forbidden(MagicMock(status=403), "closed")
     ctx = ctx_for(author)
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     poliswag.trade_player_store.upsert.assert_not_awaited()
     assert "DM" in ctx.send.call_args[1]["embed"].description
@@ -126,7 +126,7 @@ async def test_reconcile_passes_the_guild_member_ids(cog, poliswag):
 
 async def test_trocas_deletes_the_command_message_in_a_channel(cog):
     ctx = ctx_for(member())
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
     ctx.message.delete.assert_awaited_once()
 
 
@@ -138,7 +138,7 @@ async def test_trocas_deletes_the_command_before_sending_the_dm(cog):
     ctx.message.delete.side_effect = lambda *a, **k: order.append("delete")
     author.send.side_effect = lambda *a, **k: order.append("dm")
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     assert order[0] == "delete"
     assert order[1:] == ["dm", "dm"]
@@ -150,14 +150,14 @@ async def test_trocas_survives_missing_manage_messages(cog, poliswag):
         MagicMock(status=403), "no perms"
     )
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     poliswag.trade_player_store.upsert.assert_awaited_once()
 
 
 async def test_trocas_channel_confirmation_self_destructs(cog):
     ctx = ctx_for(member())
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
     assert ctx.send.call_args[1]["delete_after"] > 0
 
 
@@ -165,7 +165,7 @@ async def test_trocas_in_a_dm_deletes_nothing_and_adds_no_second_message(cog, po
     author = member()
     ctx = ctx_for(author, in_guild=False)
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     ctx.message.delete.assert_not_awaited()
     ctx.send.assert_not_awaited()
@@ -180,7 +180,7 @@ async def test_trocas_in_a_dm_reports_nothing_to_delete_on_forbidden(cog):
     ctx = ctx_for(author, in_guild=False)
     ctx.message.delete.side_effect = AssertionError("must not be called in a DM")
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     assert author.send.await_count == 2
 
@@ -188,7 +188,7 @@ async def test_trocas_in_a_dm_reports_nothing_to_delete_on_forbidden(cog):
 async def test_the_code_arrives_in_a_message_of_its_own(cog):
     """Long-press -> Copy Text must yield the code and nothing else."""
     author = member()
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
 
     bare = [
         call.args[0]
@@ -203,7 +203,7 @@ async def test_the_code_arrives_in_a_message_of_its_own(cog):
 
 async def test_the_explanation_arrives_before_the_code(cog):
     author = member()
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
 
     first, second = author.send.call_args_list
     assert "embed" in first.kwargs
@@ -212,7 +212,7 @@ async def test_the_explanation_arrives_before_the_code(cog):
 
 async def test_the_explanation_carries_the_login_link_not_the_code(cog):
     author = member()
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
 
     described = author.send.call_args_list[0].kwargs["embed"].description
     assert "/entrar/" in described
@@ -223,8 +223,8 @@ async def test_the_explanation_carries_the_login_link_not_the_code(cog):
 
 def test_trocas_still_reaches_the_command():
     """Half the server learned !trocas on day one; it must keep working."""
-    assert "trocas" in Trades.trades.aliases
-    assert Trades.trades.name == "trades"
+    assert Pokedex.pokedex.name == "pokedex"
+    assert {"trades", "trocas"} <= set(Pokedex.pokedex.aliases)
 
 
 async def test_trocas_in_a_dm_refuses_someone_who_left_the_server(cog, poliswag):
@@ -237,7 +237,7 @@ async def test_trocas_in_a_dm_refuses_someone_who_left_the_server(cog, poliswag)
     poliswag.guilds = [guild_with(123)]
     ctx = ctx_for(author, in_guild=False)
 
-    await Trades.trades.callback(cog, ctx)
+    await Pokedex.pokedex.callback(cog, ctx)
 
     author.send.assert_not_awaited()
     poliswag.trade_player_store.upsert.assert_not_awaited()
@@ -249,7 +249,7 @@ async def test_trocas_in_a_channel_never_asks_about_membership(cog, poliswag):
     author = member(999)
     poliswag.guilds = [guild_with(123)]
 
-    await Trades.trades.callback(cog, ctx_for(author))
+    await Pokedex.pokedex.callback(cog, ctx_for(author))
 
     poliswag.trade_player_store.upsert.assert_awaited_once()
 
@@ -259,7 +259,7 @@ async def test_trocas_in_a_dm_proceeds_when_no_members_are_cached(cog, poliswag)
     author = member(999)
     poliswag.guilds = []
 
-    await Trades.trades.callback(cog, ctx_for(author, in_guild=False))
+    await Pokedex.pokedex.callback(cog, ctx_for(author, in_guild=False))
 
     poliswag.trade_player_store.upsert.assert_awaited_once()
 
@@ -288,7 +288,7 @@ def digest_row(**patch):
 
 async def test_resumo_dms_the_digest(cog, monkeypatch):
     author = member()
-    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [digest_row()])
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [digest_row()])
 
     await cog.resumo.callback(cog, ctx_for(author), 2)
 
@@ -299,7 +299,7 @@ async def test_resumo_dms_the_digest(cog, monkeypatch):
 
 async def test_resumo_says_so_when_there_is_nothing(cog, monkeypatch):
     author = member()
-    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [])
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
 
     await cog.resumo.callback(cog, ctx_for(author), 1)
 
@@ -309,7 +309,9 @@ async def test_resumo_says_so_when_there_is_nothing(cog, monkeypatch):
 
 async def test_resumo_keeps_the_window_sane(cog, monkeypatch):
     asked = []
-    monkeypatch.setattr("cogs.trades.rows_since", lambda days: asked.append(days) or [])
+    monkeypatch.setattr(
+        "cogs.pokedex.rows_since", lambda days: asked.append(days) or []
+    )
 
     await cog.resumo.callback(cog, ctx_for(member()), 0)
     await cog.resumo.callback(cog, ctx_for(member()), 999)
@@ -321,7 +323,7 @@ async def test_resumo_is_for_members_only(cog, poliswag, monkeypatch):
     poliswag.guilds = [guild_with(456)]
     called = []
     monkeypatch.setattr(
-        "cogs.trades.rows_since", lambda days: called.append(days) or []
+        "cogs.pokedex.rows_since", lambda days: called.append(days) or []
     )
     author = member(123)
     ctx = ctx_for(author, in_guild=False)
@@ -333,7 +335,7 @@ async def test_resumo_is_for_members_only(cog, poliswag, monkeypatch):
 
 
 async def test_resumo_falls_back_to_the_channel_when_dms_are_shut(cog, monkeypatch):
-    monkeypatch.setattr("cogs.trades.rows_since", lambda days: [digest_row()])
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [digest_row()])
     author = member()
     author.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "no"))
     ctx = ctx_for(author)
