@@ -78,25 +78,75 @@ def areas_json(hundo_areas):
     return json.dumps([names[key] for key in _area_keys(hundo_areas)])
 
 
-def confirmation_text(on, hundo_areas):
-    """Describe the full settings, without promising immediate rule removal."""
-    if not on:
-        return (
-            "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV. "
-            f"Para voltar a ligar: {SETTINGS_WHERE}."
-        )
-    labels = {key: label for key, _geofence, label in _AREAS}
-    keys = _area_keys(hundo_areas)
-    where = (
-        " e ".join(labels[key] for key in keys)
-        if len(keys) > 1
-        else f"só {labels[keys[0]]}"
-    )
+# One number for a whole setting, as hundo_confirmed_setting stores it: the
+# zones' bits (the hundo_areas SET's own order), 0 when switched off.
+_AREA_BITS = {"leiria": 1, "marinha": 2}
+
+
+def setting_code(hundo_dms, hundo_areas):
+    """0 off, 1 Leiria, 2 Marinha Grande, 3 both."""
+    if int(hundo_dms) != 1:
+        return 0
+    return sum(_AREA_BITS[key] for key in _area_keys(hundo_areas))
+
+
+def _code_keys(code):
+    return [key for key, _geofence, _label in _AREAS if code & _AREA_BITS[key]]
+
+
+def _thousands(n):
+    """1499 -> "1 499", as pt-PT writes it."""
+    return f"{n:,}".replace(",", "\u00a0")
+
+
+def _zones_line(keys):
+    names = [f"**{label}**" for key, _geofence, label in _AREAS if key in keys]
     return (
-        f"100IV por DM: **ligado** · {where}. "
-        "Vais receber aqui os 100IV que te faltam na Pokédex. "
-        f"Para mudar a zona ou desligar: {SETTINGS_WHERE}."
+        f"Zonas ativas: {' e '.join(names)}."
+        if len(names) > 1
+        else f"Zona ativa: {names[0]}."
     )
+
+
+def _joined(keys):
+    # Plain: it goes inside an already bold headline (nested ** breaks).
+    return " e ".join(label for key, _geofence, label in _AREAS if key in keys)
+
+
+def confirmation_message(row, missing_count=None):
+    """The DM confirming the player's current settings, said as a change from
+    the last confirmed ones (hundo_confirmed_setting) when that is known:
+    a headline for what happened, then one line per fact."""
+    footer = f"-# Para mudar as zonas ou desligar: {SETTINGS_WHERE}."
+    if row["hundo_dms"] != 1:
+        return "\n".join(
+            [
+                "🔕 **Alertas de 100IV desligados.**",
+                "Já não vais receber aqui os 100IV que te faltam.",
+                f"-# Para voltar a ligar: {SETTINGS_WHERE}.",
+            ]
+        )
+    after = _area_keys(row["hundo_areas"])
+    before = _code_keys(row.get("hundo_confirmed_setting") or 0)
+    was_on = bool(before)
+    added = [key for key in after if key not in before]
+    removed = [key for key in before if key not in after]
+    if was_on and (added or removed):
+        if added and removed:
+            headline = f"📍 **Trocaste {_joined(removed)} por {_joined(added)}.**"
+        elif added:
+            headline = f"📍 **Começaste a seguir também {_joined(added)}.**"
+        else:
+            headline = f"📍 **Deixaste de seguir {_joined(removed)}.**"
+        return "\n".join([headline, _zones_line(after), footer])
+    lines = [
+        "💯 **Alertas de 100IV ligados.**",
+        _zones_line(after),
+        "Quando aparecer um 100IV que te falta na Pokédex, avisamos-te aqui.",
+    ]
+    if missing_count:
+        lines.append(f"Faltam-te {_thousands(missing_count)} na Pokédex de 100IV.")
+    return "\n".join([*lines, footer])
 
 
 def confirmation_due(row):
@@ -118,15 +168,30 @@ def may_confirm(row):
     return row["left_at"] is None and (row["hundo_dms"] == 0 or collects_hundo(row))
 
 
+def settled_back(row):
+    """The settings are exactly the last confirmed ones again (a change undone
+    before its DM went out), and no DM was refused since that confirmation:
+    nothing to confirm, and the alerts never stop."""
+    confirmed = row["hundo_confirmed_revision"]
+    return (
+        confirmed > 0
+        and row.get("hundo_confirmed_setting") is not None
+        and int(row["hundo_confirmed_setting"])
+        == setting_code(row["hundo_dms"], row["hundo_areas"])
+        and row["hundo_dm_refused_revision"] < confirmed
+    )
+
+
 def is_active(row):
-    """An eligible collector has a delivered confirmation of current settings."""
+    """An eligible collector whose current settings were confirmed by DM, or
+    are the confirmed ones again (settled_back). Mirrors _CLEANUP_SQL."""
     revision = row["hundo_settings_revision"]
     return (
         row["hundo_dms"] == 1
         and collects_hundo(row)
         and revision > 0
-        and row["hundo_confirmed_revision"] == revision
         and row["hundo_dm_refused_revision"] < revision
+        and (row["hundo_confirmed_revision"] == revision or settled_back(row))
     )
 
 
@@ -210,6 +275,11 @@ _PLAYERS_SQL = """
 SELECT p.discord_id, COALESCE(NULLIF(p.trainer_name, ''), p.display_name) AS display_name,
        p.collecting, p.show_costumes, p.left_at, p.hundo_dms, p.hundo_areas,
        p.hundo_settings_revision, p.hundo_confirmed_revision, p.hundo_dm_refused_revision,
+       p.hundo_confirmed_setting,
+       -- Quiet period: the DM waits until the last change is this old, so a
+       -- burst of taps gets one DM (or none, if it ends where it started).
+       -- Same clock as the site's NOW(6) stamp; decides when, never whether.
+       COALESCE(p.hundo_settings_at > NOW(6) - INTERVAL 30 SECOND, 0) AS hundo_settling,
        COALESCE(t.ticks, 0) AS hundo_ticks, t.ticked_at AS hundo_ticked_at
 FROM trade_player p
 LEFT JOIN (
@@ -249,7 +319,14 @@ WHERE m.template = %s AND (
     p.discord_id IS NULL OR p.hundo_dms <> 1
     OR COALESCE(FIND_IN_SET('hundo', p.collecting), 0) = 0
     OR p.left_at IS NOT NULL OR p.hundo_settings_revision = 0
-    OR p.hundo_confirmed_revision <> p.hundo_settings_revision
+    OR NOT (
+        p.hundo_confirmed_revision = p.hundo_settings_revision
+        -- settled_back: the confirmed settings again, nothing refused since
+        OR (p.hundo_confirmed_revision > 0
+            AND p.hundo_confirmed_setting <=> IF(p.hundo_dms = 1,
+                IF(p.hundo_areas + 0 = 0, 3, p.hundo_areas + 0), 0)
+            AND p.hundo_dm_refused_revision < p.hundo_confirmed_revision)
+    )
     OR p.hundo_dm_refused_revision >= p.hundo_settings_revision
     OR h.id IS NULL OR h.enabled = 0 OR h.admin_disable = 1
     OR h.type <> 'discord:user'
@@ -316,6 +393,18 @@ class HundoAlerts:
                 if not may_confirm(row) or not confirmation_due(row):
                     continue
                 try:
+                    if not settled_back(row) and row.get("hundo_settling"):
+                        continue  # still inside the quiet period
+                    if settled_back(row):
+                        # Undone before its DM: acknowledge without one.
+                        await asyncio.to_thread(
+                            self._record,
+                            row["discord_id"],
+                            row["hundo_settings_revision"],
+                            delivered=True,
+                            settings=(row["hundo_dms"], row["hundo_areas"]),
+                        )
+                        continue
                     await self._confirm(row)
                 except Exception as exc:
                     # No outcome recorded for transient delivery/DB failures.
@@ -385,12 +474,19 @@ class HundoAlerts:
         )
 
     async def _confirm(self, row):
+        missing = None
+        if row["hundo_dms"] == 1:
+            try:
+                missing = await asyncio.to_thread(self._missing_count, row)
+            except Exception as exc:
+                # The count is a nicety; the confirmation goes without it.
+                self._log(f"missing count for {row['discord_id']} failed: {exc}")
         try:
             user = self.poliswag.get_user(int(row["discord_id"]))
             if user is None:
                 user = await self.poliswag.fetch_user(int(row["discord_id"]))
             await user.send(
-                confirmation_text(row["hundo_dms"] == 1, row["hundo_areas"]),
+                confirmation_message(row, missing),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             delivered = True
@@ -401,7 +497,18 @@ class HundoAlerts:
             row["discord_id"],
             row["hundo_settings_revision"],
             delivered=delivered,
+            settings=(row["hundo_dms"], row["hundo_areas"]),
         )
+
+    def _missing_count(self, row):
+        """Missing 100IV tiles, as the Pokédex counts them (costumes per setting)."""
+        with closing(connect(Config.DB_POGOLEIRIA, dict_rows=True)) as db:
+            with db.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT COUNT(*) AS n FROM ({_MISSING_SQL}) missing",
+                    (row["discord_id"], row["show_costumes"]),
+                )
+                return int(cursor.fetchone()["n"])
 
     def _read_players(self):
         """Read current settings, including switched-off players needing a DM."""
@@ -410,22 +517,30 @@ class HundoAlerts:
                 cursor.execute(_PLAYERS_SQL)
                 return list(cursor.fetchall())
 
-    def _record(self, discord_id, revision, *, delivered):
+    def _record(self, discord_id, revision, *, delivered, settings=None):
         """Record an outcome only for the current, not-yet-acknowledged revision.
 
+        A delivery also stores the setting it confirmed (`settings` =
+        (hundo_dms, hundo_areas) as read with `revision`) as one number,
+        hundo_confirmed_setting: the next DM is worded against it, and
+        settled_back compares with it.
         False means settings changed during delivery or an outcome was already
         recorded. Callers must re-read settings before deciding eligibility.
         """
         prefix = "hundo_confirmed" if delivered else "hundo_dm_refused"
+        snapshot, params = "", ()
+        if delivered and settings is not None:
+            snapshot = ", hundo_confirmed_setting = %s"
+            params = (setting_code(*settings),)
         with closing(connect(Config.DB_POGOLEIRIA, autocommit=True)) as db:
             with db.cursor() as cursor:
                 cursor.execute(
                     f"UPDATE trade_player SET {prefix}_revision = %s,"
-                    f" {prefix}_at = NOW(6) WHERE discord_id = %s"
+                    f" {prefix}_at = NOW(6){snapshot} WHERE discord_id = %s"
                     " AND hundo_settings_revision = %s"
                     " AND GREATEST(hundo_confirmed_revision,"
                     " hundo_dm_refused_revision) < %s",
-                    (revision, discord_id, revision, revision),
+                    (revision, *params, discord_id, revision, revision),
                 )
                 return cursor.rowcount == 1
 

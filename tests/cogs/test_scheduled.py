@@ -362,6 +362,7 @@ class TestHundoAlertsStep:
         )
         alerts._sync_player = MagicMock(return_value=True)
         alerts._record = MagicMock(return_value=True)
+        alerts._missing_count = MagicMock(return_value=1499)
         return alerts
 
     @staticmethod
@@ -392,7 +393,9 @@ class TestHundoAlertsStep:
             cog, [self._player()], [self._player(hundo_confirmed_revision=2)]
         )
         await cog.scheduled_tasks.coro(cog)
-        alerts._record.assert_called_once_with(1, 2, delivered=True)
+        alerts._record.assert_called_once_with(
+            1, 2, delivered=True, settings=(1, "leiria,marinha")
+        )
         alerts._sync_player.assert_called_once()
         cog.poliswag.poracle.reload.assert_awaited_once()
         cog._check_trade_digest.assert_awaited_once()
