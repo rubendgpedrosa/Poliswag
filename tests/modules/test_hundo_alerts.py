@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -14,7 +14,8 @@ from modules.hundo_alerts import (
     TEMPLATE,
     areas_json,
     confirmation_due,
-    confirmation_text,
+    confirmation_message,
+    settled_back,
     default_forms,
     is_active,
     rule_row,
@@ -67,6 +68,23 @@ def test_record_only_acknowledges_current_unhandled_revision(
         hundo_alerts.Config.DB_POGOLEIRIA, autocommit=True
     )
     db.close.assert_called_once()
+
+
+def test_delivery_stores_the_settings_it_confirmed(hundo_db):
+    _, _, cursor = hundo_db
+    cursor.rowcount = 1
+    assert HundoAlerts(MagicMock())._record(
+        123, 7, delivered=True, settings=(1, "leiria")
+    )
+    sql, params = cursor.execute.call_args.args
+    assert ", hundo_confirmed_setting = %s WHERE" in sql
+    assert params == (7, 1, 123, 7, 7)  # Leiria only = 1
+
+
+def test_refusal_never_touches_the_confirmed_settings(hundo_db):
+    _, _, cursor = hundo_db
+    HundoAlerts(MagicMock())._record(123, 7, delivered=False, settings=(1, "leiria"))
+    assert "hundo_confirmed_setting" not in cursor.execute.call_args.args[0]
 
 
 @pytest.mark.parametrize("operation", ["read", "record"])
@@ -178,31 +196,148 @@ def test_off_setting_can_need_confirmation_without_activating_alerts():
 
 
 @pytest.mark.parametrize(
-    "setting,geofences,label",
+    "setting,geofences,zones",
     [
-        ("leiria", ["leiria"], "só Leiria"),
-        ("marinha", ["marinhagrande"], "só Marinha Grande"),
-        ("leiria,marinha", ["leiria", "marinhagrande"], "Leiria e Marinha Grande"),
-        ("marinha,leiria", ["leiria", "marinhagrande"], "Leiria e Marinha Grande"),
-        ("", ["leiria", "marinhagrande"], "Leiria e Marinha Grande"),
-        (None, ["leiria", "marinhagrande"], "Leiria e Marinha Grande"),
+        ("leiria", ["leiria"], "Zona ativa: **Leiria**."),
+        ("marinha", ["marinhagrande"], "Zona ativa: **Marinha Grande**."),
+        (
+            "leiria,marinha",
+            ["leiria", "marinhagrande"],
+            "Zonas ativas: **Leiria** e **Marinha Grande**.",
+        ),
+        (
+            "marinha,leiria",
+            ["leiria", "marinhagrande"],
+            "Zonas ativas: **Leiria** e **Marinha Grande**.",
+        ),
+        (
+            "",
+            ["leiria", "marinhagrande"],
+            "Zonas ativas: **Leiria** e **Marinha Grande**.",
+        ),
+        (
+            None,
+            ["leiria", "marinhagrande"],
+            "Zonas ativas: **Leiria** e **Marinha Grande**.",
+        ),
     ],
 )
-def test_area_mapping_matches_confirmation(setting, geofences, label):
+def test_first_switch_on_names_the_zones_and_what_comes(setting, geofences, zones):
     assert json.loads(areas_json(setting)) == geofences
-    assert confirmation_text(True, setting) == (
-        f"100IV por DM: **ligado** · {label}. "
-        "Vais receber aqui os 100IV que te faltam na Pokédex. "
-        "Para mudar a zona ou desligar: pogoleiria.pt/pokedex → Perfil e outras opções."
-    )
+    row = player(hundo_areas=setting, hundo_confirmed_setting=None)
+    assert confirmation_message(row, 1499).split("\n") == [
+        "💯 **Alertas de 100IV ligados.**",
+        zones,
+        "Quando aparecer um 100IV que te falta na Pokédex, avisamos-te aqui.",
+        "Faltam-te 1\u00a0499 na Pokédex de 100IV.",
+        "-# Para mudar as zonas ou desligar: "
+        "pogoleiria.pt/pokedex → Perfil e outras opções.",
+    ]
+
+
+def test_switch_on_without_a_count_leaves_it_out():
+    text = confirmation_message(player(hundo_confirmed_setting=0), None)
+    assert text.startswith("💯 **Alertas de 100IV ligados.**")
+    assert "Faltam-te" not in text
+
+
+@pytest.mark.parametrize(
+    "before,after,headline,zones",
+    [
+        (
+            1,
+            "leiria,marinha",
+            "📍 **Começaste a seguir também Marinha Grande.**",
+            "Zonas ativas: **Leiria** e **Marinha Grande**.",
+        ),
+        (
+            3,
+            "leiria",
+            "📍 **Deixaste de seguir Marinha Grande.**",
+            "Zona ativa: **Leiria**.",
+        ),
+        (
+            1,
+            "marinha",
+            "📍 **Trocaste Leiria por Marinha Grande.**",
+            "Zona ativa: **Marinha Grande**.",
+        ),
+    ],
+)
+def test_zone_change_says_what_changed(before, after, headline, zones):
+    row = player(hundo_areas=after, hundo_confirmed_setting=before)
+    assert confirmation_message(row, 1499).split("\n") == [
+        headline,
+        zones,
+        "-# Para mudar as zonas ou desligar: "
+        "pogoleiria.pt/pokedex → Perfil e outras opções.",
+    ]
 
 
 @pytest.mark.parametrize("setting", ["leiria", "marinha", "leiria,marinha", "", None])
 def test_off_confirmation_does_not_depend_on_area(setting):
-    assert confirmation_text(False, setting) == (
-        "100IV por DM: **desligado**. Vamos remover os teus alertas de 100IV. "
-        "Para voltar a ligar: pogoleiria.pt/pokedex → Perfil e outras opções."
+    row = player(hundo_dms=0, hundo_areas=setting, hundo_confirmed_setting=3)
+    assert confirmation_message(row).split("\n") == [
+        "🔕 **Alertas de 100IV desligados.**",
+        "Já não vais receber aqui os 100IV que te faltam.",
+        "-# Para voltar a ligar: pogoleiria.pt/pokedex → Perfil e outras opções.",
+    ]
+
+
+def test_back_on_after_off_reads_as_switched_on():
+    row = player(hundo_confirmed_setting=0)
+    assert confirmation_message(row).startswith("💯 **Alertas de 100IV ligados.**")
+
+
+@pytest.mark.parametrize(
+    "dms,areas,code",
+    [
+        (0, "leiria,marinha", 0),
+        (1, "leiria", 1),
+        (1, "marinha", 2),
+        (1, "leiria,marinha", 3),
+        (1, "", 3),
+    ],
+)
+def test_setting_code_is_zero_off_then_zone_bits(dms, areas, code):
+    assert hundo_alerts.setting_code(dms, areas) == code
+
+
+def settled(**patch):
+    # Confirmed Leiria at revision 1, then changed and changed back: revision 3.
+    return player(
+        **{
+            "hundo_areas": "leiria",
+            "hundo_settings_revision": 3,
+            "hundo_confirmed_revision": 1,
+            "hundo_confirmed_setting": 1,
+            **patch,
+        }
     )
+
+
+def test_change_undone_before_its_dm_is_settled_and_stays_active():
+    assert confirmation_due(settled()) and settled_back(settled())
+    assert is_active(settled())
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"hundo_areas": "leiria,marinha"},  # really changed
+        {"hundo_dms": 0},  # switched off
+        {"hundo_confirmed_setting": None},  # unknown
+        {"hundo_dm_refused_revision": 2},  # a DM was refused since
+        {"hundo_confirmed_revision": 0},  # never confirmed
+    ],
+)
+def test_not_settled_when_anything_differs(patch):
+    assert not settled_back(settled(**patch))
+
+
+def test_settled_player_off_is_not_active():
+    row = settled(hundo_dms=0, hundo_confirmed_setting=0)
+    assert settled_back(row) and not is_active(row)
 
 
 def test_default_forms_reads_species_and_default_form_ids():
@@ -361,6 +496,7 @@ def sender(players):
     alerts._human = MagicMock(return_value=human())
     alerts._sync_player = MagicMock(return_value=False)
     alerts._record = MagicMock(return_value=True)
+    alerts._missing_count = MagicMock(return_value=1499)
     return alerts, bot
 
 
@@ -383,7 +519,7 @@ async def test_confirmation_rereads_newer_settings_before_sync():
     alerts._read_players.side_effect = [[old], [new]]
     alerts._record.return_value = False  # conditional UPDATE rejected old revision
     await alerts.tick()
-    alerts._record.assert_called_once_with(1, 2, delivered=True)
+    alerts._record.assert_called_once_with(1, 2, delivered=True, settings=ANY)
     alerts._sync_player.assert_not_called()
 
 
@@ -404,7 +540,7 @@ async def test_refusal_records_exact_revision(error):
     alerts, bot = sender([player(hundo_settings_revision=2)])
     bot.get_user.return_value.send.side_effect = error(MagicMock(status=403), "closed")
     await alerts.tick()
-    alerts._record.assert_called_once_with(1, 2, delivered=False)
+    alerts._record.assert_called_once_with(1, 2, delivered=False, settings=ANY)
     alerts._sync_player.assert_not_called()
     assert alerts._cleanup.call_count == 2
 
@@ -575,8 +711,8 @@ async def test_unchanged_tick_does_not_reload():
 async def test_off_confirmation_and_cleanup():
     alerts, bot = sender([player(hundo_dms=0, hundo_settings_revision=2)])
     await alerts.tick()
-    assert "**desligado**" in bot.get_user.return_value.send.call_args.args[0]
-    alerts._record.assert_called_once_with(1, 2, delivered=True)
+    assert "desligados" in bot.get_user.return_value.send.call_args.args[0]
+    alerts._record.assert_called_once_with(1, 2, delivered=True, settings=ANY)
     alerts._sync_player.assert_not_called()
     assert alerts._cleanup.call_count == 2
 
@@ -595,7 +731,7 @@ async def test_fetch_user_when_not_cached():
     await alerts.tick()
     bot.fetch_user.assert_awaited_once_with(1)
     bot.fetch_user.return_value.send.assert_awaited_once()
-    alerts._record.assert_called_once_with(1, 2, delivered=True)
+    alerts._record.assert_called_once_with(1, 2, delivered=True, settings=ANY)
 
 
 async def test_stopped_user_logging_resets_after_restart():
@@ -696,3 +832,61 @@ async def test_player_who_leaves_and_returns_is_rebuilt():
     alerts._read_players.return_value = [row]
     await alerts.tick()
     assert alerts._sync_player.call_count == 2
+
+
+async def test_change_undone_before_the_dm_is_acknowledged_silently():
+    row = settled()
+    alerts, bot = sender([row])
+    await alerts.tick()
+    bot.get_user.return_value.send.assert_not_awaited()
+    alerts._record.assert_called_once_with(1, 3, delivered=True, settings=(1, "leiria"))
+
+
+async def test_real_change_dm_says_what_changed_and_stores_it():
+    row = settled(hundo_areas="leiria,marinha")
+    alerts, bot = sender([row])
+    await alerts.tick()
+    text = bot.get_user.return_value.send.call_args.args[0]
+    assert text.startswith("📍 **Começaste a seguir também Marinha Grande.**")
+    alerts._record.assert_called_once_with(
+        1, 3, delivered=True, settings=(1, "leiria,marinha")
+    )
+
+
+async def test_switch_on_dm_carries_the_missing_count():
+    alerts, bot = sender(
+        [player(hundo_settings_revision=2, hundo_confirmed_setting=None)]
+    )
+    await alerts.tick()
+    assert "Faltam-te 1\u00a0499" in bot.get_user.return_value.send.call_args.args[0]
+
+
+async def test_count_failure_still_confirms():
+    alerts, bot = sender(
+        [player(hundo_settings_revision=2, hundo_confirmed_setting=None)]
+    )
+    alerts._missing_count.side_effect = RuntimeError("db down")
+    await alerts.tick()
+    text = bot.get_user.return_value.send.call_args.args[0]
+    assert text.startswith("💯") and "Faltam-te" not in text
+    alerts._record.assert_called_once()
+
+
+async def test_dm_waits_out_the_quiet_period():
+    row = player(
+        hundo_settings_revision=2, hundo_confirmed_setting=None, hundo_settling=1
+    )
+    alerts, bot = sender([row])
+    await alerts.tick()
+    bot.get_user.return_value.send.assert_not_awaited()
+    alerts._record.assert_not_called()
+    alerts._read_players.return_value = [{**row, "hundo_settling": 0}]
+    await alerts.tick()
+    bot.get_user.return_value.send.assert_awaited_once()
+
+
+async def test_undo_is_acknowledged_even_inside_the_quiet_period():
+    alerts, bot = sender([settled(hundo_settling=1)])
+    await alerts.tick()
+    bot.get_user.return_value.send.assert_not_awaited()
+    alerts._record.assert_called_once()

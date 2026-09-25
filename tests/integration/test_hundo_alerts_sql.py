@@ -41,7 +41,10 @@ from modules.migrations import split_statements
 _REAL_CONNECT = pymysql.connect
 _PORT = os.environ.get("HUNDO_SQL_TEST_PORT")
 _SCHEMA = Path(__file__).with_name("hundo_schema.sql")
-_MIGRATION = Path(__file__).parents[2] / "migrations" / "014_add_hundo_dms.sql"
+_MIGRATIONS = [
+    Path(__file__).parents[2] / "migrations" / name
+    for name in ("014_add_hundo_dms.sql", "015_add_hundo_confirmed_settings.sql")
+]
 _REFUSE = {"golbat", "dragonite", "reactmap", "koji", "stats", "fletchling"}
 
 pytestmark = pytest.mark.skipif(
@@ -90,8 +93,9 @@ def _run(sql, params=None, database=None):
 
 
 def _migrate():
-    for statement in split_statements(_MIGRATION.read_text()):
-        _run(statement)
+    for migration in _MIGRATIONS:
+        for statement in split_statements(migration.read_text()):
+            _run(statement)
 
 
 @pytest.fixture(autouse=True)
@@ -214,7 +218,7 @@ def everything(table):
     return _run(f"SELECT * FROM {table} ORDER BY 1, 2", database="poracle")[1]
 
 
-def test_migration_replays_and_adds_eight_off_by_default_columns():
+def test_migrations_replay_and_add_nine_off_by_default_columns():
     _migrate()
     _migrate()
     _, columns = _run(
@@ -233,6 +237,7 @@ def test_migration_replays_and_adds_eight_off_by_default_columns():
         "hundo_confirmed_at": ("datetime(6)", "NULL", "YES"),
         "hundo_dm_refused_revision": ("bigint(20) unsigned", "0", "NO"),
         "hundo_dm_refused_at": ("datetime(6)", "NULL", "YES"),
+        "hundo_confirmed_setting": ("tinyint(3) unsigned", "NULL", "YES"),
     }
 
 
@@ -429,3 +434,37 @@ def test_human_lookup_reads_the_poracle_row():
 
 def test_module_connects_to_the_disposable_server():
     assert hundo_alerts.Config.DB_PORT == int(_PORT)
+
+
+def test_a_change_undone_before_its_dm_keeps_the_rules_and_is_settled():
+    _migrate()
+    add_player(1)
+    add_human(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    assert HundoAlerts(None)._record(1, 1, delivered=True, settings=(1, "leiria"))
+    add_rule(1)
+    # Add Marinha Grande, then take it away again, before any DM.
+    _run(_SAVE_SQL, (1, "leiria,marinha", 1, 1, "leiria,marinha"), "pogoleiria")
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    row = settings(1)
+    assert row["hundo_settings_revision"] == 3
+    assert row["hundo_confirmed_setting"] == 1  # Leiria only
+    assert confirmation_due(row) and hundo_alerts.settled_back(row) and is_active(row)
+    assert not HundoAlerts(None)._cleanup()  # the rules stay
+    assert len(rules(1)) == 1
+    # A real change is pending again: its rules pause until the DM.
+    _run(_SAVE_SQL, (1, "leiria,marinha", 1, 1, "leiria,marinha"), "pogoleiria")
+    assert HundoAlerts(None)._cleanup()
+    assert rules(1) == []
+
+
+def test_quiet_period_flag_follows_the_database_clock():
+    _migrate()
+    add_player(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    assert settings(1)["hundo_settling"] == 1
+    _run(
+        "UPDATE trade_player SET hundo_settings_at = NOW(6) - INTERVAL 31 SECOND",
+        database="pogoleiria",
+    )
+    assert settings(1)["hundo_settling"] == 0
