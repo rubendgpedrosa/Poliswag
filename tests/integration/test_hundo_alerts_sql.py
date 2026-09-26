@@ -43,7 +43,11 @@ _PORT = os.environ.get("HUNDO_SQL_TEST_PORT")
 _SCHEMA = Path(__file__).with_name("hundo_schema.sql")
 _MIGRATIONS = [
     Path(__file__).parents[2] / "migrations" / name
-    for name in ("014_add_hundo_dms.sql", "015_add_hundo_confirmed_settings.sql")
+    for name in (
+        "014_add_hundo_dms.sql",
+        "015_add_hundo_confirmed_settings.sql",
+        "016_hundo_delivery_recovery.sql",
+    )
 ]
 _REFUSE = {"golbat", "dragonite", "reactmap", "koji", "stats", "fletchling"}
 
@@ -218,7 +222,7 @@ def everything(table):
     return _run(f"SELECT * FROM {table} ORDER BY 1, 2", database="poracle")[1]
 
 
-def test_migrations_replay_and_add_nine_off_by_default_columns():
+def test_migrations_replay_and_add_off_by_default_columns():
     _migrate()
     _migrate()
     _, columns = _run(
@@ -238,6 +242,9 @@ def test_migrations_replay_and_add_nine_off_by_default_columns():
         "hundo_dm_refused_revision": ("bigint(20) unsigned", "0", "NO"),
         "hundo_dm_refused_at": ("datetime(6)", "NULL", "YES"),
         "hundo_confirmed_setting": ("tinyint(3) unsigned", "NULL", "YES"),
+        "hundo_health_revision": ("bigint(20) unsigned", "0", "NO"),
+        "hundo_health_state": ("varchar(24)", "NULL", "YES"),
+        "hundo_health_at": ("datetime(6)", "NULL", "YES"),
     }
 
 
@@ -468,3 +475,100 @@ def test_quiet_period_flag_follows_the_database_clock():
         database="pogoleiria",
     )
     assert settings(1)["hundo_settling"] == 0
+
+
+def test_collection_marker_detects_same_second_tile_swap():
+    _migrate()
+    add_player(1)
+    activate(1)
+    tick_off(1, 19, 0)
+    _run(
+        "UPDATE collection_entry SET created_at = '2026-09-25 00:00:00'",
+        database="pogoleiria",
+    )
+    before = settings(1)
+    _run(
+        "UPDATE collection_entry SET pokemon_id = 25 WHERE discord_id = 1",
+        database="pogoleiria",
+    )
+    after = settings(1)
+    assert before["hundo_ticks"] == after["hundo_ticks"]
+    assert before["hundo_ticked_at"] == after["hundo_ticked_at"]
+    assert hundo_alerts._signature(before, 1, None) != hundo_alerts._signature(
+        after, 1, None
+    )
+
+
+def test_durable_confirmation_claim_survives_recreation_and_is_exclusive():
+    from modules.hundo_confirmation import claim, finish
+
+    _migrate()
+    add_player(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    owned, notice = claim(1, 1, 123)
+    assert owned and notice["status"] == "sending"
+    again, same = claim(1, 1, 123)
+    assert not again and same["nonce"] == notice["nonce"]
+    finish(1, 1, "sent", 987)
+    assert claim(1, 1, 123)[1]["message_id"] == 987
+    # A late reconciler must never replace a known outcome with uncertain.
+    finish(1, 1, "uncertain")
+    assert claim(1, 1, 123)[1]["status"] == "sent"
+    # A stale settings snapshot cannot claim a new send.
+    assert claim(1, 99, 123) == (False, None)
+
+
+def test_health_write_cannot_acknowledge_a_newer_settings_revision():
+    _migrate()
+    add_player(1)
+    activate(1)
+    old = settings(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    alerts = HundoAlerts(None)
+    alerts._record_health(old, "ready")
+    _, rows = _run(
+        "SELECT hundo_health_revision FROM trade_player WHERE discord_id=1",
+        database="pogoleiria",
+    )
+    assert rows[0]["hundo_health_revision"] == 0
+    alerts._record_health(settings(1), "stopped")
+    _, rows = _run(
+        "SELECT hundo_health_revision, hundo_health_state, TIMESTAMPDIFF(SECOND, hundo_health_at, UTC_TIMESTAMP(6)) age FROM trade_player WHERE discord_id=1",
+        database="pogoleiria",
+    )
+    assert rows[0]["hundo_health_revision"] == 2
+    assert rows[0]["hundo_health_state"] == "stopped" and rows[0]["age"] < 5
+
+
+def test_uncertain_confirmation_retry_is_atomic_and_waits_for_inflight_send():
+    from modules.hundo_confirmation import claim
+
+    _migrate()
+    add_player(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    claim(1, 1, 123)
+    retry = """UPDATE trade_player SET hundo_settings_revision = hundo_settings_revision + 1,
+      hundo_settings_at = NOW(6) WHERE discord_id = 1 AND left_at IS NULL
+      AND hundo_confirmed_revision < hundo_settings_revision
+      AND (hundo_dm_refused_revision = hundo_settings_revision OR EXISTS
+        (SELECT 1 FROM hundo_confirmation hc WHERE hc.discord_id = trade_player.discord_id
+          AND hc.revision = trade_player.hundo_settings_revision AND hc.status IN ('sending','uncertain')
+          AND hc.started_at < UTC_TIMESTAMP(6) - INTERVAL 120 SECOND))"""
+    assert _run(retry, database="pogoleiria")[0] == 0
+    _run(
+        "UPDATE hundo_confirmation SET started_at=UTC_TIMESTAMP(6)-INTERVAL 3 MINUTE",
+        database="pogoleiria",
+    )
+    assert _run(retry, database="pogoleiria")[0] == 1
+    assert _run(retry, database="pogoleiria")[0] == 0
+
+
+@pytest.mark.parametrize("change", ["left_at=NOW()", "collecting='shiny'"])
+def test_confirmation_cannot_claim_after_eligibility_changes(change):
+    from modules.hundo_confirmation import claim
+
+    _migrate()
+    add_player(1)
+    _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
+    _run(f"UPDATE trade_player SET {change} WHERE discord_id=1", database="pogoleiria")
+    assert claim(1, 1, 123) == (False, None)
