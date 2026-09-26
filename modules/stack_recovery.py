@@ -32,10 +32,19 @@ class StackRecovery(LoggingMixin):
         (600, "containers"),
         (1800, "device"),
     )
-    # How each rung is described in the mod-channel notifications.
-    RUNG_LABELS = {
-        "containers": "a recriar containers do scanner",
-        "device": "a reiniciar Pokémon GO + Pokémod no telemóvel",
+    # How each rung reads in the mod-channel posts: done, failed, and as the
+    # next step ("se continuar, em 20 min: ...").
+    RUNG_DONE = {
+        "containers": "Containers do scanner recriados (dragonite + rotom-ng).",
+        "device": "Pokémon GO + Pokémod reiniciados no telemóvel.",
+    }
+    RUNG_FAILED = {
+        "containers": "Não foi possível recriar os containers do scanner.",
+        "device": "Não foi possível reiniciar Pokémon GO + Pokémod no telemóvel.",
+    }
+    RUNG_NEXT = {
+        "containers": "recriar os containers do scanner",
+        "device": "reiniciar Pokémon GO + Pokémod no telemóvel",
     }
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
@@ -121,48 +130,33 @@ class StackRecovery(LoggingMixin):
     async def _announce(
         self, rung: str, attempt: int, total: int, red_duration: float, ok: bool
     ) -> None:
-        label = self.RUNG_LABELS[rung]
-        last_attempt = attempt >= total
-
-        if not ok:
-            remaining = (
-                "Sem mais tentativas automáticas — intervenção manual necessária."
-                if last_attempt
-                else f"Nova tentativa em "
-                f"**{self._minutes_to_next_rung(attempt, red_duration)} min** "
-                f"({self.RUNG_LABELS[self.RECOVERY_LADDER[attempt][1]]}) se continuar."
-            )
-            await self._notify(
-                "Recuperação automática — falhou",
-                f"Contas em baixo — {label} falhou (tentativa {attempt}/{total}).\n"
-                f"{remaining}",
-                discord.Color.red(),
-            )
-            return
-
-        if last_attempt:
-            description = (
-                f"Contas em baixo — {label} (tentativa {attempt}/{total}, "
-                f"última tentativa automática).\n"
-                f"Se continuar em baixo, intervenção manual é necessária."
+        minutes = int(red_duration // 60)
+        title = f"🔴 Mapa em baixo há {minutes} min"
+        what = self.RUNG_DONE[rung] if ok else self.RUNG_FAILED[rung]
+        if attempt >= total:
+            next_step = (
+                "Era a última tentativa automática: se continuar em baixo, "
+                "é preciso intervir manualmente."
             )
         else:
-            description = (
-                f"Contas em baixo — {label} (tentativa {attempt}/{total}).\n"
-                f"Nova tentativa em "
-                f"**{self._minutes_to_next_rung(attempt, red_duration)} min** "
-                f"({self.RUNG_LABELS[self.RECOVERY_LADDER[attempt][1]]}) se continuar."
+            next_rung = self.RECOVERY_LADDER[attempt][1]
+            next_step = (
+                f"Se continuar, daqui a "
+                f"**{self._minutes_to_next_rung(attempt, red_duration)} min**: "
+                f"{self.RUNG_NEXT[next_rung]}."
             )
         await self._notify(
-            "Recuperação automática", description, discord.Color.orange()
+            title if ok else f"{title} — recuperação falhou",
+            f"Nenhuma zona tem workers ativos.\n{what}\n{next_step}",
+            discord.Color.orange() if ok else discord.Color.red(),
         )
 
     async def _announce_recovered(self, red_duration: float) -> None:
         last_rung = self.RECOVERY_LADDER[self._recovery_attempts - 1][1]
         await self._notify(
-            "Recuperação automática — mapa de volta",
-            f"O mapa voltou ao normal após **{int(red_duration // 60)} min** "
-            f"em baixo (última acção: {self.RUNG_LABELS[last_rung]}).",
+            "🟢 Mapa de volta",
+            f"Voltou ao normal após **{int(red_duration // 60)} min** em baixo.\n"
+            f"Última ação automática: {self.RUNG_NEXT[last_rung]}.",
             discord.Color.green(),
         )
 
