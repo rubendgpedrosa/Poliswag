@@ -377,49 +377,112 @@ class Scheduled(commands.Cog):
         if not changed:
             return
         await self._send_event_change_notifications(
-            self.poliswag.CONVIVIO_CHANNEL, changed
+            self.poliswag.CONVIVIO_CHANNEL, changed, acknowledge=True
         )
 
-    async def _send_event_change_notifications(self, channel, changed):
-        """One post per batch: the header, the events without numbers as a
-        line each, and a card per event with numbers, as embeds of the same
-        message (ten at most, Discord's limit). It used to be a message per
-        event, seven in a row for six new ones."""
+    async def _send_event_change_notifications(
+        self, channel, changed, acknowledge=False
+    ):
+        """Acknowledge each successful message, leaving failed batches retryable.
+
+        Manual previews use acknowledge=False. Discord acceptance and the DB
+        update cannot be atomic: a crash between them may still cause a repeat.
+        """
         if changed["ended"]:
-            # A card per event only where there are numbers to show. The
-            # rest (GO Battle League, research, Max Monday) are one line
-            # apiece under the header.
-            cards, plain, seen = [], [], []
+            cards, groups, plain, seen = [], [], [], []
             for event in changed["ended"]:
                 summary = await self.poliswag.event_stats.get_summary(event)
                 if not summary:
                     plain.append(event)
-                elif summary not in seen:
-                    # "Super Mega Raid Day" and "Staraptor Super Mega Raid
-                    # Day" are one event under two names: one card.
+                elif summary in seen:
+                    groups[seen.index(summary)].append(event)
+                else:
                     seen.append(summary)
+                    groups.append([event])
                     cards.append(
                         await self._build_event_embed(
                             event, is_ended=True, summary=summary
                         )
                     )
-            lines = ["**Eventos que terminaram**"]
+            # Split plain lines too: slicing a 2000-character header silently
+            # lost events that were then marked delivered.
+            header = "**Eventos que terminaram**"
+            text, text_events = header, []
             for event in plain:
                 emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
-                lines.append(f"{emoji} {event['name']}")
-            await self._send_batch(channel, "\n".join(lines)[:2000], cards)
+                line = f"\n{emoji} {event['name']}"
+                if len(text) + len(line) > 2000:
+                    await channel.send(
+                        text, embeds=[], allowed_mentions=discord.AllowedMentions.none()
+                    )
+                    if acknowledge:
+                        await self._ack_events(text_events, is_end=True)
+                    text, text_events = header, []
+                text += line
+                text_events.append(event)
+            await self._send_event_batches(
+                channel,
+                text,
+                cards,
+                groups,
+                text_events,
+                is_end=True,
+                acknowledge=acknowledge,
+            )
         if changed["started"]:
             cards = [
                 await self._build_event_embed(event) for event in changed["started"]
             ]
-            await self._send_batch(channel, "**Novos eventos**", cards)
+            await self._send_event_batches(
+                channel,
+                "**Novos eventos**",
+                cards,
+                [[event] for event in changed["started"]],
+                [],
+                is_end=False,
+                acknowledge=acknowledge,
+            )
 
-    @staticmethod
-    async def _send_batch(channel, header, embeds):
-        """The header with the first ten embeds, then ten more per message."""
-        await channel.send(header, embeds=embeds[:10])
-        for i in range(10, len(embeds), 10):
-            await channel.send(embeds=embeds[i : i + 10])
+    async def _ack_events(self, events, is_end):
+        for event in events:
+            date = datetime.datetime.fromisoformat(
+                str(event["end" if is_end else "start"])
+            )
+            await self.poliswag.event_manager.mark_event_notified(
+                event, date, is_end=is_end
+            )
+
+    async def _send_event_batches(
+        self, channel, header, embeds, groups, plain, *, is_end, acknowledge
+    ):
+        offset = 0
+        first = True
+        while first or offset < len(embeds):
+            end, size = offset, 0
+            while end < len(embeds) and end - offset < 10:
+                length = len(embeds[end])
+                if length > 6000:
+                    raise ValueError("Event embed exceeds Discord's message limit")
+                if size + length > 6000:
+                    break
+                size += length
+                end += 1
+            batch = embeds[offset:end]
+            if first:
+                await channel.send(
+                    header,
+                    embeds=batch,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            else:
+                await channel.send(
+                    embeds=batch, allowed_mentions=discord.AllowedMentions.none()
+                )
+            if acknowledge:
+                events = [event for group in groups[offset:end] for event in group]
+                await self._ack_events((plain if first else []) + events, is_end=is_end)
+            first = False
+            offset = end
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
@@ -434,7 +497,7 @@ class Scheduled(commands.Cog):
         else:
             description = self.poliswag.event_manager.format_end_time(event_end)
         embed = discord.Embed(
-            title=f"{emoji} {event['name']}",
+            title=f"{emoji} {event['name']}"[:256],
             url=event_link,
             description=description,
             color=color,

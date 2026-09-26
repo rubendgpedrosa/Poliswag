@@ -1,6 +1,7 @@
 import discord
 import re
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from pathlib import Path
 import logging
 import logging.handlers
@@ -166,6 +167,9 @@ class Utility:
             return None
 
     def format_datetime_string(self, dt_string):
-        return datetime.fromisoformat(dt_string.replace("Z", "+00:00")).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        # ScrapedDuck mixes local wall times (no offset) and absolute times
+        # (Z/explicit offset). Event DATETIME columns hold Lisbon wall time.
+        dt = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(ZoneInfo("Europe/Lisbon"))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")

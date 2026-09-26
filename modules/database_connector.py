@@ -75,6 +75,27 @@ class DatabaseConnector:
                 self._execute_query_sync, query, False, retries, params
             )
 
+    async def execute_transaction(self, statements):
+        """Apply a small related write set atomically on the shared connection.
+
+        Do not replay on connection loss: commit outcome could be uncertain.
+        The next scheduler tick reconciles from stored state instead.
+        """
+        async with self._lock:
+            return await asyncio.to_thread(self._transaction_sync, statements)
+
+    def _transaction_sync(self, statements):
+        self.db.ping(reconnect=True)
+        self.db.begin()
+        try:
+            with self.db.cursor() as cursor:
+                for sql, params in statements:
+                    cursor.execute(sql, params)
+            self.db.commit()
+        except BaseException:
+            self.db.rollback()
+            raise
+
     def _execute_query_sync(self, query, fetch, retries, params=None):
         last_error = None
         for attempt in range(retries):

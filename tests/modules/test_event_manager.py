@@ -11,15 +11,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from modules.event_manager import EventManager
+from modules.utility import Utility
 
 
 @pytest.fixture
 def em():
     poliswag = MagicMock()
     poliswag.db = AsyncMock()
-    poliswag.utility.format_datetime_string = (
-        lambda s: s.replace("Z", "").replace("T", " ").split(".")[0]
-    )
+    poliswag.utility.format_datetime_string = Utility.__new__(
+        Utility
+    ).format_datetime_string
     return EventManager(poliswag=poliswag)
 
 
@@ -306,7 +307,7 @@ class TestProcessAndStoreEvents:
         ]
         # DB has a different future event that isn't in the API response.
         em.poliswag.db.get_data_from_database.return_value = [
-            {"name": "Old Event"},
+            {"name": "Old Event", "start": "2099-01-01 10:00:00"},
         ]
         await em.process_and_store_events()
         calls = em.poliswag.db.execute_query_to_database.call_args_list
@@ -361,7 +362,7 @@ class TestCheckCurrentEventsChanges:
         assert result is not None
         assert len(result["started"]) == 1
         assert result["ended"] == []
-        em.poliswag.db.execute_query_to_database.assert_called_once()
+        em.poliswag.db.execute_query_to_database.assert_not_called()
 
     async def test_ended_event_without_end_notification_is_ended(self, em):
         em.poliswag.db.get_data_from_database.return_value = [
@@ -568,5 +569,112 @@ class TestDropTwins:
             self.rows,
         ]
         assert await em.check_current_events_changes() is None
-        # Still marked notified, so it isn't looked at again every minute.
-        em.poliswag.db.execute_query_to_database.assert_called_once()
+        # Selection never marks an unsent announcement as delivered.
+        em.poliswag.db.execute_query_to_database.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "start,end,expected_start,expected_end",
+    [
+        (
+            "2026-09-26T09:00:00.000Z",
+            "2026-09-27T17:00:00.000Z",
+            "2026-09-26 10:00:00",
+            "2026-09-27 18:00:00",
+        ),
+        (
+            "2026-09-26T10:00:00.000",
+            "2026-09-26T20:00:00.000",
+            "2026-09-26 10:00:00",
+            "2026-09-26 20:00:00",
+        ),
+        (
+            "2026-10-20T20:00:00Z",
+            "2026-10-27T20:00:00Z",
+            "2026-10-20 21:00:00",
+            "2026-10-27 20:00:00",
+        ),
+    ],
+)
+async def test_ingestion_stores_lisbon_times_and_keeps_original_source(
+    em, start, end, expected_start, expected_end
+):
+    import json
+
+    source = {"name": "Timezone regression", "start": start, "end": end}
+    em.events = [source]
+    em.poliswag.db.get_data_from_database.return_value = []
+    await em.process_and_store_events()
+    em.poliswag.db.execute_query_to_database.assert_awaited_once()
+    params = em.poliswag.db.execute_query_to_database.call_args.kwargs["params"]
+    assert params[1:3] == (expected_start, expected_end)
+    assert json.loads(params[6]) == source
+    em.poliswag.utility.log_to_file.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {"error": "unavailable"},
+        [None],
+        [{"name": "Bad", "start": "bad", "end": "2026-10-01T10:00:00"}],
+        [
+            {
+                "name": "Reversed",
+                "start": "2026-10-02T10:00:00",
+                "end": "2026-10-01T10:00:00",
+            }
+        ],
+    ],
+)
+async def test_bad_feed_preserves_calendar_and_retries_next_tick(em, mocker, payload):
+    fetch = mocker.patch(
+        "modules.event_manager.fetch_data", new=AsyncMock(return_value=payload)
+    )
+    await em.fetch_events()
+    await em.fetch_events()
+    assert fetch.await_count == 2
+    em.poliswag.db.execute_query_to_database.assert_not_awaited()
+    assert em._last_events_fetch == 0
+
+
+async def test_network_failure_does_not_start_fifteen_minute_cache(em, mocker):
+    fetch = mocker.patch(
+        "modules.event_manager.fetch_data", new=AsyncMock(return_value=None)
+    )
+    await em.fetch_events()
+    await em.fetch_events()
+    assert fetch.await_count == 2
+
+
+async def test_storage_failure_does_not_delete_future_rows(em, mocker):
+    em.events = [
+        {"name": "Good", "start": "2026-10-01T10:00:00", "end": "2026-10-01T20:00:00"}
+    ]
+    em.poliswag.db.execute_query_to_database.side_effect = RuntimeError(
+        "DB unavailable"
+    )
+    assert await em.process_and_store_events() is False
+    em.poliswag.db.get_data_from_database.assert_not_awaited()
+
+
+async def test_conflicting_source_identity_cannot_move_event_back_and_forth(em):
+    em.events = [
+        {
+            "eventID": "same",
+            "name": "Event",
+            "start": "2026-10-01T10:00:00",
+            "end": "2026-10-01T20:00:00",
+        },
+        {
+            "eventID": "same",
+            "name": "Event",
+            "start": "2026-10-01T00:00:00",
+            "end": "2026-10-01T20:00:00",
+        },
+    ]
+    with pytest.raises(ValueError, match="Conflicting feed entries"):
+        await em.process_and_store_events()
+    em.poliswag.db.execute_query_to_database.assert_not_awaited()
+    em.poliswag.db.execute_transaction.assert_not_awaited()
