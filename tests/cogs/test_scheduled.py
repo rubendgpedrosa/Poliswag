@@ -700,22 +700,22 @@ class TestSendEventChangeNotifications:
         changed = {"ended": [event], "started": [event]}
         cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
         await cog._send_event_change_notifications(channel, changed)
-        # One message per batch. Ended: embeds only (the stats card);
-        # started: the header with its cards.
+        # One message per batch: the header with its cards as embeds.
         calls = channel.send.await_args_list
         assert len(calls) == 2
-        assert calls[0].args == (None,)
+        assert calls[0].args == ("**Eventos que terminaram**",)
         assert len(calls[0].kwargs["embeds"]) == 1
         assert calls[1].args == ("**Novos eventos**",)
         assert len(calls[1].kwargs["embeds"]) == 1
 
-    async def test_ended_without_stats_are_lines_in_an_embed(self, cog):
+    async def test_ended_without_stats_gets_a_card_like_new_events(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
         gbl = {
             "event_type": "go-battle-league",
             "name": "Great League",
             "end": "2026-04-07 20:00:00",
+            "image": "https://example.test/gbl.jpg",
         }
         cd = {
             "event_type": "community-day",
@@ -726,35 +726,38 @@ class TestSendEventChangeNotifications:
         cog.poliswag.event_stats.get_summary = AsyncMock(
             side_effect=lambda event: SUMMARY if event is cd else None
         )
+        cog.poliswag.event_manager.format_end_time = MagicMock(
+            side_effect=lambda end, verb="Termina": f"{verb} às 20:00"
+        )
         await cog._send_event_change_notifications(
             channel, {"ended": [gbl, cd], "started": []}
         )
         calls = channel.send.await_args_list
         assert len(calls) == 1
-        # No loose text: the list is an embed, before the stats cards.
-        assert calls[0].args == (None,)
-        listing, card = calls[0].kwargs["embeds"]
-        assert listing.title == "Eventos que terminaram"
-        assert listing.description == "🌟 Great League"
+        # The same shape as "Novos eventos": the header, then a card per event.
+        assert calls[0].args == ("**Eventos que terminaram**",)
+        plain, card = calls[0].kwargs["embeds"]
+        assert "Great League" in plain.title
+        assert plain.description == "Terminou às 20:00"
+        assert plain.thumbnail.url == "https://example.test/gbl.jpg"
         assert card.description == SUMMARY.headline
         assert "Gible" in card.title
 
-    async def test_a_long_ended_list_splits_across_embeds(self, cog):
+    async def test_more_than_ten_ended_cards_continue_in_another_message(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
         events = [
-            {"event_type": "research", "name": "R" * 90 + str(i), "end": "x"}
-            for i in range(60)
+            {"event_type": "research", "name": f"R{i}", "end": "2026-04-07 20:00:00"}
+            for i in range(12)
         ]
         cog.poliswag.event_stats.get_summary = AsyncMock(return_value=None)
         await cog._send_event_change_notifications(
             channel, {"ended": events, "started": []}
         )
-        embeds = [e for c in channel.send.await_args_list for e in c.kwargs["embeds"]]
-        assert len(embeds) > 1
-        assert all(len(e.description) <= 4096 for e in embeds)
-        names = "\n".join(e.description for e in embeds)
-        assert all(event["name"] in names for event in events)
+        calls = channel.send.await_args_list
+        assert [len(c.kwargs["embeds"]) for c in calls] == [10, 2]
+        assert calls[0].args == ("**Eventos que terminaram**",)
+        assert calls[1].args == ()
 
     # "Super Mega Raid Day" and "Staraptor Super Mega Raid Day": one event
     # under two names, one card.
@@ -822,15 +825,21 @@ class TestBuildEventEmbed:
         assert embed.footer.text == SUMMARY.note
         cog.poliswag.event_manager.format_end_time.assert_not_called()
 
-    async def test_ended_event_omits_description_when_no_stats(self, cog):
+    async def test_ended_event_without_stats_says_when_it_ended(self, cog):
         event = {
             "event_type": "Community Day",
             "name": "Test",
             "end": "2026-04-07 20:00:00",
             "image": None,
         }
+        cog.poliswag.event_manager.format_end_time = MagicMock(
+            return_value="Terminou às 20:00"
+        )
         embed = await cog._build_event_embed(event, is_ended=True)
-        assert embed.description in (None, "")
+        assert embed.description == "Terminou às 20:00"
+        assert cog.poliswag.event_manager.format_end_time.call_args.kwargs == {
+            "verb": "Terminou"
+        }
 
     async def test_started_event_with_image(self, cog):
         event = {
@@ -1340,17 +1349,16 @@ class TestEventDeliveryFailures:
         assert all(c.kwargs == {"is_end": False} for c in calls)
 
     async def test_plain_ended_messages_split_without_losing_events(self, cog):
-        events = [{**e, "name": e["name"] + "x" * 240} for e in self.events(20)]
+        events = self.events(20)
         channel = MagicMock(send=AsyncMock())
         await cog._send_event_change_notifications(
             channel, {"started": [], "ended": events}, acknowledge=True
         )
+        # A card per event, ten per message: every one delivered exactly once.
         embeds = [e for c in channel.send.await_args_list for e in c.kwargs["embeds"]]
-        assert len(embeds) > 1
-        assert all(len(e.description) <= 4096 for e in embeds)
-        assert all(
-            sum(ev["name"] in e.description for e in embeds) == 1 for ev in events
-        )
+        assert len(embeds) == len(events)
+        names = [e.title.partition(" ")[2] for e in embeds]  # "<emoji> <name>"
+        assert sorted(names) == sorted(ev["name"] for ev in events)
         assert [
             c.args[0]
             for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
