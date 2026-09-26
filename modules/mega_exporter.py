@@ -38,6 +38,48 @@ def _key_to_pokeapi_slugs(key: str, ndex: int) -> list[str]:
     return [f"{name}-mega", name, str(ndex)]
 
 
+# Largest side of a saved sprite. The site draws a Mega at up to 60px (the
+# Pokédex's Megas view), so 160 covers a 2.7x screen; the official artwork is
+# 475px, which made each file ~34KB where ~5KB does.
+SPRITE_PX = 160
+
+
+def _small(img):
+    """The artwork trimmed to what's drawn, square, at most SPRITE_PX a side."""
+    from PIL import Image
+
+    img = img.convert("RGBA")
+    box = img.getbbox()
+    if box:
+        img = img.crop(box)
+    side = max(img.size)
+    square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    square.paste(img, ((side - img.width) // 2, (side - img.height) // 2))
+    if side > SPRITE_PX:
+        square = square.resize((SPRITE_PX, SPRITE_PX), Image.LANCZOS)
+    return square
+
+
+def _shrink_existing(sprites_dir: Path) -> int:
+    """Shrink sprites saved before SPRITE_PX existed. Returns how many."""
+    from PIL import Image
+
+    shrunk = 0
+    for path in sprites_dir.glob("*.webp"):
+        try:
+            with Image.open(path) as img:
+                if max(img.size) <= SPRITE_PX:
+                    continue
+                small = _small(img)
+            small.save(path, "WEBP", quality=80, method=6)
+            shrunk += 1
+        except Exception as e:
+            logging.warning(f"MegaExporter: could not shrink {path.name}: {e}")
+    if shrunk:
+        logging.info(f"MegaExporter: shrank {shrunk} sprite(s) to {SPRITE_PX}px")
+    return shrunk
+
+
 def _fetch_webp(key: str, ndex: int, dest: Path) -> bool:
     """Fetch official artwork from PokeAPI and save as WebP. Returns True on success."""
     for slug in _key_to_pokeapi_slugs(key, ndex):
@@ -57,8 +99,8 @@ def _fetch_webp(key: str, ndex: int, dest: Path) -> bool:
             img_bytes = requests.get(url, timeout=15).content
             from PIL import Image
 
-            img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
-            img.save(dest, "WEBP", quality=85)
+            img = _small(Image.open(io.BytesIO(img_bytes)))
+            img.save(dest, "WEBP", quality=80, method=6)
             logging.info(
                 f"MegaExporter: sprite {key} saved via {slug} ({dest.stat().st_size}b)"
             )
@@ -143,6 +185,7 @@ class MegaExporter:
 
         # Download sprites for any new entries
         self.sprites_dir.mkdir(parents=True, exist_ok=True)
+        _shrink_existing(self.sprites_dir)
         missing = [
             e
             for e in entries
