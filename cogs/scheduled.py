@@ -11,6 +11,7 @@ from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules import site_health, tracking_health
+from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
@@ -514,8 +515,9 @@ class Scheduled(commands.Cog):
             for name, value in summary.areas:
                 embed.add_field(name=name, value=value, inline=True)
             embed.set_footer(text=summary.note)
-        if event.get("image"):
-            embed.set_thumbnail(url=event["image"])
+        image = await usable_image(event.get("image"))
+        if image:
+            embed.set_thumbnail(url=image)
         return embed
 
     async def _check_workers(self):
