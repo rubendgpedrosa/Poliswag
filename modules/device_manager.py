@@ -269,8 +269,7 @@ class DeviceManager(LoggingMixin):
         self._log("Device offline — no auto-reboot, alerting for manual action", "INFO")
         await self._notify(
             f"⚠️ Telemóvel do scanner offline há "
-            f"**{int(offline_duration // 60)} min** — precisa de intervenção manual "
-            f"(o Poliswag não o reinicia sozinho)."
+            f"**{int(offline_duration // 60)} min** — precisa de intervenção manual."
         )
         return True
 
