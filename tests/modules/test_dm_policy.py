@@ -6,7 +6,7 @@ author id — which a DM satisfies just as well as the mod channel does.
 These pin down who Poliswag still answers once the channel is gone.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -120,3 +120,55 @@ def test_exemption_names_the_real_pokedex_cog():
     from modules.dm_policy import DM_EXEMPT_COGS
 
     assert Pokedex.__cog_name__ in DM_EXEMPT_COGS
+
+
+class TestBareMention:
+    """A mention on its own answers like !help, through the same DM gate."""
+
+    @staticmethod
+    def _bot(ctx):
+        import main
+
+        bot = MagicMock()
+        bot.user.id = 42
+        bot.get_context = AsyncMock(return_value=ctx)
+        bot.invoke = AsyncMock()
+        bot._is_bare_mention = lambda m: main.Poliswag._is_bare_mention(bot, m)
+        return bot, main.Poliswag.process_commands
+
+    @staticmethod
+    def _message(content):
+        message = MagicMock()
+        message.author.bot = False
+        message.content = content
+        return message
+
+    @pytest.mark.parametrize("content", ["<@42>", " <@!42> "])
+    async def test_bare_mention_sends_help(self, content, mocker):
+        mocker.patch("main.may_run_in_dm", return_value=True)
+        ctx = MagicMock(command=None, send_help=AsyncMock())
+        bot, process = self._bot(ctx)
+
+        await process(bot, self._message(content))
+
+        ctx.send_help.assert_awaited_once_with()
+        bot.invoke.assert_not_awaited()
+
+    async def test_refused_dm_gets_nothing(self, mocker):
+        mocker.patch("main.may_run_in_dm", return_value=False)
+        ctx = MagicMock(command=None, send_help=AsyncMock())
+        bot, process = self._bot(ctx)
+
+        await process(bot, self._message("<@42>"))
+
+        ctx.send_help.assert_not_awaited()
+
+    @pytest.mark.parametrize("content", ["<@42> olá", "<@7>", "!help"])
+    async def test_anything_else_is_not_a_bare_mention(self, content, mocker):
+        mocker.patch("main.may_run_in_dm", return_value=True)
+        ctx = MagicMock(command=None, send_help=AsyncMock())
+        bot, process = self._bot(ctx)
+
+        await process(bot, self._message(content))
+
+        ctx.send_help.assert_not_awaited()
