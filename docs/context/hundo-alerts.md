@@ -47,3 +47,4 @@ will accept the next spawn DM. No UI state claims exactly-once delivery.
 Verified with durable restart/fault tests, real SQL atomic claims and retries,
 health freshness/guard tests, site action/component tests and the production build.
 No test DMs or subscription changes were needed for deployment.
+- **Stats:** `!stats` shows `100IV por DM: N ativos (Leiria · Marinha)` plus waiting/DMs-closed/unhealthy counts when non-zero — `TradeStats.collect_hundo` → `summarize_hundo`, counted with `is_active`/`collects_hundo` so it matches the worker.
