@@ -238,6 +238,17 @@ class Scheduled(commands.Cog):
             self._check_trade_digest,
         ):
             await self._run_tick_step(step)
+        self._write_heartbeat()
+
+    def _write_heartbeat(self):
+        """Proof for the host watchdog (scripts/watchdog.sh) that ticks still run."""
+        try:
+            with open(Config.HEARTBEAT_FILE, "w") as f:
+                f.write(datetime.datetime.utcnow().isoformat())
+        except OSError as e:
+            self.poliswag.utility.log_to_file(
+                f"Could not write heartbeat: {e}", "ERROR"
+            )
 
     @scheduled_tasks.before_loop
     async def before_scheduled_tasks(self):
