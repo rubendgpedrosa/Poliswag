@@ -1,3 +1,5 @@
+import io
+
 import discord
 from discord.ext import commands
 
@@ -5,6 +7,8 @@ from modules.config import Config
 from modules.embeds import status_embed
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+# What a bot may upload per file without a server boost.
+_MAX_REUPLOAD_BYTES = 10 * 1024 * 1024
 
 # Bots that hit the trap channel almost always blasted the same spam into
 # every other channel too. A ban (unlike a kick) can purge a member's recent
@@ -140,10 +144,13 @@ class Moderation(commands.Cog):
     async def on_message_delete(self, message):
         mod_channel = self.poliswag.MOD_CHANNEL
         quest_channel = self.poliswag.QUEST_CHANNEL
+        trap = self.poliswag.TRAP_CHANNEL
         if (
             mod_channel is None
             or quest_channel is None
             or message.channel.id in [mod_channel.id, quest_channel.id]
+            # Trap deletions get their own report from on_message.
+            or (trap is not None and message.channel.id == trap.id)
             or str(message.author.id) in self.poliswag.ADMIN_USERS_IDS
             or message.author == self.poliswag.user
         ):
@@ -151,8 +158,11 @@ class Moderation(commands.Cog):
 
         # Commands like !trades delete their own invocation (the code must not
         # sit beside a visible !trades). That is the bot tidying up, not a
-        # removal worth reporting.
-        if (await self.poliswag.get_context(message)).valid:
+        # removal worth reporting. A bare @Poliswag (answered like !help) is
+        # no valid command, so it needs its own check.
+        if (
+            await self.poliswag.get_context(message)
+        ).valid or self.poliswag._is_bare_mention(message):
             return
 
         embed = status_embed(f"[{message.channel}] Mensagem removida", color=0x7B83B4)
@@ -162,23 +172,38 @@ class Moderation(commands.Cog):
             inline=False,
         )
 
-        image_attachment = next(
-            (a for a in message.attachments if _is_image_attachment(a)), None
-        )
-        if image_attachment:
-            embed.set_image(url=image_attachment.url)
-
-        other_attachments = [
-            a for a in message.attachments if a is not image_attachment
-        ]
-        if other_attachments:
-            embed.add_field(
-                name="Anexos",
-                value="\n".join(f"[{a.filename}]({a.url})" for a in other_attachments),
-                inline=False,
+        # A deleted message's attachment URLs stop serving almost at once, so
+        # linking them shows a broken image. Read each from Discord's media
+        # cache (proxy_url) while it still answers and upload our own copy.
+        files, lost = [], []
+        for attachment in message.attachments:
+            if attachment.size > _MAX_REUPLOAD_BYTES:
+                lost.append(attachment)
+                continue
+            try:
+                data = await attachment.read(use_cached=True)
+            except discord.HTTPException:
+                lost.append(attachment)
+                continue
+            files.append(
+                (
+                    attachment,
+                    discord.File(io.BytesIO(data), filename=attachment.filename),
+                )
             )
 
-        await self.poliswag.utility.send_embed_to_channel(mod_channel, embed)
+        image = next((f for a, f in files if _is_image_attachment(a)), None)
+        if image:
+            embed.set_image(url=f"attachment://{image.filename}")
+
+        others = [f"📎 {f.filename}" for _, f in files if f is not image]
+        others += [f"❌ {a.filename} (não recuperado)" for a in lost]
+        if others:
+            embed.add_field(name="Anexos", value="\n".join(others)[:1024], inline=False)
+
+        await self.poliswag.utility.send_embed_to_channel(
+            mod_channel, embed, files=[f for _, f in files]
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message):
