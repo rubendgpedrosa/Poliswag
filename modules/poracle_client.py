@@ -65,9 +65,10 @@ class PoracleClient(LoggingMixin):
                     return await resp.json()
                 text = await resp.text()
                 return text if text else None
-        except aiohttp.ClientError as e:
-            self._log(f"Poracle {method} {path} failed: {e}")
-            raise PoracleError(str(e)) from e
+        except (aiohttp.ClientError, TimeoutError) as e:
+            detail = str(e) or type(e).__name__
+            self._log(f"Poracle {method} {path} failed: {detail}")
+            raise PoracleError(detail) from e
 
     # ---- Humans (channels and users) -----------------------------------------
 
@@ -143,6 +144,9 @@ class PoracleClient(LoggingMixin):
         )
 
     # ---- Misc ---------------------------------------------------------------
+
+    async def health(self) -> None:
+        await self._request("GET", "/health", timeout=5)
 
     async def reload(self) -> None:
         await self._request("POST", "/api/reload")
