@@ -12,3 +12,8 @@ skills-lock.json
 
 logs/
 data/
+
+# Regenerated with current timestamps by mock_data/refresh.py (tests/conftest.py
+# runs it before every session); tracked, they left the tree dirty after each run.
+mock_data/scanner_status.json
+mock_data/device_status.json
