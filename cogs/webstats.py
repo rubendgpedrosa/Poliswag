@@ -203,6 +203,13 @@ class WebStats(commands.Cog, LoggingMixin):
                 self._log(
                     f"[WEBSTATS] trade stats failed: {type(error).__name__}", "ERROR"
                 )
+            try:
+                hundo = await self.trade_stats.collect_hundo()
+                trade_stats = {**(trade_stats or {}), "hundo": hundo}
+            except Exception as error:
+                self._log(
+                    f"[WEBSTATS] 100IV stats failed: {type(error).__name__}", "ERROR"
+                )
         return stats, trade_stats
 
     async def _clear_invocation(self, ctx):

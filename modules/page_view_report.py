@@ -46,6 +46,25 @@ def source(value):
     return "direto/desconhecido"
 
 
+def hundo_line(hundo):
+    """Players with 100IV DMs on, and whatever stands between the rest and
+    their alerts; the extras only when there is something to say."""
+    line = (
+        f"**100IV por DM:** {hundo['active']} ativos "
+        f"(Leiria {hundo['leiria']} · Marinha {hundo['marinha']})"
+    )
+    extras = [
+        f"{hundo[key]} {label}"
+        for key, label in (
+            ("waiting", "à espera de confirmação"),
+            ("dms_closed", "com DMs fechadas"),
+            ("unhealthy", "sem alertas a chegar"),
+        )
+        if hundo.get(key)
+    ]
+    return line + (" · " + " · ".join(extras) if extras else "")
+
+
 def build_snapshot_embed(stats, trade_stats=None, report_url=None):
     """A short operational snapshot for Discord; the link carries the detail."""
     daily = stats.get("daily") or []
@@ -64,11 +83,14 @@ def build_snapshot_embed(stats, trade_stats=None, report_url=None):
         # db/012 moves old rows, and a day's report can straddle it.
         f"Pokédex {sum(pages.get(v, 0) for v in ('pokedex', 'trades', 'dex'))}",
     ]
-    if trade_stats:
+    if trade_stats and "entries" in trade_stats:
         lines.append(
             f"**Novas entradas nas trades:** {number(trade_stats.get('entries'))} Pokémon "
             f"({number(trade_stats.get('users'))} utilizadores)"
         )
+    hundo = (trade_stats or {}).get("hundo")
+    if hundo is not None:
+        lines.append(hundo_line(hundo))
     if report_url:
         lines.append(f"\n[Abrir o relatório completo]({report_url})")
     return build_embed(
