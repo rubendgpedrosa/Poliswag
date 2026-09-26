@@ -113,3 +113,21 @@ def test_export_serialises_dates_and_decimals_rather_than_failing():
         "2026"
     )
     assert out["daily"][0]["views"] == 15
+
+
+def test_snapshot_shows_100iv_line_only_when_collected():
+    hundo = {"active": 3, "leiria": 2, "marinha": 1}
+    with_hundo = description(build_snapshot_embed(stats(), {"hundo": hundo}))
+    assert "**100IV por DM:** 3 ativos (Leiria 2 · Marinha 1)" in with_hundo
+    assert "Novas entradas" not in with_hundo  # trades failed, 100IV didn't
+    assert "100IV" not in description(build_snapshot_embed(stats()))
+
+
+def test_100iv_line_names_only_the_problems_there_are():
+    from modules.page_view_report import hundo_line
+
+    base = {"active": 1, "leiria": 1, "marinha": 0}
+    assert hundo_line(base) == "**100IV por DM:** 1 ativos (Leiria 1 · Marinha 0)"
+    line = hundo_line({**base, "waiting": 2, "dms_closed": 0, "unhealthy": 1})
+    assert line.endswith("· 2 à espera de confirmação · 1 sem alertas a chegar")
+    assert "DMs fechadas" not in line
