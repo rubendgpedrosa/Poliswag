@@ -10,7 +10,7 @@ from modules.embeds import build_embed, status_embed
 from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
-from modules import tracking_health
+from modules import site_health, tracking_health
 from modules.hundo_alerts import HundoAlerts
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
@@ -34,6 +34,7 @@ class Scheduled(commands.Cog):
         self._last_lure_status_count = None
         self._tracking = tracking_health.TrackingHealth()
         self._last_tracking_alert_at = None
+        self._site_health = site_health.SiteHealth()
         # False until the first successful write to poliswag.pokemon_name.
         # The masterfile is loaded before this cog exists, so without the
         # flag the table would stay empty until the next 24h reload.
@@ -230,6 +231,7 @@ class Scheduled(commands.Cog):
             self._check_weekly_digest,
             self._check_daily_error_digest,
             self._check_tracking_health,
+            self._check_site_health,
             self._trade_announcer.tick,
             self._trade_dm.tick,
             self._hundo_alerts.tick,
@@ -694,6 +696,27 @@ class Scheduled(commands.Cog):
 
         self._last_tracking_alert_at = now if action == "alert" else None
         await self._save_tracking_alert_at(self._last_tracking_alert_at)
+
+    async def _check_site_health(self):
+        """DM MY_ID when pogoleiria.pt or one of its apps stops answering."""
+        if not Config.MY_ID or not Config.IS_PRODUCTION:
+            return
+
+        results = await self._site_health.probe_all()
+        actions = self._site_health.record(results, datetime.datetime.utcnow())
+        if not actions:
+            return
+
+        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
+            Config.MY_ID
+        )
+        text = "\n".join(site_health.message(*action) for action in actions)
+        try:
+            await user.send(text)
+        except discord.HTTPException:
+            self.poliswag.utility.log_to_file(
+                f"Could not DM the site-health alert: {text}", "ERROR"
+            )
 
     async def _load_tracking_alert_at(self):
         try:

@@ -334,6 +334,7 @@ class TestHundoAlertsStep:
             "_check_weekly_digest",
             "_check_daily_error_digest",
             "_check_tracking_health",
+            "_check_site_health",
             "_check_trade_digest",
         ):
             setattr(cog, name, AsyncMock())
