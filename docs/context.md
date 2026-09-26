@@ -21,6 +21,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` | Quest lookup on `pokestop`; Marinha = lon ≤ `MARINHA_LON_MAX` (−8.9). |
 | `quest_exporter.py` | Writes `quests.json` for the PWA; skips unchanged content (md5). |
+| `event_images.py` | `usable_image(url)`: HEAD-checks a card's thumbnail before posting; a 404 `-default.jpg` placeholder misfiled under an article folder falls back to `cdn.leekduck.com/assets/img/events/<file>`, other dead links are dropped, a failed check keeps the URL. |
 | `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |

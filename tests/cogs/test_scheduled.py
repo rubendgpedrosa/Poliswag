@@ -32,12 +32,19 @@ SUMMARY = Summary(
 
 @pytest.fixture(autouse=True)
 def _no_real_side_effects(monkeypatch, tmp_path):
-    """Ticks here must not touch the live heartbeat or probe the real site."""
+    """Ticks here must not touch the live heartbeat, the real site or the CDN."""
     from modules.config import Config
     from modules.site_health import SiteHealth
 
     monkeypatch.setattr(Config, "HEARTBEAT_FILE", str(tmp_path / "heartbeat"))
     monkeypatch.setattr(SiteHealth, "probe_all", AsyncMock(return_value={}))
+
+    async def image_as_is(url):
+        return url
+
+    # Cards check their picture over HTTP; tests/modules/test_event_images.py
+    # covers that. Here every image is taken as it is.
+    monkeypatch.setattr("cogs.scheduled.usable_image", image_as_is)
 
 
 def _make_poliswag():
