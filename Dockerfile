@@ -28,7 +28,8 @@ WORKDIR /app
 # Installs dev tooling (pytest, black, vulture) too so make test/make check
 # work in every environment, prod included, without an ad hoc pip install.
 COPY requirements.txt requirements-dev.txt .
-RUN pip install -r requirements-dev.txt
+# The base image's pip/setuptools carry known advisories (pip-audit, 2026-09-26).
+RUN pip install --upgrade pip setuptools && pip install -r requirements-dev.txt
 
 # Copy the rest of the source (overridden at runtime by the .:/app bind mount)
 COPY . /app
