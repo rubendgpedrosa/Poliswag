@@ -487,6 +487,7 @@ def sender(players):
     bot = MagicMock()
     bot.quest_search.masterfile_data = {"pokemon": {"19": {"defaultFormId": 45}}}
     bot.poracle.reload = AsyncMock()
+    bot.poracle.health = AsyncMock()
     bot.poracle.create_user = AsyncMock()
     bot.get_user.return_value.send = AsyncMock()
     bot.fetch_user = AsyncMock(return_value=bot.get_user.return_value)
@@ -497,6 +498,16 @@ def sender(players):
     alerts._sync_player = MagicMock(return_value=False)
     alerts._record = MagicMock(return_value=True)
     alerts._missing_count = MagicMock(return_value=1499)
+    alerts._record_health = MagicMock()
+
+    async def deliver(row, embed):
+        user = bot.get_user(int(row["discord_id"]))
+        if user is None:
+            user = await bot.fetch_user(int(row["discord_id"]))
+        await user.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        return True
+
+    alerts._deliver_confirmation = deliver
     return alerts, bot
 
 
@@ -588,12 +599,16 @@ async def test_stopped_user_is_never_reenabled(patch):
 async def test_failed_reload_is_retried_without_new_changes():
     alerts, bot = sender([])
     alerts._cleanup.side_effect = [True, False, False, False]
-    bot.poracle.reload.side_effect = [RuntimeError("unavailable"), None]
+    bot.poracle.reload.side_effect = [
+        RuntimeError("unavailable"),
+        RuntimeError("still down"),
+        None,
+    ]
     await alerts.tick()
     assert alerts._reload_pending
     await alerts.tick()
     assert not alerts._reload_pending
-    assert bot.poracle.reload.await_count == 2
+    assert bot.poracle.reload.await_count == 3
 
 
 async def test_player_failure_does_not_prevent_committed_cleanup_reload():
@@ -602,7 +617,7 @@ async def test_player_failure_does_not_prevent_committed_cleanup_reload():
     alerts._sync_player.side_effect = [RuntimeError("insert failed"), True]
     await alerts.tick()
     assert alerts._sync_player.call_count == 2
-    bot.poracle.reload.assert_awaited_once()
+    assert bot.poracle.reload.await_count == 2  # removals first, then new rules
 
 
 async def test_read_failure_still_runs_final_cleanup_and_pending_reload():
@@ -711,7 +726,9 @@ async def test_unchanged_tick_does_not_reload():
 async def test_off_confirmation_and_cleanup():
     alerts, bot = sender([player(hundo_dms=0, hundo_settings_revision=2)])
     await alerts.tick()
-    assert "desligados" in bot.get_user.return_value.send.call_args.args[0]
+    assert (
+        "desligados" in bot.get_user.return_value.send.call_args.kwargs["embed"].title
+    )
     alerts._record.assert_called_once_with(1, 2, delivered=True, settings=ANY)
     alerts._sync_player.assert_not_called()
     assert alerts._cleanup.call_count == 2
@@ -777,6 +794,7 @@ async def test_unchanged_player_is_not_rebuilt_every_tick():
     [
         {"hundo_ticks": 4},  # a tick or an untick
         {"hundo_ticked_at": "t2"},  # untick one, tick another
+        {"hundo_tiles_fingerprint": 123},  # same-second swap, same count/time
         {"hundo_settings_revision": 2, "hundo_confirmed_revision": 2},
         {"show_costumes": 0},
     ],
@@ -846,8 +864,11 @@ async def test_real_change_dm_says_what_changed_and_stores_it():
     row = settled(hundo_areas="leiria,marinha")
     alerts, bot = sender([row])
     await alerts.tick()
-    text = bot.get_user.return_value.send.call_args.args[0]
-    assert text.startswith("📍 **Começaste a seguir também Marinha Grande.**")
+    embed = bot.get_user.return_value.send.call_args.kwargs["embed"]
+    assert embed.title == "📍 Começaste a seguir também Marinha Grande."
+    assert "Marinha Grande" in embed.description
+    assert "pogoleiria.pt/pokedex" in embed.footer.text
+    assert not bot.get_user.return_value.send.call_args.args
     alerts._record.assert_called_once_with(
         1, 3, delivered=True, settings=(1, "leiria,marinha")
     )
@@ -858,7 +879,10 @@ async def test_switch_on_dm_carries_the_missing_count():
         [player(hundo_settings_revision=2, hundo_confirmed_setting=None)]
     )
     await alerts.tick()
-    assert "Faltam-te 1\u00a0499" in bot.get_user.return_value.send.call_args.args[0]
+    assert (
+        "Faltam-te 1\u00a0499"
+        in bot.get_user.return_value.send.call_args.kwargs["embed"].description
+    )
 
 
 async def test_count_failure_still_confirms():
@@ -867,8 +891,8 @@ async def test_count_failure_still_confirms():
     )
     alerts._missing_count.side_effect = RuntimeError("db down")
     await alerts.tick()
-    text = bot.get_user.return_value.send.call_args.args[0]
-    assert text.startswith("💯") and "Faltam-te" not in text
+    embed = bot.get_user.return_value.send.call_args.kwargs["embed"]
+    assert embed.title.startswith("💯") and "Faltam-te" not in embed.description
     alerts._record.assert_called_once()
 
 
@@ -890,3 +914,85 @@ async def test_undo_is_acknowledged_even_inside_the_quiet_period():
     await alerts.tick()
     bot.get_user.return_value.send.assert_not_awaited()
     alerts._record.assert_called_once()
+
+
+@pytest.mark.parametrize("refused", [False, True])
+async def test_acknowledgement_failure_retries_database_without_resending_dm(refused):
+    row = player(hundo_settings_revision=2)
+    alerts, bot = sender([row])
+    if refused:
+        bot.get_user.return_value.send.side_effect = discord.Forbidden(
+            MagicMock(status=403), "closed"
+        )
+    alerts._record.side_effect = [RuntimeError("database down"), True]
+    await alerts.tick()
+    await alerts.tick()
+    bot.get_user.return_value.send.assert_awaited_once()
+    assert alerts._record.call_count == 2
+    assert alerts._record.call_args.kwargs["delivered"] is not refused
+
+
+async def test_failed_acknowledgement_does_not_hide_a_new_settings_revision():
+    alerts, bot = sender([player(hundo_settings_revision=2)])
+    alerts._record.side_effect = [RuntimeError("database down"), True]
+    await alerts.tick()
+    alerts._read_players.return_value = [
+        player(hundo_settings_revision=3, hundo_areas="leiria")
+    ]
+    await alerts.tick()
+    assert bot.get_user.return_value.send.await_count == 2
+    assert alerts._record.call_args.args == (1, 3)
+
+
+async def test_recreated_human_rebuilds_even_with_an_unchanged_signature():
+    alerts, bot = sender([player()])
+    await alerts.tick()
+    alerts._human.side_effect = [None, human()]
+    await alerts.tick()
+    assert alerts._sync_player.call_count == 2
+    bot.poracle.create_user.assert_awaited_once()
+
+
+async def test_cleanup_is_reloaded_before_sending_confirmations():
+    alerts, bot = sender([player(hundo_settings_revision=2)])
+    alerts._cleanup.side_effect = [True, False]
+
+    async def send(**kwargs):
+        bot.poracle.reload.assert_awaited_once()
+
+    bot.get_user.return_value.send.side_effect = send
+    await alerts.tick()
+    alerts._record.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "human_patch,health",
+    [({}, "ready"), ({"enabled": 0}, "stopped"), ({"admin_disable": 1}, "stopped")],
+)
+async def test_health_reflects_actual_poracle_destination(human_patch, health):
+    alerts, _ = sender([player()])
+    alerts._human.return_value = human(**human_patch)
+    await alerts.tick()
+    assert alerts._record_health.call_args.args[1] == health
+
+
+async def test_unreachable_poracle_is_not_reported_healthy():
+    alerts, bot = sender([player()])
+    bot.poracle.health.side_effect = RuntimeError("offline")
+    await alerts.tick()
+    assert alerts._record_health.call_args.args[1] == "unavailable"
+
+
+async def test_failed_sync_is_not_reported_healthy():
+    alerts, _ = sender([player()])
+    alerts._sync_player.side_effect = RuntimeError("DB down")
+    await alerts.tick()
+    assert alerts._record_health.call_args.args[1] == "error"
+
+
+async def test_uncertain_confirmation_is_not_acknowledged_or_activated():
+    alerts, _ = sender([player(hundo_settings_revision=2)])
+    alerts._deliver_confirmation = AsyncMock(return_value=None)
+    await alerts.tick()
+    alerts._record.assert_not_called()
+    alerts._sync_player.assert_not_called()
