@@ -41,13 +41,13 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `tracker.py` | `!track`, `!untrack`, `!tracklist`, `!untrackall`, `!tracked` | admin-only (`cog_check`) |
 | `event.py` | `!eventtypes`, `!exclude`, `!include`, `!excludedlist`, `!excludeclear` | admin-only |
 | `notifications.py` | `!notify channels\|list\|add\|remove\|enable\|disable\|register\|test` | admin-only |
-| `accounts.py` | `!accounts` | open |
+| `accounts.py` | `!accounts` | `MY_ID` only (`cog_check`) |
 | `container_manager.py` | `!container start\|stop`, `!status` | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete`, trap channel (see `moderation.md`) | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
-| `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | admin-only (`cog_check`) |
-| `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings | admin-only (`cog_check`) |
+| `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | `MY_ID` only (`cog_check`) |
+| `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
 
 ## Databases — detail in `docs/context/database.md`
 
@@ -96,6 +96,7 @@ LOG_FILE, ERROR_LOG_FILE
 
 - All modules receive `poliswag` (the bot instance) and access services via `self.poliswag.<module>`.
 - Admin guard: `str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS` or `cog_check`.
+- Three audiences: members, mods (`ADMIN_USERS_IDS`), owner (`MY_ID`), via `modules/permissions.py` (`is_mod`/`is_owner`; `mods_only()`/`owner_only()` for single commands). `!help` (`modules/help_command.py`) sections by the same gates: `_OWNER_COGS`, any `cog_check` (mods), or those predicates in `command.checks`. A command gated only inside its body shows to members — add the decorator. `!help` deletes its command message (in `prepare_help_command`). A bare `@Poliswag` mention answers like `!help` (`Poliswag.process_commands`, same DM gate).
 - `!notify` **ref** resolution: `#mention` → raw id → exact name → `%-<suffix>` LIKE; category suffixes (`raros`, `100iv`, `0iv`, `uteis`) fan out to `leiria-<suffix>` and `marinha-<suffix>`.
 - `_PAIRED_PREFIXES = ("leiria-", "marinha-")` drives fan-out logic in `notifications.py`.
 - Embed color: `Config.EMBED_COLOR = 0x4169E1`.

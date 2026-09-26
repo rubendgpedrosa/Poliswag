@@ -141,7 +141,8 @@ class EventPanel(commands.Cog):
         print(f"{self.__class__.__name__} unloaded!")
 
     def cog_check(self, ctx):
-        return str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS
+        # MY_ID only: every run pings the whole server.
+        return str(ctx.author.id) == str(Config.MY_ID)
 
     def _preflight(self):
         """Returns (role, channel, error). A role that outranks Poliswag is

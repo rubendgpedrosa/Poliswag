@@ -3,6 +3,7 @@ import io
 from discord.ext import commands
 
 from modules.embeds import status_embed
+from modules.permissions import is_owner
 
 
 class Accounts(commands.Cog):
@@ -14,6 +15,9 @@ class Accounts(commands.Cog):
 
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
+
+    def cog_check(self, ctx):
+        return is_owner(ctx)
 
     @commands.command(
         name="accounts", brief="Gera imagem do atual número de contas do mapa"
