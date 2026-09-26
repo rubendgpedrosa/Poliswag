@@ -314,3 +314,45 @@ class TestNotify:
             "Title", "Description", discord.Color.red()
         )  # must not raise
         stack_recovery.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestRecoveredAnnouncement:
+    async def test_green_after_a_rung_tells_the_mods(self, stack_recovery, mocker):
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        stack_recovery._notify = AsyncMock()
+        _at(mocker, 1_000)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 600)
+        await stack_recovery.observe(True)  # containers rung
+        _at(mocker, 1_000 + 900)
+
+        await stack_recovery.observe(False)
+
+        title, description, color = stack_recovery._notify.await_args_list[-1].args
+        assert "de volta" in title
+        assert "15 min" in description and "recriar containers" in description
+        assert color == discord.Color.green()
+        assert stack_recovery._recovery_attempts == 0
+
+    async def test_green_before_any_rung_stays_quiet(self, stack_recovery, mocker):
+        stack_recovery._notify = AsyncMock()
+        _at(mocker, 1_000)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 300)
+
+        await stack_recovery.observe(False)
+
+        stack_recovery._notify.assert_not_awaited()
+
+    async def test_status_unavailable_is_not_recovery(self, stack_recovery, mocker):
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        stack_recovery._notify = AsyncMock()
+        _at(mocker, 1_000)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 600)
+        await stack_recovery.observe(True)
+        stack_recovery._notify.reset_mock()
+
+        await stack_recovery.observe(None)
+
+        stack_recovery._notify.assert_not_awaited()
