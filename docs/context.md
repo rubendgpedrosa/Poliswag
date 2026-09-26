@@ -24,6 +24,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
+| `site_health.py` | Probes pogoleiria.pt + landing/quests/Pokédex ports (`SITE_HEALTH_HOST`) every tick; DMs `MY_ID` after 3 failures in a row, every 6h while down, and on recovery. Production only. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward`. |
