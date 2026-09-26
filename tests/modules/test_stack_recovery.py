@@ -12,6 +12,7 @@ def stack_recovery(mocker):
     sr = StackRecovery(poliswag=MagicMock())
     sr.poliswag.MOD_CHANNEL = None
     sr.poliswag.device_manager.restart_scanner_apps = AsyncMock(return_value=True)
+    mocker.patch("modules.stack_recovery.asyncio.sleep", new=AsyncMock())
     mocker.patch.object(
         sr, "get_auto_recreate_enabled", new=AsyncMock(return_value=True)
     )
@@ -74,9 +75,9 @@ class TestAutoRecreateEnabledCache:
 
 
 class TestObserve:
-    """Red ladder: containers at 10 min, device apps at 30 min, then stop.
+    """Red ladder: containers + phone apps at 10 min, again at 30 min, then stop.
 
-    Both rungs are timed from the start of the red episode, and no rung ever
+    Both attempts are timed from the start of the red episode, and none ever
     reboots the device.
     """
 
@@ -121,8 +122,10 @@ class TestObserve:
         assert await stack_recovery.observe(True) is True
 
         stack_recovery.recreate_services.assert_awaited_once()
+        # the phone is restarted in the same attempt, not 20 min later
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
         assert stack_recovery._recovery_attempts == 1
-        # episode stays armed — the device rung can still fire at 30 min
+        # episode stays armed — the second attempt can still fire at 30 min
         assert stack_recovery._red_since == 10_000 - 600
 
     async def test_first_attempt_not_yet_due(self, stack_recovery, mocker):
@@ -145,18 +148,15 @@ class TestObserve:
         stack_recovery.recreate_services.assert_not_called()
         stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
 
-    async def test_second_attempt_restarts_device_apps_at_30min(
-        self, stack_recovery, mocker
-    ):
+    async def test_second_attempt_repeats_both_at_30min(self, stack_recovery, mocker):
         _at(mocker, 10_000)
         stack_recovery._red_since = 10_000 - 1800  # 30 min red
         stack_recovery._recovery_attempts = 1
-        stack_recovery.recreate_services = AsyncMock()
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
 
         assert await stack_recovery.observe(True) is True
 
-        # the second rung reaches the phone, it does not recreate again
-        stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.recreate_services.assert_awaited_once()
         stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
         assert stack_recovery._recovery_attempts == 2
 
@@ -166,6 +166,7 @@ class TestObserve:
         _at(mocker, 10_000)
         stack_recovery._red_since = 10_000 - 1800
         stack_recovery._recovery_attempts = 1
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
         stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
             return_value=False
         )
@@ -207,6 +208,8 @@ class TestObserve:
         stack_recovery._red_since = 10_000 - 600
         stack_recovery.recreate_services = AsyncMock(return_value=False)
         assert await stack_recovery.observe(True) is False
+        # the phone is still tried when the containers fail
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
         # attempt is consumed even on failure, so it doesn't retry every tick
         assert stack_recovery._recovery_attempts == 1
         assert stack_recovery._red_since == 10_000 - 600
@@ -329,8 +332,8 @@ class TestRecoveredAnnouncement:
         await stack_recovery.observe(False)
 
         title, description, color = stack_recovery._notify.await_args_list[-1].args
-        assert "de volta" in title
-        assert "15 min" in description and "recriar os containers" in description
+        assert title == "🟢 Mapa de volta"
+        assert "15 min" in description
         assert color == discord.Color.green()
         assert stack_recovery._recovery_attempts == 0
 
@@ -359,9 +362,9 @@ class TestRecoveredAnnouncement:
 
 
 class TestDownWording:
-    """What the mods read: the map is down, for how long, what was done, what's next."""
+    """Mods read the state (down, for how long, what's next), not the mechanics."""
 
-    async def test_first_rung_says_done_and_whats_next(self, stack_recovery, mocker):
+    async def test_first_attempt(self, stack_recovery, mocker):
         stack_recovery.recreate_services = AsyncMock(return_value=True)
         stack_recovery._notify = AsyncMock()
         _at(mocker, 1_000)
@@ -371,12 +374,11 @@ class TestDownWording:
 
         title, description, color = stack_recovery._notify.await_args.args
         assert title == "🔴 Mapa em baixo há 10 min"
-        assert "Containers do scanner recriados" in description
-        assert "daqui a **20 min**: reiniciar Pokémon GO" in description
-        assert "Contas" not in description
+        assert "nova tentativa daqui a **20 min**" in description
+        assert "container" not in description.lower()
         assert color == discord.Color.orange()
 
-    async def test_failed_last_rung_asks_for_a_human(self, stack_recovery, mocker):
+    async def test_failed_last_attempt_asks_for_a_human(self, stack_recovery, mocker):
         stack_recovery.recreate_services = AsyncMock(return_value=True)
         stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
             return_value=False
@@ -384,13 +386,11 @@ class TestDownWording:
         stack_recovery._notify = AsyncMock()
         _at(mocker, 1_000)
         await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 600)
-        await stack_recovery.observe(True)
         _at(mocker, 1_000 + 1800)
+        stack_recovery._recovery_attempts = 1
         await stack_recovery.observe(True)
 
         title, description, color = stack_recovery._notify.await_args.args
-        assert title == "🔴 Mapa em baixo há 30 min — recuperação falhou"
-        assert "Não foi possível reiniciar" in description
-        assert "intervir manualmente" in description
+        assert title == "🔴 Mapa em baixo há 30 min"
+        assert "deu erro" in description and "intervir manualmente" in description
         assert color == discord.Color.red()

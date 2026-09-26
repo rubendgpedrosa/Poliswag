@@ -11,41 +11,25 @@ from modules.logging_mixin import LoggingMixin
 
 
 class StackRecovery(LoggingMixin):
-    """Escalation ladder for a fully red map (every region all-workers-down).
+    """Recovery for a fully red map (every region all-workers-down).
 
-    Two rungs, both timed from the start of the red episode and each fired at
-    most once per episode:
+    Two attempts, timed from the start of the red episode (10 and 30 min),
+    each fired at most once per episode. Each attempt does the whole thing:
+    force-recreate the scanner containers (dragonite + rotom-ng), then
+    force-stop Pokémon GO + Pokémod on the phone and start Aegis's mapping
+    service again, so it reconnects to the fresh rotom. Until 2026-09-26 the
+    phone waited for the second attempt, and on 2026-09-25 that cost 20 min
+    of a map a phone restart fixed.
 
-    - 10 min: force-recreate the scanner containers (dragonite + rotom-ng)
-      via docker compose.
-    - 30 min: force-stop Pokémon GO + Pokémod on the device and start Aegis's
-      mapping service again. Recreating containers cannot fix a wedged MITM,
-      so the ladder has to reach the phone before it gives up.
-
-    After both rungs, recovery stops trying automatically and just waits — no
+    After both, recovery stops trying automatically and just waits — no
     device reboot is ever triggered. The db/golbat/map containers are
     deliberately left alone.
     """
 
-    # (seconds red before firing, rung) — ordered, one attempt each per episode.
-    RECOVERY_LADDER = (
-        (600, "containers"),
-        (1800, "device"),
-    )
-    # How each rung reads in the mod-channel posts: done, failed, and as the
-    # next step ("se continuar, em 20 min: ...").
-    RUNG_DONE = {
-        "containers": "Containers do scanner recriados (dragonite + rotom-ng).",
-        "device": "Pokémon GO + Pokémod reiniciados no telemóvel.",
-    }
-    RUNG_FAILED = {
-        "containers": "Não foi possível recriar os containers do scanner.",
-        "device": "Não foi possível reiniciar Pokémon GO + Pokémod no telemóvel.",
-    }
-    RUNG_NEXT = {
-        "containers": "recriar os containers do scanner",
-        "device": "reiniciar Pokémon GO + Pokémod no telemóvel",
-    }
+    # Seconds red before each attempt — ordered, one each per episode.
+    RECOVERY_LADDER = (600, 1800)
+    # Lets rotom-ng come up before the phone's apps try to reach it.
+    DEVICE_AFTER_CONTAINERS = 15
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
 
@@ -103,60 +87,53 @@ class StackRecovery(LoggingMixin):
             return False
 
         red_duration = now - self._red_since
-        threshold, rung = self.RECOVERY_LADDER[self._recovery_attempts]
-        if red_duration < threshold:
+        if red_duration < self.RECOVERY_LADDER[self._recovery_attempts]:
             return False
 
         self._recovery_attempts += 1
         attempt = self._recovery_attempts
         self._log(
-            f"Map fully red for {int(red_duration // 60)} min — running "
-            f"'{rung}' recovery (attempt {attempt}/{total})",
+            f"Map fully red for {int(red_duration // 60)} min — recreating "
+            f"containers and restarting the phone's apps (attempt {attempt}/{total})",
             "INFO",
         )
-        ok = await self._run_rung(rung)
-        await self._announce(rung, attempt, total, red_duration, ok)
+        ok = await self._recover()
+        await self._announce(attempt, total, red_duration, ok)
         return ok
 
-    async def _run_rung(self, rung: str) -> bool:
-        if rung == "containers":
-            return await self.recreate_services()
-        return await self.poliswag.device_manager.restart_scanner_apps()
-
-    def _minutes_to_next_rung(self, attempt: int, red_duration: float) -> int:
-        """Minutes from now until rung ``attempt`` (0-based) fires."""
-        return max(0, int((self.RECOVERY_LADDER[attempt][0] - red_duration) // 60))
+    async def _recover(self) -> bool:
+        """Containers, then the phone. The phone runs even if containers failed."""
+        containers_ok = await self.recreate_services()
+        await asyncio.sleep(self.DEVICE_AFTER_CONTAINERS)
+        device_ok = await self.poliswag.device_manager.restart_scanner_apps()
+        return containers_ok and device_ok
 
     async def _announce(
-        self, rung: str, attempt: int, total: int, red_duration: float, ok: bool
+        self, attempt: int, total: int, red_duration: float, ok: bool
     ) -> None:
-        minutes = int(red_duration // 60)
-        title = f"🔴 Mapa em baixo há {minutes} min"
-        what = self.RUNG_DONE[rung] if ok else self.RUNG_FAILED[rung]
+        # Mods need the state, not the mechanics: those are in the logs.
+        title = f"🔴 Mapa em baixo há {int(red_duration // 60)} min"
         if attempt >= total:
-            next_step = (
-                "Era a última tentativa automática: se continuar em baixo, "
-                "é preciso intervir manualmente."
+            description = (
+                "Última tentativa de recuperação automática feita. "
+                "Se não voltar, é preciso intervir manualmente."
             )
         else:
-            next_rung = self.RECOVERY_LADDER[attempt][1]
-            next_step = (
-                f"Se continuar, daqui a "
-                f"**{self._minutes_to_next_rung(attempt, red_duration)} min**: "
-                f"{self.RUNG_NEXT[next_rung]}."
+            minutes = max(0, int((self.RECOVERY_LADDER[attempt] - red_duration) // 60))
+            description = (
+                "Tentativa de recuperação automática feita. "
+                f"Se não voltar, nova tentativa daqui a **{minutes} min**."
             )
+        if not ok:
+            description = f"A recuperação automática deu erro.\n{description}"
         await self._notify(
-            title if ok else f"{title} — recuperação falhou",
-            f"Nenhuma zona tem workers ativos.\n{what}\n{next_step}",
-            discord.Color.orange() if ok else discord.Color.red(),
+            title, description, discord.Color.orange() if ok else discord.Color.red()
         )
 
     async def _announce_recovered(self, red_duration: float) -> None:
-        last_rung = self.RECOVERY_LADDER[self._recovery_attempts - 1][1]
         await self._notify(
             "🟢 Mapa de volta",
-            f"Voltou ao normal após **{int(red_duration // 60)} min** em baixo.\n"
-            f"Última ação automática: {self.RUNG_NEXT[last_rung]}.",
+            f"Voltou ao normal após **{int(red_duration // 60)} min** em baixo.",
             discord.Color.green(),
         )
 
