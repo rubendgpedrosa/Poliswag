@@ -18,6 +18,7 @@ import discord
 
 from modules.config import Config
 from modules.database_connector import connect
+from modules.hundo_confirmation import send_once
 
 TEMPLATE = "pokedex-100iv"
 
@@ -149,6 +150,18 @@ def confirmation_message(row, missing_count=None):
     return "\n".join([*lines, footer])
 
 
+def confirmation_embed(row, missing_count=None):
+    """One compact column for mobile, with the settings hint in the footer."""
+    lines = confirmation_message(row, missing_count).split("\n")
+    embed = discord.Embed(
+        title=lines[0].replace("**", ""),
+        description="\n".join(lines[1:-1]),
+        color=Config.EMBED_COLOR if row["hundo_dms"] == 1 else 0x747F8D,
+    )
+    embed.set_footer(text=lines[-1].removeprefix("-# "))
+    return embed
+
+
 def confirmation_due(row):
     """A new settings revision or explicit retry needs a confirmation attempt."""
     return row["hundo_settings_revision"] > max(
@@ -268,9 +281,9 @@ def rules_equal(current, wanted):
         return False
 
 
-# hundo_ticks/hundo_ticked_at are a cheap change marker for the player's
-# 100IV ticks (a tick adds a row, an untick removes one), so an unchanged
-# player's ~1500-row rebuild check can be skipped (HundoAlerts._unchanged).
+# Count/time alone miss a same-second swap of two collection tiles. Include
+# an order-independent 64-bit fingerprint of tile identities. The hourly full
+# resync remains a backstop for hash collisions and out-of-band rule edits.
 _PLAYERS_SQL = """
 SELECT p.discord_id, COALESCE(NULLIF(p.trainer_name, ''), p.display_name) AS display_name,
        p.collecting, p.show_costumes, p.left_at, p.hundo_dms, p.hundo_areas,
@@ -280,10 +293,13 @@ SELECT p.discord_id, COALESCE(NULLIF(p.trainer_name, ''), p.display_name) AS dis
        -- burst of taps gets one DM (or none, if it ends where it started).
        -- Same clock as the site's NOW(6) stamp; decides when, never whether.
        COALESCE(p.hundo_settings_at > NOW(6) - INTERVAL 30 SECOND, 0) AS hundo_settling,
-       COALESCE(t.ticks, 0) AS hundo_ticks, t.ticked_at AS hundo_ticked_at
+       COALESCE(t.ticks, 0) AS hundo_ticks, t.ticked_at AS hundo_ticked_at,
+       COALESCE(t.fingerprint, 0) AS hundo_tiles_fingerprint
 FROM trade_player p
 LEFT JOIN (
-    SELECT discord_id, COUNT(*) AS ticks, MAX(created_at) AS ticked_at
+    SELECT discord_id, COUNT(*) AS ticks, MAX(created_at) AS ticked_at,
+           BIT_XOR(CAST(CONV(SUBSTRING(SHA2(CONCAT(pokemon_id, ':', form_id), 256),
+                                     1, 16), 16, 10) AS UNSIGNED)) AS fingerprint
     FROM collection_entry WHERE category = 'hundo' GROUP BY discord_id
 ) t ON t.discord_id = p.discord_id
 WHERE p.hundo_dms = 1 OR p.hundo_settings_revision > 0
@@ -344,6 +360,7 @@ def _signature(row, profile_no, masterfile_date):
         row["show_costumes"],
         row.get("hundo_ticks"),
         str(row.get("hundo_ticked_at")),
+        row.get("hundo_tiles_fingerprint"),
         profile_no,
         masterfile_date,
     )
@@ -361,6 +378,11 @@ class HundoAlerts:
         # discord_id -> (signature, monotonic time) of the last sync that
         # left the player's rules matching; in memory only (a restart syncs).
         self._synced = {}
+        # Keep Discord outcomes until their DB acknowledgement succeeds. A DB
+        # outage must not cause the same confirmation to be sent every minute.
+        # Process-local: a crash between delivery and recording can still repeat.
+        self._pending_records = {}
+        self._health = {}
 
     def _log(self, message):
         self.poliswag.utility.log_to_file(f"[HUNDO] {message}")
@@ -386,9 +408,23 @@ class HundoAlerts:
             self._reload_pending = False
 
     async def tick(self):
+        players = []
+        self._health = {}
         try:
             await self._cleanup_rules()
+            # Publish removals before potentially slow Discord sends/rebuilds.
+            await self._reload_if_pending()
             players = await asyncio.to_thread(self._read_players)
+            pending_revisions = {
+                r["discord_id"]: r["hundo_settings_revision"]
+                for r in players
+                if confirmation_due(r)
+            }
+            self._pending_records = {
+                user_id: outcome
+                for user_id, outcome in self._pending_records.items()
+                if pending_revisions.get(user_id) == outcome[0]
+            }
             for row in players:
                 if not may_confirm(row) or not confirmation_due(row):
                     continue
@@ -415,6 +451,9 @@ class HundoAlerts:
             masterfile = getattr(self.poliswag.quest_search, "masterfile_data", None)
             pokemon = (masterfile or {}).get("pokemon")
             if not pokemon:
+                self._health.update(
+                    {r["discord_id"]: "error" for r in players if is_active(r)}
+                )
                 self._log("rule creation skipped: masterfile unavailable")
                 return
             forms = default_forms(pokemon)
@@ -428,13 +467,45 @@ class HundoAlerts:
         finally:
             await self._cleanup_rules()
             await self._reload_if_pending()
+            if players:
+                try:
+                    await self.poliswag.poracle.health()
+                    reachable = not self._reload_pending
+                except Exception as exc:
+                    reachable = False
+                    self._log(f"Poracle health check failed: {exc}")
+                for row in players:
+                    state = self._health.get(row["discord_id"], "pending")
+                    if state == "ready" and not reachable:
+                        state = "unavailable"
+                    try:
+                        await asyncio.to_thread(self._record_health, row, state)
+                    except Exception as exc:
+                        self._log(f"health recording failed: {exc}")
+
+    def _record_health(self, row, state):
+        with closing(connect(Config.DB_POGOLEIRIA, autocommit=True)) as db:
+            with db.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE trade_player SET hundo_health_revision = %s, "
+                    "hundo_health_state = %s, hundo_health_at = UTC_TIMESTAMP(6) "
+                    "WHERE discord_id = %s AND hundo_settings_revision = %s",
+                    (
+                        row["hundo_settings_revision"],
+                        state,
+                        row["discord_id"],
+                        row["hundo_settings_revision"],
+                    ),
+                )
 
     async def _sync_active(self, row, forms, masterfile_date=None):
         """One player's rules; a failure here leaves other players alone."""
         discord_id = row["discord_id"]
+        self._health[discord_id] = "error"
         try:
             human = await asyncio.to_thread(self._human, discord_id)
             if human is None:
+                self._synced.pop(discord_id, None)
                 await self.poliswag.poracle.create_user(
                     discord_id,
                     row["display_name"],
@@ -446,6 +517,7 @@ class HundoAlerts:
             if human["type"] != "discord:user":
                 raise ValueError("Existing Poracle human is not a Discord user")
             if not human["enabled"] or human["admin_disable"]:
+                self._health[discord_id] = "stopped"
                 # Stopped by the player (or an admin): never restart it.
                 if discord_id not in self._stopped_logged:
                     self._log(f"Poracle user {discord_id} is stopped")
@@ -455,6 +527,7 @@ class HundoAlerts:
             self._stopped_logged.discard(discord_id)
             signature = _signature(row, human["current_profile_no"], masterfile_date)
             if self._unchanged(discord_id, signature):
+                self._health[discord_id] = "ready"
                 return
             self._synced.pop(discord_id, None)
             changed = await asyncio.to_thread(
@@ -462,6 +535,7 @@ class HundoAlerts:
             )
             self._reload_pending |= changed
             self._synced[discord_id] = (signature, _monotonic())
+            self._health[discord_id] = "ready"
         except Exception as exc:
             self._log(f"rule sync for {discord_id} failed: {exc}")
 
@@ -474,31 +548,40 @@ class HundoAlerts:
         )
 
     async def _confirm(self, row):
-        missing = None
-        if row["hundo_dms"] == 1:
+        discord_id = row["discord_id"]
+        revision = row["hundo_settings_revision"]
+        outcome = self._pending_records.get(discord_id)
+        if outcome is None or outcome[0] != revision:
+            missing = None
+            if row["hundo_dms"] == 1:
+                try:
+                    missing = await asyncio.to_thread(self._missing_count, row)
+                except Exception as exc:
+                    # The count is a nicety; the confirmation goes without it.
+                    self._log(f"missing count for {discord_id} failed: {exc}")
             try:
-                missing = await asyncio.to_thread(self._missing_count, row)
-            except Exception as exc:
-                # The count is a nicety; the confirmation goes without it.
-                self._log(f"missing count for {row['discord_id']} failed: {exc}")
-        try:
-            user = self.poliswag.get_user(int(row["discord_id"]))
-            if user is None:
-                user = await self.poliswag.fetch_user(int(row["discord_id"]))
-            await user.send(
-                confirmation_message(row, missing),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            delivered = True
-        except (discord.Forbidden, discord.NotFound):
-            delivered = False
+                delivered = await self._deliver_confirmation(
+                    row, confirmation_embed(row, missing)
+                )
+                if delivered is None:
+                    return
+            except (discord.Forbidden, discord.NotFound):
+                delivered = False
+            outcome = (revision, delivered, (row["hundo_dms"], row["hundo_areas"]))
+            self._pending_records[discord_id] = outcome
         await asyncio.to_thread(
             self._record,
-            row["discord_id"],
-            row["hundo_settings_revision"],
-            delivered=delivered,
-            settings=(row["hundo_dms"], row["hundo_areas"]),
+            discord_id,
+            revision,
+            delivered=outcome[1],
+            settings=outcome[2],
         )
+        # False also means this outcome is obsolete/already recorded. Only an
+        # exception retains it for a DB-only retry on the next tick.
+        self._pending_records.pop(discord_id, None)
+
+    async def _deliver_confirmation(self, row, embed):
+        return await send_once(self.poliswag, row, embed)
 
     def _missing_count(self, row):
         """Missing 100IV tiles, as the Pokédex counts them (costumes per setting)."""

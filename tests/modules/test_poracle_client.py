@@ -156,7 +156,7 @@ class TestHumans:
     async def test_create_user_timeout_is_not_treated_as_success(self, client):
         session = _install_session(client, _response())
         session.request.return_value.__aenter__.side_effect = TimeoutError("timed out")
-        with pytest.raises(TimeoutError, match="timed out"):
+        with pytest.raises(PoracleError, match="timed out"):
             await client.create_user(123, "Rui", area='["leiria"]')
         session.request.assert_called_once()
 
@@ -262,3 +262,11 @@ class TestSession:
         assert not session.closed
         await client.close()
         assert client._session is None
+
+
+async def test_timeout_without_message_is_actionable(client):
+    session = _install_session(client, _response())
+    session.request.return_value.__aenter__.side_effect = TimeoutError()
+    with pytest.raises(PoracleError, match="TimeoutError"):
+        await client.reload()
+    assert "TimeoutError" in client.poliswag.utility.log_to_file.call_args.args[0]
