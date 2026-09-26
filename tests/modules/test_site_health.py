@@ -58,3 +58,43 @@ def test_message_says_what_and_why():
     fail(state, DOWN_AFTER, error="HTTP 502")
     text = message("down", "Pokédex", state)
     assert "Pokédex" in text and "HTTP 502" in text and "3 min" in text
+
+
+class TestMapCheck:
+    """The map page loads without its DB; the check has to ask it for data."""
+
+    async def _run(self, monkeypatch, map_stop):
+        import modules.site_health as sh
+
+        seen = []
+
+        async def fake_probe(url):
+            seen.append(url)
+            return None
+
+        monkeypatch.setattr(sh, "probe", fake_probe)
+        health = SiteHealth(checks=(), map_stop=map_stop, host="10.0.0.1")
+        return await health.probe_all(), seen
+
+    async def test_asks_the_map_for_a_current_pokestop(self, monkeypatch):
+        async def stop():
+            return "abc.16"
+
+        results, seen = await self._run(monkeypatch, stop)
+        assert seen == ["http://10.0.0.1:1082/api/pokestop/abc.16"]
+        assert results == {"Mapa": None}
+
+    async def test_no_pokestop_to_ask_for_is_a_failure(self, monkeypatch):
+        async def stop():
+            return None
+
+        results, seen = await self._run(monkeypatch, stop)
+        assert seen == []
+        assert results["Mapa"]
+
+    async def test_unreadable_scanner_db_is_a_failure(self, monkeypatch):
+        async def stop():
+            raise RuntimeError("db down")
+
+        results, _ = await self._run(monkeypatch, stop)
+        assert results["Mapa"]

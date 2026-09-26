@@ -34,7 +34,7 @@ class Scheduled(commands.Cog):
         self._last_lure_status_count = None
         self._tracking = tracking_health.TrackingHealth()
         self._last_tracking_alert_at = None
-        self._site_health = site_health.SiteHealth()
+        self._site_health = site_health.SiteHealth(map_stop=self._latest_pokestop)
         # False until the first successful write to poliswag.pokemon_name.
         # The masterfile is loaded before this cog exists, so without the
         # flag the table would stay empty until the next 24h reload.
@@ -707,6 +707,14 @@ class Scheduled(commands.Cog):
 
         self._last_tracking_alert_at = now if action == "alert" else None
         await self._save_tracking_alert_at(self._last_tracking_alert_at)
+
+    async def _latest_pokestop(self):
+        """A Pokéstop the map must be able to return (site_health's map check)."""
+        rows = await self.poliswag.quest_search.db.get_data_from_database(
+            "SELECT id FROM pokestop WHERE deleted = 0 AND enabled = 1 "
+            "ORDER BY updated DESC LIMIT 1"
+        )
+        return rows[0]["id"] if rows else None
 
     async def _check_site_health(self):
         """DM MY_ID when pogoleiria.pt or one of its apps stops answering."""
