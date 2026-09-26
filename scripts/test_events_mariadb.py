@@ -94,4 +94,4 @@ try:
         check=True,
     )
 finally:
-    subprocess.run(["docker", "rm", "-f", name], check=False, capture_output=True)
+    subprocess.run(["docker", "rm", "-f", "-v", name], check=False, capture_output=True)
