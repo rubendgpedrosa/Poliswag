@@ -274,3 +274,33 @@ class TestExport:
         (exporter.sprites_dir / "mega-venusaur.skip").touch()
         exporter.export()
         fetch.assert_not_called()
+
+
+class TestSpriteSize:
+    """Sprites are drawn at up to 60px: saved at SPRITE_PX, not 475."""
+
+    def test_small_trims_squares_and_shrinks(self):
+        from PIL import Image
+
+        from modules.mega_exporter import SPRITE_PX, _small
+
+        art = Image.new("RGBA", (475, 475), (0, 0, 0, 0))
+        art.paste(Image.new("RGBA", (200, 100), (255, 0, 0, 255)), (50, 60))
+        out = _small(art)
+        assert out.size == (SPRITE_PX, SPRITE_PX)
+        # Trimmed to the drawing before scaling: it spans the full width.
+        assert out.getpixel((0, SPRITE_PX // 2))[3] == 255
+
+    def test_shrink_existing_only_touches_big_files(self, tmp_path):
+        from PIL import Image
+
+        from modules.mega_exporter import SPRITE_PX, _shrink_existing
+
+        Image.new("RGBA", (475, 475), (0, 255, 0, 255)).save(
+            tmp_path / "big.webp", "WEBP"
+        )
+        Image.new("RGBA", (96, 96), (0, 255, 0, 255)).save(tmp_path / "ok.webp", "WEBP")
+        assert _shrink_existing(tmp_path) == 1
+        assert Image.open(tmp_path / "big.webp").size == (SPRITE_PX, SPRITE_PX)
+        assert Image.open(tmp_path / "ok.webp").size == (96, 96)
+        assert _shrink_existing(tmp_path) == 0
