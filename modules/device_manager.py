@@ -241,7 +241,7 @@ class DeviceManager(LoggingMixin):
             # Only if mods were told it was offline: close that thread.
             if self._last_notification_time and self._offline_since is not None:
                 await self._notify(
-                    f"✅ Dispositivo de volta online após "
+                    f"🟢 Telemóvel do scanner de volta online após "
                     f"**{int((now - self._offline_since) // 60)} min** offline."
                 )
             self._offline_since = None
@@ -268,8 +268,9 @@ class DeviceManager(LoggingMixin):
         self._last_notification_time = now
         self._log("Device offline — no auto-reboot, alerting for manual action", "INFO")
         await self._notify(
-            f"⚠️ Dispositivo offline há **{int(offline_duration // 60)} min** — "
-            f"intervenção manual necessária (reboot automático desactivado)."
+            f"⚠️ Telemóvel do scanner offline há "
+            f"**{int(offline_duration // 60)} min** — precisa de intervenção manual "
+            f"(o Poliswag não o reinicia sozinho)."
         )
         return True
 
