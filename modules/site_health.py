@@ -51,12 +51,33 @@ class SiteHealth:
     checks: tuple = field(
         default_factory=lambda: default_checks(Config.SITE_HEALTH_HOST)
     )
+    # async () -> a current Pokéstop id from the scanner DB, for the map check.
+    map_stop: object = None
+    host: str = field(default_factory=lambda: Config.SITE_HEALTH_HOST)
     states: dict = field(default_factory=dict)
 
     async def probe_all(self):
         """{name: None when healthy, else a short reason}."""
-        results = await asyncio.gather(*(probe(url) for _, url in self.checks))
-        return {name: error for (name, _), error in zip(self.checks, results)}
+        results = await asyncio.gather(
+            *(probe(url) for _, url in self.checks), self._probe_map()
+        )
+        named = {name: error for (name, _), error in zip(self.checks, results)}
+        if self.map_stop is not None:
+            named["Mapa"] = results[-1]
+        return named
+
+    async def _probe_map(self):
+        """The map's page loads without its database (2026-09-26: ~2 h with no
+        data and every other check green), so ask it for a real Pokéstop."""
+        if self.map_stop is None:
+            return None
+        try:
+            stop = await self.map_stop()
+        except Exception:
+            return "base de dados do scanner inacessível"
+        if not stop:
+            return "sem Pokéstops na base de dados do scanner"
+        return await probe(f"http://{self.host}:1082/api/pokestop/{stop}")
 
     def record(self, results, now):
         """Fold one round of probes in. Returns [(action, name, state)]."""
