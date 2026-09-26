@@ -240,15 +240,18 @@ class TestRecreateServices:
         )
         assert await stack_recovery.recreate_services() is True
         args = create.await_args.args
-        assert args[:6] == (
+        assert args[:7] == (
             "docker-compose",
             "-f",
             "/root/unonwhash/docker-compose.yml",
             "up",
             "-d",
             "--force-recreate",
+            # Without it compose also recreates any dependency whose config
+            # drifted: on 2026-09-26 that recreated the database mid-recovery.
+            "--no-deps",
         )
-        assert args[6:] == ("dragonite", "rotom-ng")
+        assert args[7:] == ("dragonite", "rotom-ng")
         # ${PWD} interpolation in the stack compose file: both cwd and the PWD
         # env var must point at the stack dir or bind mounts resolve blank.
         kwargs = create.await_args.kwargs
