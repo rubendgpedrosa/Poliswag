@@ -33,7 +33,6 @@ class EventManager:
         now = time.time()
         if now - self._last_events_fetch < FETCH_EVENTS_INTERVAL_SECONDS:
             return
-        self._last_events_fetch = now
 
         response = await fetch_data("events", log_fn=self.poliswag.utility.log_to_file)
         if response is None:
@@ -46,8 +45,10 @@ class EventManager:
             self.events = (
                 json.loads(response) if isinstance(response, str) else response
             )
-            await self.process_and_store_events()
+            if await self.process_and_store_events() is False:
+                return
             await self.prune_old_events()
+            self._last_events_fetch = now
         except Exception as e:
             self.poliswag.utility.log_to_file(
                 f"Error processing events: {str(e)}", "ERROR"
@@ -63,25 +64,31 @@ class EventManager:
         if self.events is None:
             return
 
+        # Validate before any writes or cleanup. An empty/error feed must not
+        # erase the calendar; incomplete named placeholders are legitimate.
+        if not isinstance(self.events, list) or not self.events:
+            raise ValueError("Empty or invalid event feed; retaining stored calendar")
+        source_slots = {}
+        for event in self.events:
+            if not isinstance(event, dict) or not isinstance(event.get("name"), str):
+                raise ValueError("Invalid event entry; retaining stored calendar")
+            if event.get("eventID"):
+                slot = (event["name"], event.get("start"), event.get("end"))
+                previous = source_slots.setdefault(event["eventID"], slot)
+                if previous != slot:
+                    raise ValueError(f"Conflicting feed entries for {event['eventID']}")
+            if event.get("start") and event.get("end"):
+                start = self.poliswag.utility.format_datetime_string(event["start"])
+                end = self.poliswag.utility.format_datetime_string(event["end"])
+                if end <= start:
+                    raise ValueError(f"Invalid event interval: {event['name']}")
         api_names = {
             event.get("name")
             for event in self.events
             if event.get("name") and "unannounced" not in event.get("name", "").lower()
         }
 
-        # Remove future events from DB that are no longer in the API response
-        # (covers renames: old name disappears, new name gets upserted below)
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        future_db_events = await self.poliswag.db.get_data_from_database(
-            "SELECT name FROM event WHERE start > %s",
-            params=(now,),
-        )
-        for db_event in future_db_events:
-            if db_event["name"] not in api_names:
-                await self.poliswag.db.execute_query_to_database(
-                    "DELETE FROM event WHERE name = %s AND start > %s",
-                    params=(db_event["name"], now),
-                )
+        complete = True
 
         for event in self.events:
             try:
@@ -98,15 +105,94 @@ class EventManager:
                 start = self.poliswag.utility.format_datetime_string(start)
                 end = self.poliswag.utility.format_datetime_string(end)
 
+                # Stable feed identity lets a reschedule move the existing row
+                # without losing its delivery markers or inserting a second start.
+                if event.get("eventID"):
+                    existing = await self.poliswag.db.get_data_from_database(
+                        "SELECT name, start, notification_date, notification_end_date FROM event WHERE JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.eventID')) = %s",
+                        params=(event["eventID"],),
+                    )
+                    if len(existing) > 1:
+                        # Old scraper revisions used to accumulate copies under
+                        # the same source ID. Upsert the current schedule, carry
+                        # delivery markers forward, then remove obsolete keys.
+                        query, params = self.build_upsert_query(
+                            name, start, end, image, event_type, link, event
+                        )
+                        starts = [
+                            r["notification_date"]
+                            for r in existing
+                            if r.get("notification_date")
+                        ]
+                        ends = [
+                            r["notification_end_date"]
+                            for r in existing
+                            if r.get("notification_end_date")
+                        ]
+                        statements = [
+                            (query, params),
+                            (
+                                "UPDATE event SET notification_date = COALESCE(notification_date, %s), notification_end_date = COALESCE(notification_end_date, %s) WHERE name = %s AND start = %s",
+                                (
+                                    min(starts) if starts else None,
+                                    min(ends) if ends else None,
+                                    name,
+                                    start,
+                                ),
+                            ),
+                        ]
+                        for old in existing:
+                            if (old["name"], str(old["start"])) != (name, start):
+                                statements.append(
+                                    (
+                                        "DELETE FROM event WHERE name = %s AND start = %s",
+                                        (old["name"], old["start"]),
+                                    )
+                                )
+                        await self.poliswag.db.execute_transaction(statements)
+                        continue
+                    if len(existing) == 1:
+                        await self.poliswag.db.execute_query_to_database(
+                            "UPDATE event SET name = %s, start = %s, end = %s WHERE name = %s AND start = %s",
+                            params=(
+                                name,
+                                start,
+                                end,
+                                existing[0]["name"],
+                                existing[0]["start"],
+                            ),
+                        )
+
                 query, params = self.build_upsert_query(
                     name, start, end, image, event_type, link, event
                 )
                 await self.poliswag.db.execute_query_to_database(query, params=params)
             except Exception as e:
+                complete = False
                 self.poliswag.utility.log_to_file(
                     f"Error storing event {event.get('name', 'unknown')}: {str(e)}",
                     "ERROR",
                 )
+
+        if not complete:
+            return False
+        # Cleanup only after successful ingestion, using the exact row key.
+        # Stable IDs take precedence over names (recurring names are common).
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        future_db_events = await self.poliswag.db.get_data_from_database(
+            "SELECT name, start, extra_data FROM event WHERE start > %s",
+            params=(now,),
+        )
+        api_ids = {e.get("eventID") for e in self.events if e.get("eventID")}
+        for row in future_db_events:
+            source_id = json.loads(row.get("extra_data") or "{}").get("eventID")
+            present = source_id in api_ids if source_id else row["name"] in api_names
+            if not present:
+                await self.poliswag.db.execute_query_to_database(
+                    "DELETE FROM event WHERE name = %s AND start = %s AND start > %s",
+                    params=(row["name"], row["start"], now),
+                )
+        return True
 
     async def check_current_events_changes(self, at_time=None, dry_run=False):
         if dry_run and at_time is not None:
@@ -117,13 +203,13 @@ class EventManager:
             """
             SELECT name, start, end, event_type, image, link, extra_data, notification_date, notification_end_date,
                 CASE
-                    WHEN start <= %s AND end >= %s THEN 'active'
+                    WHEN start <= %s AND end > %s THEN 'active'
                     WHEN start <= %s AND end <= %s THEN 'ended'
                 END as event_status
             FROM event
             LEFT OUTER JOIN excluded_event_type ON excluded_event_type.type = event.event_type
             WHERE (
-                (start <= %s AND end >= %s) OR
+                (start <= %s AND end > %s) OR
                 (end <= %s AND notification_end_date IS NULL)
             )
             AND excluded_event_type.type IS NULL
@@ -146,24 +232,18 @@ class EventManager:
         ended = []
         for event in events:
             try:
-                event_start = datetime.strptime(
-                    str(event["start"]), "%Y-%m-%d %H:%M:%S"
-                )
-                event_end = datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+                datetime.strptime(str(event["start"]), "%Y-%m-%d %H:%M:%S")
+                datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
 
                 if (
                     event["event_status"] == "active"
                     and event.get("notification_date") is None
                 ):
-                    if not dry_run:
-                        await self.mark_event_notified(event, event_start, is_end=False)
                     started.append(event)
                 elif (
                     event["event_status"] == "ended"
                     and event.get("notification_end_date") is None
                 ):
-                    if not dry_run:
-                        await self.mark_event_notified(event, event_end, is_end=True)
                     ended.append(event)
             except Exception as e:
                 self.poliswag.utility.log_to_file(
@@ -183,7 +263,7 @@ class EventManager:
         local-time listing and the in-game 10:00 one: "Halloween 2026 Part I"
         at 00:00 and at 10:00), which announced it twice, hours apart. Its
         start is announced at the earliest copy and its end at the latest;
-        the others are still marked notified, just not posted.
+        the others are suppressed without being posted.
         """
         names = sorted({e["name"] for e in started + ended})
         if not names:
@@ -237,6 +317,7 @@ class EventManager:
             INSERT INTO event(name, start, end, image, event_type, link, extra_data, notification_date, notification_end_date)
             VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, NULL)
             ON DUPLICATE KEY UPDATE
+            end = VALUES(end),
             image = %s,
             event_type = %s,
             link = %s,
@@ -327,7 +408,7 @@ class EventManager:
             SELECT e.name, MIN(e.start) AS start, MAX(e.end) AS end, e.image, e.event_type, e.link
             FROM event e
             LEFT JOIN excluded_event_type ext ON ext.type = e.event_type
-            WHERE e.end >= %s AND e.start <= %s
+            WHERE e.end > %s AND e.start <= %s
             AND ext.type IS NULL
             AND e.name NOT LIKE '[Promo Code]%%'
             GROUP BY e.name, e.image, e.event_type, e.link

@@ -49,6 +49,7 @@ def _make_poliswag():
     poliswag.lure_watcher.check_new_lures = AsyncMock(return_value=[])
     poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=0)
     poliswag.change_presence = AsyncMock()
+    poliswag.event_manager.mark_event_notified = AsyncMock()
     poliswag.event_manager.fetch_events = AsyncMock()
     poliswag.event_manager.check_current_events_changes = AsyncMock(return_value=None)
     poliswag.event_manager.get_event_type_key = MagicMock(return_value="community-day")
@@ -346,6 +347,7 @@ class TestHundoAlertsStep:
             "pokemon": {"19": {"defaultFormId": 45}}
         }
         poliswag.poracle.reload = AsyncMock()
+        poliswag.poracle.health = AsyncMock()
         poliswag.poracle.create_user = AsyncMock()
         poliswag.get_user.return_value.send = AsyncMock()
         alerts = cog._hundo_alerts
@@ -363,6 +365,13 @@ class TestHundoAlertsStep:
         alerts._sync_player = MagicMock(return_value=True)
         alerts._record = MagicMock(return_value=True)
         alerts._missing_count = MagicMock(return_value=1499)
+        alerts._record_health = MagicMock()
+
+        async def deliver(row, embed):
+            await poliswag.get_user.return_value.send(embed=embed)
+            return True
+
+        alerts._deliver_confirmation = deliver
         return alerts
 
     @staticmethod
@@ -1253,3 +1262,109 @@ class TestRefreshMasterfileData:
             await cog._refresh_masterfile_data()
         sync.assert_not_awaited()
         assert cog._pokemon_names_synced is False
+
+
+class TestEventDeliveryFailures:
+    @staticmethod
+    def events(count=12):
+        return [
+            {
+                "name": f"Event {i}",
+                "event_type": "event",
+                "start": "2026-09-26 10:00:00",
+                "end": "2026-09-26 18:00:00",
+            }
+            for i in range(count)
+        ]
+
+    async def test_failed_first_send_leaves_all_events_retryable(self, cog):
+        channel = MagicMock(
+            send=AsyncMock(side_effect=RuntimeError("Discord unavailable"))
+        )
+        with pytest.raises(RuntimeError):
+            await cog._send_event_change_notifications(
+                channel, {"started": self.events(), "ended": []}, acknowledge=True
+            )
+        cog.poliswag.event_manager.mark_event_notified.assert_not_awaited()
+
+    async def test_second_batch_failure_only_acknowledges_first_ten(self, cog):
+        channel = MagicMock(
+            send=AsyncMock(side_effect=[None, RuntimeError("Discord unavailable")])
+        )
+        events = self.events()
+        with pytest.raises(RuntimeError):
+            await cog._send_event_change_notifications(
+                channel, {"started": events, "ended": []}, acknowledge=True
+            )
+        calls = cog.poliswag.event_manager.mark_event_notified.await_args_list
+        assert [c.args[0] for c in calls] == events[:10]
+        assert all(c.kwargs == {"is_end": False} for c in calls)
+
+    async def test_plain_ended_messages_split_without_losing_events(self, cog):
+        events = [{**e, "name": e["name"] + "x" * 240} for e in self.events(20)]
+        channel = MagicMock(send=AsyncMock())
+        await cog._send_event_change_notifications(
+            channel, {"started": [], "ended": events}, acknowledge=True
+        )
+        calls = channel.send.await_args_list
+        assert len(calls) > 1
+        assert all(len(c.args[0]) <= 2000 for c in calls)
+        assert all(sum(e["name"] in c.args[0] for c in calls) == 1 for e in events)
+        assert [
+            c.args[0]
+            for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
+        ] == events
+
+    async def test_duplicate_summary_acknowledges_both_only_after_delivery(self, cog):
+        events = self.events(2)
+        cog.poliswag.event_stats.get_summary.return_value = SUMMARY
+        channel = MagicMock(send=AsyncMock())
+        await cog._send_event_change_notifications(
+            channel, {"started": [], "ended": events}, acknowledge=True
+        )
+        assert len(channel.send.await_args.kwargs["embeds"]) == 1
+        assert [
+            c.args[0]
+            for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
+        ] == events
+
+    async def test_preview_never_acknowledges(self, cog):
+        channel = MagicMock(send=AsyncMock())
+        await cog._send_event_change_notifications(
+            channel, {"started": self.events(), "ended": []}
+        )
+        cog.poliswag.event_manager.mark_event_notified.assert_not_awaited()
+
+
+async def test_event_batches_respect_total_embed_characters(cog):
+    events = TestEventDeliveryFailures.events(3)
+    embeds = [discord.Embed(title=e["name"], description="x" * 3100) for e in events]
+    channel = MagicMock(send=AsyncMock())
+    await cog._send_event_batches(
+        channel,
+        "**Novos eventos**",
+        embeds,
+        [[e] for e in events],
+        [],
+        is_end=False,
+        acknowledge=True,
+    )
+    assert len(channel.send.await_args_list) == 3
+    assert all(
+        sum(len(e) for e in c.kwargs["embeds"]) <= 6000
+        for c in channel.send.await_args_list
+    )
+    assert all(
+        c.kwargs["allowed_mentions"].everyone is False
+        for c in channel.send.await_args_list
+    )
+    assert [
+        c.args[0]
+        for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
+    ] == events
+
+
+async def test_long_event_name_fits_discord_title(cog):
+    event = {**TestEventDeliveryFailures.events(1)[0], "name": "x" * 255}
+    embed = await cog._build_event_embed(event)
+    assert len(embed.title) == 256
