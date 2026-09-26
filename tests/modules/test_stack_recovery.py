@@ -330,7 +330,7 @@ class TestRecoveredAnnouncement:
 
         title, description, color = stack_recovery._notify.await_args_list[-1].args
         assert "de volta" in title
-        assert "15 min" in description and "recriar containers" in description
+        assert "15 min" in description and "recriar os containers" in description
         assert color == discord.Color.green()
         assert stack_recovery._recovery_attempts == 0
 
@@ -356,3 +356,41 @@ class TestRecoveredAnnouncement:
         await stack_recovery.observe(None)
 
         stack_recovery._notify.assert_not_awaited()
+
+
+class TestDownWording:
+    """What the mods read: the map is down, for how long, what was done, what's next."""
+
+    async def test_first_rung_says_done_and_whats_next(self, stack_recovery, mocker):
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        stack_recovery._notify = AsyncMock()
+        _at(mocker, 1_000)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 600)
+        await stack_recovery.observe(True)
+
+        title, description, color = stack_recovery._notify.await_args.args
+        assert title == "🔴 Mapa em baixo há 10 min"
+        assert "Containers do scanner recriados" in description
+        assert "daqui a **20 min**: reiniciar Pokémon GO" in description
+        assert "Contas" not in description
+        assert color == discord.Color.orange()
+
+    async def test_failed_last_rung_asks_for_a_human(self, stack_recovery, mocker):
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
+            return_value=False
+        )
+        stack_recovery._notify = AsyncMock()
+        _at(mocker, 1_000)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 600)
+        await stack_recovery.observe(True)
+        _at(mocker, 1_000 + 1800)
+        await stack_recovery.observe(True)
+
+        title, description, color = stack_recovery._notify.await_args.args
+        assert title == "🔴 Mapa em baixo há 30 min — recuperação falhou"
+        assert "Não foi possível reiniciar" in description
+        assert "intervir manualmente" in description
+        assert color == discord.Color.red()
