@@ -10,32 +10,28 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 ## Entry point
 `main.py` — `Poliswag(commands.Bot)` instantiates all service modules and loads all cogs in `setup_hook`. Bot channels are resolved in `on_ready` → `get_channels()`, which is the list to read; an unset id logs an ERROR and leaves the attribute `None` rather than raising.
 
-## Module map (`modules/`)
+## Module map (`modules/`) — detail in `docs/context/modules.md`
 
 | Module | Responsibility |
 |--------|---------------|
-| `config.py` | Single `Config` class reading all env vars via `dotenv`. Source of truth for all settings. |
-| `database_connector.py` | `DatabaseConnector(database?)` — pymysql wrapper with retry (3 attempts), auto-reconnect on errno 2006/2013, returns `list[dict]` from `cursor.description`. Default DB = `Config.DB_POLISWAG`; scanner DB passed explicitly. Module-level `connect(database, read_timeout=5, dict_rows=False, **extra)` is the one way to open a short-lived connection (all `pogoleiria` readers use it) — bounded timeouts, caller closes. |
-| `http_client.py` | `fetch_data(endpoint_key, …)` — single shared `aiohttp.ClientSession`, reads from `Config.ENDPOINTS[key]`. In DEV (`not IS_PRODUCTION`) returns mock JSON from `mock_data/` for infra endpoints. |
-| `scanner_status.py` | `ScannerStatus` — polls Dragonite (`/status`) + Rotom (`/api/status`) + Golbat DB. Renames a single `MAPA` Discord voice channel with a combined down/expected-worker indicator (expected counts read live from Dragonite per area, not hardcoded), fires HA webhook when scanner is fully down (15 min cooldown). Renames are budgeted locally (2 attempts / 10 min, 15 s timeout) because discord.py sleeps out a rename 429 (~600 s) inside `channel.edit()`, which used to stall the whole scheduler tick. Missing/unreachable data renders as ❌ but is excluded from the recovery-ladder trigger. |
-| `scanner_manager.py` | Docker control (via `docker-py`) + `poliswag` table state (`last_scanned_date`, `scanned` flag). `is_day_change()` triggers a new scan cycle. |
-| `quest_search.py` | `QuestSearch` — owns scanner DB connection. Loads pokemon/item name maps + masterfile. `find_quest_by_search_keyword(term, is_leiria)` queries `pokestop` table. Area split: Marinha Grande = lon ≤ `Config.MARINHA_LON_MAX` (−8.9), shared with `quest_exporter` and `scanner_status`. Handles AR/standard quest field duality via `_quest_fields()`. |
-| `quest_exporter.py` | `QuestExporter.export(force=False)` — reads `pokestop` and writes a JSON file to `QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) for the PWA. Skips the write when quest content is unchanged (md5 hash stored as `contentHash` in `quests-meta.json`); returns `True` only when rewritten. `force=True` always rewrites. Triggered on scan completion, every 30 min by `scheduled.py` as a safety net, and via `!exportquests`. |
-| `event_manager.py` | Fetches events from ScrapedDuck (15 min cache). Stores/updates `event` table; deletes events that ended more than `EVENT_RETENTION_DAYS` (90) ago. Dispatches embed notifications to `CONVIVIO_CHANNEL` when events start/end, respecting `excluded_event_type`. Weekly digest on Mondays. |
-| `event_store.py` | Thin DB wrapper for `excluded_event_type` and `event` tables. |
-| `event_stats.py` | `EventStats.get_summary(event)` → stats text for an ended CD / Spotlight (species from ScrapedDuck `extra_data` icons, name as fallback) or Raid Hour/Day (the tier that grew vs. the day before, and its bosses); `None` for every other type, which then gets one line under the "Eventos que terminaram" header instead of a card. Golbat daily `*_stats` tables, ~7 days kept. |
-| `trade_digest.py` | 09:00 post of trade entries added since the last one (`last_trade_digest_at`); names link to `/pokedex/jogador/<id>`, 🤝 marks entries that already have a partner, 3 lines per player. `trade_announcer.py` posts matches as they happen. |
-| `trade_dm.py` | Each minute, DMs a player when someone adds a spare they lack in a category they collect **and** they have a spare that person lacks (the site's derived wants: `collecting` minus `collection_entry` ticks; costumes only if shown). Grouped per recipient; the spare's owner isn't messaged. `trade_dm_notice` stops repeats; `last_trade_dm_at` watermark (first run sends nothing); ≤20 recipients a tick (watermark waits past that); DMs closed → recorded, logged. Respects `trade_player.trade_dms` (site switch, default on). Links tagged `o=pokedex-dm`. `trade_announcer.py` reads only typed wants, which the site no longer writes. |
-| `hundo_alerts.py` | Pokédex 100IV DMs, off by default: keeps `template=pokedex-100iv` Poracle rules in step with each opted-in collector's missing 100IV tiles; confirms each settings revision by DM. Detail: `docs/context/hundo-alerts.md`. |
-| `account_monitor.py` | Polls Dragonite `/accounts/stats`. Aggregates disabled statuses. Posts account image to `ACCOUNTS_CHANNEL`. |
-| `poracle_client.py` | `PoracleClient` — async REST client for Poracle-NG (`X-Poracle-Secret` header). Methods: `get_channels`, `get_pokemon`, `add_pokemon`, `create_user`, `delete_pokemon`, `set_enabled`, `register_channel`, `send_test`. Raises `PoracleError` on non-2xx. |
-| `tracker_store.py` | CRUD for `tracked_quest_reward` table. |
-| `lure_manager.py` | `LureManager` — owns a read-only `DatabaseConnector(DB_DRAGONITE)`. `list_available_with_lures()` reads available+healthy accounts from `dragonite.account` (not banned/suspended/warned/invalid/auth_banned, off cooldown, `last_released >= last_selected`), seeds new usernames into `account_lure` at 12, returns up to 5 fewest-first with `{username, password, nb_lures}`. `adjust_lure_count(username, delta)` → `GREATEST(nb_lures+delta, 0)` UPDATE. Writes only `poliswag.account_lure`; dragonite is read-only. |
-| `role_manager.py` | Handles Discord role button interactions for the **legacy** team/notification panel: resolves roles by *name*, auto-grants all `Alertas*` roles to a brand-new member, and `defer()`s with no reply. `cogs/event_panel.py` deliberately does not reuse it — see that file's header. |
-| `image_generator.py` | `imgkit` + Jinja2 → PNG bytes from `accounts.html` (the accounts card); also builds the Google static-map URL for quest results. |
-| `embeds.py` | Shared embed builders (`build_embed`, `build_tracked_list_embed`, `build_excluded_list_embed`). Discord limits: 25 fields, 256 field name, 1024 field value, 4096 description. |
-| `utility.py` | `log_to_file(msg, level)` — dual-logger (`poliswag` info + `poliswag.error`). `time_now()`. |
-| `locale_pt.py` | Portuguese month/day short-name dicts (`PT_MONTHS_SHORT`, `PT_DAYS_SHORT`, `MONTH_NAMES`). |
+| `config.py` | `Config`: every env var, via `dotenv`. |
+| `database_connector.py` | `DatabaseConnector(db?)`: pymysql, 3 retries, reconnect on 2006/2013, `list[dict]` rows, `execute_transaction`. `connect(...)` for short-lived connections. |
+| `http_client.py` | `fetch_data(key)`: shared aiohttp session over `Config.ENDPOINTS`; DEV reads `mock_data/`. |
+| `scanner_status.py` | Polls Dragonite/Rotom/Golbat; renames the `MAPA` voice channel (rate-budgeted); HA webhook when fully down. |
+| `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
+| `quest_search.py` | Quest lookup on `pokestop`; Marinha = lon ≤ `MARINHA_LON_MAX` (−8.9). |
+| `quest_exporter.py` | Writes `quests.json` for the PWA; skips unchanged content (md5). |
+| `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
+| `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
+| `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
+| `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
+| `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
+| `tracker_store.py` | CRUD for `tracked_quest_reward`. |
+| `lure_manager.py` | Free healthy Dragonite accounts + `account_lure` budget; Dragonite read-only. |
+| `role_manager.py` | Legacy name-based role panel (not used by `event_panel.py`). |
+| `mega_exporter.py` | Mega sprites for the site, shrunk to ≤160px. |
+| `image_generator.py` / `embeds.py` | imgkit accounts card; shared embed builders (Discord limits). |
+| `utility.py` / `locale_pt.py` | `log_to_file`, `time_now`, Lisbon-aware `format_datetime_string`; PT date names. |
 
 ## Cog map (`cogs/`)
 
@@ -47,48 +43,17 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `notifications.py` | `!notify channels\|list\|add\|remove\|enable\|disable\|register\|test` | admin-only |
 | `accounts.py` | `!accounts` | open |
 | `container_manager.py` | `!container start\|stop`, `!status` | `MY_ID` only |
-| `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete` | — |
+| `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete`, trap channel (see `moderation.md`) | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
 | `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | admin-only (`cog_check`) |
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings | admin-only (`cog_check`) |
 
-## Events role panel (`cogs/event_panel.py`)
+## Databases — detail in `docs/context/database.md`
 
-Self-serve opt-in: a button in the announcements channel grants/removes the permanent **Eventos** role, and a channel permission overwrite turns that role into access to the current event channel.
-
-- A new event = a new channel with the role's overwrite; everyone already opted in sees it immediately. Only `_PANEL_TEXT` is edited (the event's name), then `!eventpanel` re-run — a redeploy is needed for that edit to reach the container.
-- The panel is a plain message plus the button, not an embed, and **carries its own `@everyone`** — the panel *is* the announcement. `allowed_mentions` is set explicitly (`everyone=True` on the post, `AllowedMentions.none()` on the DM rehearsal, so a rehearsal can never ping). **Every `!eventpanel` run pings the whole server**, including a re-run to fix a typo.
-- `_PANEL_TEXT` ships with a `<NOME DO EVENTO>` placeholder; `!eventpanel` refuses to post while it is still there, because that post would `@everyone` the server with the raw template. `!eventpanel test` deliberately still sends it.
-- It names no channel on purpose: its audience cannot see the channel yet, and Discord renders a hidden channel's mention as a dead link for them.
-- `EventPanelView` is persistent (`timeout=None`, `custom_id="event_panel:toggle"`), re-registered by `main.py`'s `setup_hook` via `add_view` — without that, buttons on panels from past events die on the next restart. It must stay in `setup_hook`: `discord.ui.View.__init__` needs a running loop, so `__init__` would raise `RuntimeError` at boot.
-- The role is resolved **by id**, and the clicker is resolved through the panel channel's guild — so the button behaves identically in a DM, which is what makes `!eventpanel test` a real rehearsal rather than a preview.
-- `_preflight()` → `(role, channel, error)` refuses to publish when the channel is unset, the role is missing, or the role's position is `>=` Poliswag's top role. That last one would otherwise surface as a `Forbidden` once per member who clicks, hours later.
-- Does **not** reuse `modules/role_manager.py`: that one is name-based, grants every `Alertas*` role to a brand-new member, and `defer()`s without replying.
-- Role and channel overwrites are set up by hand in Discord; the bot only adds/removes the role, never touches channel permissions.
-
-## Database schema (Poliswag DB)
-
-**`poliswag`** — single-row config table:
-- `last_scanned_date DATE` — last quest scan date
-- `scanned TINYINT` — 1=finished, 0=scanning
-- `last_weekly_digest_date DATE` — guards digest deduplication
-
-**`tracked_quest_reward`** — `target VARCHAR`, `creator VARCHAR`, `createddate DATETIME`
-
-**`excluded_event_type`** — `type VARCHAR`
-
-**`event`** — event calendar rows (type, name, start/end timestamps, etc.)
-
-**`account_lure`** — `username VARCHAR(50)` PK, `nb_lures INT DEFAULT 12`. Per-account lure budget for `!lures`/`!uselure` (managed by `lure_manager.py`). Migration `004`.
-
-**Scanner DB** (`DB_SCANNER_NAME`) — read-only. Key table:
-
-`pokestop` — lat/lon, quest fields (`quest_type`, `quest_title`, `quest_target`, `quest_reward_type`, `quest_item_id`, `quest_pokemon_id`, `quest_reward_amount`) plus `alternative_quest_*` mirrors for AR quests (generated columns). Area split by `lon ≤ −8.9` for Marinha Grande.
-
-**Poracle DB** (`DatabaseConnector("poracle")`) — `humans` table: `id`, `name`, `type='discord:channel'`, `enabled`.
-
-**Dragonite DB** (`DatabaseConnector(DB_DRAGONITE)`, default `dragonite`) — read-only. `account` table: `username`, `password`, health flags (`banned`, `suspended`, `warn`, `invalid`, `auth_banned`), and scheduler timestamps (`last_selected`, `last_released`, `next_available_time`). Read by `lure_manager.py` to find free+healthy accounts.
+- **poliswag** (read/write): `poliswag` (scan state, digest guards), `event`, `excluded_event_type`, `tracked_quest_reward`, `account_lure`, trade/100IV state. Schema = `migrations/*.sql`.
+- **golbat** scanner DB (`DB_SCANNER_NAME`, read-only): `pokestop` quests, daily `*_stats`.
+- **dragonite** (read-only): `account` health for lures. **poracle**: `humans`, tracking rules.
 
 ## External integrations
 
@@ -139,23 +104,14 @@ LOG_FILE, ERROR_LOG_FILE
 - Migrations: `setup_hook` replays every `migrations/*.sql` on each start (`modules/migrations.py`), before cogs load. No tracking table, so every statement must be `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`; `test_every_migration_is_rerunnable` enforces it.
 - Scheduler: a tick step taking ≥60s is logged as ERROR (`_run_tick_step`) so stalls reach the daily error review.
 
-## Host-side error review (not part of the bot)
-
-`scripts/error-review.sh`, run from root's crontab on the **host**, not in the container. Reads new `logs/error.log` entries once a day and has Claude diagnose them into `logs/error-review.md` (dated copies in `logs/reviews/`). Design: [spec](superpowers/specs/2026-09-21-daily-error-review-design.md).
-
-| Fact | Value |
-|---|---|
-| Schedule | cron `0 5,6 * * *` UTC; script keeps only the 06:00 `Europe/Lisbon` run (Debian cron has no `CRON_TZ`) |
-| Window | `logs/.error-review-watermark`, falling back to 24h; advances only on a run that produced a report |
-| Cost | Claude is called **only when there are new errors**; clean days exit before any model call |
-| Safety | `--permission-mode default` with a read-only allowlist; no `Write`/`Edit`. It diagnoses, never repairs |
-| On failure | Always writes a report with `status: claude-failed\|limit-reached\|timeout\|claude-unavailable` plus the raw counts and first traceback |
-| Manual run | `FORCE_HOUR=1 ./scripts/error-review.sh`; `REVIEW_MODEL=opus` for a harder week |
-
-Independent of `_check_daily_error_digest` in `cogs/scheduled.py`, which still posts its 09:00 count to `MOD_CHANNEL`.
-
 ## Topic files — read when…
 
 | File | Read when |
 |---|---|
 | `docs/context/hundo-alerts.md` | the 100IV DMs, their Poracle rules/template, or the site's switch |
+| `docs/context/database.md` | table columns, or reading scanner/Dragonite/Poracle tables |
+| `docs/context/modules.md` | you need a module's full behaviour, limits or rationale |
+| `docs/context/events.md` | event ingestion, Lisbon-time storage, CONVIVIO delivery/acks, the repair tool, event tests |
+| `docs/context/event-panel.md` | `!eventpanel`, the Eventos role button, its @everyone behaviour |
+| `docs/context/moderation.md` | the `ignorar-este-canal` trap: ban/purge/unban, invite DM |
+| `docs/context/error-review.md` | the host cron that has Claude review `logs/error.log` daily |
