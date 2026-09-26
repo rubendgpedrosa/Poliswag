@@ -30,6 +30,16 @@ SUMMARY = Summary(
 # --- fixtures -----------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _no_real_side_effects(monkeypatch, tmp_path):
+    """Ticks here must not touch the live heartbeat or probe the real site."""
+    from modules.config import Config
+    from modules.site_health import SiteHealth
+
+    monkeypatch.setattr(Config, "HEARTBEAT_FILE", str(tmp_path / "heartbeat"))
+    monkeypatch.setattr(SiteHealth, "probe_all", AsyncMock(return_value={}))
+
+
 def _make_poliswag():
     poliswag = MagicMock()
     poliswag.db.get_data_from_database = AsyncMock(return_value=[])
@@ -262,6 +272,13 @@ class TestScheduledTasksLoop:
         cog._check_daily_error_digest = AsyncMock()
         await cog.scheduled_tasks.coro(cog)
         cog.poliswag.quest_search.generate_pokemon_item_name_map.assert_called_once()
+
+    async def test_each_tick_writes_the_heartbeat(self, cog):
+        from modules.config import Config
+
+        await cog.scheduled_tasks.coro(cog)
+        with open(Config.HEARTBEAT_FILE) as f:
+            assert real_datetime.datetime.fromisoformat(f.read())
 
     async def test_exception_logged_and_swallowed(self, cog, capsys):
         cog._check_version_update = AsyncMock(side_effect=RuntimeError("boom"))
