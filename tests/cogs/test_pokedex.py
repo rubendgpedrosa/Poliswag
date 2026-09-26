@@ -343,3 +343,34 @@ async def test_resumo_falls_back_to_the_channel_when_dms_are_shut(cog, monkeypat
     await cog.resumo.callback(cog, ctx, 1)
 
     ctx.send.assert_awaited()
+
+
+async def test_resumo_deletes_the_command_message_in_a_channel(cog, monkeypatch):
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    ctx = ctx_for(member())
+
+    await cog.resumo.callback(cog, ctx)
+
+    ctx.message.delete.assert_awaited_once()
+
+
+async def test_resumo_in_a_dm_deletes_nothing(cog, monkeypatch):
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    ctx = ctx_for(member(), in_guild=False)
+
+    await cog.resumo.callback(cog, ctx)
+
+    ctx.message.delete.assert_not_awaited()
+
+
+async def test_resumo_still_answers_when_the_delete_is_refused(cog, monkeypatch):
+    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    author = member()
+    ctx = ctx_for(author)
+    ctx.message.delete.side_effect = discord.Forbidden(
+        MagicMock(status=403), "Missing Permissions"
+    )
+
+    await cog.resumo.callback(cog, ctx)
+
+    author.send.assert_awaited()
