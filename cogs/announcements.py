@@ -1,3 +1,5 @@
+import io
+
 import discord
 from discord.ext import commands
 
@@ -32,11 +34,12 @@ class AnnouncementConfirm(discord.ui.View):
     either, and the first press ends it, so a double click can't post
     twice."""
 
-    def __init__(self, cog, ctx, text):
+    def __init__(self, cog, ctx, text, attachments=()):
         super().__init__(timeout=_CONFIRM_TIMEOUT)
         self.cog = cog
         self.ctx = ctx
         self.text = text
+        self.attachments = attachments
         self.message = None
         self.done = False
 
@@ -62,7 +65,7 @@ class AnnouncementConfirm(discord.ui.View):
         # Buttons off before the post, not after: the post can take a while
         # with attachments, and a second press in that gap must find nothing.
         await interaction.response.edit_message(view=None)
-        embed = await self.cog.publish(self.ctx, self.text)
+        embed = await self.cog.publish(self.ctx, self.text, self.attachments)
         await interaction.followup.send(embed=embed)
 
     async def handle_cancel(self, interaction):
@@ -140,14 +143,20 @@ class Announcements(commands.Cog):
             )
             return
 
+        # Read once, now: the command message is deleted below, and its
+        # attachments go with it.
+        attachments = [
+            (a.filename, await a.read(), a.is_spoiler())
+            for a in ctx.message.attachments
+        ]
         # The post exactly as it will look, pings off.
         await ctx.send(
             content=text or None,
-            files=await self._files(ctx),
+            files=self._files(attachments),
             allowed_mentions=discord.AllowedMentions.none(),
         )
         pings = "@everyone" in text or "@here" in text
-        view = AnnouncementConfirm(self, ctx, text)
+        view = AnnouncementConfirm(self, ctx, text, attachments)
         view.message = await ctx.send(
             embed=status_embed(
                 "📣 Publicar este anúncio?",
@@ -156,14 +165,21 @@ class Announcements(commands.Cog):
             ),
             view=view,
         )
+        # Only once the preview holds the text: on the errors above the
+        # command stays, so a long announcement can be copied and fixed.
+        if ctx.guild is not None:
+            try:
+                await ctx.message.delete()
+            except discord.HTTPException:
+                pass
 
-    async def publish(self, ctx, text):
+    async def publish(self, ctx, text, attachments=()):
         """Posts the announcement; returns the embed that reports how it went."""
         channel = self.poliswag.EVENT_PANEL_CHANNEL
         try:
             message = await channel.send(
                 content=text or None,
-                files=await self._files(ctx),
+                files=self._files(attachments),
                 # Written by an admin on purpose: every mention they typed
                 # goes through, @everyone included.
                 allowed_mentions=discord.AllowedMentions.all(),
@@ -186,10 +202,14 @@ class Announcements(commands.Cog):
             f"[Ver em {channel.mention}]({message.jump_url})",
         )
 
-    async def _files(self, ctx):
-        """The command message's attachments, fetched afresh for each send:
-        a discord.File is consumed once sent."""
-        return [await a.to_file() for a in ctx.message.attachments]
+    @staticmethod
+    def _files(attachments):
+        """Fresh discord.Files for each send (one is consumed once sent),
+        from the attachment bytes read when the command ran."""
+        return [
+            discord.File(io.BytesIO(data), filename=name, spoiler=spoiler)
+            for name, data, spoiler in attachments
+        ]
 
 
 async def setup(poliswag):
