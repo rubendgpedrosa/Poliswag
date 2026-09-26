@@ -7,6 +7,7 @@ which we call directly as bound methods.
 
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from cogs.moderation import Moderation, setup
@@ -25,6 +26,7 @@ def cog():
     poliswag.QUEST_CHANNEL.id = 2
     poliswag.user = MagicMock(name="bot_user")
     poliswag.get_context = AsyncMock(return_value=MagicMock(valid=False))
+    poliswag._is_bare_mention = MagicMock(return_value=False)
     poliswag.role_manager.response_user_role_selection = AsyncMock()
     poliswag.db = AsyncMock()
     poliswag.db.get_data_from_database = AsyncMock(return_value=[])
@@ -105,12 +107,19 @@ class TestOnMessageDelete:
             message.author = MagicMock()  # distinct from poliswag.user
         return message
 
-    def _attachment(self, filename, url, content_type=None):
+    def _attachment(self, filename, url, content_type=None, size=1000):
         a = MagicMock()
         a.filename = filename
         a.url = url
         a.content_type = content_type
+        a.size = size
+        a.read = AsyncMock(return_value=b"bytes")
         return a
+
+    @staticmethod
+    def _sent(cog):
+        call = cog.poliswag.utility.send_embed_to_channel.call_args
+        return call.args[1], call.kwargs.get("files", [])
 
     async def test_none_mod_channel_skips(self, cog):
         cog.poliswag.MOD_CHANNEL = None
@@ -148,6 +157,19 @@ class TestOnMessageDelete:
         await cog.on_message_delete(msg)
         cog.poliswag.utility.send_embed_to_channel.assert_not_called()
 
+    async def test_bare_mention_deletion_skipped(self, cog):
+        """A lone @Poliswag is answered like !help and deleted by the bot."""
+        cog.poliswag._is_bare_mention.return_value = True
+        msg = self._msg(5, 123)
+        msg.content = "<@42>"
+        await cog.on_message_delete(msg)
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
+
+    async def test_trap_channel_deletion_skipped(self, cog):
+        """The trap handler deletes and reports on its own."""
+        await cog.on_message_delete(self._msg(3, 123))
+        cog.poliswag.utility.send_embed_to_channel.assert_not_called()
+
     async def test_regular_deletion_sends_audit_embed(self, cog):
         msg = self._msg(5, 123)
         msg.content = "hey"
@@ -170,15 +192,18 @@ class TestOnMessageDelete:
             self._attachment("photo.png", "https://cdn/photo.png", "image/png")
         ]
         await cog.on_message_delete(msg)
-        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
-        assert embed.image.url == "https://cdn/photo.png"
+        embed, files = self._sent(cog)
+        # Our own upload: the original URL dies with the message.
+        assert embed.image.url == "attachment://photo.png"
+        assert [f.filename for f in files] == ["photo.png"]
+        msg.attachments[0].read.assert_awaited_once_with(use_cached=True)
 
     async def test_image_detected_by_extension_when_content_type_missing(self, cog):
         msg = self._msg(5, 123)
         msg.attachments = [self._attachment("photo.jpeg", "https://cdn/photo.jpeg")]
         await cog.on_message_delete(msg)
-        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
-        assert embed.image.url == "https://cdn/photo.jpeg"
+        embed, _ = self._sent(cog)
+        assert embed.image.url == "attachment://photo.jpeg"
 
     async def test_non_image_attachment_listed_as_field_not_embedded(self, cog):
         msg = self._msg(5, 123)
@@ -186,9 +211,10 @@ class TestOnMessageDelete:
             self._attachment("report.pdf", "https://cdn/report.pdf", "application/pdf")
         ]
         await cog.on_message_delete(msg)
-        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
+        embed, files = self._sent(cog)
         assert embed.image.url is None
-        assert "report.pdf" in embed.fields[1].value
+        assert "📎 report.pdf" in embed.fields[1].value
+        assert [f.filename for f in files] == ["report.pdf"]
 
     async def test_mixed_attachments_embeds_image_and_lists_the_rest(self, cog):
         msg = self._msg(5, 123)
@@ -197,10 +223,33 @@ class TestOnMessageDelete:
             self._attachment("photo.png", "https://cdn/photo.png", "image/png"),
         ]
         await cog.on_message_delete(msg)
-        _, embed = cog.poliswag.utility.send_embed_to_channel.call_args.args
-        assert embed.image.url == "https://cdn/photo.png"
+        embed, files = self._sent(cog)
+        assert embed.image.url == "attachment://photo.png"
         assert "report.pdf" in embed.fields[1].value
         assert "photo.png" not in embed.fields[1].value
+        assert sorted(f.filename for f in files) == ["photo.png", "report.pdf"]
+
+    async def test_an_attachment_already_gone_is_marked_not_linked(self, cog):
+        msg = self._msg(5, 123)
+        gone = self._attachment("photo.png", "https://cdn/photo.png", "image/png")
+        gone.read.side_effect = discord.NotFound(MagicMock(status=404), "gone")
+        msg.attachments = [gone]
+        await cog.on_message_delete(msg)
+        embed, files = self._sent(cog)
+        assert embed.image.url is None
+        assert files == []
+        assert "❌ photo.png (não recuperado)" in embed.fields[1].value
+
+    async def test_too_big_to_reupload_is_not_downloaded(self, cog):
+        msg = self._msg(5, 123)
+        big = self._attachment(
+            "video.mp4", "https://cdn/video.mp4", "video/mp4", size=50 * 1024 * 1024
+        )
+        msg.attachments = [big]
+        await cog.on_message_delete(msg)
+        big.read.assert_not_awaited()
+        embed, _ = self._sent(cog)
+        assert "❌ video.mp4 (não recuperado)" in embed.fields[1].value
 
 
 class TestLoadTrapBanCount:

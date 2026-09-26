@@ -138,9 +138,12 @@ class Utility:
     def time_now(self):
         return datetime.combine(datetime.now().date(), time.min).isoformat()
 
-    async def send_embed_to_channel(self, channel, embed):
+    async def send_embed_to_channel(self, channel, embed, files=None):
         try:
-            await channel.send(embed=embed)
+            if files:
+                await channel.send(embed=embed, files=files)
+            else:
+                await channel.send(embed=embed)
         except discord.errors.Forbidden:
             self.log_to_file(f"No permission to send embed in {channel.name}", "ERROR")
         except Exception as e:
