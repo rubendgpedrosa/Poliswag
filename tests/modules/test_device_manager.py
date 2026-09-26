@@ -267,6 +267,34 @@ class TestAlertIfOffline:
 
         assert device_manager._offline_since is None
 
+    async def test_back_online_after_an_alert_tells_the_mods(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 1800)
+        device_manager._last_notification_time = 10_000 - 900
+        device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=True
+        )
+        device_manager._notify = AsyncMock()
+
+        await device_manager.alert_if_offline()
+
+        device_manager._notify.assert_awaited_once()
+        assert "30 min" in device_manager._notify.await_args.args[0]
+
+    async def test_back_online_without_an_alert_stays_quiet(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker, now=10_000, offline_since=10_000 - 300)
+        device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=True
+        )
+        device_manager._notify = AsyncMock()
+
+        await device_manager.alert_if_offline()
+
+        device_manager._notify.assert_not_awaited()
+
     async def test_no_configured_device_is_a_noop(self, device_manager, mocker):
         mocker.patch.object(Config, "ADB_DEVICE", "")
         assert await device_manager.alert_if_offline() is False

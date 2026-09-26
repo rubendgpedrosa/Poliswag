@@ -73,6 +73,10 @@ class StackRecovery(LoggingMixin):
             return False
 
         if not all_red:
+            # Mods saw the recovery attempts, so they hear it came back too;
+            # otherwise the last word in the channel is "em baixo".
+            if self._recovery_attempts and self._red_since is not None:
+                await self._announce_recovered(now - self._red_since)
             self._red_since = None
             self._recovery_attempts = 0
             return False
@@ -151,6 +155,15 @@ class StackRecovery(LoggingMixin):
             )
         await self._notify(
             "Recuperação automática", description, discord.Color.orange()
+        )
+
+    async def _announce_recovered(self, red_duration: float) -> None:
+        last_rung = self.RECOVERY_LADDER[self._recovery_attempts - 1][1]
+        await self._notify(
+            "Recuperação automática — mapa de volta",
+            f"O mapa voltou ao normal após **{int(red_duration // 60)} min** "
+            f"em baixo (última acção: {self.RUNG_LABELS[last_rung]}).",
+            discord.Color.green(),
         )
 
     async def recreate_services(self) -> bool:

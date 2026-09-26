@@ -238,6 +238,12 @@ class DeviceManager(LoggingMixin):
         now = time.time()
 
         if device_alive:
+            # Only if mods were told it was offline: close that thread.
+            if self._last_notification_time and self._offline_since is not None:
+                await self._notify(
+                    f"✅ Dispositivo de volta online após "
+                    f"**{int((now - self._offline_since) // 60)} min** offline."
+                )
             self._offline_since = None
             self._last_notification_time = 0
             return False
