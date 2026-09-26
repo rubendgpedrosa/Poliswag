@@ -405,45 +405,27 @@ class Scheduled(commands.Cog):
         update cannot be atomic: a crash between them may still cause a repeat.
         """
         if changed["ended"]:
-            cards, groups, plain, seen = [], [], [], []
+            # The same shape as "Novos eventos": the header, then a card per
+            # event. Events with numbers carry their stats; the rest say when
+            # they ended.
+            cards, groups, seen = [], [], []
             for event in changed["ended"]:
                 summary = await self.poliswag.event_stats.get_summary(event)
-                if not summary:
-                    plain.append(event)
-                elif summary in seen:
+                if summary and summary in seen:
+                    # "Super Mega Raid Day" and "Staraptor Super Mega Raid
+                    # Day" are one event under two names: one card.
                     groups[seen.index(summary)].append(event)
-                else:
-                    seen.append(summary)
-                    groups.append([event])
-                    cards.append(
-                        await self._build_event_embed(
-                            event, is_ended=True, summary=summary
-                        )
-                    )
-            # The events without numbers are one line apiece in an embed, ahead
-            # of the stats cards, all in one message (it was loose text from
-            # 2026-09-24 to 09-26). A long list continues in another embed:
-            # truncating lost events that were then marked delivered.
-            listings, listing_groups, lines, events = [], [], [], []
-            for event in plain:
-                emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
-                line = f"{emoji} {event['name']}"
-                if lines and len("\n".join(lines)) + 1 + len(line) > 4000:
-                    listings.append(
-                        build_embed("Eventos que terminaram", "\n".join(lines))
-                    )
-                    listing_groups.append(events)
-                    lines, events = [], []
-                lines.append(line)
-                events.append(event)
-            if lines:
-                listings.append(build_embed("Eventos que terminaram", "\n".join(lines)))
-                listing_groups.append(events)
+                    continue
+                seen.append(summary)
+                groups.append([event])
+                cards.append(
+                    await self._build_event_embed(event, is_ended=True, summary=summary)
+                )
             await self._send_event_batches(
                 channel,
-                None,
-                listings + cards,
-                listing_groups + groups,
+                "**Eventos que terminaram**",
+                cards,
+                groups,
                 [],
                 is_end=True,
                 acknowledge=acknowledge,
@@ -512,7 +494,13 @@ class Scheduled(commands.Cog):
         )
         color = self.poliswag.event_manager.event_colors.get(event_type_key, 0x3498DB)
         if is_ended:
-            description = summary.headline if summary else None
+            description = (
+                summary.headline
+                if summary
+                else self.poliswag.event_manager.format_end_time(
+                    event_end, verb="Terminou"
+                )
+            )
         else:
             description = self.poliswag.event_manager.format_end_time(event_end)
         embed = discord.Embed(
