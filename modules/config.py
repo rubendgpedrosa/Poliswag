@@ -63,6 +63,9 @@ class Config:
     # The private statistics report. The token issued by !stats is appended to
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
+    # Where modules/site_health.py reaches the site's apps (pm2 on the host,
+    # ports 1080/3001/3003). The bot runs in docker, so not localhost.
+    SITE_HEALTH_HOST = os.environ.get("SITE_HEALTH_HOST", "192.168.1.253")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
