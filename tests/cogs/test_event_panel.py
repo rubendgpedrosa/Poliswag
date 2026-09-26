@@ -406,9 +406,12 @@ class TestPostCommand:
         assert "❌" in ctx.send.await_args.kwargs["embed"].title
         assert poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
 
-    def test_only_admins_may_run_it(self, poliswag):
+    def test_only_my_id_may_run_it_not_other_admins(self, poliswag, mocker):
+        mocker.patch.object(Config, "MY_ID", 333)
         cog = EventPanel(poliswag)
-        assert cog.cog_check(_ctx(author_id="111")) is True
+        assert cog.cog_check(_ctx(author_id=333)) is True
+        # "111" is in ADMIN_USERS_IDS: a mod, still refused.
+        assert cog.cog_check(_ctx(author_id="111")) is False
         assert cog.cog_check(_ctx(author_id="222")) is False
 
 

@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 
 from modules.config import Config
 from modules.embeds import build_embed, status_embed
+from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules import tracking_health
@@ -105,6 +106,7 @@ class Scheduled(commands.Cog):
         self.scheduled_tasks.cancel()
         print(f"{self.__class__.__name__} unloaded!")
 
+    @mods_only()
     @commands.command(
         name="weeklydigest", brief="Envia resumo semanal de eventos (admin)"
     )
@@ -115,6 +117,7 @@ class Scheduled(commands.Cog):
             await ctx.message.delete()
         await self._send_weekly_digest(channel=ctx.channel)
 
+    @mods_only()
     @commands.command(
         name="testevent", brief="Simula _check_events em HH:MM hoje (admin)"
     )

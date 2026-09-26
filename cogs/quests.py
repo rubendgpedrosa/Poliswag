@@ -1,6 +1,7 @@
 from discord.ext import commands
 
 from modules.embeds import build_embed
+from modules.permissions import mods_only
 
 
 class Quests(commands.Cog):
@@ -14,6 +15,7 @@ class Quests(commands.Cog):
     async def cog_unload(self):
         print(f"{self.__class__.__name__} unloaded!")
 
+    @mods_only()
     @commands.command(name="exportquests", brief="Exporta quests para o PWA (admin)")
     async def exportquestscmd(self, ctx):
         if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
@@ -36,6 +38,7 @@ class Quests(commands.Cog):
             self.poliswag.utility.log_to_file(f"[QUEST] exportquestscmd failed: {e}")
             await msg.edit(embed=build_embed(f"❌ Erro ao exportar quests: {e}"))
 
+    @mods_only()
     @commands.command(name="scan", brief="Inicia novo scan de quests")
     async def rescancmd(self, ctx):
         if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:

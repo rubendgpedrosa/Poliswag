@@ -86,9 +86,21 @@ class Poliswag(commands.Bot):
         if message.author.bot:
             return
         ctx = await self.get_context(message)
+        if ctx.command is None and self._is_bare_mention(message):
+            # "@Poliswag" on its own answers like !help. The mention prefix
+            # needs a command after it, so this never reaches invoke().
+            if may_run_in_dm(ctx):
+                await ctx.send_help()
+            return
         if ctx.command is not None and not may_run_in_dm(ctx):
             return
         await self.invoke(ctx)
+
+    def _is_bare_mention(self, message):
+        return self.user is not None and message.content.strip() in (
+            f"<@{self.user.id}>",
+            f"<@!{self.user.id}>",
+        )
 
     async def close(self):
         await close_session()
