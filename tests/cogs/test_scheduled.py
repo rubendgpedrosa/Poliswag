@@ -1143,6 +1143,16 @@ class TestSaveErrorDigestAt:
 
 
 class TestCheckDailyErrorDigest:
+    """The digest goes to the owner by DM (2026-09-26), not to moderação."""
+
+    @pytest.fixture(autouse=True)
+    def _owner(self, cog, monkeypatch):
+        from modules.config import Config
+
+        monkeypatch.setattr(Config, "MY_ID", 42)
+        self.owner = MagicMock(send=AsyncMock())
+        cog.poliswag.get_user = MagicMock(return_value=self.owner)
+
     async def test_skips_before_9am(self, cog):
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = real_datetime.datetime(
@@ -1169,14 +1179,12 @@ class TestCheckDailyErrorDigest:
             mock_dt.datetime.now.return_value = now
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
-        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        self.owner.send.assert_not_called()
         assert cog._last_error_digest_at == now
         cog.poliswag.db.execute_query_to_database.assert_called_once()
 
-    async def test_entries_are_summarized_and_sent(self, cog):
+    async def test_entries_are_summarized_and_sent_to_the_owner(self, cog):
         now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
-        cog.poliswag.MOD_CHANNEL = MagicMock()
-        cog.poliswag.MOD_CHANNEL.send = AsyncMock()
         cog.poliswag.utility.read_new_error_entries = MagicMock(
             return_value=["line1", "line2"]
         )
@@ -1184,14 +1192,14 @@ class TestCheckDailyErrorDigest:
             mock_dt.datetime.now.return_value = now
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
-        cog.poliswag.MOD_CHANNEL.send.assert_awaited_once()
-        title = cog.poliswag.MOD_CHANNEL.send.call_args.kwargs["embed"].title
+        cog.poliswag.MOD_CHANNEL.send.assert_not_called()
+        cog.poliswag.get_user.assert_called_with(42)
+        self.owner.send.assert_awaited_once()
+        title = self.owner.send.call_args.kwargs["embed"].title
         assert "2 erro" in title
 
     async def test_more_than_ten_entries_notes_the_overflow(self, cog):
         now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
-        cog.poliswag.MOD_CHANNEL = MagicMock()
-        cog.poliswag.MOD_CHANNEL.send = AsyncMock()
         cog.poliswag.utility.read_new_error_entries = MagicMock(
             return_value=[f"line{i}" for i in range(15)]
         )
@@ -1199,17 +1207,32 @@ class TestCheckDailyErrorDigest:
             mock_dt.datetime.now.return_value = now
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
-        desc = cog.poliswag.MOD_CHANNEL.send.call_args.kwargs["embed"].description
+        desc = self.owner.send.call_args.kwargs["embed"].description
         assert "e mais 5" in desc
 
-    async def test_no_mod_channel_is_a_noop(self, cog):
+    async def test_no_owner_configured_is_a_noop(self, cog, monkeypatch):
+        from modules.config import Config
+
+        monkeypatch.setattr(Config, "MY_ID", 0)
         now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
-        cog.poliswag.MOD_CHANNEL = None
         cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = now
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()  # must not raise
+        self.owner.send.assert_not_called()
+
+    async def test_a_failed_dm_is_logged_not_raised(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        self.owner.send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=403), "closed")
+        )
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        cog.poliswag.utility.log_to_file.assert_called()
 
     async def test_uses_one_day_lookback_when_never_run_before(self, cog):
         now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
