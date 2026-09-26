@@ -11,14 +11,17 @@ _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 # messages server-wide in the same API call -- this is how long a lookback
 # that purge covers.
 _TRAP_BAN_PURGE_SECONDS = 86400
+_TRAP_REJOIN_INVITE = "https://discord.gg/pASCYbp"
 
 
 def _build_trap_warning_embed(count):
     return status_embed(
         "🚫 NÃO ENVIEM MENSAGENS NESTE CANAL",
         "Este canal é usado para apanhar spam bots. Qualquer mensagem "
-        "enviada aqui resulta num **ban automático**.\n\n"
-        f"**Pessoas banidas até agora:** {count}",
+        "enviada aqui resulta numa **expulsão automática** e na limpeza das "
+        "mensagens das últimas **24 horas**, em todo o servidor. "
+        "O ban é removido logo de seguida; poderás voltar com um convite.\n\n"
+        f"**Remoções efetuadas até agora:** {count}",
         color=0xE74C3C,
     )
 
@@ -197,10 +200,29 @@ class Moderation(commands.Cog):
                 "ERROR",
             )
 
+        # Send while still sharing the guild; after removal Discord may no
+        # longer allow a DM. Closed DMs must never prevent the cleanup.
+        invite_sent = False
+        try:
+            await message.author.send(
+                "Enviaste uma mensagem no canal **#ignorar-este-canal**. "
+                "Este canal aplica uma remoção automática e limpa as mensagens "
+                "das últimas 24 horas no servidor. O ban é removido logo a seguir.\n\n"
+                f"Para voltares ao PoGoLeiria, usa este convite: {_TRAP_REJOIN_INVITE}",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            invite_sent = True
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"[TRAP] Could not DM rejoin invite to {message.author} "
+                f"({message.author.id}): {e}",
+                "ERROR",
+            )
+
         banned = False
         try:
             await message.author.ban(
-                reason="Auto-ban: posted in trap channel",
+                reason="Trap channel: remove member and purge previous 24 hours before unban",
                 delete_message_seconds=_TRAP_BAN_PURGE_SECONDS,
             )
             banned = True
@@ -210,20 +232,56 @@ class Moderation(commands.Cog):
                 "ERROR",
             )
 
+        unbanned = False
         if banned:
+            # Unban before counter/database/message work: unrelated failures
+            # must not turn the requested removal into a permanent ban.
+            try:
+                await message.guild.unban(
+                    message.author,
+                    reason="Trap channel cleanup complete: allow rejoining by invite",
+                )
+                unbanned = True
+            except discord.HTTPException as e:
+                # Another concurrent trap message/moderator may have already
+                # removed this ban. Other 404s are not proof of an unban.
+                if isinstance(e, discord.NotFound) and e.code == 10026:
+                    unbanned = True
+                else:
+                    self.poliswag.utility.log_to_file(
+                        f"[TRAP] Ban succeeded but unban failed for {message.author} "
+                        f"({message.author.id}); manual unban required: {e}",
+                        "ERROR",
+                    )
             self._trap_ban_count += 1
-            await self._save_trap_ban_count(self._trap_ban_count)
+            try:
+                await self._save_trap_ban_count(self._trap_ban_count)
+            except Exception as e:
+                self.poliswag.utility.log_to_file(
+                    f"[TRAP] Failed to save removal counter: {e}", "ERROR"
+                )
 
         await self._refresh_trap_message(trap_channel)
 
         if self.poliswag.MOD_CHANNEL is not None:
             embed = status_embed("🍯 Alguém caiu no canal-armadilha", color=0xE74C3C)
+            unban_status = (
+                "✅ removido; pode voltar com um convite"
+                if unbanned
+                else (
+                    "❌ falhou; continua banido — remover manualmente"
+                    if banned
+                    else "não tentado (o ban falhou)"
+                )
+            )
             embed.add_field(
                 name=str(message.author),
                 value=(
                     f"**Ban:** {'✅ efectuado (mensagens dos últimos 24h purgadas)' if banned else '❌ falhou (ver logs)'}\n"
+                    f"**Desban:** {unban_status}\n"
+                    f"**Convite por DM:** {'✅ enviado' if invite_sent else '❌ não enviado (DMs fechadas ou erro)'}\n"
                     f"{message.content or '*(sem texto)*'}"
-                ),
+                )[:1024],
                 inline=False,
             )
             await self.poliswag.utility.send_embed_to_channel(
