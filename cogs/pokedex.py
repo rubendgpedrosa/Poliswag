@@ -148,6 +148,14 @@ class Pokedex(commands.Cog):
             )
             return
 
+        # As !pokedex: the answer goes by DM, so the command has nothing
+        # left to say in the channel.
+        if ctx.guild is not None:
+            try:
+                await ctx.message.delete()
+            except (discord.Forbidden, discord.NotFound):
+                pass
+
         # A window, not a watermark: a preview must never eat a morning's news.
         dias = max(1, min(30, dias))
         rows = await asyncio.to_thread(rows_since, dias)
