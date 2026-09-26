@@ -420,28 +420,31 @@ class Scheduled(commands.Cog):
                             event, is_ended=True, summary=summary
                         )
                     )
-            # Split plain lines too: slicing a 2000-character header silently
-            # lost events that were then marked delivered.
-            header = "**Eventos que terminaram**"
-            text, text_events = header, []
+            # The events without numbers are one line apiece in an embed, ahead
+            # of the stats cards, all in one message (it was loose text from
+            # 2026-09-24 to 09-26). A long list continues in another embed:
+            # truncating lost events that were then marked delivered.
+            listings, listing_groups, lines, events = [], [], [], []
             for event in plain:
                 emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
-                line = f"\n{emoji} {event['name']}"
-                if len(text) + len(line) > 2000:
-                    await channel.send(
-                        text, embeds=[], allowed_mentions=discord.AllowedMentions.none()
+                line = f"{emoji} {event['name']}"
+                if lines and len("\n".join(lines)) + 1 + len(line) > 4000:
+                    listings.append(
+                        build_embed("Eventos que terminaram", "\n".join(lines))
                     )
-                    if acknowledge:
-                        await self._ack_events(text_events, is_end=True)
-                    text, text_events = header, []
-                text += line
-                text_events.append(event)
+                    listing_groups.append(events)
+                    lines, events = [], []
+                lines.append(line)
+                events.append(event)
+            if lines:
+                listings.append(build_embed("Eventos que terminaram", "\n".join(lines)))
+                listing_groups.append(events)
             await self._send_event_batches(
                 channel,
-                text,
-                cards,
-                groups,
-                text_events,
+                None,
+                listings + cards,
+                listing_groups + groups,
+                [],
                 is_end=True,
                 acknowledge=acknowledge,
             )
