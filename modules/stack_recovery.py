@@ -147,6 +147,10 @@ class StackRecovery(LoggingMixin):
             "up",
             "-d",
             "--force-recreate",
+            # Only these services: compose otherwise also recreates any
+            # dependency whose config drifted, and on 2026-09-26 that
+            # recreated the database (db) with a new port binding mid-recovery.
+            "--no-deps",
         ] + services
 
         if not Config.IS_PRODUCTION:
