@@ -40,6 +40,7 @@ def _member(author_id, is_bot=False):
     member.id = author_id
     member.bot = is_bot
     member.ban = AsyncMock()
+    member.send = AsyncMock()
     return member
 
 
@@ -50,6 +51,7 @@ def _trap_msg(author_id=555, content="spam", is_bot=False):
     message.author = _member(author_id, is_bot=is_bot)
     message.content = content
     message.delete = AsyncMock()
+    message.guild.unban = AsyncMock()
     return message
 
 
@@ -300,6 +302,11 @@ class TestOnMessageTrap:
         await cog.on_message(msg)
         msg.delete.assert_awaited_once()
         msg.author.ban.assert_awaited_once()
+        assert msg.author.ban.await_args.kwargs["delete_message_seconds"] == 86400
+        msg.guild.unban.assert_awaited_once_with(
+            msg.author,
+            reason="Trap channel cleanup complete: allow rejoining by invite",
+        )
         assert cog._trap_ban_count == 1
         cog.poliswag.db.execute_query_to_database.assert_called_once()
 
@@ -335,6 +342,7 @@ class TestOnMessageTrap:
         )
         await cog.on_message(msg)
         assert cog._trap_ban_count == 0
+        msg.guild.unban.assert_not_awaited()
         cog.poliswag.db.execute_query_to_database.assert_not_called()
 
     async def test_mod_channel_notified_with_result(self, cog):
@@ -481,3 +489,123 @@ class TestSetup:
         await setup(poliswag)
         poliswag.add_cog.assert_awaited_once()
         assert isinstance(poliswag.add_cog.call_args.args[0], Moderation)
+
+
+class TestTrapUnban:
+    async def test_unban_precedes_counter_and_survives_database_failure(self, cog):
+        steps = []
+        msg = _trap_msg()
+
+        async def ban(**kwargs):
+            steps.append("ban")
+
+        async def unban(*args, **kwargs):
+            steps.append("unban")
+
+        async def save(*args, **kwargs):
+            steps.append("save")
+            raise RuntimeError("DB offline")
+
+        msg.author.ban.side_effect = ban
+        msg.guild.unban.side_effect = unban
+        cog._save_trap_ban_count = AsyncMock(side_effect=save)
+        cog._refresh_trap_message = AsyncMock()
+        await cog.on_message(msg)
+        assert steps == ["ban", "unban", "save"]
+        cog.poliswag.utility.send_embed_to_channel.assert_awaited_once()
+        embed = cog.poliswag.utility.send_embed_to_channel.await_args.args[1]
+        assert "pode voltar" in embed.fields[0].value
+
+    async def test_unban_failure_reports_member_still_banned(self, cog):
+        import discord
+
+        msg = _trap_msg(content="x" * 2000)
+        msg.guild.unban.side_effect = discord.Forbidden(
+            MagicMock(status=403, reason="Forbidden"), "missing permissions"
+        )
+        cog._refresh_trap_message = AsyncMock()
+        await cog.on_message(msg)
+        embed = cog.poliswag.utility.send_embed_to_channel.await_args.args[1]
+        assert "continua banido" in embed.fields[0].value
+        assert len(embed.fields[0].value) <= 1024
+        assert any(
+            "unban failed" in c.args[0]
+            for c in cog.poliswag.utility.log_to_file.call_args_list
+        )
+        assert cog._trap_ban_count == 1
+
+    @pytest.mark.parametrize(
+        "code, expected", [(10026, "pode voltar"), (10004, "continua banido")]
+    )
+    async def test_only_unknown_ban_404_counts_as_already_unbanned(
+        self, cog, code, expected
+    ):
+        import discord
+
+        msg = _trap_msg()
+        msg.guild.unban.side_effect = discord.NotFound(
+            MagicMock(status=404, reason="Not Found"),
+            {"code": code, "message": "not found"},
+        )
+        cog._refresh_trap_message = AsyncMock()
+        await cog.on_message(msg)
+        embed = cog.poliswag.utility.send_embed_to_channel.await_args.args[1]
+        assert expected in embed.fields[0].value
+
+    def test_warning_describes_removal_cleanup_and_rejoining(self):
+        from cogs.moderation import _build_trap_warning_embed
+
+        warning = _build_trap_warning_embed(5)
+        assert "24 horas" in warning.description
+        assert "convite" in warning.description
+        assert "ban automático" not in warning.description
+
+
+class TestTrapInvite:
+    async def test_invite_is_sent_before_removal(self, cog):
+        steps = []
+        msg = _trap_msg()
+
+        async def dm(*args, **kwargs):
+            steps.append("dm")
+
+        async def ban(**kwargs):
+            steps.append("ban")
+
+        async def unban(*args, **kwargs):
+            steps.append("unban")
+
+        msg.author.send.side_effect = dm
+        msg.author.ban.side_effect = ban
+        msg.guild.unban.side_effect = unban
+        cog._refresh_trap_message = AsyncMock()
+        await cog.on_message(msg)
+        assert steps == ["dm", "ban", "unban"]
+        assert "https://discord.gg/pASCYbp" in msg.author.send.await_args.args[0]
+        assert msg.author.send.await_args.kwargs["allowed_mentions"].everyone is False
+        embed = cog.poliswag.utility.send_embed_to_channel.await_args.args[1]
+        assert "**Convite por DM:** ✅ enviado" in embed.fields[0].value
+
+    async def test_closed_dms_do_not_block_ban_or_unban(self, cog):
+        import discord
+
+        msg = _trap_msg()
+        msg.author.send.side_effect = discord.Forbidden(
+            MagicMock(status=403, reason="Forbidden"),
+            "Cannot send messages to this user",
+        )
+        cog._refresh_trap_message = AsyncMock()
+        await cog.on_message(msg)
+        msg.author.ban.assert_awaited_once()
+        msg.guild.unban.assert_awaited_once()
+        embed = cog.poliswag.utility.send_embed_to_channel.await_args.args[1]
+        assert "**Convite por DM:** ❌ não enviado" in embed.fields[0].value
+        assert "pode voltar" in embed.fields[0].value
+
+    @pytest.mark.parametrize("author_id,is_bot", [(999, False), (555, True)])
+    async def test_exempt_authors_are_not_sent_invites(self, cog, author_id, is_bot):
+        msg = _trap_msg(author_id=author_id, is_bot=is_bot)
+        await cog.on_message(msg)
+        msg.author.send.assert_not_awaited()
+        msg.author.ban.assert_not_awaited()
+        msg.guild.unban.assert_not_awaited()
