@@ -89,7 +89,7 @@ LOG_FILE, ERROR_LOG_FILE
 
 ## Dev vs prod
 
-- `ENV=DEVELOPMENT` → `http_client.fetch_data` returns mock JSON from `mock_data/*.json` for infra endpoints; real HTTP only for `all_down` + `events`.
+- `ENV=DEVELOPMENT` → `http_client.fetch_data` returns mock JSON from `mock_data/*.json` for infra endpoints; real HTTP only for `all_down` + `events`. `scanner_status.json`/`device_status.json` are untracked and generated with current timestamps by `python mock_data/refresh.py` (the test session runs it first).
 - `mock_database/init.sql` seeds a full scanner DB for local Docker Compose.
 - `make up` starts dev stack; `docker-compose.prod.yaml` for production.
 
