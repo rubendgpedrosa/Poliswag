@@ -125,6 +125,23 @@ class TestTimeNow:
 
 
 class TestFormatDatetimeString:
+    @pytest.mark.parametrize(
+        "source, expected",
+        [
+            ("2026-09-26T09:00:00.000Z", "2026-09-26 10:00:00"),
+            ("2026-01-26T09:00:00Z", "2026-01-26 09:00:00"),
+            ("2026-09-26T10:00:00.000", "2026-09-26 10:00:00"),
+            ("2026-09-26T10:00:00+02:00", "2026-09-26 09:00:00"),
+            ("2026-09-26T23:30:00Z", "2026-09-27 00:30:00"),
+            ("2026-03-29T00:30:00Z", "2026-03-29 00:30:00"),
+            ("2026-03-29T01:30:00Z", "2026-03-29 02:30:00"),
+            ("2026-10-25T00:30:00Z", "2026-10-25 01:30:00"),
+            ("2026-10-25T01:30:00Z", "2026-10-25 01:30:00"),
+        ],
+    )
+    def test_converts_absolute_times_to_lisbon(self, util, source, expected):
+        assert util.format_datetime_string(source) == expected
+
     def test_strips_Z_T_and_millis(self, util):
         assert (
             util.format_datetime_string("2024-01-02T15:04:05.123Z")
