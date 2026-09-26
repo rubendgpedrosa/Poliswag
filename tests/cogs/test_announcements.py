@@ -40,8 +40,17 @@ def _ctx(author_id=_ADMIN, attachments=()):
     ctx = MagicMock()
     ctx.author.id = author_id
     ctx.message.attachments = list(attachments)
+    ctx.message.delete = AsyncMock()
     ctx.send = AsyncMock(return_value=MagicMock())
     return ctx
+
+
+def _attachment(name="a.png", data=b"img"):
+    attachment = MagicMock()
+    attachment.filename = name
+    attachment.read = AsyncMock(return_value=data)
+    attachment.is_spoiler = MagicMock(return_value=False)
+    return attachment
 
 
 def _interaction(user_id=_ADMIN):
@@ -103,6 +112,51 @@ class TestAnunciar:
         cog = Announcements(poliswag)
         await cog.anunciar.callback(cog, ctx, texto=_TEXT)
         assert _embed_titles(ctx) == ["❌ Sem canal de anúncios"]
+
+
+class TestCommandMessage:
+    async def test_deleted_once_the_preview_is_up(self, poliswag):
+        ctx = _ctx()
+        cog = Announcements(poliswag)
+        await cog.anunciar.callback(cog, ctx, texto=_TEXT)
+        ctx.message.delete.assert_awaited_once()
+
+    async def test_kept_when_refused_so_the_text_can_be_fixed(self, poliswag):
+        ctx = _ctx()
+        cog = Announcements(poliswag)
+        await cog.anunciar.callback(cog, ctx, texto="x" * (_MAX_LENGTH + 1))
+        ctx.message.delete.assert_not_awaited()
+
+    async def test_not_touched_in_a_dm(self, poliswag):
+        ctx = _ctx()
+        ctx.guild = None
+        cog = Announcements(poliswag)
+        await cog.anunciar.callback(cog, ctx, texto=_TEXT)
+        ctx.message.delete.assert_not_awaited()
+
+    async def test_a_failed_delete_does_not_break_the_preview(self, poliswag):
+        ctx = _ctx()
+        ctx.message.delete.side_effect = discord.Forbidden(
+            MagicMock(status=403), "Missing Permissions"
+        )
+        cog = Announcements(poliswag)
+        await cog.anunciar.callback(cog, ctx, texto=_TEXT)
+        assert "📣 Publicar este anúncio?" in _embed_titles(ctx)
+
+    async def test_attachments_survive_the_deleted_message(self, poliswag):
+        """Read once before the delete; Publicar sends those bytes, not the
+        (by then gone) attachment."""
+        attachment = _attachment()
+        ctx = _ctx(attachments=[attachment])
+        cog = Announcements(poliswag)
+        await cog.anunciar.callback(cog, ctx, texto=_TEXT)
+        view = ctx.send.call_args.kwargs["view"]
+
+        await view.handle_publish(_interaction())
+
+        attachment.read.assert_awaited_once()
+        files = poliswag.EVENT_PANEL_CHANNEL.send.call_args.kwargs["files"]
+        assert [f.filename for f in files] == ["a.png"]
 
 
 class TestConfirm:
@@ -167,13 +221,12 @@ class TestConfirm:
         )
 
     async def test_attachments_go_with_the_post(self, poliswag):
-        attachment = MagicMock()
-        attachment.to_file = AsyncMock(return_value=MagicMock(spec=discord.File))
         view = AnnouncementConfirm(
-            Announcements(poliswag), _ctx(attachments=[attachment]), _TEXT
+            Announcements(poliswag), _ctx(), _TEXT, [("a.png", b"img", False)]
         )
         await view.handle_publish(_interaction())
-        assert len(poliswag.EVENT_PANEL_CHANNEL.send.call_args.kwargs["files"]) == 1
+        files = poliswag.EVENT_PANEL_CHANNEL.send.call_args.kwargs["files"]
+        assert [f.filename for f in files] == ["a.png"]
 
 
 async def test_setup_adds_the_cog(poliswag):
