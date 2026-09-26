@@ -636,8 +636,9 @@ class Scheduled(commands.Cog):
         await self._trade_digest.tick(datetime.datetime.now())
 
     async def _check_daily_error_digest(self):
-        """Once a day, if anything new landed in error.log, summarize it in
-        MOD_CHANNEL. Silent when there is nothing new to report."""
+        """Once a day, if anything new landed in error.log, DM a summary to
+        MY_ID (it went to MOD_CHANNEL until 2026-09-26). Silent when there is
+        nothing new to report."""
         now = datetime.datetime.now()
         if (
             self._last_error_digest_at
@@ -653,7 +654,7 @@ class Scheduled(commands.Cog):
         self._last_error_digest_at = now
         await self._save_error_digest_at(now)
 
-        if not entries or not self.poliswag.MOD_CHANNEL:
+        if not entries or not Config.MY_ID:
             return
 
         preview = entries[:10]
@@ -665,7 +666,15 @@ class Scheduled(commands.Cog):
             f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
             description[:4000],
         )
-        await self.poliswag.MOD_CHANNEL.send(embed=embed)
+        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
+            Config.MY_ID
+        )
+        try:
+            await user.send(embed=embed)
+        except discord.HTTPException:
+            self.poliswag.utility.log_to_file(
+                "Could not DM the daily error digest", "ERROR"
+            )
 
     async def _check_tracking_health(self):
         """Tell MY_ID when the site stops recording, and when it starts again.
