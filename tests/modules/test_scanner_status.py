@@ -28,7 +28,7 @@ class TestGetStatusMessage:
     Leiria and Marinha share one device/stack, so all four inputs (down count
     + expected count per area, both read live from Dragonite on every tick —
     see TestGetWorkersWithIssues) feed one indicator. Production values are
-    currently 7 (LeiriaBigger) + 1 (MarinhaGrande) = 8 total, but nothing here
+    currently 14 (Leiria) + 2 (MarinhaGrande) = 16 total, but nothing here
     hardcodes that — it's just what's passed in.
 
     Three states only: 🟢 the map is being scanned (however few accounts are
@@ -336,6 +336,33 @@ class TestGetWorkersWithIssues:
         result = await scanner_status.get_workers_with_issues()
         assert result["downDevicesLeiria"] == 0
 
+    async def test_every_non_marinha_area_counts_as_leiria(
+        self, scanner_status, mocker
+    ):
+        # Regression: on 2026-09-28 Dragonite's Leiria area was named "Leiria"
+        # (14 workers) next to an empty "LeiriaBigger" (expected 0). Only
+        # LeiriaBigger was read, so Marinha's 2 workers dropping looked like a
+        # fully red map while Leiria was scanning, and recovery restarted it.
+        now = time.time()
+        stale = now - 10_000
+        _make_fetch_mock(
+            mocker,
+            {
+                "areas": [
+                    _area("Leiria", [_worker(now) for _ in range(14)], 14),
+                    _area("LeiriaBigger", [], 0),
+                    _area("MarinhaGrande", [_worker(stale), _worker(stale)], 2),
+                ]
+            },
+        )
+        result = await scanner_status.get_workers_with_issues()
+        assert result == {
+            "downDevicesLeiria": 0,
+            "downDevicesMarinha": 2,
+            "expectedWorkersLeiria": 14,
+            "expectedWorkersMarinha": 2,
+        }
+
     async def test_marinha_workers_parsed_separately(self, scanner_status, mocker):
         now = time.time()
         _make_fetch_mock(
@@ -401,12 +428,12 @@ class TestGetWorkersWithIssues:
             "expectedWorkersMarinha": None,
         }
 
-    async def test_unknown_area_never_leaks_into_known_counters(
+    async def test_renamed_area_with_expected_workers_counts_as_leiria(
         self, scanner_status, mocker
     ):
-        # Even when the payload supplies an expected_workers override for an
-        # unknown area (so the area IS processed rather than skipped), its
-        # downDevices value must not leak into Leiria/MarinhaGrande.
+        # An area Poliswag has never heard of is still scanned by the same
+        # phone, so it counts. Ignoring it is what hid Leiria (renamed from
+        # LeiriaBigger) and turned a Marinha-only outage into "fully red".
         now = time.time()
         _make_fetch_mock(
             mocker,
@@ -421,7 +448,12 @@ class TestGetWorkersWithIssues:
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result == _NO_WORKER_DATA
+        assert result == {
+            "downDevicesLeiria": 2,
+            "downDevicesMarinha": None,
+            "expectedWorkersLeiria": 3,
+            "expectedWorkersMarinha": None,
+        }
 
 
 class TestGetFullStatusDevices:
