@@ -195,6 +195,30 @@ class TestIsDeviceConnected:
         assert await account_monitor.is_device_connected() is True
 
 
+class TestConnectedWorkerCount:
+    """Aegis workers registered in rotom-ng; None when rotom-ng didn't answer."""
+
+    async def test_unreachable_rotom_is_none_not_zero(self, account_monitor, mocker):
+        _mock_fetch(mocker, None)
+        assert await account_monitor.connected_worker_count() is None
+
+    async def test_sums_connected_devices_only(self, account_monitor, mocker):
+        _mock_fetch(
+            mocker,
+            {
+                "devices": [
+                    {"is_connected": True, "worker_count": 16},
+                    {"is_connected": False, "worker_count": 16},
+                ]
+            },
+        )
+        assert await account_monitor.connected_worker_count() == 16
+
+    async def test_offline_phone_is_zero_workers(self, account_monitor, mocker):
+        _mock_fetch(mocker, {"devices": [{"is_connected": False, "worker_count": 16}]})
+        assert await account_monitor.connected_worker_count() == 0
+
+
 class TestDisabledStatusesConstant:
     """Regression guards for the canonical list of disabled account statuses."""
 

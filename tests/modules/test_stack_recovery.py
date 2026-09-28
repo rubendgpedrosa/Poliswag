@@ -12,6 +12,9 @@ def stack_recovery(mocker):
     sr = StackRecovery(poliswag=MagicMock())
     sr.poliswag.MOD_CHANNEL = None
     sr.poliswag.device_manager.restart_scanner_apps = AsyncMock(return_value=True)
+    sr.poliswag.device_manager.phone_health = AsyncMock(
+        return_value=("healthy", "Aegis running and injected")
+    )
     mocker.patch("modules.stack_recovery.asyncio.sleep", new=AsyncMock())
     mocker.patch.object(
         sr, "get_auto_recreate_enabled", new=AsyncMock(return_value=True)
@@ -74,145 +77,200 @@ class TestAutoRecreateEnabledCache:
         sr.poliswag.db.get_data_from_database.assert_called_once()
 
 
+# observe() inputs for each situation: (all_red, workers in rotom-ng)
+SCANNING = (False, 16)
+NO_DATA = (True, 16)  # workers connected, every Dragonite worker down
+NO_WORKERS = (True, 0)  # nothing in rotom-ng; phone_health decides the rest
+STACK_DOWN = (None, None)  # Dragonite / rotom-ng not answering
+
+
+@pytest.fixture
+def no_compose(stack_recovery):
+    """The ladder tests never run docker compose."""
+    stack_recovery.recreate_services = AsyncMock(return_value=True)
+
+
+def _phone(sr, state):
+    sr.poliswag.device_manager.phone_health = AsyncMock(return_value=(state, "why"))
+
+
+async def _tick(sr, mocker, at, situation):
+    _at(mocker, at)
+    return await sr.observe(*situation)
+
+
+@pytest.mark.usefixtures("no_compose")
+class TestDiagnose:
+    """Each tick is sorted into the one problem a restart can (or can't) fix."""
+
+    async def test_scanning_is_no_problem(self, stack_recovery):
+        assert await stack_recovery._diagnose(*SCANNING) is None
+
+    async def test_workers_but_no_data_waits(self, stack_recovery):
+        assert await stack_recovery._diagnose(*NO_DATA) == "no_data"
+        stack_recovery.poliswag.device_manager.phone_health.assert_not_called()
+
+    async def test_unanswered_status_is_the_stack(self, stack_recovery):
+        assert await stack_recovery._diagnose(None, 16) == "stack"
+        assert await stack_recovery._diagnose(True, None) == "stack"
+
+    async def test_no_workers_and_broken_phone(self, stack_recovery):
+        _phone(stack_recovery, "broken")
+        assert await stack_recovery._diagnose(*NO_WORKERS) == "phone"
+
+    async def test_no_workers_but_healthy_phone_is_the_link(self, stack_recovery):
+        # 2026-09-28: rotom-ng dropped every worker, Aegis stayed injected and
+        # reconnected within a minute. Restarting the phone was never needed.
+        _phone(stack_recovery, "healthy")
+        assert await stack_recovery._diagnose(*NO_WORKERS) == "link"
+
+    async def test_no_workers_and_unreachable_phone(self, stack_recovery):
+        _phone(stack_recovery, "unreachable")
+        assert await stack_recovery._diagnose(*NO_WORKERS) == "unreachable"
+
+    async def test_no_workers_even_before_dragonite_turns_red(self, stack_recovery):
+        # Dragonite counts a worker up for 10 min after its last data; rotom-ng
+        # knows at once, so the phone is checked without waiting for red.
+        _phone(stack_recovery, "broken")
+        assert await stack_recovery._diagnose(False, 0) == "phone"
+
+
+@pytest.mark.usefixtures("no_compose")
 class TestObserve:
-    """Red ladder: containers + phone apps at 10 min, again at 30 min, then stop.
+    """Rungs at 5 and 15 min into an episode; what each does depends on why."""
 
-    Both attempts are timed from the start of the red episode, and none ever
-    reboots the device.
-    """
+    async def test_broken_phone_restarts_only_the_apps_at_5min(
+        self, stack_recovery, mocker
+    ):
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        assert await _tick(stack_recovery, mocker, 1_000 + 299, NO_WORKERS) is False
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
 
-    async def test_not_red_resets_tracking(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 9_000
-        stack_recovery._recovery_attempts = 1
-        assert await stack_recovery.observe(False) is False
+        assert await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS) is True
+
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
+        stack_recovery.recreate_services.assert_not_called()
+        assert stack_recovery._recovery_attempts == 1
+
+    async def test_broken_phone_gets_everything_at_15min(self, stack_recovery, mocker):
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 899, NO_WORKERS)
+        stack_recovery.recreate_services.assert_not_called()
+
+        await _tick(stack_recovery, mocker, 1_000 + 900, NO_WORKERS)
+
+        stack_recovery.recreate_services.assert_awaited_once()
+        assert (
+            stack_recovery.poliswag.device_manager.restart_scanner_apps.await_count == 2
+        )
+
+    async def test_stops_after_both_rungs(self, stack_recovery, mocker):
+        _phone(stack_recovery, "broken")
+        for t in (0, 300, 900, 5_000, 99_999):
+            await _tick(stack_recovery, mocker, 1_000 + t, NO_WORKERS)
+        stack_recovery.recreate_services.assert_awaited_once()
+        assert (
+            stack_recovery.poliswag.device_manager.restart_scanner_apps.await_count == 2
+        )
+
+    async def test_unanswering_stack_is_recreated_at_5min(self, stack_recovery, mocker):
+        await _tick(stack_recovery, mocker, 1_000, STACK_DOWN)
+        await _tick(stack_recovery, mocker, 1_000 + 300, STACK_DOWN)
+        stack_recovery.recreate_services.assert_awaited_once()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
+
+    async def test_our_own_recreate_does_not_restart_the_episode(
+        self, stack_recovery, mocker
+    ):
+        # A recreate leaves Dragonite/rotom-ng briefly unanswering; that's the
+        # same episode, not a new one, so rung 1 doesn't fire again.
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 360, STACK_DOWN)
+        await _tick(stack_recovery, mocker, 1_000 + 420, NO_WORKERS)
+        assert (
+            stack_recovery.poliswag.device_manager.restart_scanner_apps.await_count == 1
+        )
+        assert stack_recovery._red_since == 1_000
+
+    async def test_healthy_phone_waits_for_aegis_to_reconnect(
+        self, stack_recovery, mocker
+    ):
+        _phone(stack_recovery, "healthy")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 600, NO_WORKERS)
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
+        stack_recovery.recreate_services.assert_not_called()
+
+    async def test_healthy_phone_still_stuck_at_15min_gets_everything_once(
+        self, stack_recovery, mocker
+    ):
+        _phone(stack_recovery, "healthy")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 900, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 960, NO_WORKERS)
+        stack_recovery.recreate_services.assert_awaited_once()
+        assert stack_recovery._recovery_attempts == 2
+
+    async def test_late_first_action_uses_up_the_passed_rungs(
+        self, stack_recovery, mocker
+    ):
+        # Waiting on the link until 10 min, then the phone breaks: its first
+        # rung fires then, and the next tick doesn't fire rung 2 as well.
+        _phone(stack_recovery, "healthy")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000 + 600, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 660, NO_WORKERS)
+        assert (
+            stack_recovery.poliswag.device_manager.restart_scanner_apps.await_count == 1
+        )
+        stack_recovery.recreate_services.assert_not_called()
+
+    async def test_no_data_never_restarts(self, stack_recovery, mocker):
+        for t in (0, 300, 900, 5_000):
+            await _tick(stack_recovery, mocker, 1_000 + t, NO_DATA)
+        stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
+
+    async def test_unreachable_phone_never_restarts(self, stack_recovery, mocker):
+        _phone(stack_recovery, "unreachable")
+        for t in (0, 300, 900, 5_000):
+            await _tick(stack_recovery, mocker, 1_000 + t, NO_WORKERS)
+        stack_recovery.recreate_services.assert_not_called()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
+
+    async def test_scanning_resets_the_episode(self, stack_recovery, mocker):
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 400, SCANNING)
         assert stack_recovery._red_since is None
         assert stack_recovery._recovery_attempts == 0
 
-    async def test_unknown_status_preserves_exhausted_episode(
-        self, stack_recovery, mocker
-    ):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 9_000
-        stack_recovery._recovery_attempts = 2
-        stack_recovery.recreate_services = AsyncMock()
-
-        assert await stack_recovery.observe(None) is False
-
-        assert stack_recovery._red_since == 9_000
-        assert stack_recovery._recovery_attempts == 2
-        stack_recovery.recreate_services.assert_not_called()
-        stack_recovery.get_auto_recreate_enabled.assert_not_called()
-
-    async def test_fresh_red_does_not_recreate_immediately(
-        self, stack_recovery, mocker
-    ):
-        _at(mocker, 10_000)
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
-        assert await stack_recovery.observe(True) is False
-        stack_recovery.recreate_services.assert_not_called()
-        assert stack_recovery._red_since == 10_000
-        assert stack_recovery._recovery_attempts == 0
-
-    async def test_first_attempt_fires_at_10min(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 600  # exactly 10 min red
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
-
-        assert await stack_recovery.observe(True) is True
-
-        stack_recovery.recreate_services.assert_awaited_once()
-        # the phone is restarted in the same attempt, not 20 min later
-        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
-        assert stack_recovery._recovery_attempts == 1
-        # episode stays armed — the second attempt can still fire at 30 min
-        assert stack_recovery._red_since == 10_000 - 600
-
-    async def test_first_attempt_not_yet_due(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 300  # 5 min < 10 min threshold
-        stack_recovery.recreate_services = AsyncMock()
-
-        assert await stack_recovery.observe(True) is False
-
-        stack_recovery.recreate_services.assert_not_called()
-
-    async def test_second_attempt_waits_until_30min(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 1200  # 20 min red, 1st rung used
-        stack_recovery._recovery_attempts = 1
-        stack_recovery.recreate_services = AsyncMock()
-
-        assert await stack_recovery.observe(True) is False
-
-        stack_recovery.recreate_services.assert_not_called()
-        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
-
-    async def test_second_attempt_repeats_both_at_30min(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 1800  # 30 min red
-        stack_recovery._recovery_attempts = 1
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
-
-        assert await stack_recovery.observe(True) is True
-
-        stack_recovery.recreate_services.assert_awaited_once()
-        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
-        assert stack_recovery._recovery_attempts == 2
-
-    async def test_failed_device_rung_still_counts_the_attempt(
-        self, stack_recovery, mocker
-    ):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 1800
-        stack_recovery._recovery_attempts = 1
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
-        stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
-            return_value=False
-        )
-
-        assert await stack_recovery.observe(True) is False
-
-        assert stack_recovery._recovery_attempts == 2
-
-    async def test_stops_attempting_after_both_used(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 999_999  # still red, way past 30 min
-        stack_recovery._recovery_attempts = 2
-        stack_recovery.recreate_services = AsyncMock()
-
-        assert await stack_recovery.observe(True) is False
-
-        stack_recovery.recreate_services.assert_not_called()
-        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
-        # no reboot escalation exists — the ladder just waits
-        assert stack_recovery._red_since == 10_000 - 999_999
-        assert stack_recovery._recovery_attempts == 2
-
-    async def test_disabled_toggle_blocks_ladder(self, stack_recovery, mocker):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 600
+    async def test_disabled_toggle_blocks_every_action(self, stack_recovery, mocker):
         mocker.patch.object(
             stack_recovery,
             "get_auto_recreate_enabled",
             new=AsyncMock(return_value=False),
         )
-        stack_recovery.recreate_services = AsyncMock()
-        assert await stack_recovery.observe(True) is False
+        await _tick(stack_recovery, mocker, 1_000, STACK_DOWN)
+        await _tick(stack_recovery, mocker, 1_000 + 900, STACK_DOWN)
         stack_recovery.recreate_services.assert_not_called()
 
-    async def test_failed_recreate_still_counts_the_attempt(
+    async def test_failed_recreate_still_restarts_the_phone(
         self, stack_recovery, mocker
     ):
-        _at(mocker, 10_000)
-        stack_recovery._red_since = 10_000 - 600
         stack_recovery.recreate_services = AsyncMock(return_value=False)
-        assert await stack_recovery.observe(True) is False
-        # the phone is still tried when the containers fail
+        await _tick(stack_recovery, mocker, 1_000, STACK_DOWN)
+        assert await _tick(stack_recovery, mocker, 1_000 + 300, STACK_DOWN) is False
         stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
-        # attempt is consumed even on failure, so it doesn't retry every tick
+        # used up even on failure, so it doesn't retry every tick
         assert stack_recovery._recovery_attempts == 1
-        assert stack_recovery._red_since == 10_000 - 600
 
 
 class TestRecreateServices:
@@ -322,78 +380,84 @@ class TestNotify:
         stack_recovery.poliswag.utility.log_to_file.assert_called_once()
 
 
+@pytest.mark.usefixtures("no_compose")
 class TestRecoveredAnnouncement:
-    async def test_green_after_a_rung_tells_the_mods(self, stack_recovery, mocker):
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
+    async def test_back_after_a_rung_tells_the_mods(self, stack_recovery, mocker):
         stack_recovery._notify = AsyncMock()
-        _at(mocker, 1_000)
-        await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 600)
-        await stack_recovery.observe(True)  # containers rung
-        _at(mocker, 1_000 + 900)
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
 
-        await stack_recovery.observe(False)
+        await _tick(stack_recovery, mocker, 1_000 + 900, SCANNING)
 
         title, description, color = stack_recovery._notify.await_args_list[-1].args
         assert title == "🟢 Mapa de volta"
         assert "15 min" in description
         assert color == discord.Color.green()
-        assert stack_recovery._recovery_attempts == 0
 
-    async def test_green_before_any_rung_stays_quiet(self, stack_recovery, mocker):
+    async def test_back_after_a_waiting_notice_tells_the_mods(
+        self, stack_recovery, mocker
+    ):
         stack_recovery._notify = AsyncMock()
-        _at(mocker, 1_000)
-        await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 300)
+        await _tick(stack_recovery, mocker, 1_000, NO_DATA)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_DATA)
 
-        await stack_recovery.observe(False)
+        await _tick(stack_recovery, mocker, 1_000 + 600, SCANNING)
 
-        stack_recovery._notify.assert_not_awaited()
+        assert stack_recovery._notify.await_args.args[0] == "🟢 Mapa de volta"
 
-    async def test_status_unavailable_is_not_recovery(self, stack_recovery, mocker):
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
+    async def test_back_before_any_post_stays_quiet(self, stack_recovery, mocker):
         stack_recovery._notify = AsyncMock()
-        _at(mocker, 1_000)
-        await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 600)
-        await stack_recovery.observe(True)
-        stack_recovery._notify.reset_mock()
-
-        await stack_recovery.observe(None)
-
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 120, SCANNING)
         stack_recovery._notify.assert_not_awaited()
 
 
-class TestDownWording:
-    """Mods read the state (down, for how long, what's next), not the mechanics."""
+@pytest.mark.usefixtures("no_compose")
+class TestWording:
+    """Mods read the state (down, why, for how long, what's next)."""
 
-    async def test_first_attempt(self, stack_recovery, mocker):
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
+    async def test_phone_rung(self, stack_recovery, mocker):
         stack_recovery._notify = AsyncMock()
-        _at(mocker, 1_000)
-        await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 600)
-        await stack_recovery.observe(True)
+        _phone(stack_recovery, "broken")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
 
         title, description, color = stack_recovery._notify.await_args.args
-        assert title == "🔴 Mapa em baixo há 10 min"
-        assert "nova tentativa daqui a **20 min**" in description
-        assert "container" not in description.lower()
+        assert title == "🔴 Mapa em baixo há 5 min"
+        assert "Pokémod parou no telemóvel" in description
+        assert "nova tentativa daqui a **10 min**" in description
         assert color == discord.Color.orange()
 
-    async def test_failed_last_attempt_asks_for_a_human(self, stack_recovery, mocker):
-        stack_recovery.recreate_services = AsyncMock(return_value=True)
+    async def test_failed_last_rung_asks_for_a_human(self, stack_recovery, mocker):
+        stack_recovery._notify = AsyncMock()
         stack_recovery.poliswag.device_manager.restart_scanner_apps = AsyncMock(
             return_value=False
         )
-        stack_recovery._notify = AsyncMock()
-        _at(mocker, 1_000)
-        await stack_recovery.observe(True)
-        _at(mocker, 1_000 + 1800)
-        stack_recovery._recovery_attempts = 1
-        await stack_recovery.observe(True)
+        await _tick(stack_recovery, mocker, 1_000, STACK_DOWN)
+        await _tick(stack_recovery, mocker, 1_000 + 900, STACK_DOWN)
 
         title, description, color = stack_recovery._notify.await_args.args
-        assert title == "🔴 Mapa em baixo há 30 min"
+        assert title == "🔴 Mapa em baixo há 15 min"
         assert "deu erro" in description and "intervir manualmente" in description
+        assert color == discord.Color.red()
+
+    async def test_no_data_says_once_that_it_waits(self, stack_recovery, mocker):
+        stack_recovery._notify = AsyncMock()
+        for t in (0, 300, 360, 900):
+            await _tick(stack_recovery, mocker, 1_000 + t, NO_DATA)
+
+        stack_recovery._notify.assert_awaited_once()
+        title, description, _ = stack_recovery._notify.await_args.args
+        assert title == "🟠 Mapa sem dados há 5 min"
+        assert "Reiniciar não resolve" in description
+
+    async def test_unreachable_phone_asks_for_a_human(self, stack_recovery, mocker):
+        stack_recovery._notify = AsyncMock()
+        _phone(stack_recovery, "unreachable")
+        await _tick(stack_recovery, mocker, 1_000, NO_WORKERS)
+        await _tick(stack_recovery, mocker, 1_000 + 300, NO_WORKERS)
+
+        title, description, color = stack_recovery._notify.await_args.args
+        assert "Não consigo chegar ao telemóvel" in description
         assert color == discord.Color.red()

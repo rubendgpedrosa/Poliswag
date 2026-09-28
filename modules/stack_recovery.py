@@ -11,33 +11,60 @@ from modules.logging_mixin import LoggingMixin
 
 
 class StackRecovery(LoggingMixin):
-    """Recovery for a fully red map (every region all-workers-down).
+    """Recovery for a map that stopped scanning, aimed at what actually broke.
 
-    Two attempts, timed from the start of the red episode (10 and 30 min),
-    each fired at most once per episode. Each attempt does the whole thing:
-    force-recreate the scanner containers (dragonite + rotom-ng), then
-    force-stop Pokémon GO + Pokémod on the phone and start Aegis's mapping
-    service again, so it reconnects to the fresh rotom. Until 2026-09-26 the
-    phone waited for the second attempt, and on 2026-09-25 that cost 20 min
-    of a map a phone restart fixed.
+    Every tick sorts the scanner into one problem (see _diagnose), and each
+    gets its own answer:
 
-    After both, recovery stops trying automatically and just waits — no
-    device reboot is ever triggered. The db/golbat/map containers are
-    deliberately left alone.
+    - phone: no Aegis workers in rotom-ng and the phone says it's broken
+      (mapping service or Pokémon GO not running, or Aegis stopped logging
+      "running and injected"). Restart the phone's apps.
+    - stack: Dragonite or rotom-ng doesn't answer. Recreate them, then
+      restart the phone's apps so they reconnect to the fresh rotom-ng.
+    - link: no workers in rotom-ng but the phone is healthy. Aegis
+      reconnects by itself (2026-09-28: back within a minute), so only the
+      last rung acts.
+    - no_data: workers connected but nothing scanning (accounts, the game's
+      servers). A restart can't fix that: tell the mods and wait.
+    - unreachable: adb can't reach the phone. Nothing can be restarted
+      remotely: tell the mods.
+
+    Rungs are timed from the start of the episode (5 and 15 min), each used
+    at most once. The whole of it — recreate + phone apps — is the last
+    rung for anything restartable. After that it only waits; no device
+    reboot is ever triggered. db/golbat/map containers are left alone.
     """
 
-    # Seconds red before each attempt — ordered, one each per episode.
-    RECOVERY_LADDER = (600, 1800)
+    # Seconds into an episode before each rung — ordered, one each.
+    RECOVERY_LADDER = (300, 900)
     # Lets rotom-ng come up before the phone's apps try to reach it.
     DEVICE_AFTER_CONTAINERS = 15
     # docker compose can take a while pulling/recreating; don't hang the loop.
     RECREATE_TIMEOUT = 180
 
+    # What each problem gets at each rung: "apps" restarts the phone's apps,
+    # "full" recreates the containers and then restarts the apps, None waits.
+    ACTIONS = {
+        "phone": ("apps", "full"),
+        "stack": ("full", "full"),
+        "link": (None, "full"),
+        "no_data": (None, None),
+        "unreachable": (None, None),
+    }
+    # Why the map is down, for the mods: the state, not the mechanics.
+    CAUSES = {
+        "phone": "o Pokémod parou no telemóvel",
+        "stack": "o scanner deixou de responder",
+        "link": "o telemóvel não volta a ligar ao scanner",
+    }
+
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._red_since: float | None = None
-        # Rungs used in the current red episode (0..len(RECOVERY_LADDER)).
+        # Rungs used in the current episode (0..len(RECOVERY_LADDER)).
         self._recovery_attempts: int = 0
+        # A "waiting" notice (no_data / unreachable) went out this episode.
+        self._wait_announced: bool = False
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
@@ -48,30 +75,26 @@ class StackRecovery(LoggingMixin):
     async def set_auto_recreate_enabled(self, value: bool) -> None:
         await self._auto_recreate_setting.set(value)
 
-    async def observe(self, all_red: bool | None) -> bool:
-        """Advance the red escalation ladder one tick.
+    async def observe(self, all_red: bool | None, workers: int | None) -> bool:
+        """Advance the recovery ladder one tick.
 
-        Called every scheduler tick from the voice-channel status pass.
-        ``True`` advances a confirmed all-red episode, ``False`` resets it
-        after confirmed scanner activity, and ``None`` preserves the current
-        episode while scanner status is unavailable.
-        Returns True when a recovery rung was run and succeeded.
+        ``all_red`` is Dragonite's view (every worker down; None when it
+        didn't answer), ``workers`` the Aegis workers in rotom-ng (None when
+        it didn't answer). Returns True when a rung ran and succeeded.
         """
         now = time.time()
+        problem = await self._diagnose(all_red, workers)
 
-        if all_red is None:
-            # A forced recreate briefly makes Dragonite's status endpoint
-            # unavailable.  Treating that as recovery would re-arm the ladder
-            # and let attempts 1/2 and 2/2 repeat forever.
-            return False
-
-        if not all_red:
-            # Mods saw the recovery attempts, so they hear it came back too;
+        if problem is None:
+            # Mods saw a post about it, so they hear it came back too;
             # otherwise the last word in the channel is "em baixo".
-            if self._recovery_attempts and self._red_since is not None:
+            if self._red_since is not None and (
+                self._recovery_attempts or self._wait_announced
+            ):
                 await self._announce_recovered(now - self._red_since)
             self._red_since = None
             self._recovery_attempts = 0
+            self._wait_announced = False
             return False
 
         if self._red_since is None:
@@ -80,46 +103,65 @@ class StackRecovery(LoggingMixin):
         if not await self.get_auto_recreate_enabled():
             return False
 
-        total = len(self.RECOVERY_LADDER)
-        if self._recovery_attempts >= total:
-            # Every rung already used up for this episode — stop attempting
-            # and just wait for manual intervention.
+        elapsed = now - self._red_since
+        due = sum(1 for t in self.RECOVERY_LADDER if elapsed >= t)
+        if due <= self._recovery_attempts:
             return False
 
-        red_duration = now - self._red_since
-        if red_duration < self.RECOVERY_LADDER[self._recovery_attempts]:
+        action = self.ACTIONS[problem][due - 1]
+        if action is None:
+            if problem in ("no_data", "unreachable") and not self._wait_announced:
+                self._wait_announced = True
+                await self._announce_waiting(problem, elapsed)
             return False
 
-        self._recovery_attempts += 1
-        attempt = self._recovery_attempts
+        # Rungs whose time has passed are spent, so a late first action
+        # (e.g. at 15 min) doesn't fire the next rung on the following tick.
+        self._recovery_attempts = due
         self._log(
-            f"Map fully red for {int(red_duration // 60)} min — recreating "
-            f"containers and restarting the phone's apps (attempt {attempt}/{total})",
+            f"Map down for {int(elapsed // 60)} min ({problem}) — running "
+            f"'{action}' recovery (rung {due}/{len(self.RECOVERY_LADDER)})",
             "INFO",
         )
-        ok = await self._recover()
-        await self._announce(attempt, total, red_duration, ok)
+        ok = await self._recover(action)
+        await self._announce(problem, elapsed, ok)
         return ok
 
-    async def _recover(self) -> bool:
-        """Containers, then the phone. The phone runs even if containers failed."""
-        containers_ok = await self.recreate_services()
-        await asyncio.sleep(self.DEVICE_AFTER_CONTAINERS)
+    async def _diagnose(self, all_red: bool | None, workers: int | None):
+        """The current problem (see the class docstring), or None if scanning."""
+        if all_red is None or workers is None:
+            return "stack"
+        if workers == 0:
+            # Only now is the phone asked: it's the one case where the answer
+            # decides between restarting its apps and waiting.
+            state, reason = await self.poliswag.device_manager.phone_health()
+            self._log(f"No workers in rotom-ng; phone {state}: {reason}", "INFO")
+            return {"broken": "phone", "unreachable": "unreachable"}.get(state, "link")
+        if all_red:
+            return "no_data"
+        return None
+
+    async def _recover(self, action: str) -> bool:
+        """'apps' restarts the phone's apps; 'full' recreates the containers
+        first. The phone runs even if the containers failed."""
+        containers_ok = True
+        if action == "full":
+            containers_ok = await self.recreate_services()
+            await asyncio.sleep(self.DEVICE_AFTER_CONTAINERS)
         device_ok = await self.poliswag.device_manager.restart_scanner_apps()
         return containers_ok and device_ok
 
-    async def _announce(
-        self, attempt: int, total: int, red_duration: float, ok: bool
-    ) -> None:
-        # Mods need the state, not the mechanics: those are in the logs.
-        title = f"🔴 Mapa em baixo há {int(red_duration // 60)} min"
-        if attempt >= total:
+    async def _announce(self, problem: str, elapsed: float, ok: bool) -> None:
+        title = f"🔴 Mapa em baixo há {int(elapsed // 60)} min"
+        cause = f"Causa: {self.CAUSES[problem]}.\n"
+        attempt = self._recovery_attempts
+        if attempt >= len(self.RECOVERY_LADDER):
             description = (
                 "Última tentativa de recuperação automática feita. "
                 "Se não voltar, é preciso intervir manualmente."
             )
         else:
-            minutes = max(0, int((self.RECOVERY_LADDER[attempt] - red_duration) // 60))
+            minutes = max(0, int((self.RECOVERY_LADDER[attempt] - elapsed) // 60))
             description = (
                 "Tentativa de recuperação automática feita. "
                 f"Se não voltar, nova tentativa daqui a **{minutes} min**."
@@ -127,8 +169,28 @@ class StackRecovery(LoggingMixin):
         if not ok:
             description = f"A recuperação automática deu erro.\n{description}"
         await self._notify(
-            title, description, discord.Color.orange() if ok else discord.Color.red()
+            title,
+            cause + description,
+            discord.Color.orange() if ok else discord.Color.red(),
         )
+
+    async def _announce_waiting(self, problem: str, elapsed: float) -> None:
+        minutes = int(elapsed // 60)
+        if problem == "no_data":
+            await self._notify(
+                f"🟠 Mapa sem dados há {minutes} min",
+                "O telemóvel está ligado ao scanner, mas não chegam dados "
+                "(contas ou servidores do jogo). Reiniciar não resolve; "
+                "fico à espera.",
+                discord.Color.orange(),
+            )
+        else:
+            await self._notify(
+                f"🔴 Mapa em baixo há {minutes} min",
+                "Não consigo chegar ao telemóvel (desligado ou sem rede). "
+                "É preciso intervir manualmente.",
+                discord.Color.red(),
+            )
 
     async def _announce_recovered(self, red_duration: float) -> None:
         await self._notify(

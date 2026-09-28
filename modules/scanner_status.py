@@ -140,13 +140,12 @@ class ScannerStatus(LoggingMixin):
         if indicator == "🔴":
             device_connected = await self.poliswag.account_monitor.is_device_connected()
 
-        # Fully red — regardless of the device flag (❌ is only a display
-        # distinction) — feeds the StackRecovery ladder.  Preserve None when
-        # Dragonite is unreachable or missing data: a forced recreate causes
-        # exactly that transient state, and collapsing it to False would reset
-        # the attempt counter before the scanner had actually recovered.
+        # Dragonite's view (None when it didn't answer) plus the Aegis workers
+        # rotom-ng has (None likewise) are what StackRecovery sorts into
+        # "restart the phone", "recreate the stack" or "just wait".
         all_red: bool | None = None if indicator is None else indicator == "🔴"
-        await self.poliswag.stack_recovery.observe(all_red)
+        workers = await self.poliswag.account_monitor.connected_worker_count()
+        await self.poliswag.stack_recovery.observe(all_red, workers)
 
         status = self.get_status_message(
             leiriaDownCounter,

@@ -83,6 +83,17 @@ class AccountMonitor(LoggingMixin):
     async def is_device_connected(self):
         return (await self.get_device_snapshot())["connected"]
 
+    async def connected_worker_count(self) -> int | None:
+        """Aegis workers registered in rotom-ng, or None if it didn't answer.
+
+        An offline phone counts as 0. None is kept apart from 0 because the
+        recovery ladder treats "rotom-ng is down" and "no workers" differently.
+        """
+        device_status = await fetch_data("device_status", log_fn=self._log)
+        if device_status is None:
+            return None
+        return _worker_counts(device_status.get("devices") or [])["total"]
+
     @staticmethod
     def _build_status_body():
         """Message body carrying the card's last-update time.
