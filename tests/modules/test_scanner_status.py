@@ -907,6 +907,48 @@ class TestTriggerAllDownAction:
         assert "Error sending all-down" in msg
 
 
+class TestMapRestored:
+    async def test_all_down_marks_the_map_as_alerted(self, scanner_status, mocker):
+        TestTriggerAllDownAction()._setup(scanner_status, mocker)
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", True)
+        mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        await scanner_status.trigger_all_down_action()
+        assert scanner_status.map_down_alerted is True
+
+    async def test_fresh_tick_after_alert_sends_restored_once(
+        self, scanner_status, mocker
+    ):
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", True)
+        fetch_mock = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=None)
+        )
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=5
+        )
+        scanner_status.map_down_alerted = True
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        fetch_mock.assert_awaited_once()
+        payload = fetch_mock.call_args.kwargs["data"]
+        assert payload == {
+            "type": "map_restored",
+            "value": {"last_pokemon_seconds_ago": 5},
+        }
+        assert scanner_status.map_down_alerted is False
+
+    async def test_no_restored_without_a_prior_alert(self, scanner_status, mocker):
+        fetch_mock = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=None)
+        )
+        mocker.patch.object(
+            scanner_status, "_get_seconds_since_last_pokemon", return_value=5
+        )
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        fetch_mock.assert_not_called()
+
+
 def _ws(leiria_down, marinha_down, leiria_expected=7, marinha_expected=1):
     """Build a get_workers_with_issues()-shaped dict for rename_voice_channels."""
     return {
