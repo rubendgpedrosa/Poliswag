@@ -110,7 +110,7 @@ Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a 
 
 The `STATUS` voice channel mirrors combined scanner health across both areas (down workers / expected workers, read live from Dragonite), in three states: 🟢 the map is being scanned — at least one worker up, however thin the account pool is; 🔴 every worker down but the device still connected (account problem); ❌ device offline or status data unavailable (Dragonite unreachable). There is deliberately no partial-degradation tier — renaming the channel on every account-pool swing was pure churn against Discord's rename rate limit.
 
-When the map goes fully red, the recovery ladder kicks in automatically: dragonite + rotom-ng are force-recreated immediately; if the map is still red 15 minutes later the device is rebooted via ADB (30 min reboot cooldown, shared with the offline watchdog). A data outage alone (❌ from an unreachable Dragonite) never triggers this ladder — only a confirmed red reading does.
+When the map stops scanning, the recovery ladder works out what broke and only restarts that (`modules/stack_recovery.py`). No Aegis workers in rotom-ng and the phone reports Aegis or Pokémon GO not running, or no "running and injected" line for 2 min: the phone's apps are restarted at 5 min. Dragonite or rotom-ng not answering: they are recreated at 5 min. No workers but the phone healthy: it waits for Aegis to reconnect. At 15 min anything still down that a restart can fix gets both (recreate + phone apps), then it stops. Workers connected but no data (accounts, the game's servers), or a phone adb can't reach: the mods are told, nothing is restarted.
 
 ## Project layout
 
