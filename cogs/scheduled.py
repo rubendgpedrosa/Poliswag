@@ -10,7 +10,7 @@ from modules.embeds import build_embed, status_embed
 from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
-from modules import site_health, tracking_health
+from modules import owner_alert, site_health, tracking_health
 from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
 from modules.trade_announcer import TradeAnnouncer
@@ -694,16 +694,17 @@ class Scheduled(commands.Cog):
             return
 
         now = datetime.datetime.utcnow()
-        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
-            Config.MY_ID
+        delivered = await owner_alert.notify_owner(
+            self.poliswag,
+            tracking_health.message(action, silence),
+            title="Estatísticas do site",
+            tag="poliswag-tracking",
         )
-        try:
-            await user.send(tracking_health.message(action, silence))
-        except discord.HTTPException:
-            # A failed DM must not burn the alert: leaving the state alone
+        if not delivered:
+            # A failed alert must not burn it: leaving the state alone
             # means the next tick tries again.
             self.poliswag.utility.log_to_file(
-                "Could not DM the tracking-health alert", "ERROR"
+                "Could not deliver the tracking-health alert", "ERROR"
             )
             return
 
@@ -719,7 +720,7 @@ class Scheduled(commands.Cog):
         return rows[0]["id"] if rows else None
 
     async def _check_site_health(self):
-        """DM MY_ID when pogoleiria.pt or one of its apps stops answering."""
+        """Alert MY_ID when pogoleiria.pt or one of its apps stops answering."""
         if not Config.MY_ID or not Config.IS_PRODUCTION:
             return
 
@@ -728,15 +729,13 @@ class Scheduled(commands.Cog):
         if not actions:
             return
 
-        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
-            Config.MY_ID
-        )
         text = "\n".join(site_health.message(*action) for action in actions)
-        try:
-            await user.send(text)
-        except discord.HTTPException:
+        delivered = await owner_alert.notify_owner(
+            self.poliswag, text, title="pogoleiria.pt", tag="poliswag-site"
+        )
+        if not delivered:
             self.poliswag.utility.log_to_file(
-                f"Could not DM the site-health alert: {text}", "ERROR"
+                f"Could not deliver the site-health alert: {text}", "ERROR"
             )
 
     async def _load_tracking_alert_at(self):

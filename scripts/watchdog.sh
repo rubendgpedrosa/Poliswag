@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Restarts Poliswag when its scheduler stops ticking, and tells the owner.
+# Restarts Poliswag when its scheduler stops ticking, and tells the owner
+# (a phone notification through Home Assistant; a Discord DM if HA is down).
 #
 # Docker's restart policy only covers a process that exits; a bot that hangs
 # (stuck event loop, dead task loop) stays "Up" forever, and it is the bot that
@@ -31,6 +32,7 @@ age=$((now - beat))
 
 log "heartbeat ${age}s old; restarting $CONTAINER"
 docker restart "$CONTAINER" >/dev/null
-python3 "$ROOT/scripts/dm_owner.py" \
+python3 "$ROOT/scripts/notify_owner.py" \
   "⚠️ **O Poliswag parou** (sem tick há $((age / 60)) min) e foi reiniciado pelo watchdog. Ver \`docker logs poliswag\` e \`journalctl -t poliswag-watchdog\`." \
-  || log "could not DM the owner"
+  "Poliswag reiniciado" \
+  || log "could not alert the owner"
