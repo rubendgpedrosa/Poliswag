@@ -239,16 +239,21 @@ class ScannerStatus(LoggingMixin):
                         if isWorkerUp:
                             downDevices -= 1
 
-                if areaName == "LeiriaBigger":
-                    downDevicesLeiria = (
-                        max(downDevices, 0) if downDevices is not None else None
-                    )
-                    expectedWorkersLeiria = expectedWorkers
-                elif areaName == "MarinhaGrande":
-                    downDevicesMarinha = (
-                        max(downDevices, 0) if downDevices is not None else None
-                    )
-                    expectedWorkersMarinha = expectedWorkers
+                # Summed, not matched by exact name: Dragonite's Leiria area
+                # has been renamed before (LeiriaBigger -> Leiria, the old one
+                # kept at expected 0), and reading only one name made a
+                # Marinha-only outage look like the whole map was down.
+                downDevices = max(downDevices, 0)
+                if areaName.startswith("Marinha"):
+                    downDevicesMarinha = (downDevicesMarinha or 0) + downDevices
+                    expectedWorkersMarinha = (
+                        expectedWorkersMarinha or 0
+                    ) + expectedWorkers
+                else:
+                    downDevicesLeiria = (downDevicesLeiria or 0) + downDevices
+                    expectedWorkersLeiria = (
+                        expectedWorkersLeiria or 0
+                    ) + expectedWorkers
 
         return {
             "downDevicesLeiria": downDevicesLeiria,
