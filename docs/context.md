@@ -63,7 +63,8 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 |---------|-----------------|---------|
 | Dragonite admin | `SCANNER_STATUS_ENDPOINT` | Worker health + account stats |
 | Rotom | `DEVICE_STATUS_ENDPOINT` | Device liveness |
-| Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when scanner fully down |
+| Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |
+| Home Assistant | `OWNER_ALERT_ENDPOINT` | Owner alerts as phone notifications (`modules/owner_alert.py`, `scripts/notify_owner.py`): site health, tracking health, watchdog, backup. Falls back to a DM. The daily error digest stays a DM. |
 | Poracle-NG | `PORACLE_API_URL` + `PORACLE_API_SECRET` | Pokémon alert rule CRUD |
 | ScrapedDuck | `EVENTS_ENDPOINT` | Event calendar JSON |
 | PokeMiners masterfile | `MASTERFILE_ENDPOINT` | Pokémon/item name translations |

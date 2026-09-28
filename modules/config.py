@@ -109,6 +109,8 @@ class Config:
         "device_status": os.environ.get("DEVICE_STATUS_ENDPOINT"),
         "account_status": os.environ.get("SCANNER_ACCOUNTS_STATUS_ENDPOINT"),
         "all_down": os.environ.get("ALL_DOWN_ENDPOINT"),
+        # Home Assistant webhook: owner alerts become phone notifications.
+        "owner_alert": os.environ.get("OWNER_ALERT_ENDPOINT"),
         "events": os.environ.get("EVENTS_ENDPOINT"),
         "scan_quest_all": os.environ.get("SCAN_QUESTS_ALL_ENDPOINT"),
     }
