@@ -17,6 +17,7 @@ def scanner_status():
     """
     poliswag = MagicMock()
     poliswag.stack_recovery.observe = AsyncMock()
+    poliswag.account_monitor.connected_worker_count = AsyncMock(return_value=16)
     poliswag.db = AsyncMock()
     poliswag.quest_search.db = AsyncMock()
     return ScannerStatus(poliswag=poliswag)
@@ -1120,22 +1121,43 @@ class TestRenameVoiceChannels:
     ):
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(
+            True, 16
+        )
 
     async def test_device_down_all_red_still_feeds_stack_recovery(
         self, scanner_status, mocker
     ):
         # ❌ is only a display distinction — the recovery ladder runs either
-        # way (containers first, device reboot if red persists).
+        # way; StackRecovery sorts out what, if anything, to restart.
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=False)
         await scanner_status.rename_voice_channels(_ws(7, 1))
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(True)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(
+            True, 16
+        )
+
+    async def test_rotom_worker_count_reaches_stack_recovery(
+        self, scanner_status, mocker
+    ):
+        # No workers in rotom-ng while Dragonite still counts them up (it
+        # keeps a worker up for 10 min after its last data) — the ladder
+        # still hears about it, so a broken phone is caught early.
+        self._patch_fresh(scanner_status, mocker, seconds_ago=1)
+        scanner_status.poliswag.account_monitor.connected_worker_count = AsyncMock(
+            return_value=0
+        )
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(
+            False, 0
+        )
 
     async def test_partial_down_is_not_all_red(self, scanner_status, mocker):
         # 4/8 down — the map is still being scanned → 🟢, no recovery trigger.
         self._patch_fresh(scanner_status, mocker, seconds_ago=1, device_connected=True)
         await scanner_status.rename_voice_channels(_ws(4, 0))
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(False)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(
+            False, 16
+        )
 
     async def test_partial_down_keeps_channel_green(self, scanner_status, mocker):
         # The status channel is only renamed when the map stops scanning
@@ -1175,7 +1197,9 @@ class TestRenameVoiceChannels:
         await scanner_status.rename_voice_channels(_ws(None, None, None, None))
         assert scanner_status.channelStatusName == "STATUS: ❌"
         is_connected.assert_not_called()
-        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(None)
+        scanner_status.poliswag.stack_recovery.observe.assert_awaited_once_with(
+            None, 16
+        )
 
     async def test_rate_limit_is_logged_not_raised(self, scanner_status, mocker):
         import discord

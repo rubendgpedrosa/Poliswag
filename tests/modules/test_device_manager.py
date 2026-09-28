@@ -218,6 +218,78 @@ class TestRestartScannerApps:
         assert await device_manager.restart_scanner_apps() is False
 
 
+def _health_output(mapping="10889", pogo="31441", now=1_000_000, injected_at=None):
+    """What the phone_health shell one-liner prints on the device."""
+    lines = [f"mapping={mapping}", f"pogo={pogo}", f"now={now}"]
+    if injected_at is not None:
+        lines.append(
+            f"         {injected_at}.991 10889 11198 I Aegis MappingService: "
+            "App is running and injected. Maintenance checks performed."
+        )
+    return "\n".join(lines)
+
+
+class TestPhoneHealth:
+    """Whether a restart of the phone's apps can help, read from the phone."""
+
+    async def test_healthy_when_both_run_and_aegis_reports_injected(
+        self, device_manager
+    ):
+        device_manager.run = AsyncMock(
+            return_value=(_health_output(injected_at=1_000_000 - 5), "", 0)
+        )
+        state, _ = await device_manager.phone_health()
+        assert state == "healthy"
+
+    async def test_one_adb_call_reads_processes_and_the_log(self, device_manager):
+        device_manager.run = AsyncMock(
+            return_value=(_health_output(injected_at=1_000_000), "", 0)
+        )
+        await device_manager.phone_health()
+        device_manager.run.assert_awaited_once()
+        command = device_manager.run.await_args.args[-1]
+        assert "pidof com.pokemod.aegis:mapping" in command
+        assert "pidof com.nianticlabs.pokemongo" in command
+        assert "running and injected" in command
+
+    async def test_broken_when_mapping_service_is_gone(self, device_manager):
+        device_manager.run = AsyncMock(return_value=(_health_output(mapping=""), "", 0))
+        state, reason = await device_manager.phone_health()
+        assert state == "broken"
+        assert "Aegis" in reason
+
+    async def test_broken_when_pokemon_go_is_not_running(self, device_manager):
+        device_manager.run = AsyncMock(
+            return_value=(_health_output(pogo="", injected_at=1_000_000), "", 0)
+        )
+        state, reason = await device_manager.phone_health()
+        assert state == "broken"
+        assert "Pokémon GO" in reason
+
+    async def test_broken_when_injected_line_is_stale(self, device_manager):
+        stale = 1_000_000 - DeviceManager.INJECTED_STALE_AFTER - 1
+        device_manager.run = AsyncMock(
+            return_value=(_health_output(injected_at=stale), "", 0)
+        )
+        state, _ = await device_manager.phone_health()
+        assert state == "broken"
+
+    async def test_broken_when_injected_line_is_missing(self, device_manager):
+        device_manager.run = AsyncMock(return_value=(_health_output(), "", 0))
+        state, _ = await device_manager.phone_health()
+        assert state == "broken"
+
+    async def test_unreachable_when_adb_fails(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=RuntimeError("expirou"))
+        state, _ = await device_manager.phone_health()
+        assert state == "unreachable"
+
+    async def test_unreachable_when_the_shell_never_ran(self, device_manager):
+        device_manager.run = AsyncMock(return_value=("", "error: device offline", 1))
+        state, _ = await device_manager.phone_health()
+        assert state == "unreachable"
+
+
 class TestAlertIfOffline:
     """Offline watchdog: alert-only after 15 min offline — never reboots."""
 
