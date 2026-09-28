@@ -41,6 +41,9 @@ class ScannerStatus(LoggingMixin):
         }
 
         self.last_all_down_request_time = 0
+        # Set once an all-down alert went out; the first fresh tick after it
+        # sends the "map back" half and clears it.
+        self.map_down_alerted = False
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
         self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
 
@@ -113,6 +116,8 @@ class ScannerStatus(LoggingMixin):
         )
         if pokemon_stale:
             await self.trigger_all_down_action()
+        elif self.map_down_alerted and seconds_since_pokemon is not None:
+            await self.trigger_map_restored_action(seconds_since_pokemon)
 
         # Leiria and Marinha share one device and one stack, so a single
         # combined indicator (down workers / total expected workers across
@@ -355,8 +360,27 @@ class ScannerStatus(LoggingMixin):
                     await fetch_data(
                         "all_down", log_fn=self._log, method="POST", data=payload
                     )
+                self.map_down_alerted = True
             except Exception as e:
                 self._log(f"Error sending all-down notification: {e}")
+
+    async def trigger_map_restored_action(self, seconds_ago):
+        """The other half of the all-down alert: say once that spawns flow again."""
+        self.map_down_alerted = False
+        payload = {
+            "type": "map_restored",
+            "value": {"last_pokemon_seconds_ago": seconds_ago},
+        }
+        if not Config.IS_PRODUCTION:
+            self._log(
+                f"[DEV] Would send map-restored notification with payload: {payload}",
+                "INFO",
+            )
+            return
+        try:
+            await fetch_data("all_down", log_fn=self._log, method="POST", data=payload)
+        except Exception as e:
+            self._log(f"Error sending map-restored notification: {e}")
 
     def _get_combined_status_indicator(
         self, leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
