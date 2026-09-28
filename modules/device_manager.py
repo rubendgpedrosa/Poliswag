@@ -25,6 +25,10 @@ class DeviceManager(LoggingMixin):
     AEGIS_MAPPING_SERVICE = "com.pokemod.aegis/.services.MappingService"
     # Let the force-stops settle before Aegis is started again.
     APP_RESTART_SETTLE = 5
+    # The process that runs MappingService and logs its injection check.
+    AEGIS_MAPPING_PROCESS = "com.pokemod.aegis:mapping"
+    # Aegis logs "running and injected" every ~5s; silence past this = broken.
+    INJECTED_STALE_AFTER = 120
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -212,6 +216,47 @@ class DeviceManager(LoggingMixin):
 
         self._log("Restarted Pokémon GO + Pokémod Aegis on the device", "INFO")
         return True
+
+    async def phone_health(self) -> tuple[str, str]:
+        """('healthy' | 'broken' | 'unreachable', reason) — read from the phone.
+
+        'broken' is what a restart of the phone's apps can fix: Aegis's
+        mapping process or Pokémon GO not running, or Aegis no longer logging
+        its "running and injected" maintenance line (every ~5s when fine).
+        On 2026-09-28 every worker dropped off rotom-ng while this all stayed
+        healthy, and Aegis reconnected by itself within a minute.
+        """
+        command = (
+            f"m=$(pidof {self.AEGIS_MAPPING_PROCESS}); "
+            f"g=$(pidof {self.POGO_PACKAGE}); "
+            'echo "mapping=$m"; echo "pogo=$g"; echo "now=$(date +%s)"; '
+            '[ -n "$m" ] && logcat -d --pid=$m -v epoch '
+            '-e "running and injected" | tail -1; true'
+        )
+        try:
+            stdout, stderr, rc = await self.run("shell", command, timeout=20)
+        except RuntimeError as e:
+            return "unreachable", str(e)
+        lines = stdout.splitlines()
+        fields = {
+            key: value
+            for key, _, value in (line.partition("=") for line in lines)
+            if key in ("mapping", "pogo", "now")
+        }
+        if rc != 0 or "now" not in fields:
+            return "unreachable", (stderr or stdout or f"adb rc={rc}").strip()
+
+        if not fields.get("mapping"):
+            return "broken", "Aegis mapping service is not running"
+        if not fields.get("pogo"):
+            return "broken", "Pokémon GO is not running"
+        injected = [line for line in lines if "running and injected" in line]
+        if not injected:
+            return "broken", "Aegis has not logged 'running and injected'"
+        age = int(fields["now"]) - int(float(injected[-1].split()[0]))
+        if age > self.INJECTED_STALE_AFTER:
+            return "broken", f"Aegis last logged 'running and injected' {age}s ago"
+        return "healthy", "Aegis running and injected"
 
     def _next_notify_interval(self, offline_duration: float) -> float:
         """Escalating gap between repeated offline notifications."""
