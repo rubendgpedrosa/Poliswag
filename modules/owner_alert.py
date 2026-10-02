@@ -14,6 +14,7 @@ import aiohttp
 import discord
 
 from modules.config import Config
+from modules.embeds import status_embed
 from modules.http_client import get_session
 
 
@@ -54,7 +55,7 @@ async def notify_owner(poliswag, text, *, title, tag):
         return False
     user = poliswag.get_user(Config.MY_ID) or await poliswag.fetch_user(Config.MY_ID)
     try:
-        await user.send(text)
+        await user.send(embed=status_embed(title, text))
     except discord.HTTPException:
         return False
     return True

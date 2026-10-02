@@ -102,7 +102,7 @@ LOG_FILE, ERROR_LOG_FILE
 - Three audiences: members, mods (`ADMIN_USERS_IDS`), owner (`MY_ID`), via `modules/permissions.py` (`is_mod`/`is_owner`; `mods_only()`/`owner_only()` for single commands). `!help` (`modules/help_command.py`) sections by the same gates: `_OWNER_COGS`, any `cog_check` (mods), or those predicates in `command.checks`. A command gated only inside its body shows to members — add the decorator. `!help` deletes its command message (in `prepare_help_command`). A bare `@Poliswag` mention answers like `!help` (`Poliswag.process_commands`, same DM gate).
 - `!notify` **ref** resolution: `#mention` → raw id → exact name → `%-<suffix>` LIKE; category suffixes (`raros`, `100iv`, `0iv`, `uteis`) fan out to `leiria-<suffix>` and `marinha-<suffix>`.
 - `_PAIRED_PREFIXES = ("leiria-", "marinha-")` drives fan-out logic in `notifications.py`.
-- Embed color: `Config.EMBED_COLOR = 0x4169E1`.
+- Embed color: `Config.EMBED_COLOR = 0x4169E1`. Automated notices (owner DMs, mod-channel alerts, host scripts) go out as embeds, never plain text; plain text is for replies inside a flow (e.g. `!stats` follow-ups).
 - Tests under `tests/` (pytest). Run via `make test` inside Docker.
 - Logging: `utility.log_to_file(msg, level)` → `logs/actions.log` + `logs/error.log`.
 - Migrations: `setup_hook` replays every `migrations/*.sql` on each start (`modules/migrations.py`), before cogs load. No tracking table, so every statement must be `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`; `test_every_migration_is_rerunnable` enforces it.

@@ -64,7 +64,8 @@ async def test_falls_back_to_dm_when_ha_errors(mocker):
     _session(mocker, status=500)
     poliswag, user = _poliswag()
     assert await owner_alert.notify_owner(poliswag, "**down**", title="T", tag="t")
-    user.send.assert_awaited_once_with("**down**")
+    embed = user.send.await_args.kwargs["embed"]
+    assert (embed.title, embed.description) == ("T", "**down**")
 
 
 @pytest.mark.usefixtures("production")

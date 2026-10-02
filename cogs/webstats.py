@@ -256,7 +256,9 @@ class WebStats(commands.Cog, LoggingMixin):
     async def _warn_mods(self, message):
         self._log(f"[WEBSTATS] {message}", "ERROR")
         if self.poliswag.MOD_CHANNEL:
-            await self.poliswag.MOD_CHANNEL.send(message)
+            await self.poliswag.MOD_CHANNEL.send(
+                embed=build_embed("ESTATÍSTICAS", message)
+            )
 
 
 async def setup(poliswag):

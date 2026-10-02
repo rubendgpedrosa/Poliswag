@@ -219,7 +219,8 @@ class TestFailures:
         user.send.side_effect = discord.Forbidden(MagicMock(), "closed")
         await WebStats.webstats.callback(cog, ctx, None)
         cog.poliswag.MOD_CHANNEL.send.assert_awaited_once()
-        sent = str(cog.poliswag.MOD_CHANNEL.send.await_args)
+        sent = cog.poliswag.MOD_CHANNEL.send.await_args.kwargs["embed"].description
+        assert "DM" in sent
         assert "visitantes" not in sent
 
     async def test_a_failed_dm_never_leaks_the_link_to_the_mod_channel(self, cog):
@@ -228,7 +229,9 @@ class TestFailures:
             MagicMock(), "nope"
         )
         await WebStats.webstats.callback(cog, ctx, None)
-        assert LINK not in str(cog.poliswag.MOD_CHANNEL.send.await_args)
+        sent = cog.poliswag.MOD_CHANNEL.send.await_args.kwargs["embed"].description
+        assert "DM" in sent
+        assert LINK not in sent
 
     async def test_a_missing_mod_channel_only_logs(self, cog):
         ctx = make_ctx()
