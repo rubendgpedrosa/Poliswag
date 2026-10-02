@@ -4,8 +4,9 @@
 For host scripts that must report when Poliswag itself can't: the watchdog
 restarting it, a failed database backup. Reads DISCORD_API_KEY and MY_ID from
 /root/Poliswag/.env. Standard library only, so it runs on the bare host.
+Sent as an embed in the bot's colour, like the bot's own notices.
 
-    scripts/dm_owner.py "message text"
+    scripts/dm_owner.py "message text" ["Title"]
 """
 
 import json
@@ -17,6 +18,7 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 API = "https://discord.com/api/v10"
 # Discord requires a bot User-Agent in this form; Cloudflare rejects urllib's.
 USER_AGENT = "DiscordBot (https://pogoleiria.pt, 1.0)"
+EMBED_COLOR = 0x4169E1  # Config.EMBED_COLOR
 
 
 def read_env(path):
@@ -43,13 +45,24 @@ def post(path, token, body):
         return json.load(response)
 
 
+def embed(message, title=None):
+    body = {"description": message[:4096], "color": EMBED_COLOR}
+    if title:
+        body["title"] = title[:256]
+    return body
+
+
 def main():
-    if len(sys.argv) != 2:
-        sys.exit("usage: dm_owner.py MESSAGE")
+    if len(sys.argv) not in (2, 3):
+        sys.exit('usage: dm_owner.py MESSAGE ["TITLE"]')
     env = read_env(ENV_FILE)
     token, owner = env["DISCORD_API_KEY"], env["MY_ID"]
     channel = post("/users/@me/channels", token, {"recipient_id": owner})
-    post(f"/channels/{channel['id']}/messages", token, {"content": sys.argv[1][:2000]})
+    post(
+        f"/channels/{channel['id']}/messages",
+        token,
+        {"embeds": [embed(*sys.argv[1:])]},
+    )
 
 
 if __name__ == "__main__":
