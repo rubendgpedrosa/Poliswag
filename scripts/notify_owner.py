@@ -44,7 +44,7 @@ def main():
             print(
                 f"Home Assistant unreachable ({error}); sending a DM", file=sys.stderr
             )
-    sys.argv = [sys.argv[0], message]
+    sys.argv = [sys.argv[0], message, title]
     dm_owner.main()
 
 

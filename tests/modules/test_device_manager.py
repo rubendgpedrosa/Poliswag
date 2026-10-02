@@ -394,7 +394,8 @@ class TestNotify:
         channel.send = AsyncMock()
         device_manager.poliswag.MOD_CHANNEL = channel
         await device_manager._notify("hello")
-        channel.send.assert_awaited_once_with("hello")
+        embed = channel.send.await_args.kwargs["embed"]
+        assert embed.description == "hello"
 
     async def test_no_channel_is_a_noop(self, device_manager):
         device_manager.poliswag.MOD_CHANNEL = None
