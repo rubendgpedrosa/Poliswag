@@ -3,6 +3,7 @@ import time
 
 from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
+from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
 
 
@@ -319,10 +320,10 @@ class DeviceManager(LoggingMixin):
         return True
 
     async def _notify(self, message: str) -> None:
-        """Send a plain message to the mod channel if it's available."""
+        """Post `message` as an embed in the mod channel if it's available."""
         try:
             channel = self.poliswag.MOD_CHANNEL
             if channel:
-                await channel.send(message)
+                await channel.send(embed=status_embed("Telemóvel do scanner", message))
         except Exception as e:
             self._log(f"Failed to send device notification: {e}")
