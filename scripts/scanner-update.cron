@@ -1,0 +1,5 @@
+# Scanner image staging, after backup and Diadem update; host timezone UTC.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+10 5 * * * root /usr/local/sbin/scanner-update --notify >> /var/log/scanner-update.log 2>&1

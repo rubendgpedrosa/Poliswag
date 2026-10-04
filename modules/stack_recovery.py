@@ -1,5 +1,8 @@
 import asyncio
+import json
 import os
+from pathlib import Path
+import re
 import time
 
 import discord
@@ -8,6 +11,7 @@ from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
 from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
+from modules.http_client import fetch_data
 
 
 class StackRecovery(LoggingMixin):
@@ -65,6 +69,8 @@ class StackRecovery(LoggingMixin):
         self._recovery_attempts: int = 0
         # A "waiting" notice (no_data / unreachable) went out this episode.
         self._wait_announced: bool = False
+        self._session_wait_announced = False
+        self._session_guard_deferred = False
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
@@ -89,12 +95,15 @@ class StackRecovery(LoggingMixin):
             # Mods saw a post about it, so they hear it came back too;
             # otherwise the last word in the channel is "em baixo".
             if self._red_since is not None and (
-                self._recovery_attempts or self._wait_announced
+                self._recovery_attempts
+                or self._wait_announced
+                or self._session_wait_announced
             ):
                 await self._announce_recovered(now - self._red_since)
             self._red_since = None
             self._recovery_attempts = 0
             self._wait_announced = False
+            self._session_wait_announced = False
             return False
 
         if self._red_since is None:
@@ -117,13 +126,17 @@ class StackRecovery(LoggingMixin):
 
         # Rungs whose time has passed are spent, so a late first action
         # (e.g. at 15 min) doesn't fire the next rung on the following tick.
-        self._recovery_attempts = due
         self._log(
             f"Map down for {int(elapsed // 60)} min ({problem}) — running "
             f"'{action}' recovery (rung {due}/{len(self.RECOVERY_LADDER)})",
             "INFO",
         )
         ok = await self._recover(action)
+        if self._session_guard_deferred:
+            # An account guard is a deferral, not a spent recovery attempt.
+            # Recheck on the next tick so a genuine empty window can be used.
+            return False
+        self._recovery_attempts = due
         await self._announce(problem, elapsed, ok)
         return ok
 
@@ -144,12 +157,52 @@ class StackRecovery(LoggingMixin):
     async def _recover(self, action: str) -> bool:
         """'apps' restarts the phone's apps; 'full' recreates the containers
         first. The phone runs even if the containers failed."""
+        self._session_guard_deferred = False
+        if Config.IS_PRODUCTION and not await self._sessions_allow_reset():
+            self._session_guard_deferred = True
+            return False
         containers_ok = True
         if action == "full":
             containers_ok = await self.recreate_services()
             await asyncio.sleep(self.DEVICE_AFTER_CONTAINERS)
+            # The restarted controller may already have logged accounts in
+            # during those 15s. Do not then reset their phone apps as well.
+            if Config.IS_PRODUCTION and not await self._sessions_allow_reset():
+                return containers_ok
         device_ok = await self.poliswag.device_manager.restart_scanner_apps()
         return containers_ok and device_ok
+
+    async def _sessions_allow_reset(self) -> bool:
+        """Fresh direct counts; an unavailable endpoint is never a zero."""
+        try:
+            accounts = await fetch_data("account_status", log_fn=self._log, timeout=5)
+            devices = await fetch_data("device_status", log_fn=self._log, timeout=5)
+            count = accounts.get("in_use") if isinstance(accounts, dict) else None
+            rows = devices.get("devices") if isinstance(devices, dict) else None
+            if type(count) is not int or count < 0 or not isinstance(rows, list):
+                raise ValueError("account or device usage is unavailable")
+            worker_counts = [row.get("worker_in_use_count") for row in rows]
+            if any(type(n) is not int or n < 0 for n in worker_counts):
+                raise ValueError("Rotom worker usage is unavailable")
+            if count == 0 and sum(worker_counts) == 0:
+                self._session_wait_announced = False
+                return True
+            reason = f"{count} account(s), {sum(worker_counts)} worker(s) still in use"
+        except Exception as error:
+            reason = str(error)
+        self._log(
+            f"Scanner reset deferred to preserve account sessions: {reason}", "INFO"
+        )
+        if not self._session_wait_announced:
+            self._session_wait_announced = True
+            await self._notify(
+                "🟠 Reinício do scanner adiado",
+                "Ainda há contas em utilização ou não consegui confirmar que "
+                "todas as sessões terminaram. O reinício fica adiado para evitar "
+                "novas autenticações. Vou voltar a verificar.",
+                discord.Color.orange(),
+            )
+        return False
 
     async def _announce(self, problem: str, elapsed: float, ok: bool) -> None:
         title = f"🔴 Mapa em baixo há {int(elapsed // 60)} min"
@@ -206,6 +259,31 @@ class StackRecovery(LoggingMixin):
             "docker-compose",
             "-f",
             Config.UNOWNHASH_COMPOSE_FILE,
+        ]
+        staged = Path(Config.UNOWNHASH_COMPOSE_FILE).with_name(
+            "scanner-updates.staged.json"
+        )
+        try:
+            if staged.exists():
+                images = json.loads(staged.read_text())["services"]
+                # Root-owned file contains only immutable image references.
+                # Invalid staging must not prevent ordinary guarded recovery.
+                if (
+                    isinstance(images, dict)
+                    and images
+                    and all(
+                        name in {"dragonite", "admin", "golbat", "rotom-ng"}
+                        and isinstance(options, dict)
+                        and set(options) == {"image"}
+                        and isinstance(options["image"], str)
+                        and re.search(r"@sha256:[0-9a-f]{64}$", options["image"])
+                        for name, options in images.items()
+                    )
+                ):
+                    cmd += ["-f", str(staged)]
+        except (OSError, ValueError, KeyError, TypeError):
+            self._log("Ignoring invalid scanner update staging file", "INFO")
+        cmd += [
             "up",
             "-d",
             "--force-recreate",
@@ -213,6 +291,10 @@ class StackRecovery(LoggingMixin):
             # dependency whose config drifted, and on 2026-09-26 that
             # recreated the database (db) with a new port binding mid-recovery.
             "--no-deps",
+            # Images were downloaded beforehand. Recovery never discovers an
+            # unreviewed mutable-tag build while bringing the scanner back.
+            "--pull",
+            "never",
         ] + services
 
         if not Config.IS_PRODUCTION:
