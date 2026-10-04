@@ -64,7 +64,7 @@ class Config:
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
     # Where modules/site_health.py reaches the site's apps (pm2 on the host,
-    # ports 1080/3003). The bot runs in docker, so not localhost.
+    # port 1080). The bot runs in docker, so not localhost.
     SITE_HEALTH_HOST = os.environ.get("SITE_HEALTH_HOST", "192.168.1.253")
 
     # Scanner / infrastructure

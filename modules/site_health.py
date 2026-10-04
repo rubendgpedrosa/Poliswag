@@ -37,7 +37,9 @@ def default_checks(host):
         # Quests is part of the hub since 2026-10-04 (it had its own port, 3001):
         # what can still break on its own is the export the hub serves for it.
         ("Quests", f"http://{host}:1080/quests-data/quests-meta.json"),
-        ("Pokédex", f"http://{host}:3003/embed/pokedex/procurar"),
+        # Part of the hub too (it had port 3003). Comunidade reads the database,
+        # which the hub's front page does not.
+        ("Pokédex", f"http://{host}:1080/pokedex/procurar"),
     )
 
 
