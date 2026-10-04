@@ -16,6 +16,7 @@ def stack_recovery(mocker):
         return_value=("healthy", "Aegis running and injected")
     )
     mocker.patch("modules.stack_recovery.asyncio.sleep", new=AsyncMock())
+    mocker.patch.object(sr, "_sessions_allow_reset", new=AsyncMock(return_value=True))
     mocker.patch.object(
         sr, "get_auto_recreate_enabled", new=AsyncMock(return_value=True)
     )
@@ -281,6 +282,7 @@ class TestRecreateServices:
         create.assert_not_called()
 
     async def test_runs_compose_force_recreate(self, stack_recovery, mocker):
+        mocker.patch("modules.stack_recovery.Path.exists", return_value=False)
         mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
         mocker.patch(
             "modules.stack_recovery.Config.RECREATE_SERVICES", "dragonite rotom-ng"
@@ -309,7 +311,8 @@ class TestRecreateServices:
             # drifted: on 2026-09-26 that recreated the database mid-recovery.
             "--no-deps",
         )
-        assert args[7:] == ("dragonite", "rotom-ng")
+        assert args[7:9] == ("--pull", "never")
+        assert args[9:] == ("dragonite", "rotom-ng")
         # ${PWD} interpolation in the stack compose file: both cwd and the PWD
         # env var must point at the stack dir or bind mounts resolve blank.
         kwargs = create.await_args.kwargs
@@ -351,6 +354,146 @@ class TestRecreateServices:
         assert await stack_recovery.recreate_services() is False
         proc.kill.assert_called_once()
         proc.wait.assert_awaited_once()
+
+
+class TestSessionGuard:
+    async def test_recovery_notice_after_session_deferral(self, stack_recovery, mocker):
+        stack_recovery._red_since = 1000
+        stack_recovery._session_wait_announced = True
+        recovered = mocker.patch.object(
+            stack_recovery, "_announce_recovered", new=AsyncMock()
+        )
+        assert await _tick(stack_recovery, mocker, 1300, SCANNING) is False
+        recovered.assert_awaited_once_with(300)
+        assert stack_recovery._session_wait_announced is False
+
+    @pytest.mark.parametrize(
+        "accounts,devices,allowed",
+        [
+            ({"in_use": 0}, {"devices": []}, True),
+            ({"in_use": 0}, {"devices": [{"worker_in_use_count": 0}]}, True),
+            ({"in_use": 16}, {"devices": [{"worker_in_use_count": 16}]}, False),
+            ({"in_use": 0}, {"devices": [{"worker_in_use_count": 1}]}, False),
+            ({"in_use": 1}, {"devices": []}, False),
+            (None, {"devices": []}, False),
+            ({"in_use": 0}, None, False),
+            ({}, {"devices": []}, False),
+            ({"in_use": False}, {"devices": []}, False),
+            ({"in_use": "0"}, {"devices": []}, False),
+            ({"in_use": -1}, {"devices": []}, False),
+            ({"in_use": 0}, {"devices": [{}]}, False),
+            ({"in_use": 0}, {"devices": [{"worker_in_use_count": False}]}, False),
+        ],
+    )
+    async def test_fresh_counts_fail_closed(self, mocker, accounts, devices, allowed):
+        recovery = StackRecovery(MagicMock())
+        recovery._notify = AsyncMock()
+        fetch = mocker.patch(
+            "modules.stack_recovery.fetch_data",
+            new=AsyncMock(side_effect=[accounts, devices]),
+        )
+        assert await recovery._sessions_allow_reset() is allowed
+        assert [call.args[0] for call in fetch.await_args_list] == [
+            "account_status",
+            "device_status",
+        ]
+        assert recovery._notify.await_count == (0 if allowed else 1)
+
+    async def test_live_accounts_block_containers_and_phone_without_spending_rung(
+        self, stack_recovery, mocker
+    ):
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        stack_recovery._sessions_allow_reset.return_value = False
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        await _tick(stack_recovery, mocker, 1000, STACK_DOWN)
+        assert await _tick(stack_recovery, mocker, 1300, STACK_DOWN) is False
+        assert stack_recovery._recovery_attempts == 0
+        stack_recovery.recreate_services.assert_not_awaited()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_awaited()
+        # A later zero-usage window can use the same rung.
+        stack_recovery._sessions_allow_reset.return_value = True
+        assert await _tick(stack_recovery, mocker, 1360, STACK_DOWN) is True
+        assert stack_recovery._recovery_attempts == 1
+        stack_recovery.recreate_services.assert_awaited_once()
+
+    async def test_phone_only_recovery_is_also_guarded(self, stack_recovery, mocker):
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        stack_recovery._sessions_allow_reset.return_value = False
+        assert await stack_recovery._recover("apps") is False
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_awaited()
+
+    async def test_new_sessions_after_container_restart_protect_phone(
+        self, stack_recovery, mocker
+    ):
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        stack_recovery._sessions_allow_reset.side_effect = [True, False]
+        stack_recovery.recreate_services = AsyncMock(return_value=True)
+        assert await stack_recovery._recover("full") is True
+        stack_recovery.recreate_services.assert_awaited_once()
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_awaited()
+
+    async def test_staged_images_do_not_expand_recovery_services(
+        self, stack_recovery, mocker, tmp_path
+    ):
+        import json
+
+        staged = tmp_path / "scanner-updates.staged.json"
+        staged.write_text(
+            json.dumps(
+                {
+                    "services": {
+                        "dragonite": {
+                            "image": "ghcr.io/unownhash/dragonite-public:dragonite-v1.20.17-testing@sha256:"
+                            + "a" * 64
+                        },
+                        "golbat": {
+                            "image": "ghcr.io/unownhash/golbat:main@sha256:" + "b" * 64
+                        },
+                    }
+                }
+            )
+        )
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        mocker.patch(
+            "modules.stack_recovery.Config.UNOWNHASH_COMPOSE_FILE",
+            str(tmp_path / "docker-compose.yml"),
+        )
+        mocker.patch(
+            "modules.stack_recovery.Config.RECREATE_SERVICES", "dragonite rotom-ng"
+        )
+        proc = MagicMock(returncode=0)
+        proc.communicate = AsyncMock(return_value=(b"done", None))
+        create = mocker.patch(
+            "modules.stack_recovery.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        )
+        assert await stack_recovery.recreate_services() is True
+        args = create.await_args.args
+        assert args[3:5] == ("-f", str(staged))
+        assert args[-2:] == ("dragonite", "rotom-ng")
+        assert "--no-deps" in args
+        assert args[-4:-2] == ("--pull", "never")
+
+    async def test_invalid_override_cannot_add_database_restarts(
+        self, stack_recovery, mocker, tmp_path
+    ):
+        import json
+
+        staged = tmp_path / "scanner-updates.staged.json"
+        staged.write_text(json.dumps({"services": {"db": {"image": "mariadb:latest"}}}))
+        mocker.patch("modules.stack_recovery.Config.IS_PRODUCTION", True)
+        mocker.patch(
+            "modules.stack_recovery.Config.UNOWNHASH_COMPOSE_FILE",
+            str(tmp_path / "docker-compose.yml"),
+        )
+        proc = MagicMock(returncode=0)
+        proc.communicate = AsyncMock(return_value=(b"done", None))
+        create = mocker.patch(
+            "modules.stack_recovery.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=proc),
+        )
+        assert await stack_recovery.recreate_services() is True
+        assert str(staged) not in create.await_args.args
 
 
 class TestNotify:
