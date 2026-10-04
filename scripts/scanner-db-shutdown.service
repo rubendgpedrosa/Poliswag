@@ -1,0 +1,16 @@
+[Unit]
+Description=Apply queued MariaDB patch images during host shutdown
+After=docker.service network.target
+Before=pm2-root.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/true
+ExecStop=/usr/local/sbin/scanner-db-shutdown --shutdown
+TimeoutStopSec=15min
+
+[Install]
+WantedBy=multi-user.target docker.service
