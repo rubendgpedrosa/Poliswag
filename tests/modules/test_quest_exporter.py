@@ -280,7 +280,7 @@ class TestExport:
                 "quest_reward_amount": 1,
             },
         ]
-        ar_rows = [
+        alternative_rows = [
             {
                 "name": "Monumento",
                 "lat": 39.77,
@@ -297,7 +297,9 @@ class TestExport:
 
         def fake_get_data(query):
             return (
-                ar_rows if "alternative_quest_reward_type" in query else standard_rows
+                alternative_rows
+                if "alternative_quest_reward_type" in query
+                else standard_rows
             )
 
         qs.db.get_data_from_database.side_effect = fake_get_data
@@ -315,14 +317,14 @@ class TestExport:
         assert payload["generatedAt"].endswith("Z")
         quests = payload["quests"]
         # Two unique (title|reward-type) keys → two merged quest entries:
-        #  1. standard "Catch 5 Pokémon" with both pokestops
-        #  2. AR "[AR] Catch 3 Pokémon" with one pokestop
+        # "Catch 5 Pokémon" has two stops; "Catch 3 Pokémon" has one.
         assert len(quests) == 2
-        ar_quest = next(q for q in quests if q["title"].startswith("[AR]"))
-        standard_quest = next(q for q in quests if not q["title"].startswith("[AR]"))
+        assert all("[AR]" not in q["title"] for q in quests)
+        alternative_quest = next(q for q in quests if q["title"] == "Catch 3 Pokémon")
+        standard_quest = next(q for q in quests if q["title"] == "Catch 5 Pokémon")
 
         assert standard_quest["stopsCount"] == 2
-        assert ar_quest["stopsCount"] == 1
+        assert alternative_quest["stopsCount"] == 1
 
         # Zone tagging applied per pokestop.
         zones = {s["zone"] for s in standard_quest["pokestops"]}
@@ -354,7 +356,7 @@ class TestExport:
         qs.masterfile_data = {"pokemon": {}, "items": {}}
 
         def fake_get_data(query):
-            # Standard rows only; AR query returns nothing.
+            # Only the first scanner field set contains rows.
             return [] if "alternative_quest_reward_type" in query else rows
 
         qs.db.get_data_from_database.side_effect = fake_get_data
@@ -392,6 +394,27 @@ class TestExport:
         assert await exporter.export() is False
         second = json.loads(output.read_text())
         assert first["generatedAt"] == second["generatedAt"]
+
+    async def test_combines_scanner_field_sets_without_duplicate_stops(self, tmp_path):
+        import json
+
+        source = self._row("Fonte", 500)
+        other = self._row("Praça", 500)
+        exporter = self._make_exporter(tmp_path, [source])
+        exporter.poliswag.quest_search.db.get_data_from_database.side_effect = (
+            lambda query: (
+                [dict(source), other]
+                if "alternative_quest_reward_type" in query
+                else [source]
+            )
+        )
+
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 1
+        assert "[AR]" not in quests[0]["title"]
+        assert quests[0]["stopsCount"] == 2
+        assert {stop["name"] for stop in quests[0]["pokestops"]} == {"Fonte", "Praça"}
 
     async def test_rewrites_when_quest_content_changes(self, tmp_path):
         rows = [self._row("Fonte", 500)]
