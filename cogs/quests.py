@@ -1,3 +1,6 @@
+from io import BytesIO
+
+import discord
 from discord.ext import commands
 
 from modules.embeds import build_embed
@@ -123,12 +126,19 @@ class Quests(commands.Cog):
                     len(pokestop_groups),
                     total_stops=len(all_pokestops),
                 )
-                map_url = self.poliswag.image_generator.generate_static_map_for_group_of_quests(
-                    pokestop_group
+                map_image = await self.poliswag.image_generator.generate_static_map_for_group_of_quests(
+                    pokestop_group, is_leiria=is_leiria
                 )
-                if map_url:
-                    embed.set_image(url=map_url)
-                await ctx.send(embed=embed)
+                if map_image:
+                    filename = "quest-map.png"
+                    embed.set_image(url=f"attachment://{filename}")
+                    file = discord.File(BytesIO(map_image), filename=filename)
+                    try:
+                        await ctx.send(embed=embed, file=file)
+                    finally:
+                        file.close()
+                else:
+                    await ctx.send(embed=embed)
 
         await processing_msg.delete()
 
