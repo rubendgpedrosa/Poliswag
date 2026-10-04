@@ -25,7 +25,6 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
-| `site_health.py` | Probes pogoleiria.pt + the hub (port 1080): its front page, the Pokédex's Comunidade and the quest export (`SITE_HEALTH_HOST`) every tick, plus the map's data: Diadem `:1082/api/pokestop/<newest golbat stop>` (its page loads without its DB); DMs `MY_ID` after 3 failures in a row, every 6h while down, and on recovery. Production only. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward`. |
@@ -66,7 +65,7 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 | Dragonite admin | `SCANNER_STATUS_ENDPOINT` | Worker health + account stats |
 | Rotom | `DEVICE_STATUS_ENDPOINT` | Device liveness |
 | Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |
-| Home Assistant | `OWNER_ALERT_ENDPOINT` | Owner alerts as phone notifications (`modules/owner_alert.py`, `scripts/notify_owner.py`): site health, tracking health, watchdog, backup. Falls back to a DM. The daily error digest stays a DM. |
+| Home Assistant | `OWNER_ALERT_ENDPOINT` | Owner alerts as phone notifications (`modules/owner_alert.py`, `scripts/notify_owner.py`): tracking health, watchdog, backup. (Whether pogoleiria.pt, the Pokédex, the quest export and the map answer is watched by the home monitoring's probes since 2026-10-04, not by the bot.) Falls back to a DM. The daily error digest stays a DM. |
 | Poracle-NG | `PORACLE_API_URL` + `PORACLE_API_SECRET` | Pokémon alert rule CRUD |
 | ScrapedDuck | `EVENTS_ENDPOINT` | Event calendar JSON |
 | PokeMiners masterfile | `MASTERFILE_ENDPOINT` | Pokémon/item name translations |

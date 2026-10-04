@@ -32,12 +32,10 @@ SUMMARY = Summary(
 
 @pytest.fixture(autouse=True)
 def _no_real_side_effects(monkeypatch, tmp_path):
-    """Ticks here must not touch the live heartbeat, the real site or the CDN."""
+    """Ticks here must not touch the live heartbeat or the CDN."""
     from modules.config import Config
-    from modules.site_health import SiteHealth
 
     monkeypatch.setattr(Config, "HEARTBEAT_FILE", str(tmp_path / "heartbeat"))
-    monkeypatch.setattr(SiteHealth, "probe_all", AsyncMock(return_value={}))
 
     async def image_as_is(url):
         return url
@@ -358,7 +356,6 @@ class TestHundoAlertsStep:
             "_check_weekly_digest",
             "_check_daily_error_digest",
             "_check_tracking_health",
-            "_check_site_health",
             "_check_trade_digest",
         ):
             setattr(cog, name, AsyncMock())
