@@ -27,7 +27,7 @@ _QUEST_FIELD_NAMES = (
 
 
 def _quest_fields(quest: dict) -> dict:
-    """Return a normalized view of quest fields regardless of AR/standard schema.
+    """Return normalized quest fields from either scanner field set.
 
     Each column is checked independently: a row may have ``alternative_quest_*``
     for some fields and ``quest_*`` for others, so we pick per-field whether the
@@ -220,12 +220,7 @@ class QuestSearch:
         alternative_quest_data = (await self.get_alternative_quest_data())["data"]
 
         found_quests = self.find_and_process_quest_by_search_keyword(
-            search, is_leiria, quest_data
-        )
-        found_quests.extend(
-            self.find_and_process_quest_by_search_keyword(
-                search, is_leiria, alternative_quest_data
-            )
+            search, is_leiria, quest_data + alternative_quest_data
         )
 
         return found_quests if found_quests else None
@@ -297,11 +292,16 @@ class QuestSearch:
             quest_title, quest_target_str
         )
 
-        stop_key = (quest.get("name"), quest.get("lat"), quest.get("lon"))
+        stop_key = (
+            quest.get("name"),
+            quest.get("lat"),
+            quest.get("lon"),
+            quest.get("quest_slug"),
+        )
         for found_quest in found_quests:
             if found_quest["quest_title"] == quest_title_translated:
                 existing = {
-                    (s.get("name"), s.get("lat"), s.get("lon"))
+                    (s.get("name"), s.get("lat"), s.get("lon"), s.get("quest_slug"))
                     for s in found_quest["quests"]
                 }
                 if stop_key not in existing:

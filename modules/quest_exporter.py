@@ -57,7 +57,7 @@ class QuestExporter:
               AND quest_expiry > UNIX_TIMESTAMP()
             """,
         )
-        ar_rows = await qs.db.get_data_from_database(
+        alternative_rows = await qs.db.get_data_from_database(
             """
             SELECT name, lat, lon, url,
                    alternative_quest_title         AS quest_title,
@@ -73,17 +73,16 @@ class QuestExporter:
         )
 
         logging.info(
-            f"QuestExporter: {len(standard_rows)} standard, {len(ar_rows)} AR rows"
+            f"QuestExporter: {len(standard_rows) + len(alternative_rows)} quest rows"
         )
 
         merged: dict[str, dict] = {}
-        for ar, rows in ((False, standard_rows), (True, ar_rows)):
+        seen_stops: dict[str, set] = {}
+        for rows in (standard_rows, alternative_rows):
             for row in rows:
                 title = self._translate_title(
                     row["quest_title"] or "", row["quest_target"], translations
                 )
-                if ar:
-                    title = f"[AR] {title}"
                 reward = self._map_reward(
                     row["quest_reward_type"],
                     row["quest_reward_amount"],
@@ -101,6 +100,11 @@ class QuestExporter:
                         "reward": reward,
                         "pokestops": [],
                     }
+                    seen_stops[key] = set()
+                stop_key = (row["name"], float(row["lat"]), float(row["lon"]))
+                if stop_key in seen_stops[key]:
+                    continue
+                seen_stops[key].add(stop_key)
                 stop: dict = {
                     "name": row["name"] or "Unknown",
                     "location": {
