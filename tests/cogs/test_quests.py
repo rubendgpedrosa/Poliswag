@@ -20,6 +20,7 @@ def cog():
     poliswag.quest_exporter.export = AsyncMock()
     poliswag.scanner_manager.update_quest_scanning_state = AsyncMock()
     poliswag.quest_search.find_quest_by_search_keyword = AsyncMock()
+    poliswag.image_generator.generate_static_map_for_group_of_quests = AsyncMock()
     return Quests(poliswag)
 
 
@@ -148,7 +149,7 @@ class TestQuestCmd:
             set_image=MagicMock()
         )
         cog.poliswag.image_generator.generate_static_map_for_group_of_quests.return_value = (
-            "http://map"
+            b"PNG"
         )
 
         await Quests.questcmd.callback(cog, ctx, search="bulbasaur")
@@ -157,9 +158,18 @@ class TestQuestCmd:
         assert ctx.send.await_count == 3
         processing.delete.assert_awaited_once()
         assert cog.poliswag.quest_search.create_quest_embed.call_count == 2
+        assert (
+            cog.poliswag.image_generator.generate_static_map_for_group_of_quests.await_count
+            == 2
+        )
+        for call in ctx.send.await_args_list[1:]:
+            assert call.kwargs["file"].filename == "quest-map.png"
+            call.kwargs["embed"].set_image.assert_called_with(
+                url="attachment://quest-map.png"
+            )
 
-    async def test_happy_path_without_map_url_skips_set_image(self, cog):
-        ctx = make_ctx(invoked_with="questleiria")
+    async def test_render_failure_still_sends_quest_list(self, cog):
+        ctx = make_ctx(invoked_with="questmarinha")
         processing = MagicMock()
         processing.delete = AsyncMock()
         ctx.send = AsyncMock(return_value=processing)
@@ -179,6 +189,12 @@ class TestQuestCmd:
         await Quests.questcmd.callback(cog, ctx, search="thing")
 
         embed.set_image.assert_not_called()
+        assert ctx.send.await_count == 2
+        assert ctx.send.await_args_list[1].kwargs == {"embed": embed}
+        cog.poliswag.image_generator.generate_static_map_for_group_of_quests.assert_awaited_once_with(
+            [{}], is_leiria=False
+        )
+        processing.delete.assert_awaited_once()
 
 
 class TestLifecycle:

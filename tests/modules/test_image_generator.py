@@ -1,6 +1,6 @@
 """Tests for modules.image_generator.ImageGenerator.
 
-Focuses on the pure-logic static-map URL builder and the error branches of
+Focuses on the async quest-map renderer and the error branches of
 the async HTML→PNG helpers (by making imgkit.from_file raise).
 
 The renderer writes the page to a temp file it deletes, so a test that wants
@@ -8,8 +8,12 @@ the rendered HTML reads the path it was handed.
 """
 
 import os
-from unittest.mock import MagicMock
+from collections import OrderedDict
+from io import BytesIO
+from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
+from PIL import Image
 import pytest
 
 from modules.config import Config
@@ -18,17 +22,20 @@ from modules.image_generator import ImageGenerator
 
 class TestInit:
     def test_reads_config_and_starts_with_no_cache(self, mocker):
-        mocker.patch.object(Config, "GOOGLE_API_KEY", "KEY")
+        mocker.patch.object(Config, "QUEST_MAP_URL", "http://tiles/")
+        mocker.patch.object(Config, "QUEST_MAP_STYLE", "osm-bright")
         mocker.patch.object(Config, "TEMPLATE_HTML_DIR", "/templates")
         mocker.patch.object(Config, "ACCOUNTS_TEMPLATE_HTML_FILE", "accounts.html")
         mocker.patch.object(Config, "UI_ICONS_URL", "https://icons/")
 
         g = ImageGenerator(poliswag=MagicMock())
 
-        assert g.google_api_key == "KEY"
+        assert g.QUEST_MAP_URL == "http://tiles"
+        assert g.QUEST_MAP_STYLE == "osm-bright"
+        assert g.QUEST_ICON_BASE_URL == "https://icons/"
+        assert not g._quest_marker_icons
         assert g.TEMPLATE_HTML_DIR == "/templates"
         assert g.ACCOUNTS_TEMPLATE_HTML_FILE == "accounts.html"
-        assert g.QUEST_ICON_BASE_URL == "https://icons/"
         assert g._env is None
         assert g._accounts_template is None
 
@@ -42,51 +49,102 @@ def rendered(path):
 def ig():
     g = ImageGenerator.__new__(ImageGenerator)
     g.poliswag = MagicMock()
-    g.google_api_key = "KEY"
+    g.QUEST_MAP_URL = "http://tiles"
+    g.QUEST_MAP_STYLE = "osm-bright"
+    g.QUEST_ICON_BASE_URL = "https://icons/"
+    g._quest_marker_icons = OrderedDict()
     g.TEMPLATE_HTML_DIR = "/tmp"
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
-    g.QUEST_ICON_BASE_URL = "https://icons/"
     g._env = None
     g._accounts_template = None
     return g
 
 
 class TestGenerateStaticMapForGroupOfQuests:
-    def test_returns_none_for_empty(self, ig):
-        assert ig.generate_static_map_for_group_of_quests([]) is None
+    async def test_returns_none_for_empty(self, ig):
+        assert await ig.generate_static_map_for_group_of_quests([]) is None
 
-    def test_returns_none_when_no_coords(self, ig):
+    async def test_returns_none_when_no_coords(self, ig):
         # None of the stops have lat/lon → coordinates list stays empty.
         stops = [{"name": "A"}, {"name": "B"}]
-        assert ig.generate_static_map_for_group_of_quests(stops) is None
+        assert await ig.generate_static_map_for_group_of_quests(stops) is None
 
-    def test_builds_url_with_markers(self, ig):
-        stops = [
-            {"lat": "39.7", "lon": "-8.8", "quest_slug": "reward/item/1.png"},
-            {"lat": "39.75", "lon": "-8.85", "quest_slug": "pokemon/25.png"},
-        ]
-        url = ig.generate_static_map_for_group_of_quests(stops)
-        assert url.startswith("https://maps.googleapis.com/maps/api/staticmap?")
-        assert "key=KEY" in url
-        assert "size=600x300" in url
-        # Labels follow A, B, C… sequence.
-        assert "label:A" in url
-        assert "label:B" in url
-        # Icon URLs are embedded.
-        assert "icon:https://icons/reward/item/1.png" in url
-        assert "icon:https://icons/pokemon/25.png" in url
-        # Coordinates appear verbatim.
-        assert "39.7,-8.8" in url
-        assert "39.75,-8.85" in url
+    def response(self, mocker, data):
+        response = MagicMock()
+        response.read = AsyncMock(return_value=data)
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=response)
+        context.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.post.return_value = context
+        mocker.patch("modules.image_generator.get_session", return_value=session)
+        return session, response
 
-    def test_skips_stops_missing_one_axis(self, ig):
-        stops = [
-            {"lat": "39.7", "quest_slug": "a.png"},  # missing lon → skipped
-            {"lat": "39.8", "lon": "-8.8", "quest_slug": "b.png"},
-        ]
-        url = ig.generate_static_map_for_group_of_quests(stops)
-        assert "b.png" in url
-        assert "a.png" not in url
+    async def test_returns_labelled_png_from_self_hosted_map(self, ig, mocker):
+        data = BytesIO()
+        Image.new("RGB", (1200, 600), "white").save(data, format="PNG")
+        session, response = self.response(mocker, data.getvalue())
+        result = await ig.generate_static_map_for_group_of_quests(
+            [{"lat": "39.7", "lon": "-8.8"}], is_leiria=False
+        )
+        response.raise_for_status.assert_called_once()
+        args, kwargs = session.post.call_args
+        assert args == ("http://tiles/staticmap",)
+        assert kwargs["json"]["style"] == "osm-bright"
+        assert kwargs["json"]["scale"] == 2
+        assert kwargs["timeout"].total == 20
+        with Image.open(BytesIO(result)) as image:
+            assert image.size == (1200, 600)
+            assert image.format == "PNG"
+            assert image.getpixel((610, 312)) == (46, 204, 113)
+
+    async def test_http_failure_logs_and_returns_none(self, ig, mocker):
+        _, response = self.response(mocker, b"")
+        response.raise_for_status.side_effect = aiohttp.ClientError("unavailable")
+        result = await ig.generate_static_map_for_group_of_quests(
+            [{"lat": 39.7, "lon": -8.8}]
+        )
+        assert result is None
+        assert "unavailable" in ig.poliswag.utility.log_to_file.call_args.args[0]
+        assert ig.poliswag.utility.log_to_file.call_args.args[1] == "ERROR"
+
+    async def test_bad_image_keeps_results_available(self, ig, mocker):
+        self.response(mocker, b"not an image")
+        assert (
+            await ig.generate_static_map_for_group_of_quests(
+                [{"lat": 39.7, "lon": -8.8}]
+            )
+            is None
+        )
+        ig.poliswag.utility.log_to_file.assert_called_once()
+
+    async def test_reward_icon_is_requested_once_and_cached(self, ig, mocker):
+        session, _ = self.response(mocker, b"map")
+        icon_response = MagicMock()
+        icon_response.read = AsyncMock(return_value=b"sprite")
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=icon_response)
+        context.__aexit__ = AsyncMock(return_value=False)
+        session.get.return_value = context
+
+        assert await ig._load_quest_marker_icon("pokemon/928.png") == b"sprite"
+        assert await ig._load_quest_marker_icon("pokemon/928.png") == b"sprite"
+        session.get.assert_called_once()
+        assert session.get.call_args.args == ("https://icons/pokemon/928.png",)
+
+    async def test_icon_failure_still_returns_labelled_map(self, ig, mocker):
+        data = BytesIO()
+        Image.new("RGB", (1200, 600), "white").save(data, format="PNG")
+        session, _ = self.response(mocker, data.getvalue())
+        session.get.side_effect = aiohttp.ClientError("icon unavailable")
+
+        result = await ig.generate_static_map_for_group_of_quests(
+            [{"lat": 39.7, "lon": -8.8, "quest_slug": "pokemon/928.png"}]
+        )
+        assert result is not None
+        with Image.open(BytesIO(result)) as image:
+            assert image.size == (1200, 600)
+        assert ig.poliswag.utility.log_to_file.call_args.args[1] == "WARNING"
 
 
 class TestGenerateImageFromAccountStats:
