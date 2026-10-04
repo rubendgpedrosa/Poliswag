@@ -15,10 +15,10 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
-      # Quests is part of the hub app since 2026-10-04; it serves this folder
-      # at /quests-data.
+      # Quests and the Pokédex are part of the hub app since 2026-10-04; it
+      # serves these folders at /quests-data and /pokedex-data.
       - /root/PoGoLeiria/apps/landing/public/quests-data:/pogo-public
-      - /root/PoGoLeiria/apps/pokedex/public:/dex-public
+      - /root/PoGoLeiria/apps/landing/public/pokedex-data:/dex-public
       - /root/.android:/root/.android:ro
       # StackRecovery: recreate scanner containers when the map goes fully red.
       # The stack dir is mounted at its host path so compose resolves the
