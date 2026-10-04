@@ -15,7 +15,9 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
-      - /root/PoGoLeiria/apps/quests/public:/pogo-public
+      # Quests is part of the hub app since 2026-10-04; it serves this folder
+      # at /quests-data.
+      - /root/PoGoLeiria/apps/landing/public/quests-data:/pogo-public
       - /root/PoGoLeiria/apps/pokedex/public:/dex-public
       - /root/.android:/root/.android:ro
       # StackRecovery: recreate scanner containers when the map goes fully red.

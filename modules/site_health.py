@@ -34,7 +34,9 @@ def default_checks(host):
     return (
         ("pogoleiria.pt", "https://pogoleiria.pt/"),
         ("Hub (landing)", f"http://{host}:1080/"),
-        ("Quests", f"http://{host}:3001/embed/quests"),
+        # Quests is part of the hub since 2026-10-04 (it had its own port, 3001):
+        # what can still break on its own is the export the hub serves for it.
+        ("Quests", f"http://{host}:1080/quests-data/quests-meta.json"),
         ("Pokédex", f"http://{host}:3003/embed/pokedex/procurar"),
     )
 

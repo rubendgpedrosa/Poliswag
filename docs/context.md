@@ -25,14 +25,14 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
-| `site_health.py` | Probes pogoleiria.pt + landing/quests/Pokédex ports (`SITE_HEALTH_HOST`) every tick, plus the map's data: Diadem `:1082/api/pokestop/<newest golbat stop>` (its page loads without its DB); DMs `MY_ID` after 3 failures in a row, every 6h while down, and on recovery. Production only. |
+| `site_health.py` | Probes pogoleiria.pt + landing/Pokédex ports and the hub's quest export (`SITE_HEALTH_HOST`) every tick, plus the map's data: Diadem `:1082/api/pokestop/<newest golbat stop>` (its page loads without its DB); DMs `MY_ID` after 3 failures in a row, every 6h while down, and on recovery. Production only. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward`. |
 | `lure_manager.py` | Free healthy Dragonite accounts + `account_lure` budget; Dragonite read-only. |
 | `role_manager.py` | Legacy name-based role panel (not used by `event_panel.py`). |
 | `mega_exporter.py` | Mega sprites for the site, shrunk to ≤160px. |
-| `image_generator.py` / `embeds.py` | imgkit accounts card; shared embed builders (Discord limits). |
+| `image_generator.py` / `quest_map.py` / `embeds.py` | imgkit accounts card; self-hosted Rampardos quest PNGs with A–J labels, attached to Discord; shared embed builders (Discord limits). |
 | `utility.py` / `locale_pt.py` | `log_to_file`, `time_now`, Lisbon-aware `format_datetime_string`; PT date names. |
 
 ## Cog map (`cogs/`)
@@ -58,6 +58,8 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 - **dragonite** (read-only): `account` health for lures. **poracle**: `humans`, tracking rules.
 
 ## External integrations
+
+Host-side scanner update staging and session-protected recovery: [scanner-updates.md](context/scanner-updates.md).
 
 | Service | Endpoint env var | Purpose |
 |---------|-----------------|---------|
@@ -85,6 +87,7 @@ PORACLE_API_URL, PORACLE_API_SECRET
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
 UI_ICONS_URL, TEMPLATE_HTML_DIR, ACCOUNTS_TEMPLATE_HTML_FILE
+QUEST_MAP_URL, QUEST_MAP_STYLE  (Rampardos /staticmap; default style osm-bright)
 QUEST_JSON_OUTPUT  (default /pogo-public/quests.json)
 LOG_FILE, ERROR_LOG_FILE
 ```
@@ -103,6 +106,7 @@ LOG_FILE, ERROR_LOG_FILE
 - `!notify` **ref** resolution: `#mention` → raw id → exact name → `%-<suffix>` LIKE; category suffixes (`raros`, `100iv`, `0iv`, `uteis`) fan out to `leiria-<suffix>` and `marinha-<suffix>`.
 - `_PAIRED_PREFIXES = ("leiria-", "marinha-")` drives fan-out logic in `notifications.py`.
 - Embed color: `Config.EMBED_COLOR = 0x4169E1`. Automated notices (owner DMs, mod-channel alerts, host scripts) go out as embeds, never plain text; plain text is for replies inside a flow (e.g. `!stats` follow-ups).
+- Notification copy uses European Portuguese (PT-PT): describe shutdown/reboot as "desligar ou reiniciar o servidor", use natural singular/plural forms, and keep technical identifiers only where needed to identify a service or command.
 - Tests under `tests/` (pytest). Run via `make test` inside Docker.
 - Logging: `utility.log_to_file(msg, level)` → `logs/actions.log` + `logs/error.log`.
 - Migrations: `setup_hook` replays every `migrations/*.sql` on each start (`modules/migrations.py`), before cogs load. No tracking table, so every statement must be `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`; `test_every_migration_is_rerunnable` enforces it.
