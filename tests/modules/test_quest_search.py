@@ -294,6 +294,21 @@ class TestAddQuestToFoundQuests:
             "Catch 10 Pokémon",
         }
 
+    def test_same_stop_with_different_rewards_is_preserved(self, qs):
+        found = []
+        quest = {
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "name": "Fonte",
+            "lat": 39.7,
+            "lon": -8.8,
+            "quest_slug": "pokemon/25.png",
+        }
+        qs.add_quest_to_found_quests(found, quest)
+        qs.add_quest_to_found_quests(found, dict(quest, quest_slug="pokemon/150.png"))
+        assert len(found) == 1
+        assert len(found[0]["quests"]) == 2
+
     def test_none_target_is_stringified_empty(self, qs):
         found = []
         quest = {"quest_title": "quest_catch_pokemon", "quest_target": None}
@@ -843,6 +858,30 @@ class TestFindQuestBySearchKeyword:
         qs.quest_data = {"data": [], "date": datetime.now().isoformat()}
         qs.alternative_quest_data = {"data": [], "date": datetime.now().isoformat()}
         assert await qs.find_quest_by_search_keyword("nothing", is_leiria=True) is None
+
+    async def test_identical_quest_from_both_field_sets_has_one_stop(self, qs):
+        qs.pokemon_name_map = {"25": "pikachu"}
+        qs.item_name_map = {"1": "poké ball"}
+        quest = {
+            "name": "Fonte",
+            "lat": 39.7,
+            "lon": -8.8,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "quest_reward_type": 7,
+            "quest_pokemon_id": 25,
+        }
+        alternative = {
+            f"alternative_{key}" if key.startswith("quest_") else key: value
+            for key, value in quest.items()
+        }
+        qs.get_quest_data = AsyncMock(return_value={"data": [quest]})
+        qs.get_alternative_quest_data = AsyncMock(return_value={"data": [alternative]})
+
+        result = await qs.find_quest_by_search_keyword("catch", True)
+        assert len(result) == 1
+        assert result[0]["quest_title"] == "Catch 5 Pokémon"
+        assert len(result[0]["quests"]) == 1
 
 
 # --- create_quest_embed --------------------------------------------------------
