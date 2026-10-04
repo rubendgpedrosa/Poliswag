@@ -64,7 +64,7 @@ class Config:
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
     # Where modules/site_health.py reaches the site's apps (pm2 on the host,
-    # ports 1080/3001/3003). The bot runs in docker, so not localhost.
+    # ports 1080/3003). The bot runs in docker, so not localhost.
     SITE_HEALTH_HOST = os.environ.get("SITE_HEALTH_HOST", "192.168.1.253")
 
     # Scanner / infrastructure
@@ -94,7 +94,8 @@ class Config:
     NIANTIC_FORCED_VERSION_ENDPOINT = os.environ.get("NIANTIC_FORCED_VERSION_ENDPOINT")
 
     # Image generation
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+    QUEST_MAP_URL = os.environ.get("QUEST_MAP_URL", "https://tileserver.pogoleiria.pt")
+    QUEST_MAP_STYLE = os.environ.get("QUEST_MAP_STYLE", "osm-bright")
     TEMPLATE_HTML_DIR = os.environ.get("TEMPLATE_HTML_DIR")
     ACCOUNTS_TEMPLATE_HTML_FILE = os.environ.get("ACCOUNTS_TEMPLATE_HTML_FILE")
 

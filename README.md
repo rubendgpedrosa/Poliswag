@@ -60,6 +60,18 @@ Selected via `ENV=` in `.env`:
 - `!scan` — trigger a new quest scan
 - `!exportquests` *(admin)* — export quest data to the PWA
 
+Quest search replies attach one 1200×600 PNG per page (up to 10 stops), rendered
+by Rampardos using the local map dataset. `QUEST_MAP_URL` selects the server
+(default `https://tileserver.pogoleiria.pt`); `QUEST_MAP_STYLE` defaults to
+`osm-bright`. Markers use the same Pokémon/item reward sprites as alerts, with
+small A–J badges matching the stop list. Compact sprites stay on their exact
+coordinates; letter badges fit around nearby icons, without connector lines.
+Sprite downloads are cached (64 rewards); unavailable icons fall
+back to letter markers. If rendering fails, the stop list and navigation links
+still arrive. Google Static Maps and its API key are no longer used.
+Quest exports combine the scanner's two quest field sets without AR labels,
+and deduplicate the same stop within a quest.
+
 ### Quest reward tracking
 - `!track <reward>` / `!untrack <reward>` — manage the watch list
 - `!tracklist` — show current watch list

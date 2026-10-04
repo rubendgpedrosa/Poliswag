@@ -1,12 +1,16 @@
 import asyncio
 import contextlib
+from collections import OrderedDict
 import os
 import tempfile
 
+import aiohttp
 import imgkit
 from jinja2 import Environment, FileSystemLoader
 
 from modules.config import Config
+from modules.http_client import get_session
+from modules.quest_map import draw_quest_map, fit_quest_map
 
 # Display order + short label for the account card's area-performance
 # footer -- fixed order so Leiria always renders before Marinha
@@ -21,10 +25,12 @@ _CHARSET_META = '<meta charset="UTF-8">'
 class ImageGenerator:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.google_api_key = Config.GOOGLE_API_KEY
+        self.QUEST_MAP_URL = Config.QUEST_MAP_URL.rstrip("/")
+        self.QUEST_MAP_STYLE = Config.QUEST_MAP_STYLE
+        self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
+        self._quest_marker_icons = OrderedDict()
         self.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
         self.ACCOUNTS_TEMPLATE_HTML_FILE = Config.ACCOUNTS_TEMPLATE_HTML_FILE
-        self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
         # Lazily-cached Jinja environment/templates — loaded and parsed from
         # disk once instead of on every render call (generate_image_from_
         # account_stats runs every 60s tick).
@@ -97,23 +103,52 @@ class ImageGenerator:
         }
         return await self._render_png(html_content, options, "account image")
 
-    def generate_static_map_for_group_of_quests(self, pokestops):
-        coordinates = []
-        for idx, stop in enumerate(pokestops):
-            if "lat" in stop and "lon" in stop:
-                coordinates.append(
-                    (stop["lat"], stop["lon"], chr(65 + idx), stop["quest_slug"])
-                )
-
-        if not coordinates:
+    async def _load_quest_marker_icon(self, slug):
+        if slug in self._quest_marker_icons:
+            self._quest_marker_icons.move_to_end(slug)
+            return self._quest_marker_icons[slug]
+        if not self.QUEST_ICON_BASE_URL:
+            return None
+        try:
+            async with get_session().get(
+                f"{self.QUEST_ICON_BASE_URL.rstrip('/')}/{slug.lstrip('/')}",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as response:
+                response.raise_for_status()
+                data = await response.read()
+            self._quest_marker_icons[slug] = data
+            if len(self._quest_marker_icons) > 64:
+                self._quest_marker_icons.popitem(last=False)
+            return data
+        except (aiohttp.ClientError, TimeoutError) as error:
+            self.poliswag.utility.log_to_file(
+                f"Quest marker icon unavailable ({slug}): {error}", "WARNING"
+            )
             return None
 
-        base_url = "https://maps.googleapis.com/maps/api/staticmap?"
-        params = f"key={self.google_api_key}&size=600x300&scale=2"
-        markers = "&".join(
-            [
-                f"markers=icon:{self.QUEST_ICON_BASE_URL}{quest_slug}|label:{label}|{lat},{lon}"
-                for lat, lon, label, quest_slug in coordinates
-            ]
-        )
-        return f"{base_url}{params}&{markers}"
+    async def generate_static_map_for_group_of_quests(self, pokestops, is_leiria=True):
+        quest_map = fit_quest_map(pokestops, self.QUEST_MAP_STYLE)
+        if quest_map is None:
+            return None
+        try:
+            async with get_session().post(
+                f"{self.QUEST_MAP_URL}/staticmap",
+                json=quest_map.payload,
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as response:
+                response.raise_for_status()
+                image_bytes = await response.read()
+            slugs = list(dict.fromkeys(quest_map.icon_slugs.values()))
+            data = await asyncio.gather(
+                *(self._load_quest_marker_icon(slug) for slug in slugs)
+            )
+            icons = {slug: icon for slug, icon in zip(slugs, data) if icon}
+            return await asyncio.to_thread(
+                draw_quest_map, image_bytes, quest_map, is_leiria, icons
+            )
+        except Exception as error:
+            self.poliswag.utility.log_to_file(
+                f"Error generating quest map: {error}", "ERROR"
+            )
+            # A map outage must still let the user receive the quest list.
+            return None
