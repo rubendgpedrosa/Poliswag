@@ -15,8 +15,24 @@ account on a Zorua Community Day (161 encounters, the 7 shinies had the 7
 lowest draws); `next_int(odds) == 0`, the community's rule for event odds, is
 wrong. The roll, its 24-bit cutoff, the UTF-8 ID and which spawns are
 rolled (wild or encountered; never Ditto, a disguised spawn or a nearby-only
-sighting) follow Golbat PR #423, whose test vectors are in our tests. Event odds per species live in `shiny_rate` (pokemon_id, rate, ends_at);
-the site's map uses them, the DMs do not yet (base odds only).
+sighting) follow Golbat PR #423, whose test vectors are in our tests. Event odds per species live in `shiny_rate` (pokemon_id, rate, ends_at,
+source); the site's map uses them, the DMs do not yet (base odds only).
+
+## Odds that set themselves (`modules/shiny_odds.py`, every tick)
+
+| What | How |
+|---|---|
+| Event odds | Per species, two counts of the scanner's own encounters: the last 30 min of `golbat.pokemon`, and today's `golbat.pokemon_shiny_stats` (UTC day). `estimate` picks the likeliest of the game's odds (512, 256, 128, 64, 25, 10) and takes it only if the count is 1,000 times likelier under it than under 1/512 and rests on 5+ shinies. The live count decides when it can; the day's count otherwise |
+| When it ends | An `auto` row is deleted and rewritten every tick (`ends_at` 15 min ahead, so a stopped bot leaves nothing standing). The day's count is ignored once the species is seen at under a quarter of the day's own pace (`collapsed`): a Community Day's odds go about 30 min after it ends |
+| By hand | A `manual` row wins while it runs; expired manual rows are deleted by the same tick |
+| Never shiny | Finished UTC days of Golbat's counts (it keeps a week) are added to `shiny_species`; `poliswag.shiny_species_through` is the last day added. A species and form with 5,000+ encounters and no shiny, today included, is `never_shiny`: no DM, no pin on the site's map. One shiny unmarks it |
+
+Checked on 2026-10-10 against the scanner's week (3,879 species-days): it
+finds Zorua's Community Day (1/25) and the Slugma and Smoliv event of 3 to 5
+October (1/128), and nothing else. Limits: a slow boost on a species that
+stays common is found again each morning only after a few thousand
+encounters, and lasts to midnight UTC even if it ended earlier; odds are per
+species, not per form or costume.
 
 `player_id` is the game's internal ID. Shapes seen: 16 hex (PTC scanner
 accounts), 24 hex (the owner's account), 21 digits (a Google sign-up). It is
@@ -66,6 +82,10 @@ both on by default, set by SQL for now, migration 018), `shiny_alert` (dedupe an
 `poliswag`: `shiny_linker_enabled`, `shiny_linker_disabled_reason`,
 `shiny_linker_last_run_at`, `shiny_linker_alerted_version`,
 `shiny_alert_watermark`.
+
+Migrations 019 and 021: `shiny_rate` (pokemon_id, rate, ends_at, source
+`manual`/`auto`), `shiny_species` (pokemon_id, form_id, encounters, shinies,
+never_shiny) and `poliswag.shiny_species_through`. The site reads both tables.
 
 ## How an alert is delivered
 
