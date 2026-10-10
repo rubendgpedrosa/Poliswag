@@ -10,7 +10,7 @@ import pytest
 from modules import shiny_alerts
 from modules.config import Config
 from modules.poracle_client import PoracleError
-from modules.shiny_alerts import ShinyAlerts, link_message
+from modules.shiny_alerts import ShinyAlerts, link_message, wants_alert
 
 OWNER = 111
 PLAYER = "0123456789abcdef"
@@ -34,6 +34,7 @@ def alerts():
     # embed, the fallback. TestThroughPoracle covers the normal path.
     bot.poracle.test_pokemon = AsyncMock(side_effect=PoracleError("down"))
     a = ShinyAlerts(bot)
+    a.channels.tick = AsyncMock()
     a.store = MagicMock(
         unannounced=AsyncMock(return_value=[]),
         mark_announced=AsyncMock(),
@@ -41,7 +42,10 @@ def alerts():
         watermark=AsyncMock(return_value=None),
         set_watermark=AsyncMock(),
         record_alert=AsyncMock(return_value=True),
-        never_shiny=AsyncMock(return_value=set()),
+        shiny_eligible=AsyncMock(return_value={(25, 0, 0), (570, 2108, 0)}),
+        owns_shiny=AsyncMock(return_value=False),
+        pending_settings=AsyncMock(return_value=[]),
+        confirm_settings=AsyncMock(),
     )
     a.user = user
     return a
@@ -149,7 +153,9 @@ def spawn(encounter_id=ZERO, **over):
     return row
 
 
-def recipient(leiria=1, marinha=1, channel_id=None, discord_id=OWNER):
+def recipient(
+    leiria=1, marinha=1, channel_id=None, discord_id=OWNER, notify_all=0, notify_hundo=1
+):
     return {
         "discord_id": discord_id,
         "discord_name": "faynn",
@@ -157,6 +163,8 @@ def recipient(leiria=1, marinha=1, channel_id=None, discord_id=OWNER):
         "player_id": PLAYER,
         "alert_leiria": leiria,
         "alert_marinha": marinha,
+        "shiny_notify_all": notify_all,
+        "shiny_notify_hundo": notify_hundo,
     }
 
 
@@ -229,14 +237,22 @@ class TestAlertSpawns:
 
     async def test_a_species_that_is_never_shiny_is_not_sent(self, alerts):
         with_spawns(alerts, [spawn(pokemon_id=931, form_id=2987), spawn(OTHER)])
-        alerts.store.never_shiny.return_value = {(931, 2987)}
+        alerts.store.shiny_eligible.return_value = {(931, 2986, 0)}
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_tarountula_with_a_zero_roll_and_unknown_availability_is_not_sent(
+        self, alerts
+    ):
+        with_spawns(alerts, [spawn(pokemon_id=917, form_id=3232)])
         await alerts.tick()
         alerts.store.record_alert.assert_not_awaited()
         alerts.user.send.assert_not_awaited()
 
     async def test_another_form_of_that_species_still_is(self, alerts):
         with_spawns(alerts, [spawn(pokemon_id=931, form_id=2986)])
-        alerts.store.never_shiny.return_value = {(931, 2987)}
+        alerts.store.shiny_eligible.return_value = {(931, 2986, 0)}
         await alerts.tick()
         alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 931, 2986)
 
@@ -276,6 +292,131 @@ class TestAlertSpawns:
         # Reads a few minutes back, for spawns that were waiting for their IV.
         assert watermark == 1791628000 - shiny_alerts.LOOK_BACK
         assert isinstance(expires_after, int)
+
+
+class TestOwnedShinies:
+    async def test_owned_shiny_is_neither_recorded_nor_delivered(self, alerts):
+        with_spawns(alerts, [spawn()])
+        alerts.store.owns_shiny.return_value = True
+        await alerts.tick()
+        alerts.store.owns_shiny.assert_awaited_once_with(OWNER, 25, 0)
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.poliswag.poracle.test_pokemon.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_missing_shiny_still_gets_delivered(self, alerts):
+        with_spawns(alerts, [spawn()])
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+
+    async def test_each_recipient_uses_their_own_collection(self, alerts):
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [recipient(), recipient(discord_id=222)]
+        alerts.store.owns_shiny.side_effect = [True, False]
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(222, ZERO, 25, 0)
+
+    async def test_an_owned_shiny_at_100_is_still_delivered(self, alerts):
+        with_spawns(alerts, [spawn(iv=100.0, def_iv=15)])
+        alerts.store.owns_shiny.return_value = True
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 25, 0)
+        alerts.user.send.assert_awaited_once()
+
+    async def test_but_not_with_that_switch_off(self, alerts):
+        with_spawns(alerts, [spawn(iv=100.0, def_iv=15)])
+        alerts.store.recipients.return_value = [recipient(notify_hundo=0)]
+        alerts.store.owns_shiny.return_value = True
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_todos_delivers_an_owned_shiny_without_reading_the_collection(
+        self, alerts
+    ):
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [recipient(notify_all=1)]
+        alerts.store.owns_shiny.return_value = True
+        await alerts.tick()
+        alerts.store.owns_shiny.assert_not_awaited()
+        alerts.user.send.assert_awaited_once()
+
+    async def test_an_owned_shiny_whose_iv_never_came_is_skipped_unrecorded(
+        self, alerts
+    ):
+        import time
+
+        old = int(time.time()) - shiny_alerts.WAIT_FOR_IV - 5
+        unknown = spawn(
+            iv=None, atk_iv=None, def_iv=None, sta_iv=None, first_seen_timestamp=old
+        )
+        with_spawns(alerts, [unknown])
+        alerts.store.owns_shiny.return_value = True
+        await alerts.tick()
+        # Not recorded, so an IV that lands inside LOOK_BACK is judged again.
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+
+HUNDO = {"atk_iv": 15, "def_iv": 15, "sta_iv": 15}
+NOT_HUNDO = {"atk_iv": 15, "def_iv": 14, "sta_iv": 15}
+UNKNOWN = {"atk_iv": None, "def_iv": None, "sta_iv": None}
+
+
+@pytest.mark.parametrize(
+    "notify_all, notify_hundo, owned, ivs, told",
+    [
+        # A shiny the player lacks is always told, whatever its IV.
+        (0, 1, False, NOT_HUNDO, True),
+        (0, 0, False, UNKNOWN, True),
+        # Owned, only-missing with the 100% switch on (the default).
+        (0, 1, True, HUNDO, True),
+        (0, 1, True, NOT_HUNDO, False),
+        (0, 1, True, UNKNOWN, False),
+        # Owned, only-missing with the switch off.
+        (0, 0, True, HUNDO, False),
+        # Todos: everything, and the 100% switch changes nothing.
+        (1, 0, True, NOT_HUNDO, True),
+        (1, 1, True, UNKNOWN, True),
+    ],
+)
+def test_wants_alert(notify_all, notify_hundo, owned, ivs, told):
+    who = recipient(notify_all=notify_all, notify_hundo=notify_hundo)
+    assert wants_alert(who, spawn(**ivs), owned) is told
+
+
+def test_a_recipient_row_without_the_columns_gets_the_defaults():
+    old_row = {"discord_id": OWNER}
+    assert wants_alert(old_row, spawn(**HUNDO), True) is True
+    assert wants_alert(old_row, spawn(**NOT_HUNDO), True) is False
+
+
+class TestConfirmingSettings:
+    """The site waits on shiny_applied_revision ("A aguardar pelo Poliswag…")."""
+
+    async def test_a_revision_read_before_the_work_is_confirmed_after_it(self, alerts):
+        order = []
+        alerts.store.pending_settings.side_effect = lambda: order.append("read") or [
+            {"discord_id": 222, "shiny_settings_revision": 4}
+        ]
+        alerts.channels.tick.side_effect = lambda: order.append("channels")
+        alerts.store.confirm_settings.side_effect = lambda *a: order.append("confirm")
+        await alerts.tick()
+        assert order == ["read", "channels", "confirm"]
+        alerts.store.confirm_settings.assert_awaited_once_with(222, 4)
+
+    async def test_a_tick_that_fails_confirms_nothing(self, alerts):
+        alerts.store.pending_settings.return_value = [
+            {"discord_id": 222, "shiny_settings_revision": 4}
+        ]
+        alerts.channels.tick.side_effect = RuntimeError("discord down")
+        with pytest.raises(RuntimeError):
+            await alerts.tick()
+        alerts.store.confirm_settings.assert_not_awaited()
+
+    async def test_nobody_waiting_means_no_write(self, alerts):
+        await alerts.tick()
+        alerts.store.confirm_settings.assert_not_awaited()
 
 
 class TestAreas:
@@ -402,6 +543,13 @@ class TestThroughPoracle:
         assert webhook["pvp"] == {"great": [{"rank": 3}]}
         assert shiny_alerts.poracle_webhook(spawn(pvp="not json"))["pvp"] is None
 
+    def test_the_form_the_database_hands_over_as_a_decimal_still_makes_json(self):
+        import json
+        from decimal import Decimal
+
+        webhook = shiny_alerts.poracle_webhook(spawn(form_id=Decimal("2108")))
+        assert json.loads(json.dumps(webhook))["form"] == 2108
+
 
 class TestOwnChannel:
     """A player with a channel of their own gets alerts there, not by DM."""
@@ -443,3 +591,16 @@ class TestOwnChannel:
         await alerts.tick()
         alerts.user.send.assert_not_awaited()
         alerts.poliswag.get_user.assert_not_called()
+
+
+async def test_shiny_ordinary_form_does_not_enable_an_unknown_costume(alerts):
+    with_spawns(alerts, [spawn(costume=7)])
+    await alerts.tick()
+    alerts.user.send.assert_not_awaited()
+
+
+async def test_exact_confirmed_costume_gets_its_alert(alerts):
+    with_spawns(alerts, [spawn(costume=7)])
+    alerts.store.shiny_eligible.return_value = {(25, 0, 7)}
+    await alerts.tick()
+    alerts.user.send.assert_awaited_once()

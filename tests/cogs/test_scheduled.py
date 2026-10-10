@@ -43,6 +43,7 @@ def _no_real_side_effects(monkeypatch, tmp_path):
     # Cards check their picture over HTTP; tests/modules/test_event_images.py
     # covers that. Here every image is taken as it is.
     monkeypatch.setattr("cogs.scheduled.usable_image", image_as_is)
+    monkeypatch.setattr("cogs.scheduled.ShinyAvailability.tick", AsyncMock())
 
 
 def _make_poliswag():
@@ -363,6 +364,7 @@ class TestHundoAlertsStep:
         cog._trade_dm.tick = AsyncMock()
         cog._shiny_alerts.tick = AsyncMock()
         cog._shiny_odds.tick = AsyncMock()
+        cog._shiny_availability.tick = AsyncMock()
 
     @staticmethod
     def _fake_io(cog, rows_before, rows_after):

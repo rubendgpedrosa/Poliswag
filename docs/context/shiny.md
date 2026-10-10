@@ -25,7 +25,7 @@ source); the site's map uses them, the DMs do not yet (base odds only).
 | Event odds | Per species, two counts of the scanner's own encounters: the last 30 min of `golbat.pokemon`, and today's `golbat.pokemon_shiny_stats` (UTC day). `estimate` picks the likeliest of the game's odds (512, 256, 128, 64, 25, 10) and takes it only if the count is 1,000 times likelier under it than under 1/512 and rests on 5+ shinies. The live count decides when it can; the day's count otherwise |
 | When it ends | An `auto` row is deleted and rewritten every tick (`ends_at` 15 min ahead, so a stopped bot leaves nothing standing). The day's count is ignored once the species is seen at under a quarter of the day's own pace (`collapsed`): a Community Day's odds go about 30 min after it ends |
 | By hand | A `manual` row wins while it runs; expired manual rows are deleted by the same tick |
-| Never shiny | Finished UTC days of Golbat's counts (it keeps a week) are added to `shiny_species`; `poliswag.shiny_species_through` is the last day added. A species and form with 5,000+ encounters and no shiny, today included, is `never_shiny`: no DM, no pin on the site's map. One shiny unmarks it |
+| Never shiny | Finished UTC days of Golbat's counts (it keeps a week) are added to `shiny_species`; `poliswag.shiny_species_through` is the last day added. The historical `never_shiny` flag marks 5,000+ encounters with no shiny, but map/alert eligibility now requires a positive shiny sighting per form. Daily and live first sightings count immediately |
 
 Checked on 2026-10-10 against the scanner's week (3,879 species-days): it
 finds Zorua's Community Day (1/25) and the Slugma and Smoliv event of 3 to 5
@@ -106,7 +106,8 @@ Discord bot, so the alert arrives in the same DM. If Poracle refuses, the
 bot's own plainer embed goes out instead.
 
 `!shiny canal [nome]` (owner) creates a private channel for a linked player
-under the "Shinies" category: only that player sees it, read-only. Their map
+under the "Shinies" category: the player has read-only access; the owner has
+explicit write access, including in their own channel. Their map
 link is pinned there and, from then on, their alerts go to the channel
 (`shiny_link.channel_id`) instead of a DM. Having a channel is what switches
 alerts on for a player; nobody outside `SHINY_ALERT_USER_IDS` is ever DMed,
@@ -115,11 +116,48 @@ Server administrators see every such channel.
 
 ## The site's map
 
-`!shiny mapa [nome]` (owner) DMs a private link, `pogoleiria.pt/shiny/<token>`:
-that player's predicted shinies on a live map. The token's SHA-256 is in
-`shiny_link.map_token_hash`. The page is the landing app's
-(`/root/PoGoLeiria/docs/context/shiny-map.md`).
+`!shiny mapa [nome]` (owner) DMs a labelled `/pokedex/mapa/<trainer-name>` link. The viewer opens it with a Pokédex login; the owner and authorized delegates (Rekrad and JMBoyz, configured in the site's `SHINY_MAP_VIEWER_IDS`) can view another trainer's map. Token access is retired, and old `/shiny/*` paths redirect to the viewer's own logged-in map. The page belongs to the landing app (`/root/PoGoLeiria/docs/context/shiny-map.md`).
+
+The site now separates beta visibility from owner approval. Migration 023 mirrors
+the site's 012, adding `pogoleiria.trade_player.shiny_access_requested_at`.
+Requests set that timestamp and keep the map off. Owner approval atomically grants
+`shiny_access`, enables `shiny_map`, clears the request and queues association when
+needed. The scheduler's `ShinyChannels` creates a private read-only channel after
+linking, adopts an existing named map pin, and persists the intro before pinning
+so retries never duplicate it. Migration 024 adds `channel_archived` and
+`channel_intro_message_id`. Held/off/revoked/departed accounts receive no alerts;
+existing channels move to the hidden archive and restore on reactivation. Both
+manual channel creation and automatic reconciliation share a lock. The manual
+owner command also activates an already approved website profile.
+
+Eligibility uses the shared dated-release and exact-confirmation view, described
+below. Unknown availability stays excluded; rates and RNG remain unchanged.
+This closes the Tarountula false positive
+(encounter 1016809975919778894, 2026-10-10) that the old 5,000-zero heuristic
+allowed while only 276 cumulative encounters were recorded.
 
 ## Known limits
 
 The DMs use base odds only (event odds would mean 100+ DMs an hour on a Community Day). Lure, tappable and nearby-only sightings, Ditto and disguised spawns are not alerted. Nothing proves a friend code belongs to its sender.
+
+## Map versus notifications (owner, 2026-10-10)
+
+The Pokédex map shows all predicted shinies. Which ones are notified is the player's choice in the Pokédex, read with the recipients (`pogoleiria.trade_player`, migration 026) and applied by `shiny_alerts.wants_alert`:
+
+| Setting | Column | Default | Effect |
+|---|---|---|---|
+| Só os que me faltam / Todos | `shiny_notify_all` | 0 | 0 skips species/forms marked Shiny in `collection_entry` (`ShinyStore.owns_shiny`, read just before recording or sending); 1 notifies everything and never reads the collection |
+| Avisar sempre de shinies 100% | `shiny_notify_hundo` | 1 | Under 0 above, an owned shiny at 15/15/15 is still notified |
+
+An unknown IV is not 100%: an owned shiny whose IV never arrives is skipped. It is not recorded, so an IV that lands while the spawn is inside `LOOK_BACK` is judged again.
+
+## Confirming the site's changes ("A aguardar pelo Poliswag…")
+
+The site adds 1 to `trade_player.shiny_settings_revision` on every save of the shiny box (switch, zones, notification settings, the owner's approval) and shows a waiting banner until `shiny_applied_revision` catches up. `ShinyAlerts.tick` reads `ShinyStore.pending_settings()` first, runs its steps, then `confirm_settings(discord_id, revision)` stamps the revision it read. It does not stamp while the channel disagrees with the switch (on and linked without a ready channel; off with a channel not archived). A step that raises, or a stopped bot, confirms nothing, so the banner stays.
+
+## Current link and channel behavior (owner, 2026-10-10)
+
+`!shiny mapa` DMs a labelled `/pokedex/mapa/<trainer-name>` link. The first message in each new shiny channel has a **Ver mapa de shinies** button pointing to the same named URL. No map tokens are generated, rotated or used for access. Old `/shiny/*` links redirect to the logged-in Pokédex map. Newly created channels deny the recipient messages, thread creation, thread replies and adding reactions, while retaining read/history access. Rekrad (`237306098976161793`) joins the notification pilot and has Pokédex feature access; their switch is not enabled on their behalf.
+
+
+Availability review (2026-10-10): both map and alerts now join `poliswag.shiny_eligible_variant` by species, raw scanner form and costume. Migration bot 025 / site 014 creates the view, dated `shiny_release` snapshot and persisted `shiny_confirmed_variant`. `modules/shiny_availability.py` refreshes Leek Duck’s exact form release dates plus PoGoAPI wild flags daily, with atomic replacement, one-hour retries and a two-day grant freshness limit. Future/release-day dates cannot grant access without confirmation. Unmapped costumes need exact live confirmation. Unown, Smeargle and Meltan require a confirmation in the preceding 30 minutes. The full catalog audit and source limitations are in `/root/Poliswag/docs/reviews/2026-10-10-shiny-availability.md` and its CSVs. Release lists do not expose Niantic’s private live enablement flags.
