@@ -104,3 +104,48 @@ def test_a_failed_worker_request_is_an_error():
     s = session([lambda i: integer(1, i) + integer(2, 500)])
     with pytest.raises(RuntimeError, match="500"):
         s.rpc(2)
+
+
+def controllers(*ids):
+    return {
+        "controllers": [
+            {"id": name, "uuid": f"uuid-{name}", "account_username": f"acct-{name}"}
+            for name in ids
+        ]
+    }
+
+
+def test_the_worker_to_borrow_comes_from_the_area_with_the_most():
+    state = controllers("MarinhaGrande_01", "Leiria_01", "Leiria_03", "Leiria_02")
+    assert rotom.to_borrow(state)["id"] == "Leiria_03"
+
+
+def test_nothing_to_borrow_without_scanning_controllers():
+    assert rotom.to_borrow({"controllers": []}) is None
+    # A controller with no account is not scanning, and our own is never borrowed.
+    state = {
+        "controllers": [
+            {"id": "Leiria_01", "uuid": "u1", "account_username": None},
+            {
+                "id": "x",
+                "uuid": "u2",
+                "account_username": "a",
+                "user_agent": rotom.NAME,
+            },
+        ]
+    }
+    assert rotom.to_borrow(state) is None
+
+
+def test_release_one_disconnects_exactly_that_controller(mocker):
+    opened = mocker.patch.object(rotom.urllib.request, "urlopen")
+    assert rotom.release_one(controllers("Leiria_01", "Leiria_02")) is True
+    request = opened.call_args.args[0]
+    assert request.get_method() == "PUT"
+    assert request.full_url.endswith("/api/controller/uuid-Leiria_02/action/disconnect")
+
+
+def test_release_one_with_nothing_to_borrow_does_nothing(mocker):
+    opened = mocker.patch.object(rotom.urllib.request, "urlopen")
+    assert rotom.release_one({"controllers": []}) is False
+    opened.assert_not_called()

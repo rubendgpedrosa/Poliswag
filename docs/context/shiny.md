@@ -24,8 +24,12 @@ ID a friend-code search or GET_PLAYER returns; those differ per viewer.
 ## Linker rules
 
 - Runs only if: enabled, pending codes, 60+ min since the last run, a level 1
-  or 3 raid with 15+ min left, an idle worker, a listed account not scanning,
+  or 3 raid with 15+ min left, a worker (idle, or one it can borrow), a listed account not scanning,
   game and Aegis running, game version validated. `--check` prints them.
+- With every worker scanning it borrows one: `rotom.release_one` disconnects the
+  last controller of the biggest area, the linker takes the freed worker, and
+  Dragonite gets it back when the run's session closes (30-60 s). Losing the
+  race for the worker three times ends the run without penalising the codes.
 - Logs in first, then attaches the hook with `dragonite` paused (~5 s), and
   pauses again to remove it. Never kills the injector with the hook attached.
 - Breaker: a hook error, a hook that did not leave, or a game restart during

@@ -65,7 +65,9 @@ alert settings come from Poliswag's `.env`.
 - `shiny_linker_enabled = 1`.
 - At least one `pending` row, and the last run started 60 or more minutes ago.
 - A raid of level 1 or 3, not EX, with 15 or more minutes left, in `golbat.gym`.
-- Rotom reports the device connected and at least one idle worker.
+- Rotom reports the device connected and a worker to use: an idle one, or,
+  when all are scanning, one scanning controller it can disconnect for the
+  run (owner's decision at go-live, 2026-10-10; Dragonite was using all 16).
 - An account from `SHINY_LINKER_ACCOUNTS` is healthy in `dragonite.account`
   and not attached to any Rotom controller.
 - The installed game version is listed in `SHINY_LINKER_GAME_VERSIONS`.
@@ -94,7 +96,7 @@ alert settings come from Poliswag's `.env`.
    kill the injector; unpause; delete the hook's log.
 
 `dragonite` is always unpaused in a `finally`. The linker never disconnects a
-scanning controller, never restarts the phone and never logs in an account
+scanning controller while a worker is idle, never restarts the phone and never logs in an account
 that Rotom shows in use. Leaving before the battle keeps the free pass.
 
 ### Failures

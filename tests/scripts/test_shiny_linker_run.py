@@ -18,6 +18,10 @@ class HookError(RuntimeError):
     pass
 
 
+class NoWorker(RuntimeError):
+    pass
+
+
 class FakeStore:
     def __init__(self):
         self.enabled = 1
@@ -74,6 +78,8 @@ class World:
     def __init__(self):
         self.store = FakeStore()
         self.idle = 4
+        self.busy = 0  # scanning controllers a worker could be borrowed from
+        self.no_worker_times = 0  # how many session attempts find no worker
         self.in_use = set()
         self.pid = 100
         self.pid_after = 100
@@ -91,6 +97,9 @@ class World:
 
         class Session:
             def __init__(self, lat, lon):
+                if world.no_worker_times > 0:
+                    world.no_worker_times -= 1
+                    raise NoWorker("rotom gave no idle worker")
                 world.events.append("session")
                 self.host = b""
 
@@ -150,6 +159,10 @@ class World:
             status=lambda: {"in_use": world.in_use},
             idle_workers=lambda state: world.idle,
             accounts_in_use=lambda state: set(state["in_use"]),
+            to_borrow=lambda state: {"id": "Leiria_14"} if world.busy else None,
+            release_one=lambda state: world.events.append("release")
+            or bool(world.busy),
+            NoWorker=NoWorker,
             Session=Session,
         )
         self.phone = SimpleNamespace(
@@ -176,6 +189,7 @@ class World:
             phone=self.phone,
             lobby_cls=self.lobby_cls,
             notify=self.notified.append,
+            sleep=lambda _seconds: None,
         )
 
 
@@ -246,6 +260,33 @@ class TestGuards:
         failed = [name for name, ok, _ in checks if not ok]
         assert failed == ["códigos pendentes", "worker livre"]
         assert world.events == []
+
+
+class TestBorrowedWorker:
+    def test_an_idle_worker_is_used_without_touching_the_scanner(self, world):
+        world.busy = 16
+        world.linker().run()
+        assert "release" not in world.events and world.store.linked
+
+    def test_with_none_idle_one_scanning_worker_is_borrowed(self, world):
+        world.idle, world.busy, world.no_worker_times = 0, 16, 1
+        world.linker().run()
+        assert world.events[:3] == ["release", "session", "login acct1"]
+        assert world.store.linked == [(1, "Rita99", ID_A)]
+
+    def test_the_guard_says_a_worker_will_be_borrowed(self, world):
+        world.idle, world.busy = 0, 16
+        checks, _ = world.linker().survey()
+        (worker,) = [c for c in checks if c[0] == "worker livre"]
+        assert worker[1] is True and "empresta" in worker[2]
+
+    def test_losing_the_race_for_the_freed_worker_costs_the_codes_nothing(self, world):
+        world.idle, world.busy, world.no_worker_times = 0, 16, 10_000
+        outcome = world.linker().run()
+        assert world.events.count("release") == 3  # then it gives up until next time
+        assert "worker" in outcome
+        assert world.store.bumped == [] and world.store.breaker is None
+        assert "attach" not in world.events
 
 
 class TestFailures:

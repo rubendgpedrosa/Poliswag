@@ -3,13 +3,15 @@ session on an idle worker.
 
 The session speaks Rotom's controller protocol (UnownHash/RotomProtos): a
 registration, a login with the account's stored refresh token, then game
-RPCs. It is a second controller beside Dragonite's, on a worker Dragonite is
-not using; it never disconnects anyone.
+RPCs. It is a second controller beside Dragonite's. It takes an idle worker
+when there is one; when Dragonite is using them all, the linker borrows one
+(release_one) for the length of a run.
 """
 
 import json
 import threading
 import time
+import urllib.parse
 import urllib.request
 import zlib
 
@@ -51,6 +53,43 @@ def accounts_in_use(state):
         for c in state.get("controllers", [])
         if c.get("account_username")
     }
+
+
+def to_borrow(state):
+    """The scanning controller to disconnect when no worker is idle: the
+    last one of the area that has the most, so the small areas keep theirs.
+    Controller ids look like "Leiria_07"."""
+    scanning = [
+        c
+        for c in state.get("controllers", [])
+        if c.get("uuid") and c.get("account_username") and c.get("user_agent") != NAME
+    ]
+    if not scanning:
+        return None
+    areas = {}
+    for controller in scanning:
+        areas.setdefault(str(controller.get("id", "")).rsplit("_", 1)[0], []).append(
+            controller
+        )
+    biggest = max(areas.values(), key=len)
+    return max(biggest, key=lambda c: str(c.get("id", "")))
+
+
+def release_one(state):
+    """Disconnect one scanning controller so its worker comes free. Dragonite
+    reconnects it by itself and gets a worker back as soon as one is idle,
+    which is when the linker's session closes."""
+    controller = to_borrow(state)
+    if controller is None:
+        return False
+    url = (
+        STATUS_URL.rsplit("/", 1)[0]
+        + "/controller/"
+        + urllib.parse.quote(controller["uuid"], safe="")
+        + "/action/disconnect"
+    )
+    with urllib.request.urlopen(urllib.request.Request(url, method="PUT"), timeout=5):
+        return True
 
 
 class Session:

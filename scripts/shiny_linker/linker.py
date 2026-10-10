@@ -1,14 +1,18 @@
 """One linker run: decide whether to run at all, then drive a scanner
 account through a private lobby for up to ten pending codes.
 
-The scanner comes first. A run only starts when every guard holds, uses a
-worker and an account nobody else is using, logs in before the game is
-touched, and switches the whole linker off (and tells the owner) if the hook
-or the game misbehaves. It never restarts anything.
+The scanner comes first. A run only starts when every guard holds, uses an
+account nobody else is using, logs in before the game is touched, and
+switches the whole linker off (and tells the owner) if the hook or the game
+misbehaves. It never restarts anything. When every worker is scanning it
+borrows one for the length of the run (owner's decision, 2026-10-10): one
+scanning controller is disconnected and Dragonite takes the worker back the
+moment the linker's session closes.
 """
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from . import phone as _phone
@@ -19,6 +23,12 @@ from .proto import fields, one
 MAX_CODES = 10
 MAX_ATTEMPTS = 5
 MIN_MINUTES_BETWEEN_RUNS = 60
+# With every worker scanning, the linker disconnects one scanning controller
+# and takes the worker it frees. Dragonite reconnects at once and may win it
+# back, so that is tried this many times before the run gives up.
+BORROW_ATTEMPTS = 3
+# Quarter-second tries for the freed worker after each disconnect.
+WORKER_TRIES = 20
 VERSION_GUARD = "versão validada"
 _NOTIFY = Path(__file__).resolve().parent.parent / "notify_owner.py"
 
@@ -42,9 +52,10 @@ class Linker:
         phone=_phone,
         lobby_cls=Lobby,
         notify=notify_owner,
+        sleep=time.sleep,
     ):
         self.store, self.rotom, self.phone = store, rotom, phone
-        self.lobby_cls, self.notify = lobby_cls, notify
+        self.lobby_cls, self.notify, self.sleep = lobby_cls, notify, sleep
         self.accounts = _listed(env.get("SHINY_LINKER_ACCOUNTS"))
         self.versions = _listed(env.get("SHINY_LINKER_GAME_VERSIONS"))
         self.selftest_code = env.get("SHINY_LINKER_SELFTEST_CODE", "")
@@ -112,7 +123,11 @@ class Linker:
         except Exception:
             return False, "rotom não responde"
         idle = self.rotom.idle_workers(ctx["rotom"])
-        return idle > 0, f"{idle} livres"
+        if idle > 0:
+            return True, f"{idle} livres"
+        if self.rotom.to_borrow(ctx["rotom"]) is not None:
+            return True, "0 livres; empresta um ao scanner durante a ligação"
+        return False, "0 livres"
 
     def _account(self, ctx):
         in_use = self.rotom.accounts_in_use(ctx["rotom"]) if "rotom" in ctx else set()
@@ -158,16 +173,33 @@ class Linker:
         # Re-checked here: minutes may have passed since the guard looked.
         if account in self.rotom.accounts_in_use(self.rotom.status()):
             raise RunError("a conta entrou em uso pelo scanner")
-        self.session = self.rotom.Session(gym[1], gym[2])
+        self.session = self._take_worker(gym)
         self.session.login(account, token)
         if one(fields(self.session.rpc(2)), 1) != 1:
             raise RunError("GET_PLAYER não respondeu com sucesso")
+
+    def _take_worker(self, gym):
+        """A session on an idle worker, or on one borrowed from the scanner."""
+        try:
+            return self.rotom.Session(gym[1], gym[2])
+        except self.rotom.NoWorker:
+            pass
+        for _ in range(BORROW_ATTEMPTS):
+            if not self.rotom.release_one(self.rotom.status()):
+                break
+            for _ in range(WORKER_TRIES):
+                try:
+                    return self.rotom.Session(gym[1], gym[2])
+                except self.rotom.NoWorker:
+                    self.sleep(0.25)
+        raise self.rotom.NoWorker("no worker, idle or borrowed")
 
     def _link(self, ctx, validate):
         gym, (account, token), pid = ctx["gym"], ctx["account"], ctx["pid"]
         unsettled = list(ctx["targets"])
         linked = failed = 0
         breaker = error = None
+        penalise = True
         hook = self.phone.Hook()
         lobby = None
         attach_attempted = False
@@ -216,6 +248,9 @@ class Linker:
                 linked += 1
         except self.phone.HookError as problem:
             breaker = str(problem)
+        except self.rotom.NoWorker:
+            # Not the codes' fault: they keep their attempts for next time.
+            error, penalise = "sem worker para a ligação", False
         except Exception as problem:
             error = (
                 str(problem)
@@ -240,7 +275,7 @@ class Linker:
             if self.phone.game_pid() != pid:
                 breaker = "o jogo reiniciou durante a ligação"
 
-        if unsettled and not validate:
+        if unsettled and not validate and penalise:
             self.store.bump_attempts(
                 [row["discord_id"] for row in unsettled],
                 MAX_ATTEMPTS,
