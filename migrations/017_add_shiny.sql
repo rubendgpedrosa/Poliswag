@@ -3,12 +3,14 @@
 -- One row per Discord user who sent a friend code with !shiny. The host
 -- script scripts/shiny_linker turns `pending` into `linked` or `failed`;
 -- the friend code is cleared once a row is linked.
+-- player_id was VARCHAR(21) for the first hour of 2026-10-10; the live table
+-- was widened by hand when a 24-character ID turned up.
 CREATE TABLE IF NOT EXISTS shiny_link (
   discord_id   BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   discord_name VARCHAR(64) NOT NULL,
   friend_code  CHAR(12) NULL,
   trainer_name VARCHAR(32) NULL,
-  player_id    VARCHAR(21) NULL,
+  player_id    VARCHAR(32) NULL,
   status       ENUM('pending','linked','failed') NOT NULL DEFAULT 'pending',
   fail_reason  VARCHAR(64) NULL,
   attempts     TINYINT UNSIGNED NOT NULL DEFAULT 0,
