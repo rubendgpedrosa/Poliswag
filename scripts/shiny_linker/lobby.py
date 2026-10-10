@@ -63,7 +63,7 @@ class Lobby:
         reply = fields(one(proxy, 3))
         player = fields(one(reply, 2, b""))
         if one(reply, 1) != 1 or not text(player, 1) or not text(player, 2):
-            raise CodeError("código não encontrado")
+            raise CodeError(f"código não encontrado ({one(reply, 1, 0)})")
         return text(player, 2), text(player, 1)
 
     def _details(self):

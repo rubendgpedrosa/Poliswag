@@ -80,7 +80,9 @@ class TestSearch:
 
     def test_an_unknown_code_fails_only_that_code(self):
         lobby = Lobby(FakeSession({5012: [search_reply(result=3)]}), FakeHook(), GYM)
-        with pytest.raises(CodeError, match="não encontrado"):
+        # The game's own result code rides along, so "wrong code" (3) can be
+        # told from a search that failed for another reason.
+        with pytest.raises(CodeError, match=r"não encontrado \(3\)"):
             lobby.search("123456789012")
 
     def test_a_proxy_error_stops_the_run(self):
