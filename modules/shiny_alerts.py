@@ -80,7 +80,7 @@ def plays_there(recipient, spawn):
 
 # Poracle's DTS entry for these alerts (monster / "shiny" in its dts.json; a
 # copy is kept in templates/poracle/shiny-monster.json). It is Poracle's
-# standard Pokémon alert with a "Potencialmente shiny para ti" line on top.
+# standard Pokémon alert with a ✨ before the title and nothing else added.
 PORACLE_TEMPLATE = "shiny"
 
 
@@ -154,7 +154,6 @@ def _iv_line(spawn):
 
 def alert_embed(spawn, name, seen_shiny):
     lines = [
-        "✨ **Potencialmente shiny para ti**",
         _iv_line(spawn),
         f"📍 [Abrir no mapa](https://www.google.com/maps?q={spawn['lat']},{spawn['lon']})",
         _despawn_line(spawn),

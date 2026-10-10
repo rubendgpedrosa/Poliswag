@@ -8,7 +8,7 @@
       "color": "{{color}}",
       "title": "✨ {{fullName}} {{#eq pokemonId 132}}({{disguisePokemonName}}){{/eq}} {{genderData.emoji}} |{{#if userHasPvpTracks}}{{#or pvpGreat pvpUltra pvpLittle}}{{#if pvpLittle}} 👶#{{pvpLittleBest.rank}} ({{pvpLittleBest.name}}){{/if}}{{#if pvpGreat}} 🔵#{{pvpGreatBest.rank}} ({{pvpGreatBest.name}}){{/if}}{{#if pvpUltra}} 🟡#{{pvpUltraBest.rank}} ({{pvpUltraBest.name}}){{/if}}{{/or}}{{else}} {{round iv}}% ({{atk}}/{{def}}/{{sta}}){{/if}} | CP {{cp}} {{#or (lte size 1) (gte size 5)}}📐 {{/or}}{{boostWeatherEmoji}}{{#if weatherChange}}⚠{{/if}}",
       "url": "{{{reactMapUrl}}}?o=dm-shiny",
-      "description": "✨ **Potencialmente shiny para ti**\n@include mon.txt",
+      "description": "@include mon.txt",
       "thumbnail": {
         "url": "{{{imgUrl}}}"
       },
