@@ -10,8 +10,7 @@ Nothing proves a code belongs to whoever sent it. The resolution DM names
 the trainer it matched, which is what makes a wrong code visible.
 """
 
-import hashlib
-import secrets
+from urllib.parse import quote
 
 import discord
 from discord.ext import commands
@@ -22,6 +21,7 @@ from modules.membership import is_member
 from modules.permissions import owner_only
 from modules.shiny_roll import normalise_friend_code
 from modules.shiny_store import ShinyStore
+from modules.shiny_channels import CHANNEL_LOCK
 
 TITLE = "SHINY"
 # The category the players' private channels are created under.
@@ -73,7 +73,8 @@ class Shiny(commands.Cog):
             await self._say(ctx, self._status_text(await self.store.get(author.id)))
             return
         if texto.lower().split()[0] == "canal":
-            await self._open_channel(ctx, texto[5:].strip() or author.name)
+            async with CHANNEL_LOCK:
+                await self._open_channel(ctx, texto[5:].strip() or author.name)
             return
         if texto.lower().split()[0] == "mapa":
             await self._send_map_link(ctx, texto[4:].strip() or author.name)
@@ -140,21 +141,18 @@ class Shiny(commands.Cog):
         return view if view.children else None
 
     async def _map_link_embed(self, player):
-        """A fresh link to a linked player's private map, as an embed.
-
-        The URL is the credential (pogoleiria.pt/shiny/<token>); only its
-        SHA-256 is stored, and each new link ends the one before it.
-        """
-        token = secrets.token_hex(32)
-        await self.store.set_map_token(
-            player["discord_id"], hashlib.sha256(token.encode()).hexdigest()
-        )
+        """A trainer's named map, protected by the viewer's Pokédex login."""
         return build_embed(
             TITLE,
             f"Mapa dos shinies previstos para **{player['trainer_name']}**:\n"
-            f"<{Config.SHINY_MAP_URL.rstrip('/')}/{token}>\n"
-            "-# O link é a chave: quem o tiver vê o mapa. Um link novo desliga este.",
+            f"[Ver mapa de shinies]({self._map_url(player)})\n"
+            "Entra com a tua sessão da Pokédex para abrir o mapa.",
         )
+
+    @staticmethod
+    def _map_url(player):
+        name = quote(player["trainer_name"], safe="")
+        return f"{Config.POKEDEX_URL.rstrip('/')}/mapa/{name}"
 
     async def _send_map_link(self, ctx, name):
         player = await self.store.find_linked(name)
@@ -182,6 +180,10 @@ class Shiny(commands.Cog):
                 ctx, f"Não encontrei nenhum jogador associado chamado `{name}`."
             )
             return
+        if not player.get("shiny_access"):
+            await self._say(ctx, "Aprova primeiro o acesso no perfil da comunidade.")
+            return
+        await self.store.activate_from_channel(player["discord_id"])
         existing = player.get("channel_id") and guild.get_channel(player["channel_id"])
         if existing:
             await self._say(
@@ -201,6 +203,33 @@ class Shiny(commands.Cog):
             attach_files=True,
             manage_messages=True,
         )
+        overwrites = {
+            guild.default_role: hidden,
+            guild.me: bot,
+            member: discord.PermissionOverwrite(
+                view_channel=True,
+                read_message_history=True,
+                send_messages=False,
+                send_messages_in_threads=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                add_reactions=False,
+            ),
+        }
+        # Other players read the feed; the owner can still post in every channel.
+        owner = guild.get_member(Config.MY_ID)
+        if owner is not None:
+            overwrites[owner] = discord.PermissionOverwrite(
+                view_channel=True,
+                read_message_history=True,
+                send_messages=True,
+                embed_links=True,
+                attach_files=True,
+                send_messages_in_threads=True,
+                create_public_threads=True,
+                create_private_threads=True,
+                add_reactions=True,
+            )
         try:
             category = discord.utils.get(guild.categories, name=CHANNEL_CATEGORY)
             if category is None:
@@ -212,16 +241,7 @@ class Shiny(commands.Cog):
                 f"shiny-{member.name}",
                 category=category,
                 topic=f"Shinies previstos para {player['trainer_name']}.",
-                overwrites={
-                    guild.default_role: hidden,
-                    guild.me: bot,
-                    # Read-only for the player: it is a feed, not a chat.
-                    member: discord.PermissionOverwrite(
-                        view_channel=True,
-                        read_message_history=True,
-                        send_messages=False,
-                    ),
-                },
+                overwrites=overwrites,
             )
         except discord.Forbidden:
             await self._say(
@@ -230,8 +250,22 @@ class Shiny(commands.Cog):
             )
             return
         await self.store.set_channel(player["discord_id"], channel.id)
-        link = await channel.send(embed=await self._map_link_embed(player))
+        map_url = self._map_url(player)
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(label="Ver mapa de shinies", url=map_url))
+        link = await channel.send(
+            embed=build_embed(
+                TITLE,
+                f"Shinies previstos para **{player['trainer_name']}**.\n"
+                "O mapa mostra todos os teus shinies previstos. Aqui recebes "
+                "apenas os que ainda te faltam na Pokédex.\n"
+                "Abre o mapa com a tua sessão da Pokédex.",
+            ),
+            view=view,
+        )
         await link.pin()
+        await self.store.set_channel_intro(player["discord_id"], link.id)
+        await self.store.set_channel_archived(player["discord_id"], False)
         await self._say(
             ctx, f"Canal criado para **{player['trainer_name']}**: {channel.mention}"
         )

@@ -71,9 +71,6 @@ class Config:
     # The private statistics report. The token issued by !stats is appended to
     # this, and the landing app renders the report live at that address.
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
-    # A linked player's private map of predicted shinies; `!shiny mapa`
-    # appends the token (cogs/shiny.py), the landing app renders it.
-    SHINY_MAP_URL = os.environ.get("SHINY_MAP_URL", "https://pogoleiria.pt/shiny")
 
     # Scanner / infrastructure
     SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")

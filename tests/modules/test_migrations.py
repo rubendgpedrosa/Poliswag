@@ -53,6 +53,8 @@ class TestApplyMigrations:
 # Every file is replayed on every start, so each statement must be a no-op
 # the second time. Anything else needs a real migration-tracking table first.
 def is_rerunnable(statement):
+    if re.match(r"^CREATE OR REPLACE VIEW\b", statement, re.I):
+        return True
     if re.match(r"^CREATE TABLE IF NOT EXISTS\b", statement, re.I):
         return True
     match = re.fullmatch(r"ALTER TABLE \S+\s+(.+)", statement, re.I | re.S)
