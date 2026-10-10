@@ -2,9 +2,10 @@
 
 Two jobs each scheduler tick:
 
-1. Tell a member their friend code resolved (or failed). The host script
-   scripts/shiny_linker writes the result; this sends one DM and stamps
-   announced_at.
+1. Tell a pilot user (Config.SHINY_ALERT_USER_IDS) their friend code resolved
+   or failed. The host script scripts/shiny_linker writes the result; this
+   sends one DM and stamps announced_at. Anyone else's link is stamped
+   without a DM: during the pilot the bot messages nobody but its users.
 2. For linked players in Config.SHINY_ALERT_USER_IDS, roll every new spawn
    (modules/shiny_roll.py) and DM the ones that come up 0.
 
@@ -43,17 +44,13 @@ WHERE pokemon_id = %s AND form_id = %s AND `count` > 0 LIMIT 1
 """
 
 
-def link_message(row, alerts_on):
-    """The one DM a member gets when the linker is done with their code."""
+def link_message(row):
+    """The one DM a pilot user gets when the linker is done with their code."""
     if row["status"] == "linked":
-        text = (
+        return (
             f"✨ O teu código ficou associado ao treinador **{row['trainer_name']}**."
+            "\n-# Não és tu? Escreve `!shiny remover` e envia o código certo."
         )
-        if not alerts_on:
-            text += (
-                "\nOs alertas de shiny ainda estão em teste; aviso-te quando abrirem."
-            )
-        return text + "\n-# Não és tu? Escreve `!shiny remover` e envia o código certo."
     return (
         f"Não consegui associar o teu código: {row['fail_reason']}. "
         "Confirma-o no jogo e envia `!shiny <código>` outra vez."
@@ -175,8 +172,10 @@ class ShinyAlerts:
 
     async def _announce_links(self):
         for row in await self.store.unannounced():
-            alerts_on = row["discord_id"] in Config.SHINY_ALERT_USER_IDS
-            await self._dm(row["discord_id"], content=link_message(row, alerts_on))
+            # Only the pilot's users hear from the bot about shinies. A link
+            # the owner made for someone else is closed without a word.
+            if row["discord_id"] in Config.SHINY_ALERT_USER_IDS:
+                await self._dm(row["discord_id"], content=link_message(row))
             # Stamped even when the DM was refused, or it would be retried
             # every minute for ever; `!shiny` still shows the status.
             await self.store.mark_announced(row["discord_id"])

@@ -47,6 +47,8 @@ rates, more than one lobby per linker run, any Golbat or Dragonite change.
 Each tick Poliswag also announces finished links: a row that is `linked` or
 `failed` with `announced_at IS NULL` gets one DM (trainer name, or the reason
 and how to retry), then `announced_at` is set. A refused DM still sets it.
+Owner's rule at go-live (2026-10-10): only users in `SHINY_ALERT_USER_IDS` are
+messaged at all; a link made for anyone else is stamped without a DM.
 
 ## 2. Link (host script `scripts/shiny-linker`)
 
