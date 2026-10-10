@@ -23,6 +23,14 @@ class Config:
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
     MY_ID = int(os.environ.get("MY_ID", "0"))
+    # Who gets shiny-prediction DMs (modules/shiny_alerts.py). The owner alone
+    # while the prediction is being checked in the field; widening the pilot
+    # is this list.
+    SHINY_ALERT_USER_IDS = [
+        int(part)
+        for part in os.environ.get("SHINY_ALERT_USER_IDS", "").split(",")
+        if part.strip()
+    ] or [MY_ID]
 
     # Channels
     QUEST_CHANNEL_ID = int(os.environ.get("QUEST_CHANNEL_ID", "0"))
