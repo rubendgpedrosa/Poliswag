@@ -41,6 +41,22 @@ class ShinyStore:
             ]
         )
 
+    async def find_linked(self, name):
+        """The linked player with this Discord or trainer name, any case."""
+        rows = await self.db.get_data_from_database(
+            "SELECT discord_id, trainer_name FROM shiny_link WHERE status = 'linked' "
+            "AND (LOWER(discord_name) = LOWER(%s) OR LOWER(trainer_name) = LOWER(%s)) "
+            "LIMIT 1",
+            params=(name, name),
+        )
+        return rows[0] if rows else None
+
+    async def set_map_token(self, discord_id, token_hash):
+        await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET map_token_hash = %s WHERE discord_id = %s",
+            params=(token_hash, discord_id),
+        )
+
     async def unannounced(self):
         """Links the linker finished that their owner has not been told about."""
         return await self.db.get_data_from_database(
