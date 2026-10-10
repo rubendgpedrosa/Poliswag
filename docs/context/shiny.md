@@ -53,6 +53,15 @@ viewer.
 - Runs only if: enabled, pending codes, 20+ min since the last run, a level 1
   or 3 raid with 15+ min left, a worker (idle, or one it can borrow), a listed account not scanning,
   game and Aegis running, game version validated. `--check` prints them.
+- No raid here (every night, about 21:00 to 06:00): with
+  `SHINY_LINKER_REMOTE_SITE` set, the run happens at that point instead
+  (`remote.py`; Santa Cruz, California, where it is afternoon). Only accounts
+  Dragonite has not picked or released for 2 h go; the account logs in there,
+  asks for the map once (GET_MAP_OBJECTS, 25 cells) and takes a gym whose
+  raid passes the same rule. The hook goes in only if there is one; a site
+  with gyms but no raid costs the codes nothing. The reply never reaches
+  Golbat. `--remote [LAT,LON]` forces the site (with `--check`/`--validate`).
+  Spec: `docs/superpowers/specs/2026-10-10-shiny-linker-remote-raid-design.md`.
 - One run works through the queue (up to 50 codes) on **one worker**: a
   lobby of up to 10 codes at a time, the next free account from
   `SHINY_LINKER_ACCOUNTS` (shuffled each run) logged in on the same session
@@ -79,6 +88,7 @@ viewer.
 | `SHINY_ALERT_USER_IDS` | Discord IDs that get alerts; default `MY_ID` |
 | `SHINY_LINKER_ACCOUNTS` | Scanner usernames allowed to open lobbies; a run rotates through the ones not scanning |
 | `SHINY_LINKER_GAME_VERSIONS` | Game versions the hook was validated on |
+| `SHINY_LINKER_REMOTE_SITE` | `lat,lon` to look for a raid around when the scanned areas have none; unset = no fallback |
 | `SHINY_LINKER_SELFTEST_CODE`, `SHINY_LINKER_SELFTEST_PLAYER_ID` | An owned scanner account's friend code and known player ID, for `--validate`; must not be one of `SHINY_LINKER_ACCOUNTS` |
 
 ## Tables (`poliswag`, migration 017)
