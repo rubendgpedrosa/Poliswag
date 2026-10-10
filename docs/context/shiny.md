@@ -50,7 +50,7 @@ viewer.
 
 ## Linker rules
 
-- Runs only if: enabled, pending codes, 20+ min since the last run, a level 1
+- Runs only if: enabled, pending codes, 5+ min since the last run (so every 10-min timer run may link; owner, 2026-10-10, was 20), a level 1
   or 3 raid with 15+ min left, a worker (idle, or one it can borrow), a listed account not scanning,
   game and Aegis running, game version validated. `--check` prints them.
 - No raid here (every night, about 21:00 to 06:00): with

@@ -39,7 +39,9 @@ RUN_CODES = 50
 # next run and lose nothing.
 RUN_SECONDS = 360
 MAX_ATTEMPTS = 5
-MIN_MINUTES_BETWEEN_RUNS = 20
+# Under the timer's ten minutes, so every timer run may link; it only
+# holds back a run started by hand right after another.
+MIN_MINUTES_BETWEEN_RUNS = 5
 # With every worker scanning, the linker disconnects one scanning controller
 # and takes the worker it frees. Dragonite reconnects at once and may win it
 # back, so that is tried this many times before the run gives up.

@@ -245,7 +245,7 @@ class TestGuards:
         [
             (lambda w: setattr(w.store, "enabled", 0), "ligador ativo"),
             (lambda w: setattr(w.store, "rows", []), "códigos pendentes"),
-            (lambda w: setattr(w.store, "minutes_since_run", 19), "intervalo"),
+            (lambda w: setattr(w.store, "minutes_since_run", 4), "intervalo"),
             (lambda w: setattr(w.store, "gym", None), "raid ativa"),
             (lambda w: setattr(w, "idle", 0), "worker livre"),
             (lambda w: setattr(w, "in_use", {"acct1", "acct2"}), "conta livre"),
@@ -261,8 +261,8 @@ class TestGuards:
         assert world.events == [] and world.store.started == 0
         assert world.store.linked == [] and world.store.breaker is None
 
-    def test_twenty_minutes_since_the_last_run_is_enough(self, world):
-        world.store.minutes_since_run = 20
+    def test_five_minutes_since_the_last_run_is_enough(self, world):
+        world.store.minutes_since_run = 5
         world.linker().run()
         assert world.store.linked
 
