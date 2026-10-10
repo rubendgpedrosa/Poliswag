@@ -5,8 +5,9 @@ player's internal ID (the one a raid-lobby creator sees in
 `the invite list`, never the friend-code or GET_PLAYER identifiers, which
 differ per viewer). SHA-1 over the encounter ID as eight little-endian bytes
 followed by the ID text seeds a `java.util.Random`; its `nextInt(512)` is the
-roll, and 0 is shiny at the base 1/512 rate. Because 512 is a power of two,
-0 is also shiny at 1/64, 1/128 and 1/256.
+roll, and 0 is shiny at the base 1/512 rate. More generally the spawn is
+shiny when the first draw, as a fraction, is under 1/odds (`shiny_draw`,
+`is_shiny_at`), so a base-rate shiny is shiny at any better odds too.
 
 Confirmed on 2026-10-10 against three scanner accounts (3 of 3 recorded
 shinies roll 0, 0 of 201 non-shinies do): /root/unonwhash/CLAUDE-HANDOVER.md.
@@ -50,6 +51,23 @@ def next_int(encounter_id, player_id, bound):
     while value - value % bound + bound - 1 >= 1 << 31:
         value = next(draws)
     return value % bound
+
+
+def shiny_draw(encounter_id, player_id):
+    """The first draw of the game's Random for this pair, as a fraction in
+    [0, 1). This one number decides shininess at any odds."""
+    return next(_random(encounter_id, player_id)) / (1 << 31)
+
+
+def is_shiny_at(draw, odds):
+    """Shiny at 1-in-`odds`: the draw falls in the first 1/odds of its range.
+
+    Measured, not assumed (2026-10-10, a Community Day at about 1 in 25, a
+    scanner account with a proven ID, 161 encounters): the 7 shinies had the 7
+    lowest draws. `next_int(odds) == 0`, the community's rule for event odds,
+    predicted 10 and 1 was shiny; it only agrees with this at powers of two.
+    """
+    return draw * odds < 1
 
 
 def shiny_die(encounter_id, player_id):

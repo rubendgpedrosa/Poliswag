@@ -209,3 +209,29 @@ def test_the_base_roll_is_next_int_512():
     for encounter_id, player_id, bound, roll in JAVA_ROLLS:
         if bound == 512:
             assert shiny_die(encounter_id, player_id) == roll
+
+
+def test_the_draw_scaled_to_a_power_of_two_is_javas_next_int():
+    from modules.shiny_roll import shiny_draw
+
+    for encounter_id, player_id, bound, roll in JAVA_ROLLS:
+        if bound in (512, 128, 64):
+            assert int(shiny_draw(encounter_id, player_id) * bound) == roll
+
+
+def test_shiny_is_the_draw_falling_under_one_in_odds():
+    # Measured on the 2026-10-10 Community Day (about 1 in 25) with a proven
+    # scanner account: 7 shinies at draws up to 0.0344, 154 non-shinies from
+    # 0.0420 up. nextInt(25) == 0 predicted 10 of the 161 and 1 was shiny.
+    from modules.shiny_roll import is_shiny_at
+
+    assert is_shiny_at(0.0344, 25) and not is_shiny_at(0.042, 25)
+    assert is_shiny_at(0.0019, 512) and not is_shiny_at(0.0344, 512)
+
+
+def test_at_the_base_odds_it_is_the_512_roll_of_zero():
+    from modules.shiny_roll import is_shiny_at, shiny_draw
+
+    for encounter_id, player_id, bound, roll in JAVA_ROLLS:
+        if bound == 512:
+            assert is_shiny_at(shiny_draw(encounter_id, player_id), 512) == (roll == 0)
