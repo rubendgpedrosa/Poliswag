@@ -70,6 +70,7 @@ async def test_recipients_are_linked_rows_among_the_listed_users(store, db):
     assert await store.recipients([7, 8]) == [{"discord_id": 7, "player_id": "a" * 16}]
     sql = db.get_data_from_database.call_args.args[0]
     assert "status = 'linked'" in sql and "IN (%s,%s)" in sql
+    assert "alert_leiria" in sql and "alert_marinha" in sql
     assert db.get_data_from_database.call_args.kwargs["params"] == (7, 8)
 
 

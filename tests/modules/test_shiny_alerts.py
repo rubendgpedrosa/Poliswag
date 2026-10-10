@@ -125,6 +125,15 @@ def spawn(encounter_id=ZERO, **over):
     return row
 
 
+def recipient(leiria=1, marinha=1):
+    return {
+        "discord_id": OWNER,
+        "player_id": PLAYER,
+        "alert_leiria": leiria,
+        "alert_marinha": marinha,
+    }
+
+
 def with_spawns(alerts, spawns, name="Pikachu", seen_shiny=True):
     """Route the three reads by what they select."""
 
@@ -137,7 +146,7 @@ def with_spawns(alerts, spawns, name="Pikachu", seen_shiny=True):
 
     alerts.poliswag.db.get_data_from_database = AsyncMock(side_effect=read)
     alerts.store.watermark.return_value = 1791628000
-    alerts.store.recipients.return_value = [{"discord_id": OWNER, "player_id": PLAYER}]
+    alerts.store.recipients.return_value = [recipient()]
 
 
 class TestAlertEmbed:
@@ -181,9 +190,7 @@ class TestVerdictView:
 
 class TestAlertSpawns:
     async def test_the_first_tick_only_sets_the_watermark(self, alerts):
-        alerts.store.recipients.return_value = [
-            {"discord_id": OWNER, "player_id": PLAYER}
-        ]
+        alerts.store.recipients.return_value = [recipient()]
         await alerts.tick()
         alerts.store.set_watermark.assert_awaited_once()
         alerts.user.send.assert_not_awaited()
@@ -239,3 +246,27 @@ class TestAlertSpawns:
             alerts.poliswag.db.get_data_from_database.call_args.kwargs["params"]
         )
         assert watermark == 1791628000 and isinstance(expires_after, int)
+
+
+class TestAreas:
+    """Leiria is east of Config.MARINHA_LON_MAX (-8.9), Marinha Grande west."""
+
+    async def test_a_leiria_player_is_not_sent_a_marinha_spawn(self, alerts):
+        with_spawns(alerts, [spawn(lon=-8.93)])
+        alerts.store.recipients.return_value = [recipient(marinha=0)]
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_a_leiria_player_still_gets_leiria(self, alerts):
+        with_spawns(alerts, [spawn(lon=-8.8071)])
+        alerts.store.recipients.return_value = [recipient(marinha=0)]
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+
+    async def test_a_marinha_player_is_not_sent_a_leiria_spawn(self, alerts):
+        with_spawns(alerts, [spawn(lon=-8.8071), spawn(lon=-8.93)])
+        alerts.store.recipients.return_value = [recipient(leiria=0)]
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+        assert "-8.93" in alerts.user.send.call_args.kwargs["embed"].description
