@@ -17,6 +17,13 @@ from modules.shiny_store import ShinyStore
 CHANNEL_CATEGORY = "Shinies"
 ARCHIVE_CATEGORY = "Shinies (arquivo)"
 CHANNEL_LOCK = asyncio.Lock()
+# The pinned first message of a player's channel, above its map button.
+# `!shiny canal` posts the same one.
+INTRO_TITLE = "✨ Notificações Pokémon Shiny"
+INTRO_TEXT = (
+    "Aqui irás receber as notificações dos Pokémon que a fórmula determina "
+    "como shiny para a tua conta."
+)
 
 
 def enabled(row):
@@ -27,6 +34,10 @@ def enabled(row):
         and row.get("status") == "linked"
         and bool(row.get("player_id"))
     )
+
+
+def intro_embed():
+    return build_embed(INTRO_TITLE, INTRO_TEXT)
 
 
 def map_url(player):
@@ -208,16 +219,7 @@ class ShinyChannels:
             view.add_item(
                 discord.ui.Button(label="Ver mapa de shinies", url=map_url(row))
             )
-            message = await channel.send(
-                embed=build_embed(
-                    "SHINY",
-                    f"Shinies previstos para **{row['trainer_name']}**.\n"
-                    "O mapa mostra todos os teus shinies previstos. Aqui recebes "
-                    "apenas os que ainda te faltam na Pokédex.\n"
-                    "Abre o mapa com a tua sessão da Pokédex.",
-                ),
-                view=view,
-            )
+            message = await channel.send(embed=intro_embed(), view=view)
         await self.store.set_channel_intro(row["discord_id"], message.id)
         if not message.pinned:
             await message.pin()
