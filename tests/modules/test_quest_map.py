@@ -133,3 +133,18 @@ def test_crowded_icons_stay_at_exact_locations_without_connectors():
         assert image.getpixel((500, 450)) == (190, 40, 80)
         assert image.getpixel((523, 450)) == (190, 40, 80)
         assert image.getpixel((523, 420)) == (255, 255, 255)
+
+
+def test_pins_are_placed_on_the_map_servers_256_pixel_world():
+    # The tileserver's zoom counts a 256-pixel world at zoom 0. Assuming 512
+    # drew every pin at twice its real offset from the centre: measured on
+    # 2026-10-10 against OpenStreetMap roundabout centres in Leiria, the pins
+    # were about 500 m out on a two-stop map.
+    from modules.quest_map import SCALE
+
+    fitted = fit_quest_map(
+        [{"lat": 39.74, "lon": -8.81}, {"lat": 39.74, "lon": -8.80}], "style"
+    )
+    (_, west, _), (_, east, _) = fitted.points
+    world = 256 * 2 ** fitted.payload["zoom"] * SCALE
+    assert east - west == pytest.approx(0.01 / 360 * world)

@@ -12,6 +12,11 @@ _ICON_SIZE = 32
 _SPRITE_TILE = 44
 _BADGE_RADIUS = 12
 _CREDIT = "© OpenStreetMap contributors · OpenMapTiles"
+# Pixels of the whole world at zoom 0, as the tileserver's /staticmap counts
+# zoom. This was 512 until 2026-10-10, which put every pin at twice its real
+# offset from the map centre; 256 was measured against OpenStreetMap roundabout
+# centres (the pins then land on them).
+_WORLD = 256
 
 
 def _project(latitude, longitude):
@@ -47,15 +52,16 @@ def fit_quest_map(pokestops, style):
     min_x, max_x = min(p[1] for p in coordinates), max(p[1] for p in coordinates)
     min_y, max_y = min(p[2] for p in coordinates), max(p[2] for p in coordinates)
     center_x, center_y = (min_x + max_x) / 2, (min_y + max_y) / 2
-    # MapLibre's world is 512 pixels at zoom 0. Leave room for marker badges;
-    # cap close-up zoom so a single stop still shows its surrounding streets.
+    # The tileserver's zoom counts a 256-pixel world at zoom 0 (the raster-tile
+    # convention), not MapLibre's 512. Leave room for marker badges; cap
+    # close-up zoom so a single stop still shows its surrounding streets.
     zoom = min(
         16.0,
-        math.log2((WIDTH - 2 * _PADDING) / (512 * max(max_x - min_x, 1e-12))),
-        math.log2((HEIGHT - 2 * _PADDING) / (512 * max(max_y - min_y, 1e-12))),
+        math.log2((WIDTH - 2 * _PADDING) / (_WORLD * max(max_x - min_x, 1e-12))),
+        math.log2((HEIGHT - 2 * _PADDING) / (_WORLD * max(max_y - min_y, 1e-12))),
     )
     zoom = max(1.0, zoom)
-    world_size = 512 * 2**zoom
+    world_size = _WORLD * 2**zoom
     return QuestMap(
         payload={
             "style": style,
