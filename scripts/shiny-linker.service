@@ -1,0 +1,12 @@
+[Unit]
+Description=Resolve pending !shiny friend codes through one scanner account
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/Poliswag
+# adb reads its key from $HOME/.android; system services get no HOME.
+Environment=HOME=/root
+ExecStart=/opt/shiny-linker/venv/bin/python -m scripts.shiny_linker
+TimeoutStartSec=6min
