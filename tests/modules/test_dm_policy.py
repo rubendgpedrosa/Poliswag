@@ -132,6 +132,7 @@ class TestBareMention:
         bot = MagicMock()
         bot.user.id = 42
         bot.get_context = AsyncMock(return_value=ctx)
+        bot.get_cog.return_value = None
         bot.invoke = AsyncMock()
         bot._is_bare_mention = lambda m: main.Poliswag._is_bare_mention(bot, m)
         return bot, main.Poliswag.process_commands
