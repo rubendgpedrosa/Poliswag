@@ -123,7 +123,7 @@ def test_exemption_names_the_real_pokedex_cog():
 
 
 class TestBareMention:
-    """A mention on its own answers like !help, through the same DM gate."""
+    """If the mentions cog is absent, a bare tag still greets without help."""
 
     @staticmethod
     def _bot(ctx):
@@ -135,29 +135,33 @@ class TestBareMention:
         bot.get_cog.return_value = None
         bot.invoke = AsyncMock()
         bot._is_bare_mention = lambda m: main.Poliswag._is_bare_mention(bot, m)
+        bot._mentions_poliswag = lambda m: main.Poliswag._mentions_poliswag(bot, m)
         return bot, main.Poliswag.process_commands
 
     @staticmethod
     def _message(content):
         message = MagicMock()
         message.author.bot = False
+        message.webhook_id = None
         message.content = content
         return message
 
     @pytest.mark.parametrize("content", ["<@42>", " <@!42> "])
-    async def test_bare_mention_sends_help(self, content, mocker):
+    async def test_bare_mention_greets_without_help(self, content, mocker):
         mocker.patch("main.may_run_in_dm", return_value=True)
-        ctx = MagicMock(command=None, send_help=AsyncMock())
+        ctx = MagicMock(command=None, send_help=AsyncMock(), send=AsyncMock())
         bot, process = self._bot(ctx)
 
         await process(bot, self._message(content))
 
-        ctx.send_help.assert_awaited_once_with()
+        ctx.send.assert_awaited_once()
+        assert "diz-me" in ctx.send.call_args.args[0]
+        ctx.send_help.assert_not_awaited()
         bot.invoke.assert_not_awaited()
 
     async def test_refused_dm_gets_nothing(self, mocker):
         mocker.patch("main.may_run_in_dm", return_value=False)
-        ctx = MagicMock(command=None, send_help=AsyncMock())
+        ctx = MagicMock(command=None, send_help=AsyncMock(), send=AsyncMock())
         bot, process = self._bot(ctx)
 
         await process(bot, self._message("<@42>"))
@@ -167,7 +171,7 @@ class TestBareMention:
     @pytest.mark.parametrize("content", ["<@42> olá", "<@7>", "!help"])
     async def test_anything_else_is_not_a_bare_mention(self, content, mocker):
         mocker.patch("main.may_run_in_dm", return_value=True)
-        ctx = MagicMock(command=None, send_help=AsyncMock())
+        ctx = MagicMock(command=None, send_help=AsyncMock(), send=AsyncMock())
         bot, process = self._bot(ctx)
 
         await process(bot, self._message(content))

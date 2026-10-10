@@ -38,6 +38,28 @@ async def test_owner_dm_routes_explicit_code_request(cog):
     cog.submit.assert_awaited_once_with(context, "code", "openai", "fix this")
 
 
+async def test_owner_natural_request_is_code_capable(cog):
+    cog.submit = AsyncMock()
+    context = ctx()
+    await cog.submit_natural_request(context, "fix the quest bug")
+    cog.submit.assert_awaited_once_with(context, "code", "claude", "fix the quest bug")
+
+
+async def test_owner_natural_request_can_choose_openai(cog):
+    cog.submit = AsyncMock()
+    context = ctx()
+    await cog.submit_natural_request(context, "use OpenAI to fix this")
+    cog.submit.assert_awaited_once_with(
+        context, "code", "codex", "use OpenAI to fix this"
+    )
+
+
+async def test_nonowner_cannot_call_natural_delegation(cog):
+    cog.submit = AsyncMock()
+    await cog.submit_natural_request(ctx(author=999), "fix this")
+    cog.submit.assert_not_awaited()
+
+
 async def test_channel_requires_leading_bot_mention(cog):
     cog.submit = AsyncMock()
     assert not await cog.handle_direct_request(ctx(guild=MagicMock()))
