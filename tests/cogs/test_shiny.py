@@ -4,6 +4,7 @@ import discord
 import pytest
 
 from cogs.shiny import Shiny
+from modules.config import Config
 
 
 def guild_with(*member_ids):
@@ -157,26 +158,33 @@ class TestMapLink:
         cog.store.find_linked = AsyncMock(
             return_value={"discord_id": 5, "trainer_name": "JMBoyz"}
         )
-        cog.store.set_map_token = AsyncMock()
         return cog
 
-    async def test_the_link_goes_to_the_caller_by_dm_and_only_its_hash_is_stored(
-        self, cog
-    ):
-        import hashlib
-
+    async def test_the_named_link_goes_to_the_caller_by_dm(self, cog):
         ctx = ctx_for()
         ctx.author.send = AsyncMock()
         await Shiny.shiny.callback(cog, ctx, texto="mapa jmboy")
         cog.store.find_linked.assert_awaited_once_with("jmboy")
         sent = ctx.author.send.call_args.kwargs["embed"].description
-        token = sent.split("/shiny/")[1].split()[0].rstrip(">")
-        assert len(token) == 64 and "JMBoyz" in sent
-        cog.store.set_map_token.assert_awaited_once_with(
-            5, hashlib.sha256(token.encode()).hexdigest()
-        )
+        url = f"{Config.POKEDEX_URL.rstrip('/')}/mapa/JMBoyz"
+        assert url in sent and "/shiny/" not in sent
+        assert [call[0] for call in cog.store.method_calls] == ["find_linked"]
         # The channel only hears that a DM went out, never the link.
-        assert token not in said(ctx)
+        assert url not in said(ctx)
+
+    @pytest.mark.parametrize(
+        "name, encoded",
+        [
+            ("Ana Silva", "Ana%20Silva"),
+            ("Érica", "%C3%89rica"),
+            ("A%20/B", "A%2520%2FB"),
+        ],
+    )
+    def test_named_urls_escape_the_trainer_as_one_path_segment(self, name, encoded):
+        assert (
+            Shiny._map_url({"trainer_name": name})
+            == f"{Config.POKEDEX_URL.rstrip('/')}/mapa/{encoded}"
+        )
 
     async def test_without_a_name_it_is_the_callers_own_map(self, cog):
         ctx = ctx_for()
@@ -189,7 +197,6 @@ class TestMapLink:
         ctx = ctx_for()
         ctx.author.send = AsyncMock()
         await Shiny.shiny.callback(cog, ctx, texto="mapa ninguem")
-        cog.store.set_map_token.assert_not_awaited()
         ctx.author.send.assert_not_awaited()
         assert "ninguem" in said(ctx)
 
@@ -219,10 +226,17 @@ class TestOwnChannel:
     @pytest.fixture
     def cog(self, cog):
         cog.store.find_linked = AsyncMock(
-            return_value={"discord_id": 5, "trainer_name": "JMBoyz", "channel_id": None}
+            return_value={
+                "discord_id": 5,
+                "trainer_name": "JMBoyz",
+                "channel_id": None,
+                "shiny_access": 1,
+            }
         )
-        cog.store.set_map_token = AsyncMock()
         cog.store.set_channel = AsyncMock()
+        cog.store.activate_from_channel = AsyncMock()
+        cog.store.set_channel_intro = AsyncMock()
+        cog.store.set_channel_archived = AsyncMock()
         return cog
 
     @staticmethod
@@ -249,6 +263,14 @@ class TestOwnChannel:
         assert overwrites[ctx.guild.default_role].view_channel is False
         assert overwrites[member].view_channel is True
         assert overwrites[member].send_messages is False
+        assert overwrites[member].read_message_history is True
+        for permission in (
+            "send_messages_in_threads",
+            "create_public_threads",
+            "create_private_threads",
+            "add_reactions",
+        ):
+            assert getattr(overwrites[member], permission) is False
         assert overwrites[ctx.guild.me].send_messages is True
         cog.store.set_channel.assert_awaited_once_with(5, 777)
         assert "<#777>" in said(ctx)
@@ -257,9 +279,32 @@ class TestOwnChannel:
         ctx, _, channel, pinned = self.guild_ctx()
         await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
         posted = channel.send.call_args.kwargs["embed"].description
-        assert "/shiny/" in posted and "JMBoyz" in posted
+        assert "JMBoyz" in posted and "/shiny/" not in posted
+        buttons = channel.send.call_args.kwargs["view"].children
+        assert [(b.label, b.url) for b in buttons] == [
+            ("Ver mapa de shinies", f"{Config.POKEDEX_URL.rstrip('/')}/mapa/JMBoyz")
+        ]
         pinned.pin.assert_awaited_once()
-        cog.store.set_map_token.assert_awaited_once()
+
+    async def test_owner_can_post_in_another_players_channel(self, cog, monkeypatch):
+        monkeypatch.setattr(Config, "MY_ID", 123)
+        ctx, member, _, _ = self.guild_ctx()
+        owner = MagicMock(id=123)
+        ctx.guild.get_member = lambda user_id: {5: member, 123: owner}.get(user_id)
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        overwrites = ctx.guild.create_text_channel.call_args.kwargs["overwrites"]
+        assert overwrites[member].send_messages is False
+        assert overwrites[owner].view_channel is True
+        assert overwrites[owner].send_messages is True
+        assert overwrites[owner].send_messages_in_threads is True
+
+    async def test_owners_own_channel_is_writable(self, cog, monkeypatch):
+        monkeypatch.setattr(Config, "MY_ID", 5)
+        ctx, owner, _, _ = self.guild_ctx()
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        overwrite = ctx.guild.create_text_channel.call_args.kwargs["overwrites"][owner]
+        assert overwrite.send_messages is True
+        assert overwrite.add_reactions is True
 
     async def test_a_player_who_already_has_one_gets_no_second(self, cog):
         ctx, _, _, _ = self.guild_ctx()

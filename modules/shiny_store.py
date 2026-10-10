@@ -5,6 +5,8 @@ only writer of `linked`/`failed`. This module queues codes, announces
 results, and owns shiny_alert and the alert watermark.
 """
 
+from modules.config import Config
+
 _REQUEST_SQL = """
 INSERT INTO shiny_link (discord_id, discord_name, friend_code, status, requested_at)
 VALUES (%s, %s, %s, 'pending', UTC_TIMESTAMP())
@@ -44,32 +46,70 @@ class ShinyStore:
     async def find_linked(self, name):
         """The linked player with this Discord or trainer name, any case."""
         rows = await self.db.get_data_from_database(
-            "SELECT discord_id, trainer_name, channel_id FROM shiny_link "
-            "WHERE status = 'linked' "
-            "AND (LOWER(discord_name) = LOWER(%s) OR LOWER(trainer_name) = LOWER(%s)) "
+            "SELECT l.discord_id, l.trainer_name, l.channel_id, p.shiny_access "
+            "FROM shiny_link l LEFT JOIN "
+            + Config.DB_POGOLEIRIA
+            + ".trade_player p ON p.discord_id = l.discord_id "
+            "WHERE l.status = 'linked' "
+            "AND (LOWER(l.discord_name) = LOWER(%s) OR LOWER(l.trainer_name) = LOWER(%s)) "
             "LIMIT 1",
             params=(name, name),
         )
         return rows[0] if rows else None
 
-    async def set_map_token(self, discord_id, token_hash):
-        await self.db.execute_query_to_database(
-            "UPDATE shiny_link SET map_token_hash = %s WHERE discord_id = %s",
-            params=(token_hash, discord_id),
-        )
-
     async def set_channel(self, discord_id, channel_id):
         """The player's own private channel, where their alerts go."""
         await self.db.execute_query_to_database(
-            "UPDATE shiny_link SET channel_id = %s WHERE discord_id = %s",
+            "UPDATE shiny_link SET channel_id = %s, channel_archived = 1, "
+            "channel_intro_message_id = NULL WHERE discord_id = %s",
             params=(channel_id, discord_id),
+        )
+
+    async def activate_from_channel(self, discord_id):
+        """The owner's manual channel command activates an approved profile too."""
+        await self.db.execute_query_to_database(
+            f"UPDATE {Config.DB_POGOLEIRIA}.trade_player SET shiny_map = 1, "
+            "shiny_access_requested_at = NULL WHERE discord_id = %s "
+            "AND shiny_access = 1 AND left_at IS NULL",
+            params=(discord_id,),
+        )
+
+    async def channel_players(self, discord_id=None):
+        """Desired website state plus existing channels that may need archiving."""
+        sql = (
+            "SELECT l.discord_id, l.trainer_name, l.channel_id, l.channel_archived, "
+            "l.channel_intro_message_id, l.status, l.player_id, "
+            "p.shiny_access, p.shiny_map, p.left_at "
+            f"FROM shiny_link l JOIN {Config.DB_POGOLEIRIA}.trade_player p "
+            "ON p.discord_id = l.discord_id "
+        )
+        if discord_id is not None:
+            sql += "WHERE l.discord_id = %s"
+        else:
+            sql += "WHERE l.channel_id IS NOT NULL OR (p.shiny_access = 1 AND p.shiny_map = 1 AND p.left_at IS NULL)"
+        return await self.db.get_data_from_database(
+            sql, params=() if discord_id is None else (discord_id,)
+        )
+
+    async def set_channel_intro(self, discord_id, message_id):
+        await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET channel_intro_message_id = %s WHERE discord_id = %s",
+            params=(message_id, discord_id),
+        )
+
+    async def set_channel_archived(self, discord_id, archived):
+        await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET channel_archived = %s WHERE discord_id = %s",
+            params=(int(archived), discord_id),
         )
 
     async def unannounced(self):
         """Links the linker finished that their owner has not been told about."""
         return await self.db.get_data_from_database(
-            "SELECT discord_id, status, trainer_name, fail_reason FROM shiny_link "
-            "WHERE status IN ('linked', 'failed') AND announced_at IS NULL"
+            "SELECT l.discord_id, l.status, l.trainer_name, l.fail_reason FROM shiny_link l "
+            f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id = l.discord_id "
+            "WHERE l.status IN ('linked', 'failed') AND l.announced_at IS NULL "
+            "AND p.shiny_access = 1 AND p.shiny_map = 1 AND p.left_at IS NULL"
         )
 
     async def mark_announced(self, discord_id):
@@ -80,25 +120,56 @@ class ShinyStore:
 
     async def recipients(self, user_ids):
         """[{discord_id, discord_name, player_id, alert_leiria, alert_marinha,
-        channel_id}] for the linked players who get alerts: anyone with a
-        channel of their own (`!shiny canal`), and the listed users, by DM."""
-        who = "channel_id IS NOT NULL"
+        channel_id, shiny_notify_all, shiny_notify_hundo}] for the linked
+        players who get alerts: anyone with a channel of their own
+        (`!shiny canal`), and the listed users, by DM."""
+        who = "(l.channel_id IS NOT NULL AND l.channel_archived = 0 AND l.channel_intro_message_id IS NOT NULL)"
         if user_ids:
             placeholders = ",".join(["%s"] * len(user_ids))
-            who = f"({who} OR discord_id IN ({placeholders}))"
+            who = f"({who} OR (l.channel_id IS NULL AND l.discord_id IN ({placeholders})))"
         return await self.db.get_data_from_database(
-            "SELECT discord_id, discord_name, player_id, alert_leiria, alert_marinha, "
-            f"channel_id FROM shiny_link WHERE status = 'linked' AND {who}",
+            "SELECT l.discord_id, l.discord_name, l.player_id, l.alert_leiria, l.alert_marinha, "
+            "l.channel_id, p.shiny_notify_all, p.shiny_notify_hundo FROM shiny_link l "
+            f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id = l.discord_id "
+            f"WHERE l.status = 'linked' AND p.left_at IS NULL AND p.shiny_access = 1 "
+            f"AND p.shiny_map = 1 AND {who}",
             params=tuple(user_ids),
         )
 
-    async def never_shiny(self):
-        """{(pokemon_id, form_id)} the scanner has met thousands of times
-        without one shiny (modules/shiny_odds.py keeps the list)."""
-        rows = await self.db.get_data_from_database(
-            "SELECT pokemon_id, form_id FROM shiny_species WHERE never_shiny = 1"
+    async def pending_settings(self):
+        """[{discord_id, shiny_settings_revision}] for the players whose last
+        save in the Pokédex the bot has not confirmed yet. The site shows
+        "A aguardar pelo Poliswag…" to each of them until confirm_settings."""
+        return await self.db.get_data_from_database(
+            "SELECT discord_id, shiny_settings_revision "
+            f"FROM {Config.DB_POGOLEIRIA}.trade_player "
+            "WHERE shiny_applied_revision < shiny_settings_revision"
         )
-        return {(row["pokemon_id"], row["form_id"]) for row in rows}
+
+    async def confirm_settings(self, discord_id, revision):
+        """Stamp a revision read before this tick's work as applied. Not while
+        the channel still disagrees with the switch: on and linked without a
+        ready channel, or off with a channel not archived yet. Those wait for
+        a later tick, and the site keeps saying so."""
+        wants = "(p.shiny_access = 1 AND p.shiny_map = 1 AND p.left_at IS NULL)"
+        active = "(l.channel_id IS NOT NULL AND l.channel_archived = 0)"
+        ready = f"({active} AND l.channel_intro_message_id IS NOT NULL)"
+        await self.db.execute_query_to_database(
+            f"UPDATE {Config.DB_POGOLEIRIA}.trade_player p "
+            "LEFT JOIN shiny_link l ON l.discord_id = p.discord_id "
+            "SET p.shiny_applied_revision = %s "
+            "WHERE p.discord_id = %s AND p.shiny_applied_revision < %s "
+            f"AND NOT ({wants} AND COALESCE(l.status, '') = 'linked' AND NOT {ready}) "
+            f"AND NOT (NOT {wants} AND {active})",
+            params=(revision, discord_id, revision),
+        )
+
+    async def shiny_eligible(self):
+        """Exact eligible species/form/costume tuples, shared with the website."""
+        rows = await self.db.get_data_from_database(
+            "SELECT pokemon_id, form_id, costume_id FROM shiny_eligible_variant"
+        )
+        return {(row["pokemon_id"], row["form_id"], row["costume_id"]) for row in rows}
 
     async def watermark(self):
         rows = await self.db.get_data_from_database(
@@ -119,6 +190,20 @@ class ShinyStore:
             params=(discord_id, encounter_id, pokemon_id, form_id),
         )
         return inserted == 1
+
+    async def owns_shiny(self, discord_id, pokemon_id, form_id):
+        """An owned Shiny suppresses an alert, with scanner forms filed as in
+        the Pokédex: an ordinary form unknown to pokemon_name falls back to 0.
+        Read at delivery time so a newly marked catch stops the next alert."""
+        rows = await self.db.get_data_from_database(
+            f"SELECT 1 AS owned FROM {Config.DB_POGOLEIRIA}.collection_entry c "
+            "WHERE c.discord_id = %s AND c.category = 'shiny' AND c.pokemon_id = %s "
+            "AND c.form_id = COALESCE((SELECT n.form_id FROM pokemon_name n "
+            "WHERE n.pokemon_id = %s AND n.form_id IN (%s, 0) "
+            "ORDER BY n.form_id DESC LIMIT 1), 0) LIMIT 1",
+            params=(discord_id, pokemon_id, pokemon_id, form_id),
+        )
+        return bool(rows)
 
     async def set_verdict(self, discord_id, encounter_id, verdict):
         """True when the answer was stored; False if there already was one."""

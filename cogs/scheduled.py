@@ -15,6 +15,7 @@ from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
 from modules.shiny_alerts import ShinyAlerts
 from modules.shiny_odds import ShinyOdds
+from modules.shiny_availability import ShinyAvailability
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
@@ -51,6 +52,7 @@ class Scheduled(commands.Cog):
         self._hundo_alerts = HundoAlerts(poliswag)
         self._shiny_alerts = ShinyAlerts(poliswag)
         self._shiny_odds = ShinyOdds(poliswag)
+        self._shiny_availability = ShinyAvailability(poliswag)
 
     async def _load_digest_date(self):
         try:
@@ -239,6 +241,7 @@ class Scheduled(commands.Cog):
             self._trade_dm.tick,
             self._hundo_alerts.tick,
             self._shiny_odds.tick,
+            self._shiny_availability.tick,
             self._shiny_alerts.tick,
             self._check_trade_digest,
         ):

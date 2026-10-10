@@ -65,8 +65,16 @@ async def test_recipients_are_linked_players_with_a_channel_or_on_the_list(store
     assert await store.recipients([7, 8]) == [{"discord_id": 7, "player_id": "a" * 16}]
     sql = db.get_data_from_database.call_args.args[0]
     assert "status = 'linked'" in sql
-    assert "(channel_id IS NOT NULL OR discord_id IN (%s,%s))" in sql
+    assert "l.channel_id IS NULL AND l.discord_id IN (%s,%s)" in sql
+    assert "p.shiny_access = 1" in sql and "p.shiny_map = 1" in sql
+    assert "p.left_at IS NULL" in sql
+    assert (
+        "l.channel_archived = 0" in sql
+        and "l.channel_intro_message_id IS NOT NULL" in sql
+    )
     assert "alert_leiria" in sql and "alert_marinha" in sql
+    # Which predicted shinies each player is told about (their Pokédex settings).
+    assert "p.shiny_notify_all" in sql and "p.shiny_notify_hundo" in sql
     assert "discord_name" in sql  # Poracle wants a name for its target
     assert db.get_data_from_database.call_args.kwargs["params"] == (7, 8)
 
@@ -74,8 +82,46 @@ async def test_recipients_are_linked_players_with_a_channel_or_on_the_list(store
 async def test_with_nobody_listed_players_with_a_channel_still_are(store, db):
     await store.recipients([])
     sql = db.get_data_from_database.call_args.args[0]
-    assert "status = 'linked' AND channel_id IS NOT NULL" in sql
+    assert "status = 'linked'" in sql and "l.channel_id IS NOT NULL" in sql
+    assert "p.shiny_access = 1" in sql and "p.shiny_map = 1" in sql
     assert db.get_data_from_database.call_args.kwargs["params"] == ()
+
+
+async def test_pending_settings_are_the_players_the_bot_is_behind_on(store, db):
+    db.get_data_from_database.return_value = [
+        {"discord_id": 7, "shiny_settings_revision": 3}
+    ]
+    assert await store.pending_settings() == [
+        {"discord_id": 7, "shiny_settings_revision": 3}
+    ]
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "trade_player" in sql
+    assert "shiny_applied_revision < shiny_settings_revision" in sql
+
+
+async def test_confirming_stamps_the_revision_that_was_read_never_a_newer_one(
+    store, db
+):
+    await store.confirm_settings(7, 3)
+    sql = db.execute_query_to_database.call_args.args[0]
+    assert "SET p.shiny_applied_revision = %s" in sql
+    assert "p.discord_id = %s AND p.shiny_applied_revision < %s" in sql
+    assert db.execute_query_to_database.call_args.kwargs["params"] == (3, 7, 3)
+
+
+async def test_confirming_waits_while_the_channel_disagrees_with_the_switch(store, db):
+    await store.confirm_settings(7, 3)
+    sql = db.execute_query_to_database.call_args.args[0]
+    # A player with no link row at all is still confirmed (LEFT JOIN, COALESCE).
+    assert "LEFT JOIN shiny_link l" in sql
+    # On and linked, but the channel is not ready yet.
+    assert "COALESCE(l.status, '') = 'linked' AND NOT ((l.channel_id IS NOT NULL" in sql
+    assert "l.channel_intro_message_id IS NOT NULL" in sql
+    # Off (or held, or gone), but the channel is not archived yet.
+    assert (
+        "AND NOT (NOT (p.shiny_access = 1 AND p.shiny_map = 1 AND p.left_at IS NULL) "
+        "AND (l.channel_id IS NOT NULL AND l.channel_archived = 0))" in sql
+    )
 
 
 async def test_watermark_is_none_before_the_first_tick(store, db):
@@ -89,6 +135,20 @@ async def test_record_alert_is_true_only_the_first_time(store, db):
     db.execute_query_to_database.return_value = 0
     assert await store.record_alert(7, "123", 25, 0) is False
     assert "INSERT IGNORE" in db.execute_query_to_database.call_args.args[0]
+
+
+async def test_owned_shiny_uses_the_players_collection_and_pokedex_form(store, db):
+    db.get_data_from_database.return_value = [{"owned": 1}]
+    assert await store.owns_shiny(7, 570, 2108) is True
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "collection_entry" in sql and "c.category = 'shiny'" in sql
+    assert "COALESCE((SELECT n.form_id FROM pokemon_name" in sql
+    assert "n.form_id IN (%s, 0)" in sql
+    assert db.get_data_from_database.call_args.kwargs["params"] == (7, 570, 570, 2108)
+
+
+async def test_a_missing_shiny_does_not_suppress_the_alert(store):
+    assert await store.owns_shiny(7, 25, 0) is False
 
 
 async def test_a_verdict_is_stored_once(store, db):
@@ -118,12 +178,6 @@ async def test_nobody_by_that_name_is_none(store):
     assert await store.find_linked("ninguém") is None
 
 
-async def test_the_map_token_is_stored_as_given(store, db):
-    await store.set_map_token(7, "ab" * 32)
-    assert "map_token_hash" in db.execute_query_to_database.call_args.args[0]
-    assert db.execute_query_to_database.call_args.kwargs["params"] == ("ab" * 32, 7)
-
-
 async def test_the_players_channel_is_stored(store, db):
     await store.set_channel(7, 999)
     assert "channel_id" in db.execute_query_to_database.call_args.args[0]
@@ -135,10 +189,11 @@ async def test_find_linked_also_returns_the_channel(store, db):
     assert "channel_id" in db.get_data_from_database.call_args.args[0]
 
 
-async def test_never_shiny_is_the_marked_species_and_forms(store, db):
+async def test_shiny_eligible_reads_the_shared_exact_variant_policy(store, db):
     db.get_data_from_database.return_value = [
-        {"pokemon_id": 931, "form_id": 2987},
-        {"pokemon_id": 835, "form_id": 3172},
+        {"pokemon_id": 931, "form_id": 2987, "costume_id": 0},
+        {"pokemon_id": 835, "form_id": 3172, "costume_id": 7},
     ]
-    assert await store.never_shiny() == {(931, 2987), (835, 3172)}
-    assert "never_shiny = 1" in db.get_data_from_database.call_args.args[0]
+    assert await store.shiny_eligible() == {(931, 2987, 0), (835, 3172, 7)}
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "costume_id FROM shiny_eligible_variant" in sql
