@@ -149,9 +149,9 @@ def spawn(encounter_id=ZERO, **over):
     return row
 
 
-def recipient(leiria=1, marinha=1, channel_id=None):
+def recipient(leiria=1, marinha=1, channel_id=None, discord_id=OWNER):
     return {
-        "discord_id": OWNER,
+        "discord_id": discord_id,
         "discord_name": "faynn",
         "channel_id": channel_id,
         "player_id": PLAYER,
@@ -432,3 +432,14 @@ class TestOwnChannel:
         alerts.store.recipients.return_value = [recipient(channel_id=4242)]
         await alerts.tick()
         alerts.user.send.assert_awaited_once()
+
+    async def test_but_never_to_the_dm_of_someone_who_only_has_a_channel(self, alerts):
+        # Only the pilot's users are ever messaged directly.
+        alerts.poliswag.get_channel.return_value = None
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [
+            recipient(channel_id=4242, discord_id=555)
+        ]
+        await alerts.tick()
+        alerts.user.send.assert_not_awaited()
+        alerts.poliswag.get_user.assert_not_called()

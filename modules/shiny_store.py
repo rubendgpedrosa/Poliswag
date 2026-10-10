@@ -80,14 +80,15 @@ class ShinyStore:
 
     async def recipients(self, user_ids):
         """[{discord_id, discord_name, player_id, alert_leiria, alert_marinha,
-        channel_id}] for the listed users who are linked."""
-        if not user_ids:
-            return []
-        placeholders = ",".join(["%s"] * len(user_ids))
+        channel_id}] for the linked players who get alerts: anyone with a
+        channel of their own (`!shiny canal`), and the listed users, by DM."""
+        who = "channel_id IS NOT NULL"
+        if user_ids:
+            placeholders = ",".join(["%s"] * len(user_ids))
+            who = f"({who} OR discord_id IN ({placeholders}))"
         return await self.db.get_data_from_database(
             "SELECT discord_id, discord_name, player_id, alert_leiria, alert_marinha, "
-            "channel_id FROM shiny_link "
-            f"WHERE status = 'linked' AND discord_id IN ({placeholders})",
+            f"channel_id FROM shiny_link WHERE status = 'linked' AND {who}",
             params=tuple(user_ids),
         )
 
