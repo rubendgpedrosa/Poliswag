@@ -1,0 +1,100 @@
+"""!shiny — a member hands over a friend code so shinies can be predicted.
+
+The code is only the way in: the host script scripts/shiny_linker has a
+scanner account look the trainer up by that code, invite them to a private
+raid lobby and read the internal player ID the game's shiny roll uses
+(modules/shiny_roll.py). This cog queues the code and reports status;
+modules/shiny_alerts.py tells the member when it resolves.
+
+Nothing proves a code belongs to whoever sent it. The resolution DM names
+the trainer it matched, which is what makes a wrong code visible.
+"""
+
+from discord.ext import commands
+
+from modules.embeds import build_embed
+from modules.membership import is_member
+from modules.shiny_roll import normalise_friend_code
+from modules.shiny_store import ShinyStore
+
+TITLE = "SHINY"
+_WHEN = (
+    "quando houver uma raid ativa na zona (durante o dia, normalmente em "
+    "menos de uma hora)"
+)
+
+
+class Shiny(commands.Cog):
+    def __init__(self, poliswag):
+        self.poliswag = poliswag
+        self.store = ShinyStore(poliswag.db)
+
+    async def cog_load(self):
+        print(f"{self.__class__.__name__} loaded!")
+
+    async def cog_unload(self):
+        print(f"{self.__class__.__name__} unloaded!")
+
+    @commands.command(
+        name="shiny",
+        brief="Associa o teu código de amigo às previsões de shiny",
+        help="`!shiny 1234 5678 9012` envia o teu código de amigo; uma conta "
+        "do scanner procura o teu treinador e eu aviso-te por DM quando "
+        "estiver associado. `!shiny` mostra o estado e `!shiny remover` "
+        "apaga tudo. Funciona aqui ou em DM ao bot.",
+    )
+    async def shiny(self, ctx, *, texto: str = ""):
+        author = ctx.author
+        if ctx.guild is None and not is_member(self.poliswag, author.id):
+            await self._say(
+                ctx, "As previsões de shiny são para membros do servidor PoGo Leiria."
+            )
+            return
+
+        texto = texto.strip()
+        if not texto:
+            await self._say(ctx, self._status_text(await self.store.get(author.id)))
+            return
+        if texto.lower() == "remover":
+            await self.store.remove(author.id)
+            await self._say(ctx, "Apaguei o teu código e o histórico de alertas.")
+            return
+
+        code = normalise_friend_code(texto)
+        if code is None:
+            await self._say(
+                ctx,
+                "Isso não parece um código de amigo. São 12 dígitos, por "
+                "exemplo `!shiny 1234 5678 9012`.",
+            )
+            return
+        await self.store.request(author.id, author.name, code)
+        await self._say(
+            ctx,
+            f"Código recebido. Uma conta do scanner vai procurar o teu treinador {_WHEN} "
+            "e eu aviso-te por DM. Podes receber um convite de raid no jogo: ignora-o.",
+        )
+
+    @staticmethod
+    def _status_text(row):
+        if row is None:
+            return (
+                "Ainda não enviaste um código. Escreve `!shiny 1234 5678 9012` "
+                "com o teu código de amigo."
+            )
+        if row["status"] == "pending":
+            return f"O teu código está em fila. É associado {_WHEN}."
+        if row["status"] == "linked":
+            return f"Associado ao treinador **{row['trainer_name']}**."
+        return (
+            f"Não foi possível associar: {row['fail_reason']}. "
+            "Envia `!shiny <código>` outra vez."
+        )
+
+    @staticmethod
+    async def _say(ctx, text):
+        await ctx.send(embed=build_embed(TITLE, text))
+
+
+async def setup(poliswag):
+    await poliswag.add_cog(Shiny(poliswag))
