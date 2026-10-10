@@ -235,3 +235,33 @@ def test_at_the_base_odds_it_is_the_512_roll_of_zero():
     for encounter_id, player_id, bound, roll in JAVA_ROLLS:
         if bound == 512:
             assert is_shiny_at(shiny_draw(encounter_id, player_id), 512) == (roll == 0)
+
+
+# The test vectors of Golbat PR #423 (decoder/api_pokemon_shiny_test.go):
+# player ID, encounter ID, and the first nextFloat of the seeded Random. The
+# third has a non-ASCII character, which pins the ID's encoding as UTF-8.
+GOLBAT_VECTORS = [
+    ("0123456789abcdef", 1, 0.22137850522994995),
+    ("Player-ID:ABC/123", 1, 0.3684830665588379),
+    (" Trainer-é ", 1, 0.03772324323654175),
+]
+
+
+@pytest.mark.parametrize("player_id, encounter_id, next_float", GOLBAT_VECTORS)
+def test_the_draw_is_javas_next_float_as_golbat_computes_it(
+    player_id, encounter_id, next_float
+):
+    from modules.shiny_roll import shiny_draw
+
+    assert shiny_draw(encounter_id, player_id) == next_float
+
+
+def test_the_cutoff_is_golbats_ceiling_on_a_24_bit_roll():
+    from modules.shiny_roll import is_shiny_at
+
+    scale = 1 << 24
+    # 1/25: Golbat's cutoff is ceil(0.04 * 2**24) = 671089, so roll 671088 is
+    # shiny and 671089 is not.
+    assert is_shiny_at(671088 / scale, 25) and not is_shiny_at(671089 / scale, 25)
+    # 1/512: exactly 2**24 / 512 = 32768.
+    assert is_shiny_at(32767 / scale, 512) and not is_shiny_at(32768 / scale, 512)
