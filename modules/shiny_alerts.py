@@ -13,6 +13,7 @@ Owns shiny_alert and poliswag.shiny_alert_watermark; reads shiny_link,
 golbat's pokemon and pokemon_shiny_stats, and pokemon_name.
 """
 
+import json
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,6 +22,7 @@ import discord
 
 from modules.config import Config
 from modules.embeds import build_embed
+from modules.poracle_client import PoracleError
 from modules.shiny_roll import shiny_die
 from modules.shiny_store import ShinyStore
 
@@ -39,7 +41,8 @@ LOOK_BACK = 300
 _SPAWNS_SQL = f"""
 SELECT id, pokemon_id, COALESCE(form, 0) AS form_id, lat, lon, expire_timestamp,
        expire_timestamp_verified, seen_type, first_seen_timestamp,
-       iv, atk_iv, def_iv, sta_iv, cp, level
+       iv, atk_iv, def_iv, sta_iv, cp, level, costume, gender, move_1, move_2,
+       weight, height, size, weather, spawn_id, pokestop_id, is_event, updated, pvp
 FROM {Config.DB_SCANNER_NAME}.pokemon
 WHERE first_seen_timestamp >= %s
   AND (expire_timestamp IS NULL OR expire_timestamp >= %s)
@@ -75,6 +78,56 @@ def plays_there(recipient, spawn):
     return bool(recipient["alert_marinha"] if in_marinha else recipient["alert_leiria"])
 
 
+# Poracle's DTS entry for these alerts (monster / "shiny" in its dts.json; a
+# copy is kept in templates/poracle/shiny-monster.json). It is Poracle's
+# standard Pokémon alert with a "Potencialmente shiny para ti" line on top.
+PORACLE_TEMPLATE = "shiny"
+
+
+def poracle_webhook(spawn):
+    """The spawn as Golbat would have sent it to Poracle, so Poracle renders
+    it exactly like its own alerts: map tile, IV, moves, address."""
+    try:
+        pvp = json.loads(spawn["pvp"]) if spawn.get("pvp") else None
+    except (TypeError, ValueError):
+        pvp = None
+
+    def number(value):
+        return float(value) if value is not None else None
+
+    return {
+        "encounter_id": str(spawn["id"]),
+        "pokemon_id": spawn["pokemon_id"],
+        "form": spawn["form_id"],
+        "costume": spawn.get("costume") or 0,
+        "gender": spawn.get("gender"),
+        "latitude": float(spawn["lat"]),
+        "longitude": float(spawn["lon"]),
+        "disappear_time": spawn["expire_timestamp"],
+        "disappear_time_verified": bool(spawn["expire_timestamp_verified"]),
+        "first_seen": spawn["first_seen_timestamp"],
+        "last_modified_time": spawn.get("updated"),
+        "individual_attack": spawn["atk_iv"],
+        "individual_defense": spawn["def_iv"],
+        "individual_stamina": spawn["sta_iv"],
+        "cp": spawn["cp"],
+        "pokemon_level": spawn["level"],
+        "move_1": spawn.get("move_1"),
+        "move_2": spawn.get("move_2"),
+        "weight": number(spawn.get("weight")),
+        "height": number(spawn.get("height")),
+        "size": spawn.get("size"),
+        "weather": spawn.get("weather") or 0,
+        "spawnpoint_id": (
+            format(spawn["spawn_id"], "x") if spawn.get("spawn_id") else "None"
+        ),
+        "pokestop_id": spawn.get("pokestop_id") or "None",
+        "is_event": spawn.get("is_event") or 0,
+        "seen_type": spawn["seen_type"],
+        "pvp": pvp,
+    }
+
+
 def _despawn_line(spawn):
     expires = spawn["expire_timestamp"]
     if not expires:
@@ -101,6 +154,7 @@ def _iv_line(spawn):
 
 def alert_embed(spawn, name, seen_shiny):
     lines = [
+        "✨ **Potencialmente shiny para ti**",
         _iv_line(spawn),
         f"📍 [Abrir no mapa](https://www.google.com/maps?q={spawn['lat']},{spawn['lon']})",
         _despawn_line(spawn),
@@ -111,32 +165,7 @@ def alert_embed(spawn, name, seen_shiny):
         ),
     ]
     headline = name if spawn["iv"] is None else f"{name} {round(spawn['iv'])}%"
-    return build_embed(
-        f"✨ {headline} deve ser shiny para ti",
-        "\n".join(lines),
-        footer="Previsão em teste. Diz-me se acertei.",
-    )
-
-
-def verdict_view(encounter_id):
-    """Era shiny / Não era. No callbacks: cogs/shiny.py answers the custom
-    IDs in on_interaction, so the buttons outlive a bot restart."""
-    view = discord.ui.View(timeout=None)
-    view.add_item(
-        discord.ui.Button(
-            label="Era shiny",
-            style=discord.ButtonStyle.success,
-            custom_id=f"shiny:s:{encounter_id}",
-        )
-    )
-    view.add_item(
-        discord.ui.Button(
-            label="Não era",
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"shiny:n:{encounter_id}",
-        )
-    )
-    return view
+    return build_embed(f"✨ {headline}", "\n".join(lines))
 
 
 class ShinyAlerts:
@@ -174,7 +203,7 @@ class ShinyAlerts:
                 waited = now - spawn["first_seen_timestamp"]
                 if spawn["iv"] is None and waited < WAIT_FOR_IV:
                     continue  # read again next tick, IV in hand or time up
-                await self._alert(recipient["discord_id"], spawn)
+                await self._alert(recipient, spawn)
         if spawns:
             # `>=` above re-reads the newest second next tick, in case more
             # rows land in it; shiny_alert keeps those from going out twice.
@@ -182,13 +211,17 @@ class ShinyAlerts:
                 max(s["first_seen_timestamp"] for s in spawns)
             )
 
-    async def _alert(self, discord_id, spawn):
+    async def _alert(self, recipient, spawn):
+        discord_id = recipient["discord_id"]
         # Recorded before sending: a spawn told twice is worse than one lost
         # to a failed send.
         if not await self.store.record_alert(
             discord_id, spawn["id"], spawn["pokemon_id"], spawn["form_id"]
         ):
             return
+        if await self._through_poracle(recipient, spawn):
+            return
+        # Poracle could not take it: the bot's own, plainer embed instead.
         key = (spawn["pokemon_id"], spawn["form_id"])
         # Golbat names a species' ordinary form by its own id (Zorua is 2108);
         # pokemon_name files that form under 0, so 0 is the fallback.
@@ -205,11 +238,45 @@ class ShinyAlerts:
         seen = await self.poliswag.db.get_data_from_database(
             _SEEN_SHINY_SQL, params=key
         )
-        await self._dm(
-            discord_id,
-            embed=alert_embed(spawn, name, bool(seen)),
-            view=verdict_view(spawn["id"]),
+        embed = alert_embed(spawn, name, bool(seen))
+        channel = (
+            self.poliswag.get_channel(int(recipient["channel_id"]))
+            if recipient.get("channel_id")
+            else None
         )
+        if channel is not None:
+            await channel.send(embed=embed)
+        else:
+            await self._dm(discord_id, embed=embed)
+
+    async def _through_poracle(self, recipient, spawn):
+        """Have Poracle render and deliver the alert, as it does its own.
+        Its test endpoint is the one that takes a spawn and a destination
+        and skips matching; nothing about the result says "test"."""
+        name = recipient.get("discord_name") or str(recipient["discord_id"])
+        # Their own channel if they have one (`!shiny canal`), else a DM.
+        if recipient.get("channel_id"):
+            destination = {
+                "id": str(recipient["channel_id"]),
+                "name": f"shiny-{name}",
+                "type": "discord:channel",
+            }
+        else:
+            destination = {
+                "id": str(recipient["discord_id"]),
+                "name": name,
+                "type": "discord:user",
+            }
+        target = {**destination, "language": "en", "template": PORACLE_TEMPLATE}
+        try:
+            await self.poliswag.poracle.test_pokemon(poracle_webhook(spawn), target)
+            return True
+        except PoracleError as e:
+            self.poliswag.utility.log_to_file(
+                f"Shiny alert for {recipient['discord_id']} not sent through Poracle: {e}",
+                "ERROR",
+            )
+            return False
 
     async def _announce_links(self):
         for row in await self.store.unannounced():

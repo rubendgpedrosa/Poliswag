@@ -9,6 +9,7 @@ import pytest
 
 from modules import shiny_alerts
 from modules.config import Config
+from modules.poracle_client import PoracleError
 from modules.shiny_alerts import ShinyAlerts, link_message
 
 OWNER = 111
@@ -29,6 +30,9 @@ def alerts():
     user = MagicMock()
     user.send = AsyncMock()
     bot.get_user.return_value = user
+    # Poracle is "down" by default, so these tests exercise the bot's own
+    # embed, the fallback. TestThroughPoracle covers the normal path.
+    bot.poracle.test_pokemon = AsyncMock(side_effect=PoracleError("down"))
     a = ShinyAlerts(bot)
     a.store = MagicMock(
         unannounced=AsyncMock(return_value=[]),
@@ -126,14 +130,29 @@ def spawn(encounter_id=ZERO, **over):
         "sta_iv": 15,
         "cp": 812,
         "level": 27,
+        "costume": 0,
+        "gender": 2,
+        "move_1": 202,
+        "move_2": 88,
+        "weight": 12.5,
+        "height": 0.7,
+        "size": 3,
+        "weather": 0,
+        "spawn_id": 0xD1F3A2B1C5,
+        "pokestop_id": None,
+        "is_event": 0,
+        "updated": 1791629050,
+        "pvp": None,
     }
     row.update(over)
     return row
 
 
-def recipient(leiria=1, marinha=1):
+def recipient(leiria=1, marinha=1, channel_id=None):
     return {
         "discord_id": OWNER,
+        "discord_name": "faynn",
+        "channel_id": channel_id,
         "player_id": PLAYER,
         "alert_leiria": leiria,
         "alert_marinha": marinha,
@@ -178,16 +197,6 @@ class TestAlertEmbed:
         assert "nunca viu" in embed.description
 
 
-class TestVerdictView:
-    async def test_the_buttons_carry_the_encounter_id(self):
-        view = shiny_alerts.verdict_view(ZERO)
-        assert [b.custom_id for b in view.children] == [
-            f"shiny:s:{ZERO}",
-            f"shiny:n:{ZERO}",
-        ]
-        assert view.timeout is None
-
-
 class TestAlertSpawns:
     async def test_the_first_tick_only_sets_the_watermark(self, alerts):
         alerts.store.recipients.return_value = [recipient()]
@@ -201,13 +210,14 @@ class TestAlertSpawns:
         alerts.store.set_watermark.assert_awaited_once()
         alerts.poliswag.db.get_data_from_database.assert_not_awaited()
 
-    async def test_a_roll_of_zero_is_sent_with_buttons(self, alerts):
+    async def test_a_roll_of_zero_is_sent(self, alerts):
         with_spawns(alerts, [spawn(), spawn(OTHER, first_seen_timestamp=1791629100)])
         await alerts.tick()
         alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 25, 0)
         sent = alerts.user.send.call_args.kwargs
         assert "Pikachu" in sent["embed"].title
-        assert sent["view"].children[0].custom_id == f"shiny:s:{ZERO}"
+        assert "Potencialmente shiny para ti" in sent["embed"].description
+        assert "view" not in sent and sent["embed"].footer.text is None
         alerts.store.set_watermark.assert_awaited_once_with(1791629100)
 
     async def test_a_spawn_already_alerted_is_not_sent_again(self, alerts):
@@ -322,3 +332,89 @@ class TestIvAndName:
         ][0]
         assert params == (570, 2108) and "form_id IN (%s, 0)" in sql
         assert "Zorua" in alerts.user.send.call_args.kwargs["embed"].title
+
+
+class TestThroughPoracle:
+    """The normal path: Poracle renders and delivers the alert, so it looks
+    like every other Poracle alert (map tile, IV, moves, map buttons)."""
+
+    @pytest.fixture
+    def poracle(self, alerts):
+        alerts.poliswag.poracle.test_pokemon = AsyncMock()
+        return alerts.poliswag.poracle.test_pokemon
+
+    async def test_the_spawn_goes_to_poracle_with_the_shiny_template(
+        self, alerts, poracle
+    ):
+        with_spawns(alerts, [spawn()])
+        await alerts.tick()
+        webhook, target = poracle.call_args.args
+        assert target == {
+            "id": str(OWNER),
+            "name": "faynn",
+            "type": "discord:user",
+            "language": "en",
+            "template": "shiny",
+        }
+        assert webhook["encounter_id"] == ZERO and webhook["pokemon_id"] == 25
+        assert (webhook["latitude"], webhook["longitude"]) == (39.7436, -8.8071)
+        assert webhook["disappear_time"] == 1791630000
+        assert webhook["disappear_time_verified"] is True
+        assert (
+            webhook["individual_attack"],
+            webhook["individual_defense"],
+            webhook["individual_stamina"],
+        ) == (15, 14, 15)
+        assert webhook["cp"] == 812 and webhook["pokemon_level"] == 27
+        assert webhook["spawnpoint_id"] == "d1f3a2b1c5"
+        # Poracle sent it: the bot's own embed stays in the drawer.
+        alerts.user.send.assert_not_awaited()
+
+    async def test_it_is_still_recorded_first_and_sent_once(self, alerts, poracle):
+        with_spawns(alerts, [spawn()])
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 25, 0)
+        alerts.store.record_alert.return_value = False
+        await alerts.tick()
+        poracle.assert_awaited_once()
+
+    async def test_poracle_down_falls_back_to_the_bots_own_embed(self, alerts):
+        with_spawns(alerts, [spawn()])
+        await alerts.tick()
+        assert "Pikachu" in alerts.user.send.call_args.kwargs["embed"].title
+
+    def test_a_stored_pvp_blob_is_passed_on_as_json(self):
+        webhook = shiny_alerts.poracle_webhook(spawn(pvp='{"great": [{"rank": 3}]}'))
+        assert webhook["pvp"] == {"great": [{"rank": 3}]}
+        assert shiny_alerts.poracle_webhook(spawn(pvp="not json"))["pvp"] is None
+
+
+class TestOwnChannel:
+    """A player with a channel of their own gets alerts there, not by DM."""
+
+    async def test_poracle_is_pointed_at_the_channel(self, alerts):
+        alerts.poliswag.poracle.test_pokemon = AsyncMock()
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [recipient(channel_id=4242)]
+        await alerts.tick()
+        _, target = alerts.poliswag.poracle.test_pokemon.call_args.args
+        assert target["id"] == "4242" and target["type"] == "discord:channel"
+        assert target["template"] == "shiny"
+
+    async def test_the_fallback_embed_goes_to_the_channel_too(self, alerts):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        alerts.poliswag.get_channel.return_value = channel
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [recipient(channel_id=4242)]
+        await alerts.tick()
+        alerts.poliswag.get_channel.assert_called_with(4242)
+        channel.send.assert_awaited_once()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_a_channel_that_is_gone_falls_back_to_the_dm(self, alerts):
+        alerts.poliswag.get_channel.return_value = None
+        with_spawns(alerts, [spawn()])
+        alerts.store.recipients.return_value = [recipient(channel_id=4242)]
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
