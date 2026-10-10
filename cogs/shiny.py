@@ -22,6 +22,8 @@ _WHEN = (
     "quando houver uma raid ativa na zona (durante o dia, normalmente em "
     "menos de uma hora)"
 )
+# custom_id "shiny:<key>:<encounter id>" from modules/shiny_alerts.verdict_view.
+_VERDICTS = {"s": ("shiny", "era shiny ✅"), "n": ("not_shiny", "não era ❌")}
 
 
 class Shiny(commands.Cog):
@@ -74,6 +76,30 @@ class Shiny(commands.Cog):
             f"Código recebido. Uma conta do scanner vai procurar o teu treinador {_WHEN} "
             "e eu aviso-te por DM. Podes receber um convite de raid no jogo: ignora-o.",
         )
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction):
+        """The Era shiny / Não era buttons under an alert DM.
+
+        The verdict is stored against whoever pressed, so it can only ever
+        answer that person's own alert row.
+        """
+        parts = ((interaction.data or {}).get("custom_id") or "").split(":")
+        if len(parts) != 3 or parts[0] != "shiny" or parts[1] not in _VERDICTS:
+            return
+        verdict, label = _VERDICTS[parts[1]]
+        stored = await self.store.set_verdict(interaction.user.id, parts[2], verdict)
+        embeds = interaction.message.embeds
+        embed = embeds[0] if embeds else None
+        if embed is not None:
+            embed.set_footer(
+                text=(
+                    f"Resposta registada: {label}"
+                    if stored
+                    else "Já tinhas respondido a este alerta."
+                )
+            )
+        await interaction.response.edit_message(embed=embed, view=None)
 
     @staticmethod
     def _status_text(row):
