@@ -14,6 +14,7 @@ from discord.ext import commands
 
 from modules.embeds import build_embed
 from modules.membership import is_member
+from modules.permissions import owner_only
 from modules.shiny_roll import normalise_friend_code
 from modules.shiny_store import ShinyStore
 
@@ -45,6 +46,9 @@ class Shiny(commands.Cog):
         "estiver associado. `!shiny` mostra o estado e `!shiny remover` "
         "apaga tudo. Funciona aqui ou em DM ao bot.",
     )
+    # Pilot: the owner alone, until the predictions have been checked in the
+    # field. Removing this line opens the command to every member.
+    @owner_only()
     async def shiny(self, ctx, *, texto: str = ""):
         author = ctx.author
         if ctx.guild is None and not is_member(self.poliswag, author.id):
