@@ -45,12 +45,7 @@ def alerts():
 class TestLinkMessage:
     def test_linked_names_the_trainer(self):
         row = {"status": "linked", "trainer_name": "Rita99", "fail_reason": None}
-        assert "**Rita99**" in link_message(row, alerts_on=True)
-
-    def test_linked_but_outside_the_pilot_says_alerts_come_later(self):
-        row = {"status": "linked", "trainer_name": "Rita99", "fail_reason": None}
-        assert "ainda estão em teste" in link_message(row, alerts_on=False)
-        assert "ainda estão em teste" not in link_message(row, alerts_on=True)
+        assert "**Rita99**" in link_message(row)
 
     def test_failed_gives_the_reason_and_the_way_back(self):
         row = {
@@ -58,15 +53,15 @@ class TestLinkMessage:
             "trainer_name": None,
             "fail_reason": "código não encontrado",
         }
-        text = link_message(row, alerts_on=False)
+        text = link_message(row)
         assert "código não encontrado" in text and "!shiny" in text
 
 
 class TestAnnounceLinks:
-    async def test_each_finished_link_is_told_once(self, alerts):
+    async def test_the_owner_is_told_once(self, alerts):
         alerts.store.unannounced.return_value = [
             {
-                "discord_id": 5,
+                "discord_id": OWNER,
                 "status": "linked",
                 "trainer_name": "A",
                 "fail_reason": None,
@@ -74,12 +69,36 @@ class TestAnnounceLinks:
         ]
         await alerts.tick()
         alerts.user.send.assert_awaited_once()
-        alerts.store.mark_announced.assert_awaited_once_with(5)
+        alerts.store.mark_announced.assert_awaited_once_with(OWNER)
+
+    async def test_nobody_outside_the_pilot_is_messaged(self, alerts):
+        # Only the pilot's users hear from the bot about shinies at all; a
+        # link made for anyone else is closed without a DM.
+        alerts.store.unannounced.return_value = [
+            {
+                "discord_id": 5,
+                "status": "linked",
+                "trainer_name": "B",
+                "fail_reason": None,
+            },
+            {
+                "discord_id": 6,
+                "status": "failed",
+                "trainer_name": None,
+                "fail_reason": "x",
+            },
+        ]
+        await alerts.tick()
+        alerts.user.send.assert_not_awaited()
+        assert [c.args[0] for c in alerts.store.mark_announced.await_args_list] == [
+            5,
+            6,
+        ]
 
     async def test_closed_dms_are_still_marked(self, alerts):
         alerts.store.unannounced.return_value = [
             {
-                "discord_id": 5,
+                "discord_id": OWNER,
                 "status": "failed",
                 "trainer_name": None,
                 "fail_reason": "x",
@@ -87,7 +106,7 @@ class TestAnnounceLinks:
         ]
         alerts.user.send.side_effect = discord.Forbidden(MagicMock(status=403), "no")
         await alerts.tick()
-        alerts.store.mark_announced.assert_awaited_once_with(5)
+        alerts.store.mark_announced.assert_awaited_once_with(OWNER)
 
 
 def spawn(encounter_id=ZERO, **over):
