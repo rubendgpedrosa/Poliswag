@@ -1976,7 +1976,7 @@ cp /root/unonwhash/tools/android/native-method-redirect.js scripts/shiny_linker/
 grep -c "__OWNED_REDIRECT_CONFIG__\|OWNED_REDIRECT_READY\|OWNED_REDIRECT_DETACHED\|detachDelayMs\|CONFIG.logPath" scripts/shiny_linker/native-method-redirect.js
 ```
 
-Expected: `6` or more. The file must be byte-identical to the one that ran clean on 2026-10-10; do not edit it.
+Expected: `5` (one line per marker). The file must be byte-identical to the one that ran clean on 2026-10-10; do not edit it.
 
 - [ ] **Step 2: Write the hook harness (`tests/scripts/shiny_hook_harness.cjs`)**
 
