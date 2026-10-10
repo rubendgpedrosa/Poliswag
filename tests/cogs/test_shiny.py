@@ -147,3 +147,46 @@ def test_the_command_is_the_owners_alone_during_the_pilot():
     from modules.permissions import is_owner
 
     assert is_owner in Shiny.shiny.checks
+
+
+class TestMapLink:
+    @pytest.fixture
+    def cog(self, cog):
+        cog.store.find_linked = AsyncMock(
+            return_value={"discord_id": 5, "trainer_name": "JMBoyz"}
+        )
+        cog.store.set_map_token = AsyncMock()
+        return cog
+
+    async def test_the_link_goes_to_the_caller_by_dm_and_only_its_hash_is_stored(
+        self, cog
+    ):
+        import hashlib
+
+        ctx = ctx_for()
+        ctx.author.send = AsyncMock()
+        await Shiny.shiny.callback(cog, ctx, texto="mapa jmboy")
+        cog.store.find_linked.assert_awaited_once_with("jmboy")
+        sent = ctx.author.send.call_args.kwargs["embed"].description
+        token = sent.split("/shiny/")[1].split()[0].rstrip(">")
+        assert len(token) == 64 and "JMBoyz" in sent
+        cog.store.set_map_token.assert_awaited_once_with(
+            5, hashlib.sha256(token.encode()).hexdigest()
+        )
+        # The channel only hears that a DM went out, never the link.
+        assert token not in said(ctx)
+
+    async def test_without_a_name_it_is_the_callers_own_map(self, cog):
+        ctx = ctx_for()
+        ctx.author.send = AsyncMock()
+        await Shiny.shiny.callback(cog, ctx, texto="mapa")
+        cog.store.find_linked.assert_awaited_once_with("rita")
+
+    async def test_an_unknown_player_gets_no_link(self, cog):
+        cog.store.find_linked.return_value = None
+        ctx = ctx_for()
+        ctx.author.send = AsyncMock()
+        await Shiny.shiny.callback(cog, ctx, texto="mapa ninguem")
+        cog.store.set_map_token.assert_not_awaited()
+        ctx.author.send.assert_not_awaited()
+        assert "ninguem" in said(ctx)

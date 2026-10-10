@@ -10,8 +10,12 @@ Nothing proves a code belongs to whoever sent it. The resolution DM names
 the trainer it matched, which is what makes a wrong code visible.
 """
 
+import hashlib
+import secrets
+
 from discord.ext import commands
 
+from modules.config import Config
 from modules.embeds import build_embed
 from modules.membership import is_member
 from modules.permissions import owner_only
@@ -44,7 +48,8 @@ class Shiny(commands.Cog):
         help="`!shiny 1234 5678 9012` envia o teu código de amigo; uma conta "
         "do scanner procura o teu treinador e eu aviso-te por DM quando "
         "estiver associado. `!shiny` mostra o estado e `!shiny remover` "
-        "apaga tudo. Funciona aqui ou em DM ao bot.",
+        "apaga tudo. `!shiny mapa [nome]` envia por DM o link do mapa de um "
+        "jogador associado. Funciona aqui ou em DM ao bot.",
     )
     # Pilot: the owner alone, until the predictions have been checked in the
     # field. Removing this line opens the command to every member.
@@ -60,6 +65,9 @@ class Shiny(commands.Cog):
         texto = texto.strip()
         if not texto:
             await self._say(ctx, self._status_text(await self.store.get(author.id)))
+            return
+        if texto.lower().split()[0] == "mapa":
+            await self._send_map_link(ctx, texto[4:].strip() or author.name)
             return
         if texto.lower() == "remover":
             await self.store.remove(author.id)
@@ -104,6 +112,35 @@ class Shiny(commands.Cog):
                 )
             )
         await interaction.response.edit_message(embed=embed, view=None)
+
+    async def _send_map_link(self, ctx, name):
+        """A fresh link to a linked player's private map, by DM to the caller.
+
+        The URL is the credential (pogoleiria.pt/shiny/<token>); only its
+        SHA-256 is stored, and each new link ends the one before it.
+        """
+        player = await self.store.find_linked(name)
+        if player is None:
+            await self._say(
+                ctx, f"Não encontrei nenhum jogador associado chamado `{name}`."
+            )
+            return
+        token = secrets.token_hex(32)
+        await self.store.set_map_token(
+            player["discord_id"], hashlib.sha256(token.encode()).hexdigest()
+        )
+        await ctx.author.send(
+            embed=build_embed(
+                TITLE,
+                f"Mapa dos shinies previstos para **{player['trainer_name']}**:\n"
+                f"<{Config.SHINY_MAP_URL.rstrip('/')}/{token}>\n"
+                "-# O link é a chave: quem o tiver vê o mapa. Um `!shiny mapa` novo "
+                "desliga este.",
+            )
+        )
+        await self._say(
+            ctx, f"Enviei-te por DM o mapa de **{player['trainer_name']}**. 📬"
+        )
 
     @staticmethod
     def _status_text(row):

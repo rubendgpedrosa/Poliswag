@@ -93,3 +93,28 @@ async def test_a_verdict_is_stored_once(store, db):
     assert "verdict IS NULL" in db.execute_query_to_database.call_args.args[0]
     db.execute_query_to_database.return_value = 0
     assert await store.set_verdict(7, "123", "not_shiny") is False
+
+
+async def test_a_linked_player_is_found_by_discord_or_trainer_name(store, db):
+    db.get_data_from_database.return_value = [
+        {"discord_id": 7, "trainer_name": "Rita99"}
+    ]
+    assert await store.find_linked("rita99") == {
+        "discord_id": 7,
+        "trainer_name": "Rita99",
+    }
+    sql = db.get_data_from_database.call_args.args[0]
+    assert (
+        "status = 'linked'" in sql and "discord_name" in sql and "trainer_name" in sql
+    )
+    assert db.get_data_from_database.call_args.kwargs["params"] == ("rita99", "rita99")
+
+
+async def test_nobody_by_that_name_is_none(store):
+    assert await store.find_linked("ninguém") is None
+
+
+async def test_the_map_token_is_stored_as_given(store, db):
+    await store.set_map_token(7, "ab" * 32)
+    assert "map_token_hash" in db.execute_query_to_database.call_args.args[0]
+    assert db.execute_query_to_database.call_args.kwargs["params"] == ("ab" * 32, 7)
