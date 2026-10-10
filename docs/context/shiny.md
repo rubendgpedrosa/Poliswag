@@ -72,8 +72,7 @@ both on by default, set by SQL for now, migration 018), `shiny_alert` (dedupe an
 Through Poracle, so it looks like every other Poracle alert (map tile, IV, CP,
 level, address, Google / Apple buttons). Poliswag builds the spawn as a Golbat
 webhook and hands it to Poracle's `/api/test` with the `shiny` monster
-template, which is Poracle's standard one plus a "Potencialmente shiny para
-ti" line. The template lives in `/root/poracleng/config/dts.json` (not in git;
+template, which is Poracle's standard one with a ✨ before the title. The template lives in `/root/poracleng/config/dts.json` (not in git;
 a copy is in `templates/poracle/shiny-monster.json`; after editing it,
 `POST /api/dts/reload`, not `/api/reload`). Poracle and Poliswag are the same
 Discord bot, so the alert arrives in the same DM. If Poracle refuses, the
