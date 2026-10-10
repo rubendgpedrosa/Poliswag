@@ -130,3 +130,12 @@ async def test_the_players_channel_is_stored(store, db):
 async def test_find_linked_also_returns_the_channel(store, db):
     await store.find_linked("rita99")
     assert "channel_id" in db.get_data_from_database.call_args.args[0]
+
+
+async def test_never_shiny_is_the_marked_species_and_forms(store, db):
+    db.get_data_from_database.return_value = [
+        {"pokemon_id": 931, "form_id": 2987},
+        {"pokemon_id": 835, "form_id": 3172},
+    ]
+    assert await store.never_shiny() == {(931, 2987), (835, 3172)}
+    assert "never_shiny = 1" in db.get_data_from_database.call_args.args[0]
