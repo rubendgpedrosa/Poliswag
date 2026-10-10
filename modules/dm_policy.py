@@ -9,13 +9,16 @@ gets `!questleiria` and `!accounts` for free.
 The Pokédex cog (cogs/pokedex.py) is the exception, and a deliberate one:
 `!pokedex` (alias `!trades`, `!trocas`) and `!resumo` are advertised as DM
 commands and carry their own membership check.
+
+The Shiny cog (cogs/shiny.py) is exempt the same way: `!shiny` takes a friend
+code in a DM and checks membership itself.
 """
 
 from modules.config import Config
 
 # Cog qualified names. The cog was "Trades" until 2026-09-24; a rename that
 # forgets this set silently drops members' DM logins (a test pins it).
-DM_EXEMPT_COGS = frozenset({"Pokedex"})
+DM_EXEMPT_COGS = frozenset({"Pokedex", "Shiny"})
 
 
 def may_run_in_dm(ctx) -> bool:
