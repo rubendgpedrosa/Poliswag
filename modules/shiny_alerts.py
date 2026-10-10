@@ -9,10 +9,10 @@ Two jobs each scheduler tick:
 2. For linked players with a channel of their own (`!shiny canal`) or in
    Config.SHINY_ALERT_USER_IDS (who get a DM), roll every new spawn
    (modules/shiny_roll.py) and alert the ones that come up 0, unless the
-   species is one the scanner has learned is never shiny.
+   species/form/costume lacks released or confirmed wild eligibility.
 
 Owns shiny_alert and poliswag.shiny_alert_watermark; reads shiny_link,
-shiny_species (never_shiny), golbat's pokemon and pokemon_shiny_stats, and
+shiny_species (confirmed sightings), golbat's pokemon and pokemon_shiny_stats, and
 pokemon_name.
 """
 
@@ -28,6 +28,7 @@ from modules.embeds import build_embed
 from modules.poracle_client import PoracleError
 from modules.shiny_roll import shiny_die
 from modules.shiny_store import ShinyStore
+from modules.shiny_channels import ShinyChannels
 
 _LISBON = ZoneInfo("Europe/Lisbon")
 # A spawn with less than this left is not worth a DM.
@@ -81,6 +82,21 @@ def plays_there(recipient, spawn):
     return bool(recipient["alert_marinha"] if in_marinha else recipient["alert_leiria"])
 
 
+def is_hundo(spawn):
+    """15/15/15 by the scanner's reading. An IV not read yet is not 100%."""
+    ivs = (spawn.get("atk_iv"), spawn.get("def_iv"), spawn.get("sta_iv"))
+    return ivs == (15, 15, 15)
+
+
+def wants_alert(recipient, spawn, owned):
+    """Which predicted shinies a player is told about, by their Pokédex
+    settings: one they lack, any at all under "Todos", or an owned one at
+    100% while that switch is on (the default)."""
+    if not owned or recipient.get("shiny_notify_all"):
+        return True
+    return bool(recipient.get("shiny_notify_hundo", 1)) and is_hundo(spawn)
+
+
 # Poracle's DTS entry for these alerts (monster / "shiny" in its dts.json; a
 # copy is kept in templates/poracle/shiny-monster.json). It is Poracle's
 # standard Pokémon alert with a ✨ before the title and nothing else added.
@@ -101,7 +117,9 @@ def poracle_webhook(spawn):
     return {
         "encounter_id": str(spawn["id"]),
         "pokemon_id": spawn["pokemon_id"],
-        "form": spawn["form_id"],
+        # COALESCE(form, 0) comes back from the driver as a Decimal, which
+        # json refuses: every alert crashed here from 16:54 on 2026-10-10.
+        "form": int(spawn["form_id"]),
         "costume": spawn.get("costume") or 0,
         "gender": spawn.get("gender"),
         "latitude": float(spawn["lat"]),
@@ -174,10 +192,21 @@ class ShinyAlerts:
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.store = ShinyStore(poliswag.db)
+        self.channels = ShinyChannels(poliswag)
 
     async def tick(self):
+        # Read first: only a change saved before this tick began is confirmed
+        # by it. The steps below read every setting fresh.
+        pending = await self.store.pending_settings()
+        await self.channels.tick()
         await self._announce_links()
         await self._alert_spawns()
+        # The site says "A aguardar pelo Poliswag…" until this lands. A step
+        # that raised above confirms nothing, and neither does a stopped bot.
+        for row in pending:
+            await self.store.confirm_settings(
+                row["discord_id"], row["shiny_settings_revision"]
+            )
 
     async def _alert_spawns(self):
         now = int(time.time())
@@ -192,9 +221,13 @@ class ShinyAlerts:
         spawns = await self.poliswag.db.get_data_from_database(
             _SPAWNS_SQL, params=(watermark - LOOK_BACK, now + MIN_SECONDS_LEFT)
         )
-        never_shiny = await self.store.never_shiny() if spawns else set()
+        eligible = await self.store.shiny_eligible() if spawns else set()
         for spawn in spawns:
-            if (spawn["pokemon_id"], spawn["form_id"]) in never_shiny:
+            if (
+                spawn["pokemon_id"],
+                spawn["form_id"],
+                spawn.get("costume") or 0,
+            ) not in eligible:
                 continue
             for recipient in recipients:
                 if not plays_there(recipient, spawn):
@@ -218,6 +251,15 @@ class ShinyAlerts:
 
     async def _alert(self, recipient, spawn):
         discord_id = recipient["discord_id"]
+        # The map shows all predictions; which ones are notified is the
+        # player's choice (wants_alert). "Todos" needs no look at the
+        # collection. A skipped spawn is not recorded, so an IV that lands
+        # while it is still inside LOOK_BACK is judged again.
+        owned = not recipient.get("shiny_notify_all") and await self.store.owns_shiny(
+            discord_id, spawn["pokemon_id"], spawn["form_id"]
+        )
+        if not wants_alert(recipient, spawn, owned):
+            return
         # Recorded before sending: a spawn told twice is worse than one lost
         # to a failed send.
         if not await self.store.record_alert(
