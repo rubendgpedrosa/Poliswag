@@ -57,6 +57,13 @@ def link_message(row):
     )
 
 
+def plays_there(recipient, spawn):
+    """Does this player want spawns where this one is? Marinha Grande is west
+    of Config.MARINHA_LON_MAX, Leiria east, the same line the quests use."""
+    in_marinha = float(spawn["lon"]) <= Config.MARINHA_LON_MAX
+    return bool(recipient["alert_marinha"] if in_marinha else recipient["alert_leiria"])
+
+
 def _despawn_line(spawn):
     expires = spawn["expire_timestamp"]
     if not expires:
@@ -131,6 +138,8 @@ class ShinyAlerts:
         )
         for spawn in spawns:
             for recipient in recipients:
+                if not plays_there(recipient, spawn):
+                    continue
                 try:
                     roll = shiny_die(spawn["id"], recipient["player_id"])
                 except ValueError:

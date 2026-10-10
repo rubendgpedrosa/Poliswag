@@ -51,7 +51,8 @@ ID a friend-code search or GET_PLAYER returns; those differ per viewer.
 ## Tables (`poliswag`, migration 017)
 
 `shiny_link` (one row per Discord user; the linker is the only writer of
-`linked`/`failed`), `shiny_alert` (dedupe and the player's verdict), and on
+`linked`/`failed`; `alert_leiria` / `alert_marinha` say where the player plays,
+both on by default, set by SQL for now, migration 018), `shiny_alert` (dedupe and the player's verdict), and on
 `poliswag`: `shiny_linker_enabled`, `shiny_linker_disabled_reason`,
 `shiny_linker_last_run_at`, `shiny_linker_alerted_version`,
 `shiny_alert_watermark`.
