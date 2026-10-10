@@ -78,7 +78,7 @@ viewer.
 
 `shiny_link` (one row per Discord user; the linker is the only writer of
 `linked`/`failed`; `alert_leiria` / `alert_marinha` say where the player plays,
-Leiria only by default since migration 022, set by SQL for now; meant to follow the player's community profile once the site has the setting), `shiny_alert` (dedupe and the player's verdict), and on
+Leiria only by default (migration 018), set by SQL for now; meant to follow the player's community profile once the site has the setting), `shiny_alert` (dedupe and the player's verdict), and on
 `poliswag`: `shiny_linker_enabled`, `shiny_linker_disabled_reason`,
 `shiny_linker_last_run_at`, `shiny_linker_alerted_version`,
 `shiny_alert_watermark`.
