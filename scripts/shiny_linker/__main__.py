@@ -1,9 +1,11 @@
-"""python -m scripts.shiny_linker [--check | --validate]
+"""python -m scripts.shiny_linker [--check | --validate] [--remote [LAT,LON]]
 
 (no flag)   resolve pending codes if every guard holds; what the timer runs
 --check     print each guard's state and change nothing
 --validate  after a game update: resolve the known scanner account
             (SHINY_LINKER_SELFTEST_*) and compare the ID
+--remote    skip the local raid and use the remote site: the point given,
+            or SHINY_LINKER_REMOTE_SITE
 """
 
 import argparse
@@ -23,9 +25,13 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--validate", action="store_true")
+    parser.add_argument("--remote", nargs="?", const="", metavar="LAT,LON")
     args = parser.parse_args(argv)
 
     load_dotenv(REPO / ".env")
+    if args.remote:
+        os.environ["SHINY_LINKER_REMOTE_SITE"] = args.remote
+    remote = args.remote is not None
     # Imported after the environment is loaded: phone.py and store.py read it.
     from .linker import Linker
     from .store import Store
@@ -38,14 +44,14 @@ def main(argv=None):
             return 0
         linker = Linker(Store(), os.environ)
         if args.check:
-            checks, _ = linker.survey(validate=False)
+            checks, _ = linker.survey(validate=False, remote=remote)
             for name, ok, detail in checks:
                 print(
                     f"{'ok ' if ok else 'NÃO'}  {name}"
                     + (f"  ({detail})" if detail else "")
                 )
             return 0
-        outcome = linker.run(validate=args.validate)
+        outcome = linker.run(validate=args.validate, remote=remote)
         print(outcome)
         return 1 if "FALHOU" in outcome or "DESLIGADO" in outcome else 0
 

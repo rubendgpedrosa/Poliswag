@@ -9,6 +9,7 @@ import pytest
 from scripts.shiny_linker.linker import Linker
 from scripts.shiny_linker.lobby import CodeError, RunError
 from scripts.shiny_linker.proto import integer
+from scripts.shiny_linker.remote import NoRaid
 
 ID_A = "0123456789abcdef"
 ID_B = "fedcba9876543210"
@@ -30,6 +31,8 @@ class FakeStore:
         self.rows = [{"discord_id": 1, "friend_code": "111111111111", "attempts": 0}]
         self.gym = ("gym1", 39.74, -8.80)
         self.accounts = [("acct1", "token1")]
+        self.tired = set()  # accounts Dragonite used in the last two hours
+        self.rested_asked = []
         self.linked, self.failed, self.bumped = [], [], []
         self.breaker = None
         self.started = 0
@@ -47,11 +50,14 @@ class FakeStore:
     def raid_gym(self):
         return self.gym
 
-    def accounts_free(self, usernames, in_use):
+    def accounts_free(self, usernames, in_use, rested=0):
+        self.rested_asked.append(rested)
         return [
             (name, token)
             for name, token in self.accounts
-            if name in usernames and name not in in_use
+            if name in usernames
+            and name not in in_use
+            and not (rested and name in self.tired)
         ]
 
     def start_run(self):
@@ -96,6 +102,9 @@ class World:
         self.events = []
         self.now = 0.0  # seconds on the linker's clock
         self.lobby_seconds = 0  # how long each lobby takes
+        self.remote_gym = ("gymCA", 36.98, -122.03)  # what the map there shows
+        self.sessions = []  # every session opened, to read where it stands
+        self.lobby_gyms = []
         world = self
 
         class Session:
@@ -105,6 +114,9 @@ class World:
                     raise NoWorker("rotom gave no idle worker")
                 world.events.append("session")
                 self.host = b""
+                self.lat, self.lon = lat, lon
+                self.opened_at = (lat, lon)
+                world.sessions.append(self)
 
             def login(self, account, token):
                 if world.login_error:
@@ -130,7 +142,7 @@ class World:
 
         class Lobby:
             def __init__(self, session, hook, gym):
-                pass
+                world.lobby_gyms.append(gym)
 
             def search(self, code):
                 found = world.search[code]
@@ -178,6 +190,12 @@ class World:
         )
         self.lobby_cls = Lobby
 
+    def find_raid(self, session):
+        self.events.append("map")
+        if isinstance(self.remote_gym, Exception):
+            raise self.remote_gym
+        return self.remote_gym
+
     def linker(self, **env):
         settings = {
             "SHINY_LINKER_ACCOUNTS": "acct1,acct2",
@@ -192,6 +210,7 @@ class World:
             rotom=self.rotom,
             phone=self.phone,
             lobby_cls=self.lobby_cls,
+            find_raid=self.find_raid,
             notify=self.notified.append,
             sleep=lambda _seconds: None,
             clock=lambda: self.now,
@@ -490,3 +509,113 @@ class TestValidate:
     def test_still_needs_the_linker_switched_on(self, world):
         world.store.enabled = 0
         assert "ligador ativo" in world.linker().run(validate=True)
+
+
+SITE = "36.9741,-122.0258"
+
+
+class TestRemoteSite:
+    """With no raid in the scanned areas, a run goes to the configured point
+    elsewhere: it looks at the map there before the hook goes in."""
+
+    def test_a_local_raid_keeps_the_run_at_home(self, world):
+        world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert "map" not in world.events
+        assert world.sessions[0].opened_at == (39.74, -8.80)
+        assert world.store.rested_asked == [0]
+        assert world.lobby_gyms == [("gym1", 39.74, -8.80)]
+
+    def test_without_a_local_raid_it_finds_one_at_the_site(self, world):
+        world.store.gym = None
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert world.store.linked == [(1, "Rita99", ID_A)] and "1 ligado" in outcome
+        # Logged in there and looked at the map before the hook went in.
+        assert world.events == [
+            "session",
+            "login acct1",
+            "map",
+            "attach",
+            "open",
+            "leave",
+            "detach",
+            "close",
+        ]
+        (session,) = world.sessions
+        assert session.opened_at == (36.9741, -122.0258)
+        assert (session.lat, session.lon) == (36.98, -122.03)  # at the gym
+        assert world.lobby_gyms == [("gymCA", 36.98, -122.03)]
+
+    def test_the_guard_says_where_it_will_look(self, world):
+        world.store.gym = None
+        checks, _ = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).survey()
+        (raid,) = [c for c in checks if c[0] == "raid ativa"]
+        assert raid[1] is True and "nenhuma local" in raid[2]
+        assert world.events == []
+
+    def test_an_unreadable_site_is_no_site(self, world):
+        world.store.gym = None
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE="santa cruz").run()
+        assert "raid ativa" in outcome and world.events == []
+
+    def test_only_accounts_dragonite_left_alone_go_there(self, world):
+        world.store.gym = None
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        world.store.tired = {"acct1"}
+        world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert world.store.rested_asked == [7200]
+        assert "login acct2" in world.events and "login acct1" not in world.events
+
+    def test_with_no_rested_account_nothing_is_touched(self, world):
+        world.store.gym = None
+        world.store.tired = {"acct1"}
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert "conta livre" in outcome
+        assert world.events == [] and world.store.started == 0
+
+    def test_no_raid_there_ends_before_the_hook_and_costs_the_codes_nothing(
+        self, world
+    ):
+        world.store.gym = None
+        world.remote_gym = NoRaid("sem raid no local remoto (7 ginásios)")
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert world.events == ["session", "login acct1", "map", "close"]
+        assert world.store.bumped == [] and world.store.breaker is None
+        assert "sem raid no local remoto (7 ginásios)" in outcome
+        assert world.store.started == 1  # the interval still applies
+
+    def test_a_map_that_cannot_be_read_counts_as_a_failed_run(self, world):
+        world.store.gym = None
+        world.remote_gym = RunError("mapa remoto sem ginásios")
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert "attach" not in world.events
+        assert world.store.bumped == [([1], 5)]
+        assert "mapa remoto sem ginásios" in outcome
+
+    def test_later_lobbies_stay_at_the_gym_found(self, world):
+        world.store.gym = None
+        queue(world, 12)
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run()
+        assert len(world.store.linked) == 12
+        assert world.events.count("map") == 1 and world.events.count("session") == 1
+        assert world.lobby_gyms == [("gymCA", 36.98, -122.03)] * 2
+
+    def test_asked_to_it_skips_a_local_raid(self, world):
+        world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run(remote=True)
+        assert "map" in world.events
+        assert world.lobby_gyms == [("gymCA", 36.98, -122.03)]
+
+    def test_asked_to_without_a_site_it_does_nothing(self, world):
+        outcome = world.linker().run(remote=True)
+        assert "raid ativa" in outcome and "sem local remoto" in outcome
+        assert world.events == []
+
+    def test_validation_can_prove_the_remote_path(self, world):
+        world.search["999999999999"] = ("Scanner", "E:b")
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        outcome = world.linker(SHINY_LINKER_REMOTE_SITE=SITE).run(
+            validate=True, remote=True
+        )
+        assert outcome.startswith("validação OK")
+        assert world.events.count("map") == 1 and world.events.count("open") == 2
+        assert world.store.started == 0

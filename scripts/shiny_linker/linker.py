@@ -11,6 +11,11 @@ scanning controller is disconnected and Dragonite takes the worker back the
 moment the linker's session closes. It is always that one worker: the next
 account logs in on the same session, and the hook goes into the game once
 per run however many lobbies follow.
+
+With no raid in the scanned areas and a remote site configured, the run
+happens there instead (remote.py): an account Dragonite has left alone for
+two hours logs in at the site and looks at the map once; the hook only goes
+in when that shows a raid.
 """
 
 import random
@@ -20,6 +25,7 @@ import time
 from pathlib import Path
 
 from . import phone as _phone
+from . import remote as _remote
 from . import rotom as _rotom
 from .lobby import CodeError, Lobby, RunError
 from .proto import fields, one
@@ -62,6 +68,7 @@ class Linker:
         rotom=_rotom,
         phone=_phone,
         lobby_cls=Lobby,
+        find_raid=_remote.find_raid,
         notify=notify_owner,
         sleep=time.sleep,
         clock=time.monotonic,
@@ -70,6 +77,9 @@ class Linker:
         self.store, self.rotom, self.phone = store, rotom, phone
         self.lobby_cls, self.notify, self.sleep = lobby_cls, notify, sleep
         self.clock, self.shuffle = clock, shuffle
+        self.find_raid = find_raid
+        # Where to look for a raid when the scanned areas have none.
+        self.remote = _remote.site(env.get("SHINY_LINKER_REMOTE_SITE"))
         self.accounts = _listed(env.get("SHINY_LINKER_ACCOUNTS"))
         self.versions = _listed(env.get("SHINY_LINKER_GAME_VERSIONS"))
         self.selftest_code = env.get("SHINY_LINKER_SELFTEST_CODE", "")
@@ -78,9 +88,10 @@ class Linker:
 
     # --- guards -----------------------------------------------------------
 
-    def survey(self, validate=False, stop_early=False):
-        """([(guard, ok, detail)], context for the run). Changes nothing."""
-        checks, ctx = [], {}
+    def survey(self, validate=False, stop_early=False, remote=False):
+        """([(guard, ok, detail)], context for the run). Changes nothing.
+        `remote` skips the local raid and goes straight to the remote site."""
+        checks, ctx = [], {"skip_local": remote}
         for name, probe in self._guards(validate):
             ok, detail = probe(ctx)
             checks.append((name, bool(ok), detail))
@@ -131,8 +142,12 @@ class Linker:
         return ok, "nunca correu" if minutes is None else f"há {minutes} min"
 
     def _raid(self, ctx):
-        ctx["gym"] = self.store.raid_gym()
-        return ctx["gym"], ""
+        ctx["gym"] = None if ctx["skip_local"] else self.store.raid_gym()
+        ctx["remote"] = not ctx["gym"] and self.remote is not None
+        if ctx["remote"]:
+            where = "procura no local remoto"
+            return True, where if ctx["skip_local"] else f"nenhuma local; {where}"
+        return ctx["gym"], "sem local remoto" if ctx["skip_local"] else ""
 
     def _worker(self, ctx):
         try:
@@ -148,10 +163,16 @@ class Linker:
 
     def _account(self, ctx):
         in_use = self.rotom.accounts_in_use(ctx["rotom"]) if "rotom" in ctx else set()
-        ctx["accounts"] = self.store.accounts_free(self.accounts, in_use)
+        # An account that jumps to the remote site must not have been
+        # scanning here a moment ago.
+        rested = _remote.REST_SECONDS if ctx.get("remote") else 0
+        ctx["accounts"] = self.store.accounts_free(self.accounts, in_use, rested)
         # Not always the same one first: the lobbies are spread over the list.
         self.shuffle(ctx["accounts"])
-        return ctx["accounts"], f"{len(ctx['accounts'])} livres"
+        detail = f"{len(ctx['accounts'])} livres"
+        return ctx["accounts"], detail + (
+            f", paradas há {rested // 3600} h" if rested else ""
+        )
 
     def _game(self, ctx):
         ctx["pid"] = self.phone.game_pid()
@@ -166,8 +187,8 @@ class Linker:
 
     # --- the run ----------------------------------------------------------
 
-    def run(self, validate=False):
-        checks, ctx = self.survey(validate, stop_early=True)
+    def run(self, validate=False, remote=False):
+        checks, ctx = self.survey(validate, stop_early=True, remote=remote)
         name, ok, detail = checks[-1]
         if not ok:
             if name == VERSION_GUARD and ctx.get("version"):
@@ -188,19 +209,19 @@ class Linker:
             "versão a SHINY_LINKER_GAME_VERSIONS."
         )
 
-    def _login(self, gym, account, token):
+    def _login(self, place, account, token):
         # Re-checked here: minutes may have passed since the guard looked.
         if account in self.rotom.accounts_in_use(self.rotom.status()):
             raise RunError("a conta entrou em uso pelo scanner")
-        self.session = self._take_worker(gym)
+        self.session = self._take_worker(*place)
         self.session.login(account, token)
         if one(fields(self.session.rpc(2)), 1) != 1:
             raise RunError("GET_PLAYER não respondeu com sucesso")
 
-    def _take_worker(self, gym):
+    def _take_worker(self, lat, lon):
         """A session on an idle worker, or on one borrowed from the scanner."""
         try:
-            return self.rotom.Session(gym[1], gym[2])
+            return self.rotom.Session(lat, lon)
         except self.rotom.NoWorker:
             pass
         for _ in range(BORROW_ATTEMPTS):
@@ -208,7 +229,7 @@ class Linker:
                 break
             for _ in range(WORKER_TRIES):
                 try:
-                    return self.rotom.Session(gym[1], gym[2])
+                    return self.rotom.Session(lat, lon)
                 except self.rotom.NoWorker:
                     self.sleep(0.25)
         raise self.rotom.NoWorker("no worker, idle or borrowed")
@@ -232,6 +253,9 @@ class Linker:
 
     def _link(self, ctx, validate):
         gym, accounts, pid = ctx["gym"], ctx["accounts"], ctx["pid"]
+        # Where the account stands: at the gym, or at the remote site until
+        # a gym is found there.
+        place = self.remote if ctx["remote"] else gym[1:]
         targets = list(ctx["targets"])
         size = 1 if validate else LOBBY_CODES
         lobbies = [targets[i : i + size] for i in range(0, len(targets), size)]
@@ -251,14 +275,18 @@ class Linker:
                 # The session died mid-run; the hook can only be asked to
                 # leave through a logged-in one.
                 self._close()
-                self._login(gym, *current)
+                self._login(place, *current)
                 self.session.rpc(2, payload)
 
         try:
             for turn, codes in enumerate(lobbies):
                 if turn == 0:
                     unsettled.extend(codes)
-                    self._login(gym, *current)
+                    self._login(place, *current)
+                    if ctx["remote"]:
+                        gym = self.find_raid(self.session)
+                        place = gym[1:]
+                        self.session.lat, self.session.lon = place
                     attach_attempted = True
                     hook.attach(pid)
                     started = self.clock()
@@ -304,6 +332,9 @@ class Linker:
         except self.rotom.NoWorker:
             # Not the codes' fault: they keep their attempts for next time.
             error, penalise = "sem worker para a ligação", False
+        except _remote.NoRaid as problem:
+            # Gyms there, none with a raid to use: the codes lose nothing.
+            error, penalise = str(problem), False
         except Exception as problem:
             error = (
                 str(problem)
