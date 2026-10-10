@@ -71,6 +71,7 @@ async def test_recipients_are_linked_rows_among_the_listed_users(store, db):
     sql = db.get_data_from_database.call_args.args[0]
     assert "status = 'linked'" in sql and "IN (%s,%s)" in sql
     assert "alert_leiria" in sql and "alert_marinha" in sql
+    assert "discord_name" in sql  # Poracle wants a name for its target
     assert db.get_data_from_database.call_args.kwargs["params"] == (7, 8)
 
 
@@ -118,3 +119,14 @@ async def test_the_map_token_is_stored_as_given(store, db):
     await store.set_map_token(7, "ab" * 32)
     assert "map_token_hash" in db.execute_query_to_database.call_args.args[0]
     assert db.execute_query_to_database.call_args.kwargs["params"] == ("ab" * 32, 7)
+
+
+async def test_the_players_channel_is_stored(store, db):
+    await store.set_channel(7, 999)
+    assert "channel_id" in db.execute_query_to_database.call_args.args[0]
+    assert db.execute_query_to_database.call_args.kwargs["params"] == (999, 7)
+
+
+async def test_find_linked_also_returns_the_channel(store, db):
+    await store.find_linked("rita99")
+    assert "channel_id" in db.get_data_from_database.call_args.args[0]

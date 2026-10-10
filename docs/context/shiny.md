@@ -67,6 +67,23 @@ both on by default, set by SQL for now, migration 018), `shiny_alert` (dedupe an
 `shiny_linker_last_run_at`, `shiny_linker_alerted_version`,
 `shiny_alert_watermark`.
 
+## How an alert is delivered
+
+Through Poracle, so it looks like every other Poracle alert (map tile, IV, CP,
+level, address, Google / Apple buttons). Poliswag builds the spawn as a Golbat
+webhook and hands it to Poracle's `/api/test` with the `shiny` monster
+template, which is Poracle's standard one plus a "Potencialmente shiny para
+ti" line. The template lives in `/root/poracleng/config/dts.json` (not in git;
+a copy is in `templates/poracle/shiny-monster.json`; after editing it,
+`POST /api/dts/reload`, not `/api/reload`). Poracle and Poliswag are the same
+Discord bot, so the alert arrives in the same DM. If Poracle refuses, the
+bot's own plainer embed goes out instead.
+
+`!shiny canal [nome]` (owner) creates a private channel for a linked player
+under the "Shinies" category: only that player sees it, read-only. Their map
+link is pinned there and, from then on, their alerts go to the channel
+(`shiny_link.channel_id`) instead of a DM.
+
 ## The site's map
 
 `!shiny mapa [nome]` (owner) DMs a private link, `pogoleiria.pt/shiny/<token>`:
