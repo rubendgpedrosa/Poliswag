@@ -21,7 +21,7 @@ from modules.membership import is_member
 from modules.permissions import owner_only
 from modules.shiny_roll import normalise_friend_code
 from modules.shiny_store import ShinyStore
-from modules.shiny_channels import CHANNEL_LOCK
+from modules.shiny_channels import CHANNEL_LOCK, intro_embed
 
 TITLE = "SHINY"
 # The category the players' private channels are created under.
@@ -253,16 +253,7 @@ class Shiny(commands.Cog):
         map_url = self._map_url(player)
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Ver mapa de shinies", url=map_url))
-        link = await channel.send(
-            embed=build_embed(
-                TITLE,
-                f"Shinies previstos para **{player['trainer_name']}**.\n"
-                "O mapa mostra todos os teus shinies previstos. Aqui recebes "
-                "apenas os que ainda te faltam na Pokédex.\n"
-                "Abre o mapa com a tua sessão da Pokédex.",
-            ),
-            view=view,
-        )
+        link = await channel.send(embed=intro_embed(), view=view)
         await link.pin()
         await self.store.set_channel_intro(player["discord_id"], link.id)
         await self.store.set_channel_archived(player["discord_id"], False)

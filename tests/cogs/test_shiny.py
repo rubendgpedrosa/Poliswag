@@ -5,6 +5,7 @@ import pytest
 
 from cogs.shiny import Shiny
 from modules.config import Config
+from modules.shiny_channels import intro_embed
 
 
 def guild_with(*member_ids):
@@ -278,8 +279,10 @@ class TestOwnChannel:
     async def test_the_map_link_is_posted_there_and_pinned(self, cog):
         ctx, _, channel, pinned = self.guild_ctx()
         await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
-        posted = channel.send.call_args.kwargs["embed"].description
-        assert "JMBoyz" in posted and "/shiny/" not in posted
+        posted = channel.send.call_args.kwargs["embed"]
+        assert posted.to_dict()["title"] == intro_embed().to_dict()["title"]
+        assert posted.description == intro_embed().description
+        assert "/shiny/" not in posted.description
         buttons = channel.send.call_args.kwargs["view"].children
         assert [(b.label, b.url) for b in buttons] == [
             ("Ver mapa de shinies", f"{Config.POKEDEX_URL.rstrip('/')}/mapa/JMBoyz")
