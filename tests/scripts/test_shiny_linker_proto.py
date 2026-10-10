@@ -2,6 +2,7 @@ import pytest
 
 from scripts.shiny_linker.proto import (
     blob,
+    double,
     fields,
     integer,
     one,
@@ -43,3 +44,11 @@ def test_packed_and_unpacked_ints_read_the_same():
 def test_malformed_input_raises(data):
     with pytest.raises(ValueError):
         fields(data)
+
+
+def test_a_double_is_read_back_as_written():
+    assert double(fields(real(3, -122.0258)), 3) == -122.0258
+
+
+def test_a_missing_double_is_the_default():
+    assert double(fields(integer(1, 5)), 3) == 0.0

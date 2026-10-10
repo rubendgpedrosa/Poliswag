@@ -23,11 +23,11 @@ NAME = "poliswag-shiny-linker"
 # Seconds a single request may take. WebSocket pings keep a plain read
 # timeout alive for ever, so the socket is aborted on an absolute deadline.
 DEADLINE = 40
-# What this session may send as itself: GET_PLAYER, gym info, raid details.
-# All three pass the scanner agent's own allowlist. Everything else the
-# linker needs goes through the hook (phone.Hook.wrap) as a marked
-# GET_PLAYER. Battle start (165) is in neither list.
-DIRECT_METHODS = (2, 156, 163)
+# What this session may send as itself: GET_PLAYER, the map around it, gym
+# info, raid details. All four pass the scanner agent's own allowlist.
+# Everything else the linker needs goes through the hook (phone.Hook.wrap)
+# as a marked GET_PLAYER. Battle start (165) is in neither list.
+DIRECT_METHODS = (2, 106, 156, 163)
 
 
 class NoWorker(RuntimeError):

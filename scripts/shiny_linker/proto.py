@@ -81,6 +81,14 @@ def text(message, number):
     return value.decode("utf8") if isinstance(value, bytes) else ""
 
 
+def double(message, number, default=0.0):
+    """A double field's value; the reader keeps fixed fields as raw bytes."""
+    value = one(message, number)
+    if isinstance(value, bytes) and len(value) == 8:
+        return struct.unpack("<d", value)[0]
+    return default
+
+
 def packed_ints(message, number):
     """A repeated int field, whether the sender packed it or not."""
     out = []

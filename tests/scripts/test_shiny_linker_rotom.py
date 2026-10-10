@@ -149,3 +149,8 @@ def test_release_one_with_nothing_to_borrow_does_nothing(mocker):
     opened = mocker.patch.object(rotom.urllib.request, "urlopen")
     assert rotom.release_one({"controllers": []}) is False
     opened.assert_not_called()
+
+
+def test_the_map_request_is_one_the_session_sends():
+    s = session([rpc_reply(106, b"map")])
+    assert s.rpc(106) == b"map"
