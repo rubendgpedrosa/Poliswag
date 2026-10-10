@@ -66,6 +66,16 @@ Owner DMs also accept `claude <question>` and `code claude <request>` (likewise
 `openai`/`codex`). Results return privately by DM. Changes are kept for review.
 Requires the host worker: [setup and execution details](docs/context/agents.md).
 
+Tagging Poliswag greets or replies instead of listing commands. Owner mentions
+can give requests directly (`@Poliswag fix the quest bug`, optionally choosing
+Claude/OpenAI), with details returned by DM. Other server members get playful
+replies, public events, or aggregate game statistics. Public replies have no
+access to agents, code, accounts, shiny internals, configuration or credentials.
+Public banter uses GPT-6 Luna with medium reasoning when `OPENAI_API_KEY` is
+configured (`PUBLIC_REPLY_REASONING=low` is also supported). Only a fixed topic
+is sent to the model; events and statistics are rendered locally. Safe fixed
+replies remain available without the API.
+
 ### Quests
 - `!questleiria [area] [search]` — search active quests
 - `!scan` — trigger a new quest scan

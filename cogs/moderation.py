@@ -158,7 +158,7 @@ class Moderation(commands.Cog):
 
         # Commands like !trades delete their own invocation (the code must not
         # sit beside a visible !trades). That is the bot tidying up, not a
-        # removal worth reporting. A bare @Poliswag (answered like !help) is
+        # removal worth reporting. A bare @Poliswag (a conversational greeting) is
         # no valid command, so it needs its own check.
         if (
             await self.poliswag.get_context(message)
