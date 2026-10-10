@@ -113,19 +113,28 @@ class Store:
             return None
         return rows[0]["id"], float(rows[0]["lat"]), float(rows[0]["lon"])
 
-    def accounts_free(self, usernames, in_use):
+    def accounts_free(self, usernames, in_use, rested=0):
         """[(username, refresh token)] of the listed healthy accounts that no
-        Rotom controller is using, in the order they were listed."""
+        Rotom controller is using, in the order they were listed. With
+        `rested`, only those Dragonite has neither picked nor released in
+        that many seconds."""
         candidates = [name for name in usernames if name not in in_use]
         if not candidates:
             return []
         marks = ",".join(["%s"] * len(candidates))
+        rest, params = "", tuple(candidates)
+        if rested:
+            rest = (
+                " AND COALESCE(last_selected, 0) < UNIX_TIMESTAMP() - %s"
+                " AND COALESCE(last_released, 0) < UNIX_TIMESTAMP() - %s"
+            )
+            params += (rested, rested)
         rows = self._all(
             f"SELECT username, refresh_token FROM {self.dragonite}.account "
             f"WHERE username IN ({marks}) AND provider = 'ptc' AND refresh_token <> '' "
             "AND invalid = 0 AND auth_banned = 0 "
-            "AND COALESCE(banned, 0) = 0 AND COALESCE(suspended, 0) = 0",
-            tuple(candidates),
+            "AND COALESCE(banned, 0) = 0 AND COALESCE(suspended, 0) = 0" + rest,
+            params,
         )
         healthy = {row["username"]: row["refresh_token"] for row in rows}
         return [(name, healthy[name]) for name in candidates if name in healthy]
