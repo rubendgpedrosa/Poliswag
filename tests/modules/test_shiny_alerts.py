@@ -216,7 +216,7 @@ class TestAlertSpawns:
         alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 25, 0)
         sent = alerts.user.send.call_args.kwargs
         assert "Pikachu" in sent["embed"].title
-        assert "Potencialmente shiny para ti" in sent["embed"].description
+        assert sent["embed"].title.startswith("✨ ")  # the star is all that marks it
         assert "view" not in sent and sent["embed"].footer.text is None
         alerts.store.set_watermark.assert_awaited_once_with(1791629100)
 
