@@ -94,3 +94,48 @@ async def test_a_dm_from_a_member_works(cog):
     ctx = ctx_for(author_id=123, in_guild=False)
     await Shiny.shiny.callback(cog, ctx, texto="123456789012")
     cog.store.request.assert_awaited_once()
+
+
+def press(custom_id, user_id=123):
+    interaction = MagicMock()
+    interaction.data = {"custom_id": custom_id}
+    interaction.user = MagicMock(id=user_id)
+    interaction.message.embeds = [MagicMock()]
+    interaction.response.edit_message = AsyncMock()
+    return interaction
+
+
+async def test_a_verdict_is_stored_for_whoever_pressed(cog):
+    cog.store.set_verdict = AsyncMock(return_value=True)
+    interaction = press("shiny:s:10000000000000000168")
+    await cog.on_interaction(interaction)
+    cog.store.set_verdict.assert_awaited_once_with(123, "10000000000000000168", "shiny")
+    edited = interaction.response.edit_message.call_args.kwargs
+    assert edited["view"] is None
+    edited["embed"].set_footer.assert_called_once_with(
+        text="Resposta registada: era shiny ✅"
+    )
+
+
+async def test_nao_era_is_stored_as_not_shiny(cog):
+    cog.store.set_verdict = AsyncMock(return_value=True)
+    await cog.on_interaction(press("shiny:n:42"))
+    cog.store.set_verdict.assert_awaited_once_with(123, "42", "not_shiny")
+
+
+async def test_a_second_answer_changes_nothing(cog):
+    cog.store.set_verdict = AsyncMock(return_value=False)
+    interaction = press("shiny:n:42")
+    await cog.on_interaction(interaction)
+    interaction.response.edit_message.call_args.kwargs[
+        "embed"
+    ].set_footer.assert_called_once_with(text="Já tinhas respondido a este alerta.")
+
+
+@pytest.mark.parametrize("custom_id", ["Leiria", "shiny:x:42", "shiny:s", "Alertas1"])
+async def test_other_buttons_are_left_alone(cog, custom_id):
+    cog.store.set_verdict = AsyncMock()
+    interaction = press(custom_id)
+    await cog.on_interaction(interaction)
+    cog.store.set_verdict.assert_not_awaited()
+    interaction.response.edit_message.assert_not_awaited()
