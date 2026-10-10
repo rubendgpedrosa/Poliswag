@@ -172,3 +172,11 @@ class TestBareMention:
         await process(bot, self._message(content))
 
         ctx.send_help.assert_not_awaited()
+
+
+def test_exemption_names_the_real_shiny_cog():
+    # !shiny is meant for DMs and carries its own membership check.
+    from cogs.shiny import Shiny
+    from modules.dm_policy import DM_EXEMPT_COGS
+
+    assert Shiny.__cog_name__ in DM_EXEMPT_COGS
