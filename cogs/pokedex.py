@@ -18,6 +18,7 @@ from discord.ext import commands
 
 from modules.config import Config
 from modules.embeds import build_embed
+from modules.membership import is_member
 from modules.trade_digest import build_digest, rows_since
 from modules.trade_codes import format_code, generate, hash_code
 
@@ -189,23 +190,8 @@ class Pokedex(commands.Cog):
             )
 
     def is_member(self, user_id):
-        """Is this user in a guild the bot serves?
-
-        Reads the member cache rather than fetching: `Intents.all()` keeps it
-        populated, and a login command shouldn't wait on an API call.
-
-        Fails open when no guild has any member cached at all — the same call
-        reconcile() makes, for the same reason. An empty cache is the bot's
-        problem, and locking every player out of their lists over it is worse
-        than the hole it would close.
-        """
-        guilds = list(getattr(self.poliswag, "guilds", None) or [])
-        cached = False
-        for guild in guilds:
-            if guild.get_member(user_id) is not None:
-                return True
-            cached = cached or bool(getattr(guild, "members", None))
-        return not cached
+        """Is this user in a guild the bot serves? See modules/membership.py."""
+        return is_member(self.poliswag, user_id)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
