@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from cogs.shiny import Shiny
@@ -101,6 +102,7 @@ def press(custom_id, user_id=123):
     interaction.data = {"custom_id": custom_id}
     interaction.user = MagicMock(id=user_id)
     interaction.message.embeds = [MagicMock()]
+    interaction.message.components = []
     interaction.response.edit_message = AsyncMock()
     return interaction
 
@@ -190,3 +192,100 @@ class TestMapLink:
         cog.store.set_map_token.assert_not_awaited()
         ctx.author.send.assert_not_awaited()
         assert "ninguem" in said(ctx)
+
+
+async def test_a_verdict_keeps_the_map_buttons_and_drops_its_own(cog):
+    # Poracle's alert has a row of map links and a row with the two verdict
+    # buttons. Answering removes only the second.
+    cog.store.set_verdict = AsyncMock(return_value=True)
+    interaction = press("shiny:s:42")
+    link = MagicMock(
+        url="https://maps.example/x", label="Google", emoji=None, custom_id=None
+    )
+    yes = MagicMock(url=None, label="Era Shiny", custom_id="shiny:s:42")
+    no = MagicMock(url=None, label="Não era", custom_id="shiny:n:42")
+    interaction.message.components = [
+        MagicMock(children=[link]),
+        MagicMock(children=[yes, no]),
+    ]
+    await cog.on_interaction(interaction)
+    view = interaction.response.edit_message.call_args.kwargs["view"]
+    assert [(b.label, b.url) for b in view.children] == [
+        ("Google", "https://maps.example/x")
+    ]
+
+
+class TestOwnChannel:
+    @pytest.fixture
+    def cog(self, cog):
+        cog.store.find_linked = AsyncMock(
+            return_value={"discord_id": 5, "trainer_name": "JMBoyz", "channel_id": None}
+        )
+        cog.store.set_map_token = AsyncMock()
+        cog.store.set_channel = AsyncMock()
+        return cog
+
+    @staticmethod
+    def guild_ctx(member_id=5):
+        ctx = ctx_for()
+        member = MagicMock(id=member_id)
+        member.name = "jmboy"
+        channel = MagicMock(id=777, mention="<#777>")
+        pinned = MagicMock(pin=AsyncMock())
+        channel.send = AsyncMock(return_value=pinned)
+        ctx.guild.get_member = lambda user_id: member if user_id == member_id else None
+        ctx.guild.get_channel = lambda _id: None
+        ctx.guild.categories = []
+        ctx.guild.create_category = AsyncMock(return_value=MagicMock())
+        ctx.guild.create_text_channel = AsyncMock(return_value=channel)
+        return ctx, member, channel, pinned
+
+    async def test_creates_a_private_channel_with_the_player_in_it(self, cog):
+        ctx, member, channel, pinned = self.guild_ctx()
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        name = ctx.guild.create_text_channel.call_args.args[0]
+        overwrites = ctx.guild.create_text_channel.call_args.kwargs["overwrites"]
+        assert name == "shiny-jmboy"
+        assert overwrites[ctx.guild.default_role].view_channel is False
+        assert overwrites[member].view_channel is True
+        assert overwrites[member].send_messages is False
+        assert overwrites[ctx.guild.me].send_messages is True
+        cog.store.set_channel.assert_awaited_once_with(5, 777)
+        assert "<#777>" in said(ctx)
+
+    async def test_the_map_link_is_posted_there_and_pinned(self, cog):
+        ctx, _, channel, pinned = self.guild_ctx()
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        posted = channel.send.call_args.kwargs["embed"].description
+        assert "/shiny/" in posted and "JMBoyz" in posted
+        pinned.pin.assert_awaited_once()
+        cog.store.set_map_token.assert_awaited_once()
+
+    async def test_a_player_who_already_has_one_gets_no_second(self, cog):
+        ctx, _, _, _ = self.guild_ctx()
+        cog.store.find_linked.return_value["channel_id"] = 777
+        ctx.guild.get_channel = lambda _id: MagicMock(mention="<#777>")
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        ctx.guild.create_text_channel.assert_not_awaited()
+        assert "<#777>" in said(ctx)
+
+    async def test_a_player_not_in_the_server_gets_none(self, cog):
+        ctx, _, _, _ = self.guild_ctx(member_id=99)
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        ctx.guild.create_text_channel.assert_not_awaited()
+        assert "servidor" in said(ctx)
+
+    async def test_it_has_to_be_asked_for_in_the_server(self, cog):
+        ctx = ctx_for(in_guild=False)
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        cog.store.find_linked.assert_not_awaited()
+        assert "servidor" in said(ctx)
+
+    async def test_missing_permission_is_said_plainly(self, cog):
+        ctx, _, _, _ = self.guild_ctx()
+        ctx.guild.create_text_channel.side_effect = discord.Forbidden(
+            MagicMock(status=403), "Missing Permissions"
+        )
+        await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        cog.store.set_channel.assert_not_awaited()
+        assert "permissão" in said(ctx)

@@ -44,7 +44,8 @@ class ShinyStore:
     async def find_linked(self, name):
         """The linked player with this Discord or trainer name, any case."""
         rows = await self.db.get_data_from_database(
-            "SELECT discord_id, trainer_name FROM shiny_link WHERE status = 'linked' "
+            "SELECT discord_id, trainer_name, channel_id FROM shiny_link "
+            "WHERE status = 'linked' "
             "AND (LOWER(discord_name) = LOWER(%s) OR LOWER(trainer_name) = LOWER(%s)) "
             "LIMIT 1",
             params=(name, name),
@@ -55,6 +56,13 @@ class ShinyStore:
         await self.db.execute_query_to_database(
             "UPDATE shiny_link SET map_token_hash = %s WHERE discord_id = %s",
             params=(token_hash, discord_id),
+        )
+
+    async def set_channel(self, discord_id, channel_id):
+        """The player's own private channel, where their alerts go."""
+        await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET channel_id = %s WHERE discord_id = %s",
+            params=(channel_id, discord_id),
         )
 
     async def unannounced(self):
@@ -71,13 +79,14 @@ class ShinyStore:
         )
 
     async def recipients(self, user_ids):
-        """[{discord_id, player_id, alert_leiria, alert_marinha}] for the listed
-        users who are linked."""
+        """[{discord_id, discord_name, player_id, alert_leiria, alert_marinha,
+        channel_id}] for the listed users who are linked."""
         if not user_ids:
             return []
         placeholders = ",".join(["%s"] * len(user_ids))
         return await self.db.get_data_from_database(
-            "SELECT discord_id, player_id, alert_leiria, alert_marinha FROM shiny_link "
+            "SELECT discord_id, discord_name, player_id, alert_leiria, alert_marinha, "
+            "channel_id FROM shiny_link "
             f"WHERE status = 'linked' AND discord_id IN ({placeholders})",
             params=tuple(user_ids),
         )
