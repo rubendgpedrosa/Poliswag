@@ -173,7 +173,8 @@ class TestBuildDigest:
     def test_carries_the_count_and_the_way_in(self):
         embed = build_digest([row(), row(pokemon_id=133, pokemon_name="Eevee")])
         assert "2" in embed.footer.text
-        assert "!trades" in embed.footer.text
+        assert "!pokedex" in embed.footer.text
+        assert "!trades" not in embed.footer.text  # the tool's old name
 
     # An embed title is a link, but it does not look like one. The address is
     # the whole point of the post, so it is also in the body, where it reads
