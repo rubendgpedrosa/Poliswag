@@ -139,3 +139,11 @@ async def test_other_buttons_are_left_alone(cog, custom_id):
     await cog.on_interaction(interaction)
     cog.store.set_verdict.assert_not_awaited()
     interaction.response.edit_message.assert_not_awaited()
+
+
+def test_the_command_is_the_owners_alone_during_the_pilot():
+    # Refused silently to everyone else, and !help reads the same check to
+    # keep it out of their listing (modules/help_command.py).
+    from modules.permissions import is_owner
+
+    assert is_owner in Shiny.shiny.checks
