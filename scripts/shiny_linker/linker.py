@@ -1,5 +1,6 @@
-"""One linker run: decide whether to run at all, then drive a scanner
-account through a private lobby for up to ten pending codes.
+"""One linker run: decide whether to run at all, then work through the
+pending codes on one worker: a private lobby of up to ten codes at a time,
+a different scanner account for each lobby.
 
 The scanner comes first. A run only starts when every guard holds, uses an
 account nobody else is using, logs in before the game is touched, and
@@ -7,9 +8,12 @@ switches the whole linker off (and tells the owner) if the hook or the game
 misbehaves. It never restarts anything. When every worker is scanning it
 borrows one for the length of the run (owner's decision, 2026-10-10): one
 scanning controller is disconnected and Dragonite takes the worker back the
-moment the linker's session closes.
+moment the linker's session closes. It is always that one worker: the next
+account logs in on the same session, and the hook goes into the game once
+per run however many lobbies follow.
 """
 
+import random
 import subprocess
 import sys
 import time
@@ -20,9 +24,16 @@ from . import rotom as _rotom
 from .lobby import CodeError, Lobby, RunError
 from .proto import fields, one
 
-MAX_CODES = 10
+# A lobby starts its battle two minutes after it opens, which is about what
+# ten invites take.
+LOBBY_CODES = 10
+RUN_CODES = 50
+# No new lobby is opened this long after the hook went in; the hook removes
+# itself at ten minutes (phone.LIFETIME_MS). Codes left over wait for the
+# next run and lose nothing.
+RUN_SECONDS = 360
 MAX_ATTEMPTS = 5
-MIN_MINUTES_BETWEEN_RUNS = 60
+MIN_MINUTES_BETWEEN_RUNS = 20
 # With every worker scanning, the linker disconnects one scanning controller
 # and takes the worker it frees. Dragonite reconnects at once and may win it
 # back, so that is tried this many times before the run gives up.
@@ -53,9 +64,12 @@ class Linker:
         lobby_cls=Lobby,
         notify=notify_owner,
         sleep=time.sleep,
+        clock=time.monotonic,
+        shuffle=random.shuffle,
     ):
         self.store, self.rotom, self.phone = store, rotom, phone
         self.lobby_cls, self.notify, self.sleep = lobby_cls, notify, sleep
+        self.clock, self.shuffle = clock, shuffle
         self.accounts = _listed(env.get("SHINY_LINKER_ACCOUNTS"))
         self.versions = _listed(env.get("SHINY_LINKER_GAME_VERSIONS"))
         self.selftest_code = env.get("SHINY_LINKER_SELFTEST_CODE", "")
@@ -99,13 +113,16 @@ class Linker:
         return ctx["state"]["enabled"], ""
 
     def _selftest(self, ctx):
+        # Twice, a lobby each, so the switch to another account is proven on
+        # this game version too.
         ctx["targets"] = [
             {"discord_id": None, "friend_code": self.selftest_code, "attempts": 0}
+            for _ in range(2)
         ]
         return self.selftest_code and self.selftest_id, ""
 
     def _pending(self, ctx):
-        ctx["targets"] = self.store.pending(MAX_CODES)
+        ctx["targets"] = self.store.pending(RUN_CODES)
         return ctx["targets"], f"{len(ctx['targets'])} em fila"
 
     def _interval(self, ctx):
@@ -131,8 +148,10 @@ class Linker:
 
     def _account(self, ctx):
         in_use = self.rotom.accounts_in_use(ctx["rotom"]) if "rotom" in ctx else set()
-        ctx["account"] = self.store.account(self.accounts, in_use)
-        return ctx["account"], ""
+        ctx["accounts"] = self.store.accounts_free(self.accounts, in_use)
+        # Not always the same one first: the lobbies are spread over the list.
+        self.shuffle(ctx["accounts"])
+        return ctx["accounts"], f"{len(ctx['accounts'])} livres"
 
     def _game(self, ctx):
         ctx["pid"] = self.phone.game_pid()
@@ -194,15 +213,36 @@ class Linker:
                     self.sleep(0.25)
         raise self.rotom.NoWorker("no worker, idle or borrowed")
 
+    def _next_account(self, accounts, turn, current):
+        """The account for lobby number `turn`: the next one down the list
+        that the scanner has not taken since, logged in on the session the
+        run already holds. With nothing else free, the current one stays."""
+        in_use = self.rotom.accounts_in_use(self.rotom.status())
+        for step in range(len(accounts)):
+            candidate = accounts[(turn + step) % len(accounts)]
+            if candidate == current:
+                return current
+            if candidate[0] in in_use:
+                continue
+            self.session.login(*candidate)
+            if one(fields(self.session.rpc(2)), 1) != 1:
+                raise RunError("GET_PLAYER não respondeu com sucesso")
+            return candidate
+        return current
+
     def _link(self, ctx, validate):
-        gym, (account, token), pid = ctx["gym"], ctx["account"], ctx["pid"]
-        unsettled = list(ctx["targets"])
+        gym, accounts, pid = ctx["gym"], ctx["accounts"], ctx["pid"]
+        targets = list(ctx["targets"])
+        size = 1 if validate else LOBBY_CODES
+        lobbies = [targets[i : i + size] for i in range(0, len(targets), size)]
+        unsettled = []  # codes of the lobbies that were started
         linked = failed = 0
         breaker = error = None
         penalise = True
         hook = self.phone.Hook()
         lobby = None
         attach_attempted = False
+        current = accounts[0]
 
         def send_detach(payload):
             try:
@@ -211,41 +251,54 @@ class Linker:
                 # The session died mid-run; the hook can only be asked to
                 # leave through a logged-in one.
                 self._close()
-                self._login(gym, account, token)
+                self._login(gym, *current)
                 self.session.rpc(2, payload)
 
         try:
-            self._login(gym, account, token)
-            attach_attempted = True
-            hook.attach(pid)
-            lobby = self.lobby_cls(self.session, hook, gym)
-            found = []
-            for row in list(unsettled):
-                try:
-                    found.append((row, *lobby.search(row["friend_code"])))
-                except CodeError as reason:
-                    unsettled.remove(row)
-                    failed += 1
-                    if not validate:
-                        self.store.mark_failed(row["discord_id"], str(reason))
-            if found:
-                lobby.open()
-            for row, trainer_name, seen_id in found:
-                try:
-                    player_id = lobby.invite(seen_id)
-                except CodeError as reason:
-                    unsettled.remove(row)
-                    failed += 1
-                    if not validate:
-                        self.store.mark_failed(row["discord_id"], str(reason))
-                    continue
-                unsettled.remove(row)
-                if validate:
-                    if player_id != self.selftest_id:
-                        raise RunError("a conta de teste devolveu outro ID")
+            for turn, codes in enumerate(lobbies):
+                if turn == 0:
+                    unsettled.extend(codes)
+                    self._login(gym, *current)
+                    attach_attempted = True
+                    hook.attach(pid)
+                    started = self.clock()
                 else:
-                    self.store.mark_linked(row["discord_id"], trainer_name, player_id)
-                linked += 1
+                    if self.clock() - started > RUN_SECONDS:
+                        break
+                    unsettled.extend(codes)
+                    current = self._next_account(accounts, turn, current)
+                lobby = self.lobby_cls(self.session, hook, gym)
+                found = []
+                for row in codes:
+                    try:
+                        found.append((row, *lobby.search(row["friend_code"])))
+                    except CodeError as reason:
+                        unsettled.remove(row)
+                        failed += 1
+                        if not validate:
+                            self.store.mark_failed(row["discord_id"], str(reason))
+                if found:
+                    lobby.open()
+                for row, trainer_name, seen_id in found:
+                    try:
+                        player_id = lobby.invite(seen_id)
+                    except CodeError as reason:
+                        unsettled.remove(row)
+                        failed += 1
+                        if not validate:
+                            self.store.mark_failed(row["discord_id"], str(reason))
+                        continue
+                    unsettled.remove(row)
+                    if validate:
+                        if player_id != self.selftest_id:
+                            raise RunError("a conta de teste devolveu outro ID")
+                    else:
+                        self.store.mark_linked(
+                            row["discord_id"], trainer_name, player_id
+                        )
+                    linked += 1
+                lobby.leave()
+                lobby = None
         except self.phone.HookError as problem:
             breaker = str(problem)
         except self.rotom.NoWorker:
@@ -288,12 +341,14 @@ class Linker:
                 "para o voltar a ligar: UPDATE poliswag SET shiny_linker_enabled = 1."
             )
         if validate:
-            if linked == 1 and not error and not breaker:
-                return "validação OK: a conta de teste devolveu o ID conhecido"
+            if linked == len(targets) and not error and not breaker:
+                return (
+                    "validação OK: a conta de teste devolveu o ID conhecido "
+                    f"em {len(lobbies)} lobbies"
+                )
             return f"validação FALHOU: {breaker or error or 'a conta de teste não foi resolvida'}"
-        summary = (
-            f"{linked} ligado(s), {failed} falhado(s), {len(unsettled)} por resolver"
-        )
+        waiting = len(targets) - linked - failed
+        summary = f"{linked} ligado(s), {failed} falhado(s), {waiting} por resolver"
         return (
             summary
             + (f"; erro: {error}" if error else "")

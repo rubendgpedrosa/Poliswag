@@ -50,9 +50,14 @@ viewer.
 
 ## Linker rules
 
-- Runs only if: enabled, pending codes, 60+ min since the last run, a level 1
+- Runs only if: enabled, pending codes, 20+ min since the last run, a level 1
   or 3 raid with 15+ min left, a worker (idle, or one it can borrow), a listed account not scanning,
   game and Aegis running, game version validated. `--check` prints them.
+- One run works through the queue (up to 50 codes) on **one worker**: a
+  lobby of up to 10 codes at a time, the next free account from
+  `SHINY_LINKER_ACCOUNTS` (shuffled each run) logged in on the same session
+  for each lobby, the hook attached once. No new lobby starts 6 min after the
+  hook went in (it removes itself at 10); codes left over wait, unpenalised.
 - With every worker scanning it borrows one: `rotom.release_one` disconnects the
   last controller of the biggest area, the linker takes the freed worker, and
   Dragonite gets it back when the run's session closes (30-60 s). Losing the
@@ -63,14 +68,16 @@ viewer.
   a run sets `poliswag.shiny_linker_enabled = 0` and alerts the owner. Turn it
   back on with `UPDATE poliswag SET shiny_linker_enabled = 1`.
 - After a game update: `python -m scripts.shiny_linker --validate`, then add
-  the version to `SHINY_LINKER_GAME_VERSIONS` in `.env`.
+  the version to `SHINY_LINKER_GAME_VERSIONS` in `.env`. It resolves the test
+  account twice, a lobby and an account each, so the account switch is proven
+  too (passed on 0.431.0, 2026-10-10: 22 s, scanner undisturbed).
 
 ## Settings (`.env`)
 
 | Variable | Meaning |
 |---|---|
 | `SHINY_ALERT_USER_IDS` | Discord IDs that get alerts; default `MY_ID` |
-| `SHINY_LINKER_ACCOUNTS` | Scanner usernames allowed to open lobbies, in order of preference |
+| `SHINY_LINKER_ACCOUNTS` | Scanner usernames allowed to open lobbies; a run rotates through the ones not scanning |
 | `SHINY_LINKER_GAME_VERSIONS` | Game versions the hook was validated on |
 | `SHINY_LINKER_SELFTEST_CODE`, `SHINY_LINKER_SELFTEST_PLAYER_ID` | An owned scanner account's friend code and known player ID, for `--validate`; must not be one of `SHINY_LINKER_ACCOUNTS` |
 

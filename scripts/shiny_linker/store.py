@@ -113,12 +113,12 @@ class Store:
             return None
         return rows[0]["id"], float(rows[0]["lat"]), float(rows[0]["lon"])
 
-    def account(self, usernames, in_use):
-        """(username, refresh token) of the first listed healthy account that
-        no Rotom controller is using, in the order they were listed."""
+    def accounts_free(self, usernames, in_use):
+        """[(username, refresh token)] of the listed healthy accounts that no
+        Rotom controller is using, in the order they were listed."""
         candidates = [name for name in usernames if name not in in_use]
         if not candidates:
-            return None
+            return []
         marks = ",".join(["%s"] * len(candidates))
         rows = self._all(
             f"SELECT username, refresh_token FROM {self.dragonite}.account "
@@ -128,7 +128,4 @@ class Store:
             tuple(candidates),
         )
         healthy = {row["username"]: row["refresh_token"] for row in rows}
-        for name in candidates:
-            if name in healthy:
-                return name, healthy[name]
-        return None
+        return [(name, healthy[name]) for name in candidates if name in healthy]

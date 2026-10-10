@@ -47,11 +47,12 @@ class FakeStore:
     def raid_gym(self):
         return self.gym
 
-    def account(self, usernames, in_use):
-        for name, token in self.accounts:
-            if name in usernames and name not in in_use:
-                return name, token
-        return None
+    def accounts_free(self, usernames, in_use):
+        return [
+            (name, token)
+            for name, token in self.accounts
+            if name in usernames and name not in in_use
+        ]
 
     def start_run(self):
         self.started += 1
@@ -93,6 +94,8 @@ class World:
         self.open_error = None
         self.notified = []
         self.events = []
+        self.now = 0.0  # seconds on the linker's clock
+        self.lobby_seconds = 0  # how long each lobby takes
         world = self
 
         class Session:
@@ -137,6 +140,7 @@ class World:
 
             def open(self):
                 world.events.append("open")
+                world.now += world.lobby_seconds
                 if world.open_error:
                     raise world.open_error
 
@@ -190,6 +194,8 @@ class World:
             lobby_cls=self.lobby_cls,
             notify=self.notified.append,
             sleep=lambda _seconds: None,
+            clock=lambda: self.now,
+            shuffle=lambda accounts: None,  # tests keep the listed order
         )
 
 
@@ -220,7 +226,7 @@ class TestGuards:
         [
             (lambda w: setattr(w.store, "enabled", 0), "ligador ativo"),
             (lambda w: setattr(w.store, "rows", []), "códigos pendentes"),
-            (lambda w: setattr(w.store, "minutes_since_run", 59), "intervalo"),
+            (lambda w: setattr(w.store, "minutes_since_run", 19), "intervalo"),
             (lambda w: setattr(w.store, "gym", None), "raid ativa"),
             (lambda w: setattr(w, "idle", 0), "worker livre"),
             (lambda w: setattr(w, "in_use", {"acct1", "acct2"}), "conta livre"),
@@ -236,8 +242,8 @@ class TestGuards:
         assert world.events == [] and world.store.started == 0
         assert world.store.linked == [] and world.store.breaker is None
 
-    def test_an_hour_since_the_last_run_is_enough(self, world):
-        world.store.minutes_since_run = 60
+    def test_twenty_minutes_since_the_last_run_is_enough(self, world):
+        world.store.minutes_since_run = 20
         world.linker().run()
         assert world.store.linked
 
@@ -351,6 +357,94 @@ class TestFailures:
         assert "reiniciou" in world.store.breaker
 
 
+def queue(world, count):
+    """`count` pending players whose codes all resolve."""
+    world.store.rows = []
+    for n in range(1, count + 1):
+        code = f"{n:012d}"
+        world.store.rows.append({"discord_id": n, "friend_code": code, "attempts": 0})
+        world.search[code] = (f"T{n}", f"E:{n}")
+        world.invite[f"E:{n}"] = f"{n:016x}"
+
+
+class TestWholeQueue:
+    """One run empties the queue on one worker: a lobby of ten at a time,
+    another account for each lobby, the hook attached once."""
+
+    def test_twelve_codes_take_two_lobbies_and_two_accounts(self, world):
+        queue(world, 12)
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        outcome = world.linker().run()
+        assert len(world.store.linked) == 12 and "12 ligado" in outcome
+        assert world.events == [
+            "session",
+            "login acct1",
+            "attach",
+            "open",
+            "leave",
+            "login acct2",  # same session: the worker is never handed back
+            "open",
+            "leave",
+            "detach",
+            "close",
+        ]
+
+    def test_the_accounts_come_round_again(self, world):
+        queue(world, 25)
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        world.linker().run()
+        logins = [e for e in world.events if e.startswith("login")]
+        assert logins == ["login acct1", "login acct2", "login acct1"]
+        assert world.events.count("session") == 1
+
+    def test_a_single_account_just_opens_the_next_lobby(self, world):
+        queue(world, 12)
+        world.linker(SHINY_LINKER_ACCOUNTS="acct1").run()
+        assert [e for e in world.events if e.startswith("login")] == ["login acct1"]
+        assert world.events.count("open") == 2 and len(world.store.linked) == 12
+
+    def test_an_account_that_started_scanning_is_passed_over(self, world):
+        queue(world, 12)
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2"), ("acct3", "t3")]
+        # Free at the guard and at the first login; acct2 is scanning by the
+        # time the second lobby is due.
+        states = iter([set(), set(), {"acct1", "acct2"}])
+        world.rotom.status = lambda: {"in_use": next(states)}
+        world.linker(SHINY_LINKER_ACCOUNTS="acct1,acct2,acct3").run()
+        logins = [e for e in world.events if e.startswith("login")]
+        assert logins == ["login acct1", "login acct3"]
+
+    def test_which_account_goes_first_is_shuffled(self, world):
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        linker = world.linker()
+        linker.shuffle = lambda accounts: accounts.reverse()
+        linker.run()
+        assert "login acct2" in world.events and "login acct1" not in world.events
+
+    def test_what_does_not_fit_the_time_waits_for_the_next_run(self, world):
+        queue(world, 25)
+        world.lobby_seconds = 200  # two lobbies and the time is up
+        outcome = world.linker().run()
+        assert len(world.store.linked) == 20
+        assert world.store.bumped == []  # the five left over are not penalised
+        assert "5 por resolver" in outcome
+        assert world.events[-2:] == ["detach", "close"]
+
+    def test_a_run_takes_no_more_than_fifty_codes(self, world):
+        queue(world, 60)
+        world.linker().run()
+        assert len(world.store.linked) == 50
+
+    def test_an_error_in_a_later_lobby_only_costs_that_lobby(self, world):
+        queue(world, 12)
+        world.invite["E:11"] = RunError("sem resposta do lobby")
+        outcome = world.linker().run()
+        assert len(world.store.linked) == 10
+        assert world.store.bumped == [([11, 12], 5)]
+        assert "sem resposta do lobby" in outcome
+        assert world.events[-3:] == ["leave", "detach", "close"]
+
+
 class TestValidate:
     def test_passes_when_the_known_account_returns_its_known_id(self, world):
         world.search["999999999999"] = ("Scanner", "E:b")
@@ -360,6 +454,32 @@ class TestValidate:
         outcome = world.linker().run(validate=True)
         assert outcome.startswith("validação OK")
         assert world.store.linked == [] and world.store.started == 0
+
+    def test_it_resolves_the_account_twice_to_prove_the_account_switch(self, world):
+        world.search["999999999999"] = ("Scanner", "E:b")
+        world.store.accounts = [("acct1", "t1"), ("acct2", "t2")]
+        outcome = world.linker().run(validate=True)
+        assert outcome.startswith("validação OK")
+        assert [e for e in world.events if e.startswith("login")] == [
+            "login acct1",
+            "login acct2",
+        ]
+        assert world.events.count("open") == 2 and world.events.count("attach") == 1
+
+    def test_fails_when_only_the_first_lobby_worked(self, world):
+        world.search["999999999999"] = ("Scanner", "E:b")
+        answers = iter([ID_B, RunError("sem resposta do lobby")])
+
+        class Twice(world.lobby_cls):
+            def invite(self, seen):
+                answer = next(answers)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+
+        world.lobby_cls = Twice
+        outcome = world.linker().run(validate=True)
+        assert outcome.startswith("validação FALHOU")
 
     def test_fails_when_another_id_comes_back(self, world):
         world.search["999999999999"] = ("Scanner", "E:a")
