@@ -25,6 +25,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `event_manager.py` / `event_store.py` / `event_stats.py` | ScrapedDuck ingestion, `event` table, CONVIVIO notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
+| `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` | Shiny prediction: the roll, the `shiny_link`/`shiny_alert` tables, link announcements and roll-0 DMs. See `shiny.md`. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward`. |
@@ -49,10 +50,11 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
 | `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | `MY_ID` only (`cog_check`) |
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
+| `shiny.py` | `!shiny <código>` / `!shiny` / `!shiny remover`; listener for the alert verdict buttons | members; works in DMs (own membership check) |
 
 ## Databases — detail in `docs/context/database.md`
 
-- **poliswag** (read/write): `poliswag` (scan state, digest guards), `event`, `excluded_event_type`, `tracked_quest_reward`, `account_lure`, trade/100IV state. Schema = `migrations/*.sql`.
+- **poliswag** (read/write): `poliswag` (scan state, digest guards), `event`, `excluded_event_type`, `tracked_quest_reward`, `account_lure`, `shiny_link`, `shiny_alert`, trade/100IV state. Schema = `migrations/*.sql`.
 - **golbat** scanner DB (`DB_SCANNER_NAME`, read-only): `pokestop` quests, daily `*_stats`.
 - **dragonite** (read-only): `account` health for lures. **poracle**: `humans`, tracking rules.
 
@@ -123,3 +125,4 @@ LOG_FILE, ERROR_LOG_FILE
 | `docs/context/moderation.md` | the `ignorar-este-canal` trap: ban/purge/unban, invite DM |
 | `docs/context/error-review.md` | the host cron that has Claude review `logs/error.log` daily |
 | `docs/context/host-ops.md` | the host watchdog restarting Poliswag, `scripts/dm_owner.py`, backup-failure DMs |
+| `docs/context/shiny.md` | `!shiny`, the host linker and its guards/breaker, shiny alert DMs |
