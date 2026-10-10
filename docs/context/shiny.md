@@ -8,10 +8,18 @@ history: `/root/unonwhash/CLAUDE-HANDOVER.md`.
 ## The rule
 
 `modules/shiny_roll.shiny_die(encounter_id, player_id)` is 0 for a spawn that
-is shiny for that player at 1/512 (and at 1/64, 1/128, 1/256). `player_id` is
-the game's internal ID. Shapes seen: 16 hex (PTC scanner accounts), 24 hex
-(the owner's account); 21 digits is reported for Google sign-ups. It is **not** the
-ID a friend-code search or GET_PLAYER returns; those differ per viewer.
+is shiny for that player at 1/512. In general a spawn is shiny when
+`shiny_draw(...)`, the first draw of the game's Random as a fraction, is under
+1/odds (`is_shiny_at`). That was measured on 2026-10-10 with a proven scanner
+account on a Zorua Community Day (161 encounters, the 7 shinies had the 7
+lowest draws); `next_int(odds) == 0`, the community's rule for event odds, is
+wrong. Event odds per species live in `shiny_rate` (pokemon_id, rate, ends_at);
+the site's map uses them, the DMs do not yet (base odds only).
+
+`player_id` is the game's internal ID. Shapes seen: 16 hex (PTC scanner
+accounts), 24 hex (the owner's account), 21 digits (a Google sign-up). It is
+**not** the ID a friend-code search or GET_PLAYER returns; those differ per
+viewer.
 
 ## Flow
 
@@ -57,7 +65,14 @@ both on by default, set by SQL for now, migration 018), `shiny_alert` (dedupe an
 `shiny_linker_last_run_at`, `shiny_linker_alerted_version`,
 `shiny_alert_watermark`.
 
+## The site's map
+
+`!shiny mapa [nome]` (owner) DMs a private link, `pogoleiria.pt/shiny/<token>`:
+that player's predicted shinies on a live map. The token's SHA-256 is in
+`shiny_link.map_token_hash`. The page is the landing app's
+(`/root/PoGoLeiria/docs/context/shiny-map.md`).
+
 ## Known limits
 
-Boosted and event shiny odds are not predicted. Lure, tappable and cell-only
+The DMs use base odds only (event odds would mean 100+ DMs an hour on a Community Day). Lure, tappable and cell-only
 sightings are not alerted. Nothing proves a friend code belongs to its sender.
