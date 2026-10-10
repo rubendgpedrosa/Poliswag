@@ -82,3 +82,23 @@ async def test_reconcile_marks_leavers_and_restores_returners(store):
     left, returned = await store.reconcile({1, 3})
     assert left == [2]
     assert returned == [3]
+
+
+async def test_a_new_profile_gets_shiny_access_from_the_setting_and_an_old_one_keeps_its_own(
+    store,
+):
+    await store.upsert(
+        discord_id=123,
+        username="jmboyz",
+        display_name="JMBoyz",
+        avatar_url=None,
+        code_hash="a" * 64,
+    )
+    insert, _, update = sql_of(store.db.execute_query_to_database).partition(
+        "ON DUPLICATE KEY UPDATE"
+    )
+    assert "shiny_access" in insert
+    # No row in shiny_settings yet means closed to newcomers.
+    assert "SELECT new_players_have_access FROM shiny_settings" in insert
+    assert "COALESCE(" in insert and ", 0)" in insert
+    assert "shiny_access" not in update

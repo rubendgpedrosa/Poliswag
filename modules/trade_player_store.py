@@ -26,12 +26,16 @@ class TradePlayerStore:
         checks that before calling this in a DM, where the DM channel can
         outlive the membership.
         """
+        # shiny_access: Shinies previstos is closed to newcomers until the
+        # owner opens it (shiny_settings, the site's admin setting; no row
+        # means closed). An existing player keeps whatever access they have.
         await self.db.execute_query_to_database(
             """
             INSERT INTO trade_player
                 (discord_id, username, display_name, avatar_url, code_hash,
-                 code_issued_at, left_at)
-            VALUES (%s, %s, %s, %s, %s, UTC_TIMESTAMP(), NULL)
+                 code_issued_at, left_at, shiny_access)
+            VALUES (%s, %s, %s, %s, %s, UTC_TIMESTAMP(), NULL,
+                COALESCE((SELECT new_players_have_access FROM shiny_settings LIMIT 1), 0))
             ON DUPLICATE KEY UPDATE
                 username = VALUES(username),
                 display_name = VALUES(display_name),
