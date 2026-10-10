@@ -27,11 +27,18 @@ from modules.shiny_store import ShinyStore
 _LISBON = ZoneInfo("Europe/Lisbon")
 # A spawn with less than this left is not worth a DM.
 MIN_SECONDS_LEFT = 120
+# A sighting has no IV until a scanner account encounters it, usually within
+# a minute or two. An alert waits this long for it, then goes out without.
+WAIT_FOR_IV = 180
+# How far behind the watermark each tick reads, so a waiting spawn is seen
+# again; shiny_alert keeps the ones already sent from going out twice.
+LOOK_BACK = 300
 # Lure and tappable spawns are left out (the roll is untested on them), and
 # cell-only sightings have no location worth sending.
 _SPAWNS_SQL = f"""
 SELECT id, pokemon_id, COALESCE(form, 0) AS form_id, lat, lon, expire_timestamp,
-       expire_timestamp_verified, seen_type, first_seen_timestamp
+       expire_timestamp_verified, seen_type, first_seen_timestamp,
+       iv, atk_iv, def_iv, sta_iv, cp, level
 FROM {Config.DB_SCANNER_NAME}.pokemon
 WHERE first_seen_timestamp >= %s
   AND (expire_timestamp IS NULL OR expire_timestamp >= %s)
@@ -74,8 +81,23 @@ def _despawn_line(spawn):
     return f"⏳ Desaparece por volta das {hour} (estimado)"
 
 
+def _iv_line(spawn):
+    if spawn["iv"] is None:
+        return "💪 IV ainda desconhecido"
+    line = (
+        f"💪 IV **{round(spawn['iv'])}%** "
+        f"({spawn['atk_iv']}/{spawn['def_iv']}/{spawn['sta_iv']})"
+    )
+    if spawn["cp"]:
+        line += f" · CP {spawn['cp']}"
+    if spawn["level"]:
+        line += f" · nível {spawn['level']}"
+    return line
+
+
 def alert_embed(spawn, name, seen_shiny):
     lines = [
+        _iv_line(spawn),
         f"📍 [Abrir no mapa](https://www.google.com/maps?q={spawn['lat']},{spawn['lon']})",
         _despawn_line(spawn),
         (
@@ -86,8 +108,9 @@ def alert_embed(spawn, name, seen_shiny):
     ]
     if spawn["seen_type"] == "nearby_stop":
         lines.append("📡 Localização aproximada (a pokéstop mais próxima).")
+    headline = name if spawn["iv"] is None else f"{name} {round(spawn['iv'])}%"
     return build_embed(
-        f"✨ {name} deve ser shiny para ti",
+        f"✨ {headline} deve ser shiny para ti",
         "\n".join(lines),
         footer="Previsão em teste. Diz-me se acertei.",
     )
@@ -134,7 +157,7 @@ class ShinyAlerts:
             return
 
         spawns = await self.poliswag.db.get_data_from_database(
-            _SPAWNS_SQL, params=(watermark, now + MIN_SECONDS_LEFT)
+            _SPAWNS_SQL, params=(watermark - LOOK_BACK, now + MIN_SECONDS_LEFT)
         )
         for spawn in spawns:
             for recipient in recipients:
@@ -144,8 +167,12 @@ class ShinyAlerts:
                     roll = shiny_die(spawn["id"], recipient["player_id"])
                 except ValueError:
                     break  # not an encounter ID; no recipient can roll it
-                if roll == 0:
-                    await self._alert(recipient["discord_id"], spawn)
+                if roll != 0:
+                    continue
+                waited = now - spawn["first_seen_timestamp"]
+                if spawn["iv"] is None and waited < WAIT_FOR_IV:
+                    continue  # read again next tick, IV in hand or time up
+                await self._alert(recipient["discord_id"], spawn)
         if spawns:
             # `>=` above re-reads the newest second next tick, in case more
             # rows land in it; shiny_alert keeps those from going out twice.
@@ -161,8 +188,11 @@ class ShinyAlerts:
         ):
             return
         key = (spawn["pokemon_id"], spawn["form_id"])
+        # Golbat names a species' ordinary form by its own id (Zorua is 2108);
+        # pokemon_name files that form under 0, so 0 is the fallback.
         names = await self.poliswag.db.get_data_from_database(
-            "SELECT name, form_name FROM pokemon_name WHERE pokemon_id = %s AND form_id = %s",
+            "SELECT name, form_name FROM pokemon_name WHERE pokemon_id = %s "
+            "AND form_id IN (%s, 0) ORDER BY form_id DESC LIMIT 1",
             params=key,
         )
         name = f"#{spawn['pokemon_id']}"

@@ -120,6 +120,12 @@ def spawn(encounter_id=ZERO, **over):
         "expire_timestamp_verified": 1,
         "seen_type": "encounter",
         "first_seen_timestamp": 1791629000,
+        "iv": 97.8,
+        "atk_iv": 15,
+        "def_iv": 14,
+        "sta_iv": 15,
+        "cp": 812,
+        "level": 27,
     }
     row.update(over)
     return row
@@ -141,7 +147,7 @@ def with_spawns(alerts, spawns, name="Pikachu", seen_shiny=True):
         if "pokemon_shiny_stats" in sql:
             return [{"seen": 1}] if seen_shiny else []
         if "pokemon_name" in sql:
-            return [{"name": name, "form_name": None}] if name else []
+            return [{"name": name, "form_name": None, "form_id": 0}] if name else []
         return spawns
 
     alerts.poliswag.db.get_data_from_database = AsyncMock(side_effect=read)
@@ -245,7 +251,9 @@ class TestAlertSpawns:
         watermark, expires_after = (
             alerts.poliswag.db.get_data_from_database.call_args.kwargs["params"]
         )
-        assert watermark == 1791628000 and isinstance(expires_after, int)
+        # Reads a few minutes back, for spawns that were waiting for their IV.
+        assert watermark == 1791628000 - shiny_alerts.LOOK_BACK
+        assert isinstance(expires_after, int)
 
 
 class TestAreas:
@@ -270,3 +278,49 @@ class TestAreas:
         await alerts.tick()
         alerts.user.send.assert_awaited_once()
         assert "-8.93" in alerts.user.send.call_args.kwargs["embed"].description
+
+
+class TestIvAndName:
+    def test_the_alert_leads_with_the_iv(self):
+        embed = shiny_alerts.alert_embed(spawn(), "Zorua", True)
+        assert "98%" in embed.title and "Zorua" in embed.title
+        assert "15/14/15" in embed.description
+        assert "CP 812" in embed.description and "nível 27" in embed.description
+
+    def test_an_unknown_iv_is_said_plainly(self):
+        embed = shiny_alerts.alert_embed(
+            spawn(iv=None, cp=None, level=None), "Zorua", True
+        )
+        assert "%" not in embed.title
+        assert "IV ainda desconhecido" in embed.description
+
+    async def test_a_fresh_sighting_waits_for_the_scanner_to_read_its_iv(self, alerts):
+        import time
+
+        with_spawns(
+            alerts, [spawn(iv=None, first_seen_timestamp=int(time.time()) - 30)]
+        )
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_but_not_for_ever(self, alerts):
+        import time
+
+        old = int(time.time()) - shiny_alerts.WAIT_FOR_IV - 5
+        with_spawns(alerts, [spawn(iv=None, first_seen_timestamp=old)])
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+
+    async def test_the_name_falls_back_to_the_species_base_form(self, alerts):
+        # Golbat sends Zorua as form 2108 ("normal"); pokemon_name files the
+        # normal form under 0. The first alerts went out as "#570".
+        with_spawns(alerts, [spawn(pokemon_id=570, form_id=2108)], name="Zorua")
+        await alerts.tick()
+        sql, params = [
+            (c.args[0], c.kwargs["params"])
+            for c in alerts.poliswag.db.get_data_from_database.call_args_list
+            if "pokemon_name" in c.args[0]
+        ][0]
+        assert params == (570, 2108) and "form_id IN (%s, 0)" in sql
+        assert "Zorua" in alerts.user.send.call_args.kwargs["embed"].title
