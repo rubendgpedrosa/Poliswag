@@ -362,6 +362,7 @@ class TestHundoAlertsStep:
         cog._trade_announcer.tick = AsyncMock()
         cog._trade_dm.tick = AsyncMock()
         cog._shiny_alerts.tick = AsyncMock()
+        cog._shiny_odds.tick = AsyncMock()
 
     @staticmethod
     def _fake_io(cog, rows_before, rows_after):

@@ -41,6 +41,7 @@ def alerts():
         watermark=AsyncMock(return_value=None),
         set_watermark=AsyncMock(),
         record_alert=AsyncMock(return_value=True),
+        never_shiny=AsyncMock(return_value=set()),
     )
     a.user = user
     return a
@@ -225,6 +226,19 @@ class TestAlertSpawns:
         alerts.store.record_alert.return_value = False
         await alerts.tick()
         alerts.user.send.assert_not_awaited()
+
+    async def test_a_species_that_is_never_shiny_is_not_sent(self, alerts):
+        with_spawns(alerts, [spawn(pokemon_id=931, form_id=2987), spawn(OTHER)])
+        alerts.store.never_shiny.return_value = {(931, 2987)}
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_another_form_of_that_species_still_is(self, alerts):
+        with_spawns(alerts, [spawn(pokemon_id=931, form_id=2986)])
+        alerts.store.never_shiny.return_value = {(931, 2987)}
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 931, 2986)
 
     async def test_no_zero_roll_means_no_dm(self, alerts):
         with_spawns(alerts, [spawn(OTHER)])

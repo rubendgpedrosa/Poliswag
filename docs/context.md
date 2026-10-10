@@ -26,6 +26,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
 | `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` | Shiny prediction: the roll, the `shiny_link`/`shiny_alert` tables, link announcements and roll-0 DMs. See `shiny.md`. |
+| `shiny_odds.py` | Event shiny odds and never-shiny species, read off the scanner's own counts into `shiny_rate` / `shiny_species`. See `shiny.md`. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
 | `tracker_store.py` | CRUD for `tracked_quest_reward`. |
@@ -54,7 +55,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 
 ## Databases — detail in `docs/context/database.md`
 
-- **poliswag** (read/write): `poliswag` (scan state, digest guards), `event`, `excluded_event_type`, `tracked_quest_reward`, `account_lure`, `shiny_link`, `shiny_alert`, trade/100IV state. Schema = `migrations/*.sql`.
+- **poliswag** (read/write): `poliswag` (scan state, digest guards), `event`, `excluded_event_type`, `tracked_quest_reward`, `account_lure`, `shiny_link`, `shiny_alert`, `shiny_rate`, `shiny_species`, trade/100IV state. Schema = `migrations/*.sql`.
 - **golbat** scanner DB (`DB_SCANNER_NAME`, read-only): `pokestop` quests, daily `*_stats`.
 - **dragonite** (read-only): `account` health for lures. **poracle**: `humans`, tracking rules.
 

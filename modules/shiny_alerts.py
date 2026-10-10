@@ -7,10 +7,12 @@ Two jobs each scheduler tick:
    sends one DM and stamps announced_at. Anyone else's link is stamped
    without a DM: during the pilot the bot messages nobody but its users.
 2. For linked players in Config.SHINY_ALERT_USER_IDS, roll every new spawn
-   (modules/shiny_roll.py) and DM the ones that come up 0.
+   (modules/shiny_roll.py) and DM the ones that come up 0, unless the
+   species is one the scanner has learned is never shiny.
 
 Owns shiny_alert and poliswag.shiny_alert_watermark; reads shiny_link,
-golbat's pokemon and pokemon_shiny_stats, and pokemon_name.
+shiny_species (never_shiny), golbat's pokemon and pokemon_shiny_stats, and
+pokemon_name.
 """
 
 import json
@@ -189,7 +191,10 @@ class ShinyAlerts:
         spawns = await self.poliswag.db.get_data_from_database(
             _SPAWNS_SQL, params=(watermark - LOOK_BACK, now + MIN_SECONDS_LEFT)
         )
+        never_shiny = await self.store.never_shiny() if spawns else set()
         for spawn in spawns:
+            if (spawn["pokemon_id"], spawn["form_id"]) in never_shiny:
+                continue
             for recipient in recipients:
                 if not plays_there(recipient, spawn):
                     continue

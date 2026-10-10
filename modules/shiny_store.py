@@ -91,6 +91,14 @@ class ShinyStore:
             params=tuple(user_ids),
         )
 
+    async def never_shiny(self):
+        """{(pokemon_id, form_id)} the scanner has met thousands of times
+        without one shiny (modules/shiny_odds.py keeps the list)."""
+        rows = await self.db.get_data_from_database(
+            "SELECT pokemon_id, form_id FROM shiny_species WHERE never_shiny = 1"
+        )
+        return {(row["pokemon_id"], row["form_id"]) for row in rows}
+
     async def watermark(self):
         rows = await self.db.get_data_from_database(
             "SELECT shiny_alert_watermark FROM poliswag"
