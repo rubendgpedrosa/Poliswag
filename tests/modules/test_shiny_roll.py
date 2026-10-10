@@ -36,8 +36,11 @@ def test_a_non_numeric_encounter_id_is_an_error():
         shiny_die("abc", HEX)
 
 
-@pytest.mark.parametrize("value", [HEX, GOOGLE, "fedcba9876543210"])
-def test_player_ids_in_the_two_known_shapes(value):
+OBJECT_ID = "0123456789abcdef01234567"  # 24 hex: the owner's own account, 2026-10-10
+
+
+@pytest.mark.parametrize("value", [HEX, GOOGLE, OBJECT_ID, "fedcba9876543210"])
+def test_player_ids_in_the_shapes_seen_so_far(value):
     assert is_player_id(value)
 
 
@@ -47,15 +50,21 @@ def test_player_ids_in_the_two_known_shapes(value):
         "",
         None,
         "0123456789ABCDEF",  # upper case
-        "0123456789abcde",  # 15
-        "0123456789abcdef0",  # 17
-        "12345678901234567890",  # 20 digits
+        "0123456789abcde",  # too short for hex
+        "0123456789abcdef" * 2 + "0",  # 33: too long
+        "12345678901234",  # 14 digits
         "E:abc+/=",  # the viewer-specific social ID
+        "E:" + "A" * 43 + "=",  # the same, full length
         HEX + "\n",
+        "0123456789abcdeg",  # not hex
     ],
 )
 def test_anything_else_is_not_a_player_id(value):
     assert not is_player_id(value)
+
+
+def test_the_roll_takes_a_24_character_id():
+    assert 0 <= shiny_die("10000000000000000168", OBJECT_ID) < 512
 
 
 @pytest.mark.parametrize(

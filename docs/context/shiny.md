@@ -9,7 +9,8 @@ history: `/root/unonwhash/CLAUDE-HANDOVER.md`.
 
 `modules/shiny_roll.shiny_die(encounter_id, player_id)` is 0 for a spawn that
 is shiny for that player at 1/512 (and at 1/64, 1/128, 1/256). `player_id` is
-the game's internal ID: 16 hex (PTC) or 21 digits (Google). It is **not** the
+the game's internal ID. Shapes seen: 16 hex (PTC scanner accounts), 24 hex
+(the owner's account); 21 digits is reported for Google sign-ups. It is **not** the
 ID a friend-code search or GET_PLAYER returns; those differ per viewer.
 
 ## Flow

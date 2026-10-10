@@ -155,7 +155,7 @@ are the same roll shifted). Extra shinies at boosted or event odds are missed.
 | `discord_name` | VARCHAR(64) | Username when the code was sent |
 | `friend_code` | CHAR(12) NULL | Cleared once the row is `linked` |
 | `trainer_name` | VARCHAR(32) NULL | From the code search |
-| `player_id` | VARCHAR(21) NULL | 16 hex or 21 digits |
+| `player_id` | VARCHAR(32) NULL | 16 or 24 hex seen, 21 digits reported; accepted: 16-32 hex or 15-24 digits |
 | `status` | ENUM('pending','linked','failed') | |
 | `fail_reason` | VARCHAR(64) NULL | |
 | `attempts` | TINYINT UNSIGNED, default 0 | Run-level retries |

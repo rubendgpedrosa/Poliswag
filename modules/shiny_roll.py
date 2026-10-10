@@ -20,8 +20,12 @@ import re
 _MASK = (1 << 48) - 1
 _MULTIPLIER = 0x5DEECE66D
 _UINT64 = (1 << 64) - 1
-# 16 lowercase hex for Pokémon Trainer Club accounts, 21 digits for Google.
-_PLAYER_ID = re.compile(r"(?:[0-9a-f]{16}|[0-9]{21})\Z")
+# Seen so far: 16 lowercase hex (Pokémon Trainer Club accounts), 24 lowercase
+# hex (the owner's account), and, by report, 21 digits for Google sign-ups.
+# Kept loose within that family, because a shape nobody has reported yet
+# should link rather than fail; what must never pass is the viewer-specific
+# social ID ("E:" + base64 + "="), which is not what the game rolls with.
+_PLAYER_ID = re.compile(r"(?:[0-9a-f]{16,32}|[0-9]{15,24})\Z")
 _FRIEND_CODE = re.compile(r"[0-9]{12}\Z")
 
 
