@@ -31,6 +31,8 @@ _OWNER_COGS = frozenset(
 )
 # Aliases worth listing next to the command, for members who look for them.
 _SHOWN_ALIASES = {"questleiria": ("questmarinha",)}
+# Old names that still answer but are no longer advertised anywhere.
+_RETIRED_ALIASES = {"pokedex": ("trades", "trocas")}
 # Topic line for mod commands, keyed by cog qualified_name, in display order.
 _MOD_TOPICS = {
     "Quests": "Quests",
@@ -165,13 +167,17 @@ class EmbedHelpCommand(commands.HelpCommand):
             f"📖 {prefix}{command.qualified_name}",
             command.help or command.brief or _NO_DESCRIPTION,
         )
-        if command.aliases:
-            embed.add_field(
-                name="Aliases", value=", ".join(command.aliases), inline=False
-            )
+        retired = _RETIRED_ALIASES.get(command.qualified_name, ())
+        aliases = [alias for alias in command.aliases if alias not in retired]
+        if aliases:
+            embed.add_field(name="Aliases", value=", ".join(aliases), inline=False)
+        usage = self.get_command_signature(command)
+        if len(aliases) != len(command.aliases):
+            # The stock signature spells every alias out: `![pokedex|trades]`.
+            usage = f"{prefix}{command.qualified_name} {command.signature}".strip()
         embed.add_field(
             name="Utilização",
-            value=f"`{self.get_command_signature(command)}`",
+            value=f"`{usage}`",
             inline=False,
         )
         await self.get_destination().send(embed=embed)
