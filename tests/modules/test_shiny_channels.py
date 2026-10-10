@@ -103,6 +103,12 @@ async def test_approval_creates_read_only_channel_and_pins_named_map(setup):
         assert getattr(channel.overwrites[member], permission) is False
     assert channel.overwrites[owner].send_messages is True
     assert channel.send.call_args.kwargs["view"].children[0].url == map_url(row)
+    intro = channel.send.call_args.kwargs["embed"]
+    assert intro.title == "✨ Notificações Pokémon Shiny"
+    assert intro.description == (
+        "Aqui irás receber as notificações dos Pokémon que a fórmula determina "
+        "como shiny para a tua conta."
+    )
     message.pin.assert_awaited_once()
     assert row["channel_archived"] == 0
     assert row["channel_intro_message_id"] == 55
