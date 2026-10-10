@@ -29,14 +29,32 @@ _PLAYER_ID = re.compile(r"(?:[0-9a-f]{16,32}|[0-9]{15,24})\Z")
 _FRIEND_CODE = re.compile(r"[0-9]{12}\Z")
 
 
-def shiny_die(encounter_id, player_id):
-    """The 512-sided roll (0-511) for one spawn and one player."""
+def _random(encounter_id, player_id):
+    """The 31-bit draws of the java.util.Random the game seeds for this pair."""
     encounter = (int(encounter_id) & _UINT64).to_bytes(8, "little")
     seed = hashlib.sha1(encounter + player_id.encode("latin-1")).digest()[:8]
-    # new java.util.Random(seed).nextInt(512)
     state = (int.from_bytes(seed, "little") ^ _MULTIPLIER) & _MASK
-    state = (state * _MULTIPLIER + 11) & _MASK
-    return state >> 39
+    while True:
+        state = (state * _MULTIPLIER + 11) & _MASK
+        yield state >> 17
+
+
+def next_int(encounter_id, player_id, bound):
+    """`new java.util.Random(seed).nextInt(bound)`: 0 is shiny at 1-in-`bound`
+    odds. Checked against OpenJDK for powers of two and for other bounds
+    (which Java draws again for, to stay unbiased)."""
+    draws = _random(encounter_id, player_id)
+    value = next(draws)
+    if bound & (bound - 1) == 0:
+        return (bound * value) >> 31
+    while value - value % bound + bound - 1 >= 1 << 31:
+        value = next(draws)
+    return value % bound
+
+
+def shiny_die(encounter_id, player_id):
+    """The 512-sided roll (0-511) for one spawn and one player."""
+    return next_int(encounter_id, player_id, 512)
 
 
 def is_player_id(value):
