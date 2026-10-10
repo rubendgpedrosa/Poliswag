@@ -274,6 +274,22 @@ class TestSendCommandHelp:
         usage_field = next(f for f in embed.fields if f.name == "Utilização")
         assert usage_field.value == "`!questleiria <palavra>`"
 
+    async def test_the_pokedex_old_names_still_work_but_are_not_shown(self, hc):
+        # A real command: the stock signature would spell every alias out,
+        # as `![pokedex|trades|trocas]`.
+        @commands.command(
+            name="pokedex", aliases=["trades", "trocas"], brief="Código de acesso"
+        )
+        async def pokedex(ctx):
+            pass
+
+        await hc.send_command_help(pokedex)
+
+        embed = hc.context.channel.send.call_args.kwargs["embed"]
+        assert all(f.name != "Aliases" for f in embed.fields)
+        usage_field = next(f for f in embed.fields if f.name == "Utilização")
+        assert usage_field.value == "`!pokedex`"
+
     async def test_no_aliases_omits_the_field(self, hc):
         command = _fake_command("tracklist", brief="Lista quests seguidas")
         hc.get_command_signature = MagicMock(return_value="!tracklist")

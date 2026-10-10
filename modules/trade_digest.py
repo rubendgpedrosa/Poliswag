@@ -204,7 +204,7 @@ def build_digest(rows):
 
     count = f"{len(rows)} novidades" if len(rows) != 1 else "1 novidade"
     legend = " · 🤝 já tem par" if any(row.get("matched") for row in rows) else ""
-    embed.set_footer(text=f"{count}{legend} · escreve !trades para entrares")
+    embed.set_footer(text=f"{count}{legend} · escreve !pokedex para entrares")
     return embed
 
 
