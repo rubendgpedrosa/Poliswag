@@ -16,7 +16,7 @@ ID a friend-code search or GET_PLAYER returns; those differ per viewer.
 
 | Step | Where | What |
 |---|---|---|
-| `!shiny <código>` | `cogs/shiny.py` | Row in `shiny_link`, `pending` |
+| `!shiny <código>` | `cogs/shiny.py` | Row in `shiny_link`, `pending`. **Owner only during the pilot** (`@owner_only()` on the command; remove it to open to members) |
 | Resolve | `scripts/shiny_linker` (host, `shiny-linker.timer`, every 10 min) | Scanner account searches the code, opens a private raid lobby, invites, reads `invited_player_ids` → `linked` or `failed` |
 | Announce | `modules/shiny_alerts.py` tick | One DM per finished link |
 | Alert | same tick | New `golbat.pokemon` rows rolled for linked users in `SHINY_ALERT_USER_IDS`; roll 0 → DM with Era shiny / Não era |

@@ -18,6 +18,8 @@ creator sees in `LobbyProto.invited_player_ids` after inviting that player
 This design covers three pieces that share only database tables:
 
 1. **Collect** — any server member gives Poliswag a friend code.
+   **Owner only at first** (decided at go-live, 2026-10-10): the command
+   carries `owner_only` until the pilot is over.
 2. **Link** — a host script has a scanner account resolve the code to the
    player ID.
 3. **Alert** — Poliswag DMs a linked player when a live spawn rolls 0.
