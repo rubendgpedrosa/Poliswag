@@ -1,0 +1,94 @@
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from modules.shiny_store import ShinyStore
+
+
+@pytest.fixture
+def db():
+    d = MagicMock()
+    d.get_data_from_database = AsyncMock(return_value=[])
+    d.execute_query_to_database = AsyncMock(return_value=1)
+    d.execute_transaction = AsyncMock()
+    return d
+
+
+@pytest.fixture
+def store(db):
+    return ShinyStore(db)
+
+
+async def test_get_is_none_for_a_stranger(store):
+    assert await store.get(7) is None
+
+
+async def test_get_returns_the_row(store, db):
+    db.get_data_from_database.return_value = [{"status": "linked"}]
+    assert await store.get(7) == {"status": "linked"}
+    assert db.get_data_from_database.call_args.kwargs["params"] == (7,)
+
+
+async def test_request_queues_the_code_and_resets_an_old_result(store, db):
+    await store.request(7, "rita", "123456789012")
+    sql = db.execute_query_to_database.call_args.args[0]
+    assert db.execute_query_to_database.call_args.kwargs["params"] == (
+        7,
+        "rita",
+        "123456789012",
+    )
+    assert "ON DUPLICATE KEY UPDATE" in sql
+    for reset in (
+        "status = 'pending'",
+        "player_id = NULL",
+        "trainer_name = NULL",
+        "attempts = 0",
+        "announced_at = NULL",
+    ):
+        assert reset in sql
+
+
+async def test_request_truncates_a_long_name(store, db):
+    await store.request(7, "x" * 80, "123456789012")
+    assert len(db.execute_query_to_database.call_args.kwargs["params"][1]) == 64
+
+
+async def test_remove_deletes_alerts_and_link_together(store, db):
+    await store.remove(7)
+    statements = db.execute_transaction.call_args.args[0]
+    assert [s[0].split()[2] for s in statements] == ["shiny_alert", "shiny_link"]
+    assert all(s[1] == (7,) for s in statements)
+
+
+async def test_recipients_asks_nothing_when_nobody_is_listed(store, db):
+    assert await store.recipients([]) == []
+    db.get_data_from_database.assert_not_awaited()
+
+
+async def test_recipients_are_linked_rows_among_the_listed_users(store, db):
+    db.get_data_from_database.return_value = [{"discord_id": 7, "player_id": "a" * 16}]
+    assert await store.recipients([7, 8]) == [{"discord_id": 7, "player_id": "a" * 16}]
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "status = 'linked'" in sql and "IN (%s,%s)" in sql
+    assert db.get_data_from_database.call_args.kwargs["params"] == (7, 8)
+
+
+async def test_watermark_is_none_before_the_first_tick(store, db):
+    db.get_data_from_database.return_value = [{"shiny_alert_watermark": None}]
+    assert await store.watermark() is None
+
+
+async def test_record_alert_is_true_only_the_first_time(store, db):
+    db.execute_query_to_database.return_value = 1
+    assert await store.record_alert(7, "123", 25, 0) is True
+    db.execute_query_to_database.return_value = 0
+    assert await store.record_alert(7, "123", 25, 0) is False
+    assert "INSERT IGNORE" in db.execute_query_to_database.call_args.args[0]
+
+
+async def test_a_verdict_is_stored_once(store, db):
+    db.execute_query_to_database.return_value = 1
+    assert await store.set_verdict(7, "123", "shiny") is True
+    assert "verdict IS NULL" in db.execute_query_to_database.call_args.args[0]
+    db.execute_query_to_database.return_value = 0
+    assert await store.set_verdict(7, "123", "not_shiny") is False
