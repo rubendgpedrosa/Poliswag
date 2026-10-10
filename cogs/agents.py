@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import re
 import time
 
 import discord
@@ -198,6 +199,21 @@ class Agents(commands.Cog):
             return False
         await self.submit(ctx, *parsed)
         return True
+
+    async def submit_natural_request(self, ctx, text):
+        """Only the real owner can delegate free-form mentions.
+
+        A code-capable agent can answer a question or make requested changes.
+        No other person's messages, attachments, or channel history are included.
+        """
+        if not is_owner(ctx):
+            return
+        parsed = parse_direct_request(text)
+        if parsed:
+            await self.submit(ctx, *parsed)
+            return
+        provider = "codex" if re.search(r"\b(openai|codex)\b", text, re.I) else "claude"
+        await self.submit(ctx, "code", provider, text)
 
     async def send_result(self, user, job):
         description = f"`{job['id']}` · {job['provider']} · {_STATES[job['state']]}"
