@@ -83,22 +83,34 @@ class Poliswag(commands.Bot):
         with "não tens autorização" — which tells a stranger the command
         exists. Returning before invoke() says nothing at all.
         """
-        if message.author.bot:
+        if message.author.bot or message.webhook_id is not None:
             return
         ctx = await self.get_context(message)
+        if self._mentions_poliswag(message):
+            mentions = self.get_cog("Mentions")
+            if mentions is not None:
+                await mentions.handle(ctx)
+            elif may_run_in_dm(ctx):
+                # Fail closed if the cog is unavailable: a tag can never fall
+                # through into a privileged command or an agent invocation.
+                await ctx.send(
+                    "Olá! Estou aqui — diz-me o que precisas. 🐸",
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            return
         agents = self.get_cog("Agents")
         if ctx.command is None and agents is not None:
             if await agents.handle_direct_request(ctx):
                 return
-        if ctx.command is None and self._is_bare_mention(message):
-            # "@Poliswag" on its own answers like !help. The mention prefix
-            # needs a command after it, so this never reaches invoke().
-            if may_run_in_dm(ctx):
-                await ctx.send_help()
-            return
         if ctx.command is not None and not may_run_in_dm(ctx):
             return
         await self.invoke(ctx)
+
+    def _mentions_poliswag(self, message):
+        return self.user is not None and any(
+            mention in message.content
+            for mention in (f"<@{self.user.id}>", f"<@!{self.user.id}>")
+        )
 
     def _is_bare_mention(self, message):
         return self.user is not None and message.content.strip() in (
@@ -129,6 +141,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.announcements")
         await self.load_extension("cogs.shiny")
         await self.load_extension("cogs.agents")
+        await self.load_extension("cogs.mentions")
         # Re-registers the persistent view so the buttons on panels posted
         # for previous events keep working across restarts.
         self.add_view(EventPanelView(self))

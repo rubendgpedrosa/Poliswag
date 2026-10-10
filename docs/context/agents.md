@@ -12,7 +12,46 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
 - `!jobs`: latest ten tasks; `!job <id>`: state and result; `!cancel <id>`: cancel.
 - Owner DMs also accept `claude <question>`, `codex <question>`, and
   `code claude <task>` / `code openai <task>`. A leading bot mention accepts
-  the same forms in a server. Other conversation follows existing bot behavior.
+  the same forms in a server. Owner mentions also accept free-form requests,
+  for example `@Poliswag fix the quest bug` (Claude by default) or
+  `@Poliswag use OpenAI to fix the quest bug`. These go to a code-capable
+  agent, which can answer questions or make explicitly requested changes.
+  Results and details return by owner DM; the channel gets only a generic ack.
+
+## Public mentions
+
+`cogs/mentions.py` intercepts actual bot mentions anywhere in a message before
+command invocation. A bare mention greets rather than listing commands.
+Other server members get playful replies, the public event calendar, or
+aggregate Pokémon/raid counts for yesterday in Leiria/Marinha Grande.
+Conversational DMs from nonowners are silent. Explicit `!help` remains available.
+
+The public path has **no coding agent, filesystem reader, command invocation,
+scanner snapshot, attachments, channel history, or shared owner conversation**.
+`modules/public_conversation.py` renders a fixed allowlist:
+event name/start/end, or bounded numeric totals from pokemon_stats/raid_stats.
+Queries and area names are fixed; user text never enters SQL or a reply.
+
+Public banter uses `gpt-6-luna` through the Responses API with medium reasoning
+(default); `PUBLIC_REPLY_REASONING=low` also works. Configure a separate
+`OPENAI_API_KEY`; the Gemini credential is not reused. The model receives only
+a fixed topic (greeting/events/statistics), **never member text or database
+rows**. It has no tools, conversation state, or private context, and `store` is
+false. Generated text must pass length, sensitive-topic, identifier, link,
+mention and code checks. Calendar facts and statistics are rendered locally
+and cannot be rewritten by the model. Missing credentials, API errors and
+unsafe output fall back to fixed local replies. Maximum two API calls at once,
+18-second API timeout, bounded response body, and 60-second error backoff.
+No accounts, device/worker details, shiny tables, analytics, code, configuration,
+environment, credentials or implementation information enters public replies.
+Sensitive-topic requests get a fixed playful deflection, not an explanation.
+
+Additional safeguards: real Discord member/owner identity checks, no webhooks
+or bots, 15-second member cooldown, five replies per guild per 30 seconds,
+bounded cooldown memory, five-second data timeout, 24-second total reply limit,
+validated calendar titles and numeric values, disabled mentions, and generic failure replies without
+exception text. Missing mention handling fails closed before command dispatch.
+Neither public prompts nor exception details are logged by the mention path.
 
 Results arrive by owner DM, with mentions disabled. Long answers attach a text
 file. No Discord notification is sent until an owner submits work.

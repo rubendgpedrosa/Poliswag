@@ -53,6 +53,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
 | `shiny.py` | `!shiny <código>` / `!shiny` / `!shiny remover`; listener for the alert verdict buttons | `MY_ID` only during the pilot (`owner_only`); built for members, works in DMs (own membership check) |
 | `agents.py` | `!self`, `!ask`, `!code`, `!jobs`, `!job`, `!cancel`; explicit provider requests in owner DMs/mentions | `MY_ID` only; host worker, private queue, separate worktrees |
+| `mentions.py` | Owner mentions delegate free-form requests privately; other members get jokes, public events or aggregate game numbers | Actual Discord identity; no public agent/tools/history; fixed data allowlist and cooldowns |
 
 ## Databases — detail in `docs/context/database.md`
 
@@ -105,7 +106,7 @@ LOG_FILE, ERROR_LOG_FILE
 
 - All modules receive `poliswag` (the bot instance) and access services via `self.poliswag.<module>`.
 - Admin guard: `str(ctx.author.id) in self.poliswag.ADMIN_USERS_IDS` or `cog_check`.
-- Three audiences: members, mods (`ADMIN_USERS_IDS`), owner (`MY_ID`), via `modules/permissions.py` (`is_mod`/`is_owner`; `mods_only()`/`owner_only()` for single commands). `!help` (`modules/help_command.py`) sections by the same gates: `_OWNER_COGS`, any `cog_check` (mods), or those predicates in `command.checks`. A command gated only inside its body shows to members — add the decorator. `!help` deletes its command message (in `prepare_help_command`). A bare `@Poliswag` mention answers like `!help` (`Poliswag.process_commands`, same DM gate).
+- Three audiences: members, mods (`ADMIN_USERS_IDS`), owner (`MY_ID`), via `modules/permissions.py` (`is_mod`/`is_owner`; `mods_only()`/`owner_only()` for single commands). `!help` (`modules/help_command.py`) sections by the same gates: `_OWNER_COGS`, any `cog_check` (mods), or those predicates in `command.checks`. A command gated only inside its body shows to members — add the decorator. `!help` deletes its command message (in `prepare_help_command`). Tags go through `Mentions` before command dispatch: owner requests privately, other server members get fixed public replies; a bare mention greets instead of showing help. See `agents.md` for the data boundary and safeguards.
 - `!notify` **ref** resolution: `#mention` → raw id → exact name → `%-<suffix>` LIKE; category suffixes (`raros`, `100iv`, `0iv`, `uteis`) fan out to `leiria-<suffix>` and `marinha-<suffix>`.
 - `_PAIRED_PREFIXES = ("leiria-", "marinha-")` drives fan-out logic in `notifications.py`.
 - Embed color: `Config.EMBED_COLOR = 0x4169E1`. Automated notices (owner DMs, mod-channel alerts, host scripts) go out as embeds, never plain text; plain text is for replies inside a flow (e.g. `!stats` follow-ups).
