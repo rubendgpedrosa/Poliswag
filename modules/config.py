@@ -85,6 +85,7 @@ class Config:
     # Touched after every scheduler tick; scripts/watchdog.sh on the host
     # restarts the container when it goes stale (logs/ is bind-mounted).
     HEARTBEAT_FILE = os.environ.get("HEARTBEAT_FILE", "logs/heartbeat")
+    AGENT_JOBS_DIR = os.environ.get("AGENT_JOBS_DIR", "logs/agent-jobs")
 
     # Logging
     LOG_FILE = os.environ.get("LOG_FILE", "logs/app.log")

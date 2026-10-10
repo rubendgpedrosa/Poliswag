@@ -1,0 +1,35 @@
+[Unit]
+Description=Poliswag owner-requested Claude and Codex jobs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Poliswag
+Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/etc/poliswag-agent.conf
+ExecStart=/usr/bin/python3 /root/Poliswag/scripts/agent_worker.py --owner-id ${POLISWAG_AGENT_OWNER_ID}
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+UMask=0077
+MemoryMax=2G
+CPUQuota=150%
+TasksMax=256
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+# Root-to-root user namespace mapping needs SETFCAP on modern Linux; bwrap
+# also needs SETUID/SETGID. No mount, ptrace, or DAC-override capabilities.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_SETFCAP
+RestrictSUIDSGID=true
+ReadWritePaths=/root/worktrees/poliswag-agent /root/Poliswag/.git /root/Poliswag/logs/agent-jobs
+ReadWritePaths=/root/.claude /root/.codex /root/.cache
+ReadWritePaths=-/root/.claude.json
+InaccessiblePaths=/root/Poliswag/.env /var/run/docker.sock
+InaccessiblePaths=-/root/.ssh -/root/unonwhash -/root/PoGoLeiria -/root/Blissey -/root/xilriws -/root/backups -/root/db-backup.sh -/root/poliswag-mitm
+
+[Install]
+WantedBy=multi-user.target

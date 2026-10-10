@@ -86,6 +86,10 @@ class Poliswag(commands.Bot):
         if message.author.bot:
             return
         ctx = await self.get_context(message)
+        agents = self.get_cog("Agents")
+        if ctx.command is None and agents is not None:
+            if await agents.handle_direct_request(ctx):
+                return
         if ctx.command is None and self._is_bare_mention(message):
             # "@Poliswag" on its own answers like !help. The mention prefix
             # needs a command after it, so this never reaches invoke().
@@ -124,6 +128,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.event_panel")
         await self.load_extension("cogs.announcements")
         await self.load_extension("cogs.shiny")
+        await self.load_extension("cogs.agents")
         # Re-registers the persistent view so the buttons on panels posted
         # for previous events keep working across restarts.
         self.add_view(EventPanelView(self))

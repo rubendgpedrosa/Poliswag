@@ -55,6 +55,17 @@ Selected via `ENV=` in `.env`:
 
 ## Discord commands
 
+### Claude / OpenAI coding agents *(MY_ID only)*
+
+- `!self` — Poliswag's capabilities, agent availability, and live scanner health
+- `!ask claude|openai <question>` — ask an agent about the bot without editing code
+- `!code claude|openai <request>` — launch a coding task in a separate Git worktree
+- `!jobs`, `!job <id>`, `!cancel <id>` — monitor or cancel work
+
+Owner DMs also accept `claude <question>` and `code claude <request>` (likewise
+`openai`/`codex`). Results return privately by DM. Changes are kept for review.
+Requires the host worker: [setup and execution details](docs/context/agents.md).
+
 ### Quests
 - `!questleiria [area] [search]` — search active quests
 - `!scan` — trigger a new quest scan

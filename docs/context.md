@@ -52,6 +52,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | `MY_ID` only (`cog_check`) |
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
 | `shiny.py` | `!shiny <código>` / `!shiny` / `!shiny remover`; listener for the alert verdict buttons | `MY_ID` only during the pilot (`owner_only`); built for members, works in DMs (own membership check) |
+| `agents.py` | `!self`, `!ask`, `!code`, `!jobs`, `!job`, `!cancel`; explicit provider requests in owner DMs/mentions | `MY_ID` only; host worker, private queue, separate worktrees |
 
 ## Databases — detail in `docs/context/database.md`
 
@@ -127,3 +128,4 @@ LOG_FILE, ERROR_LOG_FILE
 | `docs/context/error-review.md` | the host cron that has Claude review `logs/error.log` daily |
 | `docs/context/host-ops.md` | the host watchdog restarting Poliswag, `scripts/dm_owner.py`, backup-failure DMs |
 | `docs/context/shiny.md` | `!shiny`, the host linker and its guards/breaker, shiny alert DMs |
+| `docs/context/agents.md` | owner-requested Claude/Codex jobs, runtime awareness, host executor and review worktrees |
