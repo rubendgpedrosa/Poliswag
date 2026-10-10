@@ -13,7 +13,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install system packages (wkhtmltopdf for imgkit, tzdata for timezone, adb for device control)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wkhtmltopdf tzdata adb && \
+    apt-get install -y --no-install-recommends wkhtmltopdf tzdata adb git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
