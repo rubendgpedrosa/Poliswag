@@ -1,4 +1,4 @@
-"""Shiny predictions by direct message.
+"""Shiny predictions, to a player's own channel or by direct message.
 
 Two jobs each scheduler tick:
 
@@ -6,8 +6,9 @@ Two jobs each scheduler tick:
    or failed. The host script scripts/shiny_linker writes the result; this
    sends one DM and stamps announced_at. Anyone else's link is stamped
    without a DM: during the pilot the bot messages nobody but its users.
-2. For linked players in Config.SHINY_ALERT_USER_IDS, roll every new spawn
-   (modules/shiny_roll.py) and DM the ones that come up 0, unless the
+2. For linked players with a channel of their own (`!shiny canal`) or in
+   Config.SHINY_ALERT_USER_IDS (who get a DM), roll every new spawn
+   (modules/shiny_roll.py) and alert the ones that come up 0, unless the
    species is one the scanner has learned is never shiny.
 
 Owns shiny_alert and poliswag.shiny_alert_watermark; reads shiny_link,
@@ -250,8 +251,14 @@ class ShinyAlerts:
         )
         if channel is not None:
             await channel.send(embed=embed)
-        else:
+        elif discord_id in Config.SHINY_ALERT_USER_IDS:
             await self._dm(discord_id, embed=embed)
+        else:
+            # Their channel is gone and they are not one of the pilot's
+            # users: nobody else is ever messaged directly.
+            self.poliswag.utility.log_to_file(
+                f"Shiny alert for {discord_id} dropped: their channel is gone", "ERROR"
+            )
 
     async def _through_poracle(self, recipient, spawn):
         """Have Poracle render and deliver the alert, as it does its own.

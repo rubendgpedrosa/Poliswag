@@ -60,19 +60,22 @@ async def test_remove_deletes_alerts_and_link_together(store, db):
     assert all(s[1] == (7,) for s in statements)
 
 
-async def test_recipients_asks_nothing_when_nobody_is_listed(store, db):
-    assert await store.recipients([]) == []
-    db.get_data_from_database.assert_not_awaited()
-
-
-async def test_recipients_are_linked_rows_among_the_listed_users(store, db):
+async def test_recipients_are_linked_players_with_a_channel_or_on_the_list(store, db):
     db.get_data_from_database.return_value = [{"discord_id": 7, "player_id": "a" * 16}]
     assert await store.recipients([7, 8]) == [{"discord_id": 7, "player_id": "a" * 16}]
     sql = db.get_data_from_database.call_args.args[0]
-    assert "status = 'linked'" in sql and "IN (%s,%s)" in sql
+    assert "status = 'linked'" in sql
+    assert "(channel_id IS NOT NULL OR discord_id IN (%s,%s))" in sql
     assert "alert_leiria" in sql and "alert_marinha" in sql
     assert "discord_name" in sql  # Poracle wants a name for its target
     assert db.get_data_from_database.call_args.kwargs["params"] == (7, 8)
+
+
+async def test_with_nobody_listed_players_with_a_channel_still_are(store, db):
+    await store.recipients([])
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "status = 'linked' AND channel_id IS NOT NULL" in sql
+    assert db.get_data_from_database.call_args.kwargs["params"] == ()
 
 
 async def test_watermark_is_none_before_the_first_tick(store, db):

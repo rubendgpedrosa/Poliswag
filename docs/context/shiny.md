@@ -46,7 +46,7 @@ viewer.
 | `!shiny <código>` | `cogs/shiny.py` | Row in `shiny_link`, `pending`. **Owner only during the pilot** (`@owner_only()` on the command; remove it to open to members) |
 | Resolve | `scripts/shiny_linker` (host, `shiny-linker.timer`, every 10 min) | Scanner account searches the code, opens a private raid lobby, invites, reads `invited_player_ids` → `linked` or `failed` |
 | Announce | `modules/shiny_alerts.py` tick | One DM per finished link, **only to users in `SHINY_ALERT_USER_IDS`**; other links are stamped announced without a DM |
-| Alert | same tick | New `golbat.pokemon` rows rolled for linked users in `SHINY_ALERT_USER_IDS`; roll 0 → DM with Era shiny / Não era |
+| Alert | same tick | New `golbat.pokemon` rows rolled for linked players who have their own channel (`!shiny canal`, the standard way since 2026-10-10) or are in `SHINY_ALERT_USER_IDS` (DM); roll 0 → a Poracle alert there |
 
 ## Linker rules
 
@@ -101,7 +101,10 @@ bot's own plainer embed goes out instead.
 `!shiny canal [nome]` (owner) creates a private channel for a linked player
 under the "Shinies" category: only that player sees it, read-only. Their map
 link is pinned there and, from then on, their alerts go to the channel
-(`shiny_link.channel_id`) instead of a DM.
+(`shiny_link.channel_id`) instead of a DM. Having a channel is what switches
+alerts on for a player; nobody outside `SHINY_ALERT_USER_IDS` is ever DMed,
+not even when their channel has been deleted (the alert is logged and dropped).
+Server administrators see every such channel.
 
 ## The site's map
 
