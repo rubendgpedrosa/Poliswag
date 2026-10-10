@@ -16,11 +16,14 @@ Standard library only: scripts/shiny_linker imports this from its own venv.
 """
 
 import hashlib
+import math
 import re
 
 _MASK = (1 << 48) - 1
 _MULTIPLIER = 0x5DEECE66D
 _UINT64 = (1 << 64) - 1
+# Java's nextFloat is a 24-bit draw; odds are held against it at that scale.
+_FLOAT_SCALE = 1 << 24
 # Seen so far: 16 lowercase hex (Pokémon Trainer Club accounts), 24 lowercase
 # hex (the owner's account), and, by report, 21 digits for Google sign-ups.
 # Kept loose within that family, because a shape nobody has reported yet
@@ -33,7 +36,7 @@ _FRIEND_CODE = re.compile(r"[0-9]{12}\Z")
 def _random(encounter_id, player_id):
     """The 31-bit draws of the java.util.Random the game seeds for this pair."""
     encounter = (int(encounter_id) & _UINT64).to_bytes(8, "little")
-    seed = hashlib.sha1(encounter + player_id.encode("latin-1")).digest()[:8]
+    seed = hashlib.sha1(encounter + player_id.encode("utf-8")).digest()[:8]
     state = (int.from_bytes(seed, "little") ^ _MULTIPLIER) & _MASK
     while True:
         state = (state * _MULTIPLIER + 11) & _MASK
@@ -54,20 +57,23 @@ def next_int(encounter_id, player_id, bound):
 
 
 def shiny_draw(encounter_id, player_id):
-    """The first draw of the game's Random for this pair, as a fraction in
-    [0, 1). This one number decides shininess at any odds."""
-    return next(_random(encounter_id, player_id)) / (1 << 31)
+    """The first `nextFloat` of the game's Random for this pair: a 24-bit
+    draw as a fraction in [0, 1). This one number decides shininess at any
+    odds."""
+    return (next(_random(encounter_id, player_id)) >> 7) / _FLOAT_SCALE
 
 
 def is_shiny_at(draw, odds):
-    """Shiny at 1-in-`odds`: the draw falls in the first 1/odds of its range.
+    """Shiny at 1-in-`odds`: `nextFloat() < 1/odds`.
 
-    Measured, not assumed (2026-10-10, a Community Day at about 1 in 25, a
-    scanner account with a proven ID, 161 encounters): the 7 shinies had the 7
-    lowest draws. `next_int(odds) == 0`, the community's rule for event odds,
-    predicted 10 and 1 was shiny; it only agrees with this at powers of two.
+    Measured before it was read anywhere (2026-10-10, a Community Day at about
+    1 in 25, a scanner account with a proven ID, 161 encounters: the 7 shinies
+    had the 7 lowest draws), then found to be what Golbat PR #423 implements.
+    The arithmetic is that PR's, a ceiling on the 24-bit roll, so the two agree
+    on every spawn. `next_int(odds) == 0`, the rule first reported for event
+    odds, only agrees with this at powers of two.
     """
-    return draw * odds < 1
+    return round(draw * _FLOAT_SCALE) < math.ceil(_FLOAT_SCALE / odds)
 
 
 def shiny_die(encounter_id, player_id):

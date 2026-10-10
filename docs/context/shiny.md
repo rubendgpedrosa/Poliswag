@@ -13,7 +13,9 @@ is shiny for that player at 1/512. In general a spawn is shiny when
 1/odds (`is_shiny_at`). That was measured on 2026-10-10 with a proven scanner
 account on a Zorua Community Day (161 encounters, the 7 shinies had the 7
 lowest draws); `next_int(odds) == 0`, the community's rule for event odds, is
-wrong. Event odds per species live in `shiny_rate` (pokemon_id, rate, ends_at);
+wrong. The roll, its 24-bit cutoff, the UTF-8 ID and which spawns are
+rolled (wild or encountered; never Ditto, a disguised spawn or a nearby-only
+sighting) follow Golbat PR #423, whose test vectors are in our tests. Event odds per species live in `shiny_rate` (pokemon_id, rate, ends_at);
 the site's map uses them, the DMs do not yet (base odds only).
 
 `player_id` is the game's internal ID. Shapes seen: 16 hex (PTC scanner
@@ -74,5 +76,4 @@ that player's predicted shinies on a live map. The token's SHA-256 is in
 
 ## Known limits
 
-The DMs use base odds only (event odds would mean 100+ DMs an hour on a Community Day). Lure, tappable and cell-only
-sightings are not alerted. Nothing proves a friend code belongs to its sender.
+The DMs use base odds only (event odds would mean 100+ DMs an hour on a Community Day). Lure, tappable and nearby-only sightings, Ditto and disguised spawns are not alerted. Nothing proves a friend code belongs to its sender.
