@@ -33,8 +33,9 @@ WAIT_FOR_IV = 180
 # How far behind the watermark each tick reads, so a waiting spawn is seen
 # again; shiny_alert keeps the ones already sent from going out twice.
 LOOK_BACK = 300
-# Lure and tappable spawns are left out (the roll is untested on them), and
-# cell-only sightings have no location worth sending.
+# Which spawns are rolled follows Golbat PR #423: only ones the scanner has
+# seen itself (wild or encountered), never Ditto or anything shown as another
+# species, and not one whose costume is unknown.
 _SPAWNS_SQL = f"""
 SELECT id, pokemon_id, COALESCE(form, 0) AS form_id, lat, lon, expire_timestamp,
        expire_timestamp_verified, seen_type, first_seen_timestamp,
@@ -42,7 +43,10 @@ SELECT id, pokemon_id, COALESCE(form, 0) AS form_id, lat, lon, expire_timestamp,
 FROM {Config.DB_SCANNER_NAME}.pokemon
 WHERE first_seen_timestamp >= %s
   AND (expire_timestamp IS NULL OR expire_timestamp >= %s)
-  AND seen_type IN ('wild', 'encounter', 'nearby_stop')
+  AND seen_type IN ('wild', 'encounter')
+  AND pokemon_id <> 132 AND is_ditto = 0
+  AND (display_pokemon_id IS NULL OR display_pokemon_id IN (0, pokemon_id))
+  AND COALESCE(costume, 0) <> 255
 ORDER BY first_seen_timestamp
 """
 _SEEN_SHINY_SQL = f"""
@@ -106,8 +110,6 @@ def alert_embed(spawn, name, seen_shiny):
             else "⚠️ O scanner nunca viu este Pokémon shiny: pode não existir em shiny."
         ),
     ]
-    if spawn["seen_type"] == "nearby_stop":
-        lines.append("📡 Localização aproximada (a pokéstop mais próxima).")
     headline = name if spawn["iv"] is None else f"{name} {round(spawn['iv'])}%"
     return build_embed(
         f"✨ {headline} deve ser shiny para ti",

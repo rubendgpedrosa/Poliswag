@@ -177,12 +177,6 @@ class TestAlertEmbed:
         embed = shiny_alerts.alert_embed(spawn(), "Pikachu", seen_shiny=False)
         assert "nunca viu" in embed.description
 
-    def test_a_nearby_sighting_warns_about_the_location(self):
-        embed = shiny_alerts.alert_embed(
-            spawn(seen_type="nearby_stop"), "Pikachu", True
-        )
-        assert "aproximada" in embed.description
-
 
 class TestVerdictView:
     async def test_the_buttons_carry_the_encounter_id(self):
@@ -246,8 +240,12 @@ class TestAlertSpawns:
             for c in alerts.poliswag.db.get_data_from_database.call_args_list
             if "first_seen_timestamp" in c.args[0]
         ]
-        assert "'wild', 'encounter', 'nearby_stop'" in sql
-        assert "lure" not in sql
+        # As Golbat PR #423: only spawns the scanner has seen itself, never
+        # Ditto or anything shown as another species.
+        assert "seen_type IN ('wild', 'encounter')" in sql
+        assert "nearby" not in sql and "lure" not in sql
+        assert "pokemon_id <> 132" in sql and "is_ditto = 0" in sql
+        assert "display_pokemon_id" in sql
         watermark, expires_after = (
             alerts.poliswag.db.get_data_from_database.call_args.kwargs["params"]
         )
