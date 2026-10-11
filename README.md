@@ -58,23 +58,30 @@ Selected via `ENV=` in `.env`:
 ### Claude / OpenAI coding agents *(MY_ID only)*
 
 - `!self` — Poliswag's capabilities, agent availability, and live scanner health
-- `!ask claude|openai <question>` — ask an agent about the bot without editing code
+- `!ask claude|openai <question>` — ask any question without editing code
 - `!code claude|openai <request>` — launch a coding task in a separate Git worktree
 - `!jobs`, `!job <id>`, `!cancel <id>` — monitor or cancel work
 
-Owner DMs also accept `claude <question>` and `code claude <request>` (likewise
-`openai`/`codex`). Results return privately by DM. Changes are kept for review.
+Owner DMs accept plain questions on any topic, with Claude by default.
+Use `codex <question>` or `use Codex to ...` to choose Codex;
+`code claude <request>` and `code codex <request>` also work. Tasks start
+silently and reply by DM when finished, or when an essential decision blocks
+progress. Replies are one short sentence, witty for casual chat and factual
+for code; stats and requested reports can keep their detail. Answer a blocking
+question normally to resume the same task, or use `!answer <id> <response>`.
+Full code reports are available through `!job <id>`; changes are kept for review.
 Requires the host worker: [setup and execution details](docs/context/agents.md).
 
 Tagging Poliswag greets or replies instead of listing commands. Owner mentions
 can give requests directly (`@Poliswag fix the quest bug`, optionally choosing
 Claude/OpenAI), with details returned by DM. Other server members get playful
-replies, public events, or aggregate game statistics. Public replies have no
-access to agents, code, accounts, shiny internals, configuration or credentials.
-Public banter uses GPT-6 Luna with medium reasoning when `OPENAI_API_KEY` is
-configured (`PUBLIC_REPLY_REASONING=low` is also supported). Only a fixed topic
-is sent to the model; events and statistics are rendered locally. Safe fixed
-replies remain available without the API.
+replies, public events, or aggregate game statistics. Public banter runs
+`codex exec` on the host with **GPT-6 Luna and medium reasoning**, using the
+existing Codex login. Only a fixed topic is sent; events and statistics are
+rendered locally. Public runs have no shell tools, repository, owner history,
+accounts, configuration or credentials in their context. Safe fixed replies
+remain available when the worker is busy, offline, or returns unusable text.
+No separate OpenAI API key is needed for mention replies.
 
 ### Quests
 - `!questleiria [area] [search]` — search active quests

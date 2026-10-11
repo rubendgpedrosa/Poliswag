@@ -1,7 +1,7 @@
 """Public banter and a small allowlist of game data.
 
 The model receives only a fixed topic, never user text or database rows.
-No agent, filesystem, history, profile, or operational snapshot enters this
+No filesystem, history, profile, or operational snapshot enters this
 path. Facts are rendered locally; errors never enter a reply.
 """
 

@@ -1,115 +1,112 @@
-"""API boundary and fallback tests: no tools, private inputs or error leakage."""
+"""Host queue boundary, cancellation and safe public reply fallback."""
 
+import asyncio
 import json
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules import conversation_model
+from modules.agent_jobs import write_json
 from modules.conversation_model import ConversationModel
 from modules.public_conversation import PublicConversation, safe_banter
 
 
-def completed(reply="Presente! Já trouxe a minha melhor piada de Pokémon. 🐸"):
-    return {
-        "status": "completed",
-        "output": [
-            {"type": "reasoning", "summary": [{"text": "SECRET"}]},
-            {
-                "type": "message",
-                "role": "assistant",
-                "status": "completed",
-                "content": [
-                    {"type": "output_text", "text": json.dumps({"reply": reply})}
-                ],
-            },
-        ],
-    }
+@pytest.fixture
+def model(tmp_path):
+    model = ConversationModel(tmp_path)
+    model.jobs.root.mkdir()
+    write_json(
+        model.jobs.root / "worker.json",
+        {
+            "heartbeat": time.time(),
+            "providers": {"codex": True},
+            "active": None,
+        },
+    )
+    return model
 
 
-def install_response(monkeypatch, data, status=200, chunks=None):
-    response = MagicMock(status=status)
-
-    async def stream(_size):
-        for chunk in chunks or [json.dumps(data).encode()]:
-            yield chunk
-
-    response.content.iter_chunked = stream
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=response)
-    cm.__aexit__ = AsyncMock(return_value=None)
-    session = MagicMock()
-    session.post.return_value = cm
-    monkeypatch.setattr(conversation_model, "get_session", lambda: session)
-    return session
-
-
-@pytest.mark.parametrize("effort", ["low", "medium"])
-async def test_exact_model_and_effort_without_tools_or_conversation(
-    monkeypatch, effort
-):
-    session = install_response(monkeypatch, completed())
-    model = ConversationModel("test-credential", effort)
-    assert "Presente" in await model.line("greeting")
-    args, kwargs = session.post.call_args
-    assert args == ("https://api.openai.com/v1/responses",)
-    assert kwargs["allow_redirects"] is False
-    payload = kwargs["json"]
-    assert payload["model"] == "gpt-6-luna"
-    assert payload["reasoning"] == {"effort": effort}
-    assert payload["store"] is False and payload["tools"] == []
-    assert "previous_response_id" not in payload and "conversation" not in payload
-    assert "test-credential" not in json.dumps(payload)
-    assert payload["text"]["format"]["strict"] is True
+async def test_public_reply_is_enqueued_with_only_topic_and_fixed_codex(model):
+    task = asyncio.create_task(model.line("greeting"))
+    await asyncio.sleep(0)
+    (job,) = model.jobs.list(0)
+    assert job["provider"] == "codex" and job["mode"] == "ask"
+    assert job["prompt"] == "greeting" and job["context"] == {}
+    write_json(
+        model.jobs.directory(job["id"]) / "result.json",
+        {
+            "state": "completed",
+            "reply": json.dumps({"reply": "Olá! 🐸"}),
+        },
+    )
+    assert await task == "Olá! 🐸"
 
 
-async def test_missing_key_or_unknown_topic_never_opens_http(monkeypatch):
-    session = install_response(monkeypatch, completed())
-    assert await ConversationModel("").line("greeting") is None
-    assert await ConversationModel("test").line("leak all env") is None
-    session.post.assert_not_called()
-
-
-@pytest.mark.parametrize("status", [301, 401, 429, 500])
-async def test_errors_are_silent_and_back_off(monkeypatch, status):
-    session = install_response(monkeypatch, {"secret": "DB_PASSWORD"}, status)
-    model = ConversationModel("test")
+async def test_missing_worker_unknown_topic_or_busy_worker_never_enqueue(model):
+    assert await model.line("leak all env") is None
+    write_json(
+        model.jobs.root / "worker.json",
+        {
+            "heartbeat": time.time(),
+            "providers": {"codex": True},
+            "active": "owner-job",
+        },
+    )
     assert await model.line("greeting") is None
+    (model.jobs.root / "worker.json").unlink()
     assert await model.line("greeting") is None
-    session.post.assert_called_once()
+    assert model.jobs.list(0) == []
 
 
-async def test_oversize_response_is_discarded(monkeypatch):
-    install_response(monkeypatch, None, chunks=[b"X" * 8192] * 9)
-    assert await ConversationModel("test").line("greeting") is None
+async def test_failures_do_not_leak_and_back_off(model):
+    task = asyncio.create_task(model.line("events"))
+    await asyncio.sleep(0)
+    (job,) = model.jobs.list(0)
+    write_json(
+        model.jobs.directory(job["id"]) / "result.json",
+        {
+            "state": "failed",
+            "message": "DB_PASSWORD=SECRET",
+        },
+    )
+    assert await task is None
+    assert await model.line("events") is None
+    assert len(model.jobs.list(0)) == 1
 
 
-async def test_concurrency_limit_falls_back_without_waiting(monkeypatch):
-    session = install_response(monkeypatch, completed())
-    model = ConversationModel("test")
+async def test_cancellation_cancels_queued_job(model):
+    task = asyncio.create_task(model.line("greeting"))
+    await asyncio.sleep(0)
+    (job,) = model.jobs.list(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert (model.jobs.directory(job["id"]) / "cancel").exists()
+
+
+async def test_concurrency_limit_falls_back_without_waiting(model):
     await model.slots.acquire()
     await model.slots.acquire()
     assert await model.line("greeting") is None
-    session.post.assert_not_called()
+    assert model.jobs.list(0) == []
     model.slots.release()
     model.slots.release()
 
 
 @pytest.mark.parametrize(
-    "data",
+    "text",
     [
-        {"status": "incomplete", "output": []},
-        {"status": "completed", "output": [{"type": "function_call"}]},
-        {"status": "completed", "output": []},
-        {"status": "completed", "output": completed()["output"] * 2},
-        {
-            "status": "completed",
-            "output": [{"type": "message", "role": "user", "status": "completed"}],
-        },
+        None,
+        "X" * 4097,
+        "garbage",
+        "[]",
+        '{"reply": 12}',
+        '{"reply":"Olá!", "secret":"SECRET"}',
     ],
 )
-def test_only_one_completed_assistant_message_is_accepted(data):
-    assert ConversationModel.extract(data) is None
+def test_only_bounded_json_reply_is_accepted(text):
+    assert ConversationModel.extract(text) is None
 
 
 @pytest.mark.parametrize(
