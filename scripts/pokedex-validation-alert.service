@@ -1,0 +1,9 @@
+[Unit]
+Description=Poliswag Pokédex pending validation notifications via Home Assistant
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec -w /app poliswag python -m scripts.pokedex_validation_alert
+TimeoutStartSec=45
