@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Pokédex validations every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=pokedex-validation-alert.service
+
+[Install]
+WantedBy=timers.target
