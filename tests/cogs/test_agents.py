@@ -22,6 +22,7 @@ def ctx(author=123, content="claude explain", guild=None):
     context.guild = guild
     context.message.content = content
     context.send = AsyncMock()
+    context.reply = AsyncMock()
     context.author.send = AsyncMock()
     context.author.create_dm = AsyncMock(return_value=MagicMock(send=AsyncMock()))
     return context
@@ -82,6 +83,19 @@ async def test_closed_dm_does_not_launch_work(cog):
     cog.jobs.submit = MagicMock()
     await cog.submit(context, "code", "claude", "fix")
     cog.jobs.submit.assert_not_called()
+
+
+async def test_failed_channel_acknowledgement_does_not_discard_owner_work(cog):
+    import discord
+
+    context = ctx(guild=MagicMock())
+    context.reply.side_effect = discord.Forbidden(MagicMock(status=403), "blocked")
+    cog.snapshot = AsyncMock(return_value={})
+    cog.jobs.submit = MagicMock(
+        return_value={"id": "abcdef123456", "provider": "claude"}
+    )
+    await cog.submit(context, "ask", "claude", "stats")
+    cog.jobs.submit.assert_called_once()
 
 
 def test_every_agent_command_has_owner_gate(cog):
@@ -173,9 +187,14 @@ async def test_owner_general_question_can_explicitly_choose_codex(cog):
     )
 
 
-async def test_successful_submission_is_silent_until_result(cog):
+async def test_submission_acknowledges_before_snapshot_and_work(cog):
     context = ctx(guild=MagicMock())
-    cog.snapshot = AsyncMock(return_value={})
+
+    async def snapshot():
+        context.reply.assert_awaited_once()
+        return {}
+
+    cog.snapshot = AsyncMock(side_effect=snapshot)
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
     )
@@ -273,7 +292,7 @@ async def test_question_and_resumed_completion_are_each_delivered_once(cog):
     assert cog.send_result.await_count == 2
 
 
-async def test_plain_owner_answer_resumes_waiting_task_silently(cog):
+async def test_plain_owner_answer_resumes_waiting_task_with_acknowledgement(cog):
     job = save_reply(
         cog, state="waiting_input", reply="Qual cidade devo usar?", details=""
     )
@@ -283,6 +302,7 @@ async def test_plain_owner_answer_resumes_waiting_task_silently(cog):
     resumed = cog.jobs.get(job["id"], 123)
     assert resumed["state"] == "queued" and resumed["turns"][0]["answer"] == "Leiria"
     cog.submit.assert_not_awaited()
+    context.reply.assert_awaited_once()
     context.send.assert_not_awaited()
 
 
