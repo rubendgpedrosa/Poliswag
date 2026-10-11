@@ -119,6 +119,25 @@ async def test_active_owner_queries_are_served_once(tmp_path, monkeypatch):
     assert read_json(response)["data"]["rows"] == [{"value": 1}]
 
 
+async def test_owner_unfiltered_report_uses_history_tool(tmp_path, monkeypatch):
+    jobs = AgentJobs(tmp_path)
+    directory, response = request(jobs)
+    path = directory / "database" / "request.request.json"
+    data = read_json(path)
+    write_json(
+        path, {**data, "tool": "spawn_history_report", "arguments": {"hours": 24}}
+    )
+    report = {
+        "metadata": {"complete_window": False},
+        "trainers": [{"trainer": "Trainer", "predicted_shinies": 2}],
+    }
+    execute = MagicMock(return_value=report)
+    monkeypatch.setattr(agent_database, "leaderboard", execute)
+    await AgentDatabase(jobs, 123).poll()
+    execute.assert_called_once_with(24)
+    assert read_json(response)["data"] == report
+
+
 @pytest.mark.parametrize("cancelled,expired", [(True, False), (False, True)])
 async def test_cancelled_or_expired_queries_do_not_execute(
     tmp_path, monkeypatch, cancelled, expired
@@ -155,7 +174,11 @@ def test_mcp_initializes_and_exposes_database_tools(tmp_path):
     tools = agent_db_mcp.handle({"id": 2, "method": "tools/list"}, tmp_path)["result"][
         "tools"
     ]
-    assert {tool["name"] for tool in tools} == {"list_databases", "query"}
+    assert {tool["name"] for tool in tools} == {
+        "list_databases",
+        "query",
+        "spawn_history_report",
+    }
     assert (
         agent_db_mcp.handle({"method": "notifications/initialized"}, tmp_path) is None
     )

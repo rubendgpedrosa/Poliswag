@@ -13,6 +13,16 @@ from modules.agent_jobs import read_json, write_json
 
 TOOLS = [
     {
+        "name": "spawn_history_report",
+        "description": "Recompute an unfiltered shiny leaderboard for all linked map users from retained raw spawns, with recorded odds and coverage metadata. Ignores account notification, collection, area and IV preferences. Hourly averages are null when history is incomplete; never substitute filtered shiny_alert counts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"hours": {"type": "integer", "minimum": 1, "maximum": 48}},
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": True, "destructiveHint": False},
+    },
+    {
         "name": "list_databases",
         "description": "List the production databases accessible through Poliswag.",
         "inputSchema": {

@@ -10,6 +10,7 @@ import pymysql
 from modules.agent_jobs import read_json, write_json
 from modules.config import Config
 from modules.database_connector import connect
+from modules.spawn_history import leaderboard
 
 
 def databases():
@@ -111,6 +112,10 @@ class AgentDatabase:
                     elif request.get("tool") == "query":
                         data = await asyncio.to_thread(
                             query, request.get("arguments", {})
+                        )
+                    elif request.get("tool") == "spawn_history_report":
+                        data = await asyncio.to_thread(
+                            leaderboard, request.get("arguments", {}).get("hours", 24)
                         )
                     else:
                         raise ValueError("Unknown database tool.")

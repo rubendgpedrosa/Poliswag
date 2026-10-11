@@ -26,6 +26,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | 09:00 trade digest; per-minute trade-match DMs; live match posts. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
 | `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` | Shiny prediction: the roll, the `shiny_link`/`shiny_alert` tables, link announcements and roll-0 DMs. See `shiny.md`. |
+| `spawn_history.py` | Independent 48-hour raw spawn archive, compressed JSON export and unfiltered trainer statistics. See `spawn-history.md`. |
 | `shiny_odds.py` | Event shiny odds and never-shiny species, read off the scanner's own counts into `shiny_rate` / `shiny_species`. See `shiny.md`. |
 | `account_monitor.py` | Dragonite account stats → image in `ACCOUNTS_CHANNEL`. |
 | `poracle_client.py` | Async Poracle-NG REST client (`X-Poracle-Secret`); humans, pokemon tracking, `test_pokemon`, `health`, `reload`. `PoracleError` on failure. |
@@ -53,6 +54,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
 | `shiny.py` | `!shiny <código>` / `!shiny` / `!shiny remover`; listener for the alert verdict buttons | `MY_ID` only during the pilot (`owner_only`); built for members, works in DMs (own membership check) |
 | `agents.py` | `!self`, `!ask`, `!code`, `!jobs`, `!job`, `!cancel`; explicit provider requests in owner DMs/mentions | `MY_ID` only; host worker, private queue, separate worktrees |
+| `spawn_history.py` | `!spawnhistory`, `!spawnhistory export [hours]`, `!spawnhistory leaderboard [hours]`; independent 30-second collector | `MY_ID` only |
 | `mentions.py` | Owner mentions delegate free-form requests privately; other members get jokes, public events or aggregate game numbers | Actual Discord identity; public Codex Luna medium without shell/history; fixed data allowlist and cooldowns |
 
 ## Databases — detail in `docs/context/database.md`
@@ -129,4 +131,5 @@ LOG_FILE, ERROR_LOG_FILE
 | `docs/context/error-review.md` | the host cron that has Claude review `logs/error.log` daily |
 | `docs/context/host-ops.md` | the host watchdog restarting Poliswag, `scripts/dm_owner.py`, backup-failure DMs |
 | `docs/context/shiny.md` | `!shiny`, the host linker and its guards/breaker, shiny alert DMs |
+| `docs/context/spawn-history.md` | raw spawn retention, unfiltered leaderboards, JSON export and coverage gaps |
 | `docs/context/agents.md` | owner-requested Claude/Codex jobs, runtime awareness, host executor and review worktrees |
