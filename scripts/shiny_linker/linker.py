@@ -262,6 +262,7 @@ class Linker:
         size = 1 if validate else LOBBY_CODES
         lobbies = [targets[i : i + size] for i in range(0, len(targets), size)]
         unsettled = []  # codes of the lobbies that were started
+        processing = []
         linked = failed = 0
         breaker = error = None
         penalise = True
@@ -297,6 +298,10 @@ class Linker:
                         break
                     unsettled.extend(codes)
                     current = self._next_account(accounts, turn, current)
+                if not validate:
+                    discord_ids = [row["discord_id"] for row in codes]
+                    self.store.start_processing(discord_ids)
+                    processing.extend(discord_ids)
                 lobby = self.lobby_cls(self.session, hook, gym)
                 found = []
                 for row in codes:
@@ -360,6 +365,8 @@ class Linker:
                 breaker = breaker or "o hook não saiu do jogo"
             if self.phone.game_pid() != pid:
                 breaker = "o jogo reiniciou durante a ligação"
+            if processing:
+                self.store.finish_processing(processing)
 
         if unsettled and not validate and penalise:
             self.store.bump_attempts(

@@ -57,6 +57,35 @@ class Store:
     def start_run(self):
         self._run("UPDATE poliswag SET shiny_linker_last_run_at = UTC_TIMESTAMP()")
 
+    def _has_progress(self):
+        # The host timer runs from the working tree. Keep staged code safe
+        # until the additive migration has been applied.
+        if not hasattr(self, "_progress_available"):
+            self._progress_available = bool(
+                self._all("SHOW COLUMNS FROM shiny_link LIKE 'link_processing_at'")
+            )
+        return self._progress_available
+
+    def start_processing(self, discord_ids):
+        if not discord_ids or not self._has_progress():
+            return
+        marks = ",".join(["%s"] * len(discord_ids))
+        self._run(
+            "UPDATE shiny_link SET link_processing_at = UTC_TIMESTAMP() "
+            f"WHERE status = 'pending' AND discord_id IN ({marks})",
+            tuple(discord_ids),
+        )
+
+    def finish_processing(self, discord_ids):
+        if not discord_ids or not self._has_progress():
+            return
+        marks = ",".join(["%s"] * len(discord_ids))
+        self._run(
+            "UPDATE shiny_link SET link_processing_at = NULL "
+            f"WHERE discord_id IN ({marks})",
+            tuple(discord_ids),
+        )
+
     def mark_linked(self, discord_id, trainer_name, player_id):
         self._run(
             "UPDATE shiny_link SET status = 'linked', trainer_name = %s, player_id = %s, "

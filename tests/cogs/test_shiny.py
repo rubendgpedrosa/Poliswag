@@ -5,7 +5,7 @@ import pytest
 
 from cogs.shiny import Shiny
 from modules.config import Config
-from modules.shiny_channels import intro_embed
+from modules.shiny_channels import STARTUP_TEXT, intro_embed
 
 
 def guild_with(*member_ids):
@@ -237,6 +237,7 @@ class TestOwnChannel:
         cog.store.set_channel = AsyncMock()
         cog.store.activate_from_channel = AsyncMock()
         cog.store.set_channel_intro = AsyncMock()
+        cog.store.set_channel_intro_state = AsyncMock()
         cog.store.set_channel_archived = AsyncMock()
         return cog
 
@@ -279,6 +280,7 @@ class TestOwnChannel:
     async def test_the_map_link_is_posted_there_and_pinned(self, cog):
         ctx, _, channel, pinned = self.guild_ctx()
         await Shiny.shiny.callback(cog, ctx, texto="canal jmboy")
+        assert channel.send.call_args.kwargs["content"] == STARTUP_TEXT
         posted = channel.send.call_args.kwargs["embed"]
         assert posted.to_dict()["title"] == intro_embed().to_dict()["title"]
         assert posted.description == intro_embed().description

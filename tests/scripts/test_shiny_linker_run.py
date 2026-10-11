@@ -36,6 +36,7 @@ class FakeStore:
         self.linked, self.failed, self.bumped = [], [], []
         self.breaker = None
         self.started = 0
+        self.processing_started, self.processing_finished = [], []
 
     def state(self):
         return {
@@ -62,6 +63,12 @@ class FakeStore:
 
     def start_run(self):
         self.started += 1
+
+    def start_processing(self, discord_ids):
+        self.processing_started.extend(discord_ids)
+
+    def finish_processing(self, discord_ids):
+        self.processing_finished.extend(discord_ids)
 
     def mark_linked(self, discord_id, trainer_name, player_id):
         self.linked.append((discord_id, trainer_name, player_id))
@@ -619,3 +626,38 @@ class TestRemoteSite:
         assert outcome.startswith("validação OK")
         assert world.events.count("map") == 1 and world.events.count("open") == 2
         assert world.store.started == 0
+
+
+class TestProcessingFeedback:
+    def test_processing_begins_before_search_and_finishes_after_linking(self, world):
+        base = world.lobby_cls
+
+        class ObservedLobby(base):
+            def search(self, code):
+                assert world.store.processing_started == [1]
+                assert world.store.processing_finished == []
+                return super().search(code)
+
+        world.lobby_cls = ObservedLobby
+        outcome = world.linker().run()
+        assert "1 ligado" in outcome
+        assert world.store.processing_finished == [1]
+
+    def test_failed_processing_clears_feedback_for_retry(self, world):
+        world.open_error = RunError("raid unavailable")
+        world.linker().run()
+        assert world.store.processing_started == [1]
+        assert world.store.processing_finished == [1]
+        assert world.store.bumped
+
+    def test_waiting_for_infrastructure_is_not_reported_as_processing(self, world):
+        world.login_error = RunError("login failed")
+        world.linker().run()
+        assert world.store.processing_started == []
+        assert world.store.processing_finished == []
+
+    def test_validation_does_not_publish_player_progress(self, world):
+        world.search["999999999999"] = ("SelfTest", "E:b")
+        world.linker().run(validate=True)
+        assert world.store.processing_started == []
+        assert world.store.processing_finished == []

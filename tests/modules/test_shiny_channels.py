@@ -11,6 +11,10 @@ from modules.shiny_channels import (
     ARCHIVE_CATEGORY,
     CHANNEL_CATEGORY,
     ShinyChannels,
+    STARTUP_TEXT,
+    PROCESSING_TEXT,
+    READY_TEXT,
+    FAILED_TEXT,
     map_url,
 )
 
@@ -34,7 +38,7 @@ def setup(monkeypatch):
         return value
 
     guild.create_category = AsyncMock(side_effect=category)
-    message = MagicMock(id=55, pinned=False, pin=AsyncMock())
+    message = MagicMock(id=55, pinned=False, pin=AsyncMock(), edit=AsyncMock())
 
     async def create(name, **kwargs):
         value = MagicMock(id=77, send=AsyncMock(return_value=message))
@@ -61,6 +65,7 @@ def setup(monkeypatch):
         channel_id=None,
         channel_archived=0,
         channel_intro_message_id=None,
+        channel_intro_state=None,
         shiny_access=1,
         shiny_map=1,
         left_at=None,
@@ -70,7 +75,10 @@ def setup(monkeypatch):
 
     async def set_channel(_id, channel_id):
         row.update(
-            channel_id=channel_id, channel_archived=1, channel_intro_message_id=None
+            channel_id=channel_id,
+            channel_archived=1,
+            channel_intro_message_id=None,
+            channel_intro_state=None,
         )
 
     async def intro(_id, message_id):
@@ -80,7 +88,12 @@ def setup(monkeypatch):
         row["channel_archived"] = int(archived)
 
     store.set_channel = AsyncMock(side_effect=set_channel)
+
+    async def intro_state(_id, state):
+        row["channel_intro_state"] = state
+
     store.set_channel_intro = AsyncMock(side_effect=intro)
+    store.set_channel_intro_state = AsyncMock(side_effect=intro_state)
     store.set_channel_archived = AsyncMock(side_effect=archive)
     bot = MagicMock(guilds=[guild])
     manager = ShinyChannels(bot, store)
@@ -103,6 +116,7 @@ async def test_approval_creates_read_only_channel_and_pins_named_map(setup):
         assert getattr(channel.overwrites[member], permission) is False
     assert channel.overwrites[owner].send_messages is True
     assert channel.send.call_args.kwargs["view"].children[0].url == map_url(row)
+    assert channel.send.call_args.kwargs["content"] == STARTUP_TEXT
     intro = channel.send.call_args.kwargs["embed"]
     assert intro.title == "✨ Notificações Pokémon Shiny"
     assert intro.description == (
@@ -122,12 +136,10 @@ async def test_approval_creates_read_only_channel_and_pins_named_map(setup):
     [
         dict(shiny_access=0),
         dict(shiny_map=0),
-        dict(status="pending"),
-        dict(status="failed"),
         dict(left_at="today"),
     ],
 )
-async def test_held_or_unready_accounts_get_no_channel(setup, change):
+async def test_held_or_off_accounts_get_no_channel(setup, change):
     manager, store, guild, row, *_ = setup
     row.update(change)
     await manager.tick()
@@ -234,3 +246,127 @@ async def test_revocation_while_pinning_keeps_the_channel_archived(setup):
     await manager.tick()
     assert row["channel_archived"] == 1
     assert guild.text_channels[0].overwrites[member].view_channel is False
+
+
+async def test_map_only_needs_no_new_discord_channel(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row["shiny_notify_discord"] = 0
+    await manager.tick()
+    guild.create_text_channel.assert_not_awaited()
+
+
+async def test_map_only_keeps_existing_channel_and_map_shortcut(setup):
+    manager, store, guild, row, member, owner, message = setup
+    await manager.tick()
+    channel = guild.text_channels[0]
+    channel.send.reset_mock()
+    row["shiny_notify_discord"] = 0
+    await manager.tick()
+    assert row["channel_archived"] == 0
+    assert channel.overwrites[member].view_channel is True
+    channel.send.assert_not_awaited()
+
+
+async def test_map_only_does_not_reopen_an_archived_channel(setup):
+    manager, store, guild, row, member, owner, message = setup
+    await manager.tick()
+    row["shiny_map"] = 0
+    await manager.tick()
+    channel = guild.text_channels[0]
+    channel.send.reset_mock()
+    channel.edit.reset_mock()
+    row.update(shiny_map=1, shiny_notify_discord=0)
+    await manager.tick()
+    assert row["channel_archived"] == 1
+    channel.send.assert_not_awaited()
+    channel.edit.assert_not_awaited()
+
+
+async def test_approval_creates_a_channel_before_trainer_linking(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row.update(status="pending", player_id=None, trainer_name=None)
+    await manager.tick()
+    channel = guild.text_channels[0]
+    assert channel.send.call_args.kwargs["content"] == STARTUP_TEXT
+    assert "está em fila" in channel.send.call_args.kwargs["embed"].description
+    assert (
+        channel.send.call_args.kwargs["view"].children[0].url
+        == f"{Config.POKEDEX_URL.rstrip('/')}/mapa"
+    )
+    assert row["channel_intro_state"] == "pending"
+    await manager.tick()
+    channel.send.assert_awaited_once()
+    message.edit.assert_not_awaited()
+
+
+async def test_setup_message_tracks_processing_and_ready_without_reposting(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row.update(status="pending", player_id=None, trainer_name=None)
+    await manager.tick()
+    channel = guild.text_channels[0]
+    row["link_processing"] = 1
+    await manager.tick()
+    assert message.edit.call_args.kwargs["content"] == PROCESSING_TEXT
+    assert row["channel_intro_state"] == "processing"
+    await manager.tick()
+    message.edit.assert_awaited_once()
+    row.update(
+        status="linked", player_id="abc", trainer_name="Trainer", link_processing=0
+    )
+    await manager.tick()
+    assert message.edit.call_args.kwargs["content"] == READY_TEXT
+    assert message.edit.call_args.kwargs["view"].children[0].url == map_url(row)
+    assert row["channel_intro_state"] == "ready"
+    channel.send.assert_awaited_once()
+    assert message.edit.await_count == 2
+
+
+async def test_failed_link_updates_message_and_retry_returns_to_queue(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row.update(status="pending", player_id=None, trainer_name=None)
+    await manager.tick()
+    row["status"] = "failed"
+    await manager.tick()
+    assert message.edit.call_args.kwargs["content"] == FAILED_TEXT
+    assert row["channel_archived"] == 0
+    row["status"] = "pending"
+    await manager.tick()
+    assert message.edit.call_args.kwargs["content"] == STARTUP_TEXT
+    guild.text_channels[0].send.assert_awaited_once()
+
+
+async def test_failed_status_edit_is_retried_without_a_new_message(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row.update(status="pending", player_id=None, trainer_name=None)
+    await manager.tick()
+    row["link_processing"] = 1
+    message.edit.side_effect = RuntimeError("Discord unavailable")
+    await manager.tick()
+    assert row["channel_intro_state"] == "pending"
+    message.edit.side_effect = None
+    await manager.tick()
+    assert row["channel_intro_state"] == "processing"
+    guild.text_channels[0].send.assert_awaited_once()
+
+
+async def test_pending_map_only_account_gets_no_setup_messages(setup):
+    manager, store, guild, row, member, owner, message = setup
+    row.update(
+        status="pending", player_id=None, trainer_name=None, shiny_notify_discord=0
+    )
+    await manager.tick()
+    guild.create_text_channel.assert_not_awaited()
+
+
+async def test_already_linked_new_channel_shows_startup_then_ready(setup):
+    manager, store, guild, row, member, owner, message = setup
+    await manager.tick()
+    channel = guild.text_channels[0]
+    assert channel.send.call_args.kwargs["content"] == STARTUP_TEXT
+    assert row["channel_intro_state"] == "starting"
+    await manager.tick()
+    assert message.edit.call_args.kwargs["content"] == READY_TEXT
+    assert row["channel_intro_state"] == "ready"
+    await manager.tick()
+    message.edit.assert_awaited_once()
+    channel.send.assert_awaited_once()
