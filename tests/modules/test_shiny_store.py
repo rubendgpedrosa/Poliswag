@@ -197,3 +197,65 @@ async def test_shiny_eligible_reads_the_shared_exact_variant_policy(store, db):
     assert await store.shiny_eligible() == {(931, 2987, 0), (835, 3172, 7)}
     sql = db.get_data_from_database.call_args.args[0]
     assert "costume_id FROM shiny_eligible_variant" in sql
+
+
+async def test_discord_switch_filters_channels_and_pilot_dms(store, db):
+    await store.recipients([7])
+    assert "p.shiny_notify_discord = 1" in db.get_data_from_database.call_args.args[0]
+    await store.unannounced()
+    assert "p.shiny_notify_discord = 1" in db.get_data_from_database.call_args.args[0]
+
+
+async def test_rechecks_latest_notification_setting_before_delivery(store, db):
+    db.get_data_from_database.return_value = []
+    assert await store.notifications_enabled(7) is False
+    sql = db.get_data_from_database.call_args.args[0]
+    assert (
+        "shiny_notify_discord = 1" in sql
+        and "shiny_map = 1" in sql
+        and "shiny_access = 1" in sql
+    )
+    db.get_data_from_database.return_value = [{"1": 1}]
+    assert await store.notifications_enabled(7) is True
+
+
+async def test_notification_changes_are_unacknowledged_preferences(store, db):
+    await store.notification_changes()
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "p.shiny_notify_discord <> p.shiny_notify_discord_applied" in sql
+    assert "LEFT JOIN shiny_link" in sql and "p.left_at IS NULL" in sql
+
+
+async def test_claiming_a_change_is_atomic_and_preserves_a_newer_choice(store, db):
+    db.execute_query_to_database.return_value = 1
+    assert await store.claim_notification_change(7, False) is True
+    sql = db.execute_query_to_database.call_args.args[0]
+    assert "AND shiny_notify_discord = %s AND shiny_notify_discord_applied <> %s" in sql
+    assert db.execute_query_to_database.call_args.kwargs["params"] == (0, 7, 0, 0)
+    db.execute_query_to_database.return_value = 0
+    assert await store.claim_notification_change(7, False) is False
+
+
+async def test_channels_include_real_setup_progress_and_pending_trainers(store, db):
+    await store.channel_players()
+    sql = db.get_data_from_database.call_args.args[0]
+    assert "l.channel_intro_state" in sql
+    assert "link_processing_at > UTC_TIMESTAMP() - INTERVAL 15 MINUTE" in sql
+    assert "status = 'linked'" not in sql
+    assert "p.shiny_access = 1 AND p.shiny_map = 1" in sql
+
+
+async def test_intro_state_is_persisted_after_successful_message_update(store, db):
+    await store.set_channel_intro_state(7, "processing")
+    assert db.execute_query_to_database.call_args.kwargs["params"] == ("processing", 7)
+
+
+async def test_requeue_clears_old_processing_and_replacement_channel_resets_feedback(
+    store, db
+):
+    await store.request(7, "trainer", "123456789012")
+    assert "link_processing_at = NULL" in db.execute_query_to_database.call_args.args[0]
+    await store.set_channel(7, 99)
+    assert (
+        "channel_intro_state = NULL" in db.execute_query_to_database.call_args.args[0]
+    )

@@ -26,7 +26,8 @@ import discord
 from modules.config import Config
 from modules.embeds import build_embed
 from modules.poracle_client import PoracleError
-from modules.shiny_roll import shiny_die
+from modules.shiny_roll import is_background_at, personal_draws
+from modules.background_prediction import background_rule_for
 from modules.shiny_store import ShinyStore
 from modules.shiny_channels import ShinyChannels
 
@@ -92,15 +93,39 @@ def wants_alert(recipient, spawn, owned):
     """Which predicted shinies a player is told about, by their Pokédex
     settings: one they lack, any at all under "Todos", or an owned one at
     100% while that switch is on (the default)."""
+    if not recipient.get("shiny_notify_discord", 1):
+        return False
+    if spawn.get("predicted_background") and recipient.get("shiny_notify_background"):
+        return True
+    if spawn.get("predicted_shiny") is False:
+        return False
     if not owned or recipient.get("shiny_notify_all"):
         return True
     return bool(recipient.get("shiny_notify_hundo", 1)) and is_hundo(spawn)
 
 
-# Poracle's DTS entry for these alerts (monster / "shiny" in its dts.json; a
-# copy is kept in templates/poracle/shiny-monster.json). It is Poracle's
-# standard Pokémon alert with a ✨ before the title and nothing else added.
+# Poracle's DTS entries for these alerts (monster templates in its dts.json;
+# copies are kept in templates/poracle/). "shiny" is Poracle's standard
+# Pokémon alert with a ✨ before the title. A predicted special background has
+# two of its own, so a spawn that is not Shiny is never labelled one: 🖼️
+# before the title (✨🖼️ when it is Shiny as well) and a line saying it is an
+# experimental prediction.
 PORACLE_TEMPLATE = "shiny"
+PORACLE_BACKGROUND_TEMPLATE = "background"
+PORACLE_SHINY_BACKGROUND_TEMPLATE = "shiny-background"
+# The side bar says the same as the map's pins (owner, 2026-10-11): gold is a
+# Shiny, with or without a background; sky blue is a background alone. The
+# templates carry these too; here they colour the bot's own fallback embed.
+SHINY_COLOR = 0xF2CD5C
+BACKGROUND_COLOR = 0x5AA9E6
+
+
+def poracle_template(spawn):
+    if not spawn.get("predicted_background"):
+        return PORACLE_TEMPLATE
+    if spawn.get("predicted_shiny"):
+        return PORACLE_SHINY_BACKGROUND_TEMPLATE
+    return PORACLE_BACKGROUND_TEMPLATE
 
 
 def poracle_webhook(spawn):
@@ -179,13 +204,28 @@ def alert_embed(spawn, name, seen_shiny):
         f"📍 [Abrir no mapa](https://www.google.com/maps?q={spawn['lat']},{spawn['lon']})",
         _despawn_line(spawn),
         (
-            "✅ O scanner já viu este Pokémon shiny."
-            if seen_shiny
-            else "⚠️ O scanner nunca viu este Pokémon shiny: pode não existir em shiny."
+            f"🖼️ Fundo especial previsto · {spawn.get('background_label', 'evento')} (experimental)."
+            if spawn.get("predicted_background")
+            else (
+                "✅ O scanner já viu este Pokémon shiny."
+                if seen_shiny
+                else "⚠️ O scanner nunca viu este Pokémon shiny: pode não existir em shiny."
+            )
         ),
     ]
     headline = name if spawn["iv"] is None else f"{name} {round(spawn['iv'])}%"
-    return build_embed(f"✨ {headline}", "\n".join(lines))
+    if spawn.get("predicted_background"):
+        kind = (
+            "✨🖼️ Shiny + fundo especial"
+            if spawn.get("predicted_shiny")
+            else "🖼️ Fundo especial"
+        )
+        embed = build_embed(f"{kind} · {headline}", "\n".join(lines))
+        embed.color = SHINY_COLOR if spawn.get("predicted_shiny") else BACKGROUND_COLOR
+        return embed
+    embed = build_embed(f"✨ {headline}", "\n".join(lines))
+    embed.color = SHINY_COLOR
+    return embed
 
 
 class ShinyAlerts:
@@ -198,6 +238,7 @@ class ShinyAlerts:
         # Read first: only a change saved before this tick began is confirmed
         # by it. The steps below read every setting fresh.
         pending = await self.store.pending_settings()
+        await self._confirm_notification_changes()
         await self.channels.tick()
         await self._announce_links()
         await self._alert_spawns()
@@ -222,26 +263,49 @@ class ShinyAlerts:
             _SPAWNS_SQL, params=(watermark - LOOK_BACK, now + MIN_SECONDS_LEFT)
         )
         eligible = await self.store.shiny_eligible() if spawns else set()
+        background_rules = (
+            await self.store.background_rules(now)
+            if spawns and any(r.get("shiny_notify_background") for r in recipients)
+            else []
+        )
         for spawn in spawns:
-            if (
+            shiny_eligible = (
                 spawn["pokemon_id"],
                 spawn["form_id"],
                 spawn.get("costume") or 0,
-            ) not in eligible:
+            ) in eligible
+            rule = background_rule_for(spawn, background_rules, now)
+            if not shiny_eligible and rule is None:
                 continue
             for recipient in recipients:
                 if not plays_there(recipient, spawn):
                     continue
                 try:
-                    roll = shiny_die(spawn["id"], recipient["player_id"])
-                except ValueError:
+                    shiny_draw, background_draw = personal_draws(
+                        spawn["id"], recipient["player_id"]
+                    )
+                except (ValueError, OverflowError):
                     break  # not an encounter ID; no recipient can roll it
-                if roll != 0:
+                shiny = shiny_eligible and shiny_draw < 1 / 512
+                background = bool(
+                    rule
+                    and recipient.get("shiny_notify_background")
+                    and is_background_at(background_draw, rule["probability"])
+                )
+                if not shiny and not background:
                     continue
                 waited = now - spawn["first_seen_timestamp"]
                 if spawn["iv"] is None and waited < WAIT_FOR_IV:
                     continue  # read again next tick, IV in hand or time up
-                await self._alert(recipient, spawn)
+                prediction = {
+                    **spawn,
+                    "predicted_shiny": shiny,
+                    "predicted_background": background,
+                }
+                if background:
+                    prediction["background_label"] = rule["label"]
+                    prediction["background_ends_at"] = rule["ends_at"]
+                await self._alert(recipient, prediction)
         if spawns:
             # `>=` above re-reads the newest second next tick, in case more
             # rows land in it; shiny_alert keeps those from going out twice.
@@ -251,12 +315,28 @@ class ShinyAlerts:
 
     async def _alert(self, recipient, spawn):
         discord_id = recipient["discord_id"]
+        if not recipient.get(
+            "shiny_notify_discord", 1
+        ) or not await self.store.notifications_enabled(discord_id):
+            return
+        # Recheck the independent background preference just before delivery.
+        if spawn.get("predicted_background") and (
+            time.time() >= spawn.get("background_ends_at", float("inf"))
+            or not await self.store.background_notifications_enabled(discord_id)
+        ):
+            if not spawn.get("predicted_shiny"):
+                return
+            spawn = {**spawn, "predicted_background": False}
         # The map shows all predictions; which ones are notified is the
         # player's choice (wants_alert). "Todos" needs no look at the
         # collection. A skipped spawn is not recorded, so an IV that lands
         # while it is still inside LOOK_BACK is judged again.
-        owned = not recipient.get("shiny_notify_all") and await self.store.owns_shiny(
-            discord_id, spawn["pokemon_id"], spawn["form_id"]
+        owned = (
+            not spawn.get("predicted_background")
+            and not recipient.get("shiny_notify_all")
+            and await self.store.owns_shiny(
+                discord_id, spawn["pokemon_id"], spawn["form_id"]
+            )
         )
         if not wants_alert(recipient, spawn, owned):
             return
@@ -266,6 +346,9 @@ class ShinyAlerts:
             discord_id, spawn["id"], spawn["pokemon_id"], spawn["form_id"]
         ):
             return
+        # Through Poracle, with the template that says what was predicted
+        # (poracle_template), so a background alert has the same map tile,
+        # address and buttons as a shiny one.
         if await self._through_poracle(recipient, spawn):
             return
         # Poracle could not take it: the bot's own, plainer embed instead.
@@ -282,8 +365,10 @@ class ShinyAlerts:
             name = names[0]["name"]
             if names[0]["form_name"]:
                 name += f" ({names[0]['form_name']})"
-        seen = await self.poliswag.db.get_data_from_database(
-            _SEEN_SHINY_SQL, params=key
+        seen = (
+            await self.poliswag.db.get_data_from_database(_SEEN_SHINY_SQL, params=key)
+            if not spawn.get("predicted_background")
+            else []
         )
         embed = alert_embed(spawn, name, bool(seen))
         channel = (
@@ -320,7 +405,7 @@ class ShinyAlerts:
                 "name": name,
                 "type": "discord:user",
             }
-        target = {**destination, "language": "en", "template": PORACLE_TEMPLATE}
+        target = {**destination, "language": "en", "template": poracle_template(spawn)}
         try:
             await self.poliswag.poracle.test_pokemon(poracle_webhook(spawn), target)
             return True
@@ -330,6 +415,34 @@ class ShinyAlerts:
                 "ERROR",
             )
             return False
+
+    async def _confirm_notification_changes(self):
+        for row in await self.store.notification_changes():
+            enabled = bool(row["shiny_notify_discord"])
+            if not await self.store.claim_notification_change(
+                row["discord_id"], enabled
+            ):
+                continue
+            if enabled:
+                continue
+            text = "As notificações de shinies no Discord foram desligadas."
+            if row["shiny_map"]:
+                text += " O teu mapa de shinies continua ativo."
+            text += " Podes voltar a ligá-las em Perfil e definições no Pokédex."
+            channel = (
+                self.poliswag.get_channel(int(row["channel_id"]))
+                if row.get("channel_id") and not row.get("channel_archived")
+                else None
+            )
+            if channel is None:
+                await self._dm(row["discord_id"], content=text)
+                continue
+            try:
+                await channel.send(
+                    content=text, allowed_mentions=discord.AllowedMentions.none()
+                )
+            except (discord.Forbidden, discord.NotFound):
+                await self._dm(row["discord_id"], content=text)
 
     async def _announce_links(self):
         for row in await self.store.unannounced():
