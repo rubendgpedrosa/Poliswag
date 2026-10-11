@@ -54,6 +54,7 @@ class Mentions(commands.Cog):
             return True
         if not self.limiter.allow(ctx.guild.id, ctx.author.id):
             return True
+        await self.respond(ctx, "Já dou um salto a isso. 🐸")
         try:
             reply = await asyncio.wait_for(self.public.reply(text), timeout=42)
         except Exception:

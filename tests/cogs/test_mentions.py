@@ -36,7 +36,7 @@ def ctx(content="<@456>", owner=False, dm=False):
 async def test_bare_member_mention_gets_joke_not_help(cog):
     context = ctx()
     assert await cog.handle(context)
-    context.reply.assert_awaited_once()
+    assert context.reply.await_count == 2
     assert "!help" not in context.reply.call_args.args[0]
     assert not context.reply.call_args.kwargs["allowed_mentions"].everyone
     cog.poliswag.get_cog.assert_not_called()
@@ -54,7 +54,7 @@ async def test_bare_member_mention_gets_joke_not_help(cog):
 async def test_member_cannot_route_admin_commands_or_impersonate_owner(cog, text):
     context = ctx(text)
     assert await cog.handle(context)
-    context.reply.assert_awaited_once()
+    assert context.reply.await_count == 2
     cog.poliswag.get_cog.assert_not_called()
     cog.poliswag.scanner_status.get_full_status.assert_not_called()
 
@@ -123,7 +123,7 @@ async def test_mention_routing_prevents_command_invocation(cog):
     bot.get_cog.return_value = cog
     bot.invoke = AsyncMock()
     await main.Poliswag.process_commands(bot, context.message)
-    context.reply.assert_awaited_once()
+    assert context.reply.await_count == 2
     bot.invoke.assert_not_awaited()
 
 
@@ -188,3 +188,16 @@ async def test_missing_mentions_cog_does_not_greet_nonowner_in_dm(monkeypatch):
     await main.Poliswag.process_commands(bot, context.message)
     context.send.assert_not_awaited()
     bot.invoke.assert_not_awaited()
+
+
+async def test_member_is_acknowledged_before_agent_work(cog):
+    context = ctx("<@456> hello")
+
+    async def reply(text):
+        context.reply.assert_awaited_once()
+        assert context.reply.call_args.args[0] == "Já dou um salto a isso. 🐸"
+        return "Olá! 🐸"
+
+    cog.public.reply = AsyncMock(side_effect=reply)
+    await cog.handle(context)
+    assert context.reply.await_count == 2
