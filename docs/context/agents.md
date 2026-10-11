@@ -21,8 +21,8 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
   general-purpose agent, which can answer questions on any topic or make
   explicitly requested changes. General questions do not require repository
   inspection, and answering a question does not authorize code changes.
-  Tasks start silently and work until completion, making routine decisions
-  without asking permission to continue. Only a genuinely blocking decision
+  Tasks acknowledge the message immediately and then work until completion,
+  making routine decisions without asking permission to continue. Only a genuinely blocking decision
   interrupts the task with one short question. A plain owner DM or mention
   resumes the sole waiting task; use `!answer` if more than one is waiting.
   The same provider, mode and worktree are preserved, along with the original
@@ -70,7 +70,7 @@ environment, credentials or implementation information enters public replies.
 Sensitive-topic requests get a fixed playful deflection, not an explanation.
 
 Additional safeguards: real Discord member/owner identity checks, no webhooks
-or bots, 15-second member cooldown, five replies per guild per 30 seconds,
+or bots, 15-second member cooldown, five member requests per guild per 30 seconds,
 bounded cooldown memory, five-second data timeout, 42-second total reply limit,
 validated calendar titles and numeric values, disabled mentions, and generic
 failure replies without exception text. Missing mention handling fails closed
@@ -81,8 +81,9 @@ CLI behavior: [Codex non-interactive mode](https://developers.openai.com/codex/n
 and [configuration reference](https://developers.openai.com/codex/config-reference).
 
 Owner replies are plain short sentences (maximum 280 characters), witty for
-casual chat and factual for code. Successful submission sends no queue,
-progress or channel acknowledgement. Code reports remain available via
+casual chat and factual for code. Submission immediately replies with one short
+acknowledgement in the originating channel or DM; subsequent replies wait for
+completion or a blocking decision. Code reports remain available via
 `!job <id>` as attachments. Statistics, calendars and explicitly requested
 detailed reports retain their useful rows/text, with a file for long reports.
 Failures get a short generic explanation without publishing raw CLI errors.
@@ -93,7 +94,8 @@ Mentions are disabled on every reply.
 The queue is `logs/agent-jobs/` (`AGENT_JOBS_DIR` inside the bot), shared through
 the existing `/app`/`logs` bind mounts. Each private job directory contains
 `request.json`, `result.json`, structured `response.json`, `answer.txt`, raw
-CLI stdout/stderr, and optional `continuation.json`, `cancel` and per-revision
+CLI stdout/stderr, private `database/` MCP requests/results while executing,
+and optional `continuation.json`, `cancel` and per-revision
 notification markers. Responses declare `done` or `needs_input` and separate
 the short sentence from full details. Only completion, a blocking question,
 or a terminal failure is delivered automatically. Waiting tasks are not
@@ -116,11 +118,22 @@ queue, and agent authentication/cache folders. Provider credentials remain
 available to the CLIs. Coding tasks can run arbitrary local test commands inside
 these filesystem restrictions; tests need available dependencies. Codex also
 uses `workspace-write` (or `read-only` for questions); Claude uses an explicit
-tool set, no MCP servers/settings sources, and `dontAsk` permissions.
+tool set, only the owner database MCP server, no settings sources, and `dontAsk`
+permissions.
 No runner command deploys, merges, pushes, commits, or restarts the bot. Agent
 instructions forbid those actions as well. Review and apply worktree changes
 separately. Shared Git metadata is writable for worktree registration; this
 review workflow is not a complete security sandbox.
+
+Owner jobs receive the `poliswag_db` stdio MCP server (`scripts/agent_db_mcp.py`).
+Its `list_databases` and `query` tools send private per-job file requests to
+`cogs/agents.py`, which executes them through the bot's production connection.
+Only running jobs belonging to `MY_ID` are served; public jobs receive no MCP
+server. Aliases cover Poliswag, scanner, Dragonite, PoGoLeiria and Poracle.
+Queries run in a read-only transaction with a 10-second statement limit,
+maximum 500 rows and bounded output. Schema discovery and aggregate queries
+use live data; credentials stay inside the bot. SQL writes and file queries
+are rejected. Cancellation and bridge waits are bounded.
 
 The worker uses an environment allowlist without Discord or database credentials.
 Cancellation/timeouts terminate the process group. A restart marks unfinished

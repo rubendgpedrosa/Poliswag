@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 
 from modules.agent_jobs import AgentJobs, TERMINAL, parse_direct_request
 from modules.agent_reply import short_sentence
+from modules.agent_database import AgentDatabase
 from modules.config import Config
 from modules.embeds import status_embed
 from modules.permissions import is_owner, owner_only
@@ -36,12 +37,15 @@ class Agents(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.jobs = AgentJobs(Config.AGENT_JOBS_DIR)
+        self.database = AgentDatabase(self.jobs, Config.MY_ID)
 
     async def cog_load(self):
         self.deliver_results.start()
+        self.serve_database.start()
 
     async def cog_unload(self):
         self.deliver_results.cancel()
+        self.serve_database.cancel()
 
     def cog_check(self, ctx):
         return is_owner(ctx)
@@ -54,6 +58,7 @@ class Agents(commands.Cog):
             "commands": sorted(c.qualified_name for c in self.poliswag.walk_commands()),
             "coding_repo": "Poliswag",
             "worker": self.jobs.worker_status(),
+            "production_database": "Live read-only queries available through poliswag_db MCP tools",
         }
         try:
             data = await asyncio.wait_for(
@@ -75,7 +80,7 @@ class Agents(commands.Cog):
         if not is_owner(ctx):
             return
         try:
-            # Resolve delivery without sending progress or queue acknowledgements.
+            await self.acknowledge(ctx)
             await ctx.author.create_dm()
             job = self.jobs.submit(
                 owner_id=ctx.author.id,
@@ -168,6 +173,7 @@ class Agents(commands.Cog):
     @owner_only()
     async def answer_job(self, ctx, job_id: str, *, response: str):
         self.jobs.resume(job_id, ctx.author.id, response)
+        await self.acknowledge(ctx)
 
     @commands.command(name="cancel", brief="Cancela uma tarefa de Claude ou Codex")
     @owner_only()
@@ -222,6 +228,7 @@ class Agents(commands.Cog):
         if len(waiting) == 1:
             try:
                 self.jobs.resume(waiting[0]["id"], ctx.author.id, text)
+                await self.acknowledge(ctx)
             except ValueError as error:
                 await ctx.send(
                     short_sentence(error),
@@ -236,6 +243,26 @@ class Agents(commands.Cog):
             return
         provider = "codex" if re.search(r"\b(openai|codex)\b", text, re.I) else "claude"
         await self.submit(ctx, "code", provider, text)
+
+    @staticmethod
+    async def acknowledge(ctx):
+        try:
+            await ctx.reply(
+                "Já estou a tratar disso.",
+                mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            # A failed channel acknowledgement must not discard an owner task.
+            pass
+
+    @tasks.loop(seconds=1)
+    async def serve_database(self):
+        await self.database.poll()
+
+    @serve_database.before_loop
+    async def before_database(self):
+        await self.poliswag.wait_until_ready()
 
     async def send_result(self, user, job, *, full=False):
         answer = self.jobs.directory(job["id"]) / "answer.txt"
