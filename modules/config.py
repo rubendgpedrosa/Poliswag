@@ -86,10 +86,6 @@ class Config:
     # restarts the container when it goes stale (logs/ is bind-mounted).
     HEARTBEAT_FILE = os.environ.get("HEARTBEAT_FILE", "logs/heartbeat")
     AGENT_JOBS_DIR = os.environ.get("AGENT_JOBS_DIR", "logs/agent-jobs")
-    # Optional, separate from the Gemini/image credential. Public replies fail
-    # back to local templates if this is unset or the OpenAI API is unavailable.
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    PUBLIC_REPLY_REASONING = os.environ.get("PUBLIC_REPLY_REASONING", "medium")
 
     # Logging
     LOG_FILE = os.environ.get("LOG_FILE", "logs/app.log")

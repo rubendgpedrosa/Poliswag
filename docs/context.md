@@ -53,7 +53,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO scanner community 
 | `announcements.py` | `!anunciar <texto>` — reposts the text (+ attachments) as typed in the announcements channel (`EVENT_PANEL_CHANNEL_ID`). Echoes a pings-off preview first; posts only on **Publicar** (author only, 5 min, one press), with `AllowedMentions.all()` so a typed `@everyone` pings. Deletes the command message once the preview is up (kept on errors); attachments are read into memory first so Publicar still has them | admin-only (`cog_check`) |
 | `shiny.py` | `!shiny <código>` / `!shiny` / `!shiny remover`; listener for the alert verdict buttons | `MY_ID` only during the pilot (`owner_only`); built for members, works in DMs (own membership check) |
 | `agents.py` | `!self`, `!ask`, `!code`, `!jobs`, `!job`, `!cancel`; explicit provider requests in owner DMs/mentions | `MY_ID` only; host worker, private queue, separate worktrees |
-| `mentions.py` | Owner mentions delegate free-form requests privately; other members get jokes, public events or aggregate game numbers | Actual Discord identity; no public agent/tools/history; fixed data allowlist and cooldowns |
+| `mentions.py` | Owner mentions delegate free-form requests privately; other members get jokes, public events or aggregate game numbers | Actual Discord identity; public Codex Luna medium without shell/history; fixed data allowlist and cooldowns |
 
 ## Databases — detail in `docs/context/database.md`
 

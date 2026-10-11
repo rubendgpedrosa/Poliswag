@@ -20,7 +20,7 @@ class Mentions(commands.Cog):
         self.public = PublicConversation(
             poliswag.db,
             poliswag.quest_search.db,
-            ConversationModel(Config.OPENAI_API_KEY, Config.PUBLIC_REPLY_REASONING),
+            ConversationModel(Config.AGENT_JOBS_DIR),
         )
         self.limiter = MentionLimiter()
 
@@ -55,7 +55,7 @@ class Mentions(commands.Cog):
         if not self.limiter.allow(ctx.guild.id, ctx.author.id):
             return True
         try:
-            reply = await asyncio.wait_for(self.public.reply(text), timeout=24)
+            reply = await asyncio.wait_for(self.public.reply(text), timeout=42)
         except Exception:
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
