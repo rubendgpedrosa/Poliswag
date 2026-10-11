@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from modules.agent_jobs import AgentJobs, MAX_PROMPT, TERMINAL, read_json, write_json
 from modules.conversation_model import INSTRUCTIONS, TOPICS
 from modules.agent_reply import REPLY_SCHEMA, parse_reply
+from modules.agent_artifacts import stage_artifacts
 
 STOPPING = False
 
@@ -146,7 +147,14 @@ def prompt_for(request):
         "only when a missing decision genuinely blocks further useful work and "
         "cannot be inferred safely; otherwise finish without interruption. "
         "When blocked, ask only the minimum essential question and omit optional preferences. "
-        "Your final output must be a JSON object with outcome, kind, reply and details. "
+        "Your final output must be a JSON object with outcome, kind, reply, details and attachments. "
+        "For requested images or other files, create the actual files in this worktree "
+        "and list their relative paths in attachments; otherwise use an empty array. "
+        "The bot stages and sends these files to the stored delivery destination. "
+        "Do not merely put file paths in details or claim a file was sent. "
+        "For data tables, render an accurate image using available local tools. "
+        "Maximum 9 files, 8 MiB per file, 24 MiB combined; supported types: "
+        "PNG, JPEG, GIF, WebP, PDF, CSV, TXT, JSON, SVG. "
         "Set outcome to done only when finished, or needs_input only for that "
         "essential blocking question. Set kind to chat, code or stats. "
         "The reply is exactly one short sentence, at most 280 characters: witty "
@@ -160,6 +168,7 @@ def prompt_for(request):
         "tools, repository inspection and execution. "
         "For ordinary chat and blocking questions, details must be empty.\n\n"
         f"Mode: {request['mode']}\n"
+        f"Delivery destination: {json.dumps(request.get('destination') or {'type': 'dm'})}\n"
         "Poliswag runtime snapshot (captured at submission, may be stale):\n"
         f"{json.dumps(request.get('context', {}), ensure_ascii=False)}\n\n"
         f"Owner request:\n{request['prompt']}"
@@ -447,12 +456,18 @@ class Worker:
                     if reply["outcome"] == "needs_input"
                     else "completed"
                 )
+                artifacts = (
+                    stage_artifacts(worktree, directory, reply["attachments"], revision)
+                    if state == "completed"
+                    else []
+                )
                 self.finish(
                     job_id,
                     state,
                     revision=revision,
                     reply=reply["reply"],
                     kind=reply["kind"],
+                    artifacts=artifacts,
                 )
         except Exception as error:
             if process is not None and process.poll() is None:

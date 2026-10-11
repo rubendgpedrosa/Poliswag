@@ -26,7 +26,14 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
   interrupts the task with one short question. A plain owner DM or mention
   resumes the sole waiting task; use `!answer` if more than one is waiting.
   The same provider, mode and worktree are preserved, along with the original
-  request and decision history. Owner results and questions return by DM.
+  request and decision history. Owner results and questions return to the stored
+  destination: the originating channel by default, or DM for a DM request.
+  Explicit `send via DM` / `envia por DM` overrides the origin; `send to
+  #moderação`, `envia para <#channel-id>` or `send to channel name` chooses a
+  channel. Channel names must match exactly (case/accents ignored) and be
+  unambiguous. Unknown channels fail submission instead of redirecting the
+  result. Continuations retain the original destination. Legacy jobs without
+  destination metadata keep their original DM behavior; `!job` stays private.
 
 ## Public mentions
 
@@ -86,6 +93,14 @@ acknowledgement in the originating channel or DM; subsequent replies wait for
 completion or a blocking decision. Code reports remain available via
 `!job <id>` as attachments. Statistics, calendars and explicitly requested
 detailed reports retain their useful rows/text, with a file for long reports.
+Generated files are declared in the response's `attachments` array as relative
+worktree paths. Before publishing completion, the worker copies them into the
+shared job directory under `artifacts/<revision>/`; the container does not need
+access to host worktrees. The bot sends these files and any long text report
+together. Missing/invalid files fail staging or delivery instead of silently
+sending only text. Paths must stay inside the worktree (no hidden paths or
+escaping symlinks); supported types are PNG, JPEG, GIF, WebP, PDF, CSV, TXT,
+JSON and SVG. Maximum nine generated files, 8 MiB per file and 24 MiB total.
 Failures get a short generic explanation without publishing raw CLI errors.
 Mentions are disabled on every reply.
 
@@ -95,7 +110,7 @@ The queue is `logs/agent-jobs/` (`AGENT_JOBS_DIR` inside the bot), shared throug
 the existing `/app`/`logs` bind mounts. Each private job directory contains
 `request.json`, `result.json`, structured `response.json`, `answer.txt`, raw
 CLI stdout/stderr, private `database/` MCP requests/results while executing,
-and optional `continuation.json`, `cancel` and per-revision
+staged output `artifacts/`, and optional `continuation.json`, `cancel` and per-revision
 notification markers. Responses declare `done` or `needs_input` and separate
 the short sentence from full details. Only completion, a blocking question,
 or a terminal failure is delivered automatically. Waiting tasks are not
@@ -138,8 +153,11 @@ are rejected. Cancellation and bridge waits are bounded.
 The worker uses an environment allowlist without Discord or database credentials.
 Cancellation/timeouts terminate the process group. A restart marks unfinished
 jobs `interrupted` without rerunning them. Worktrees and logs remain for review.
-Final DM and blocking-question delivery retries across bot restarts; a crash
-between sending and marking delivery can produce a duplicate DM.
+Final result and blocking-question delivery retries across bot restarts in the
+stored destination, with no fallback to a different channel or DM. The delivery
+marker is written only after the complete Discord send succeeds. One failed
+delivery does not block other finished jobs. A crash between sending and marking
+delivery can still produce a duplicate message.
 
 ## Host installation
 

@@ -11,6 +11,8 @@ from discord.ext import commands, tasks
 from modules.agent_jobs import AgentJobs, TERMINAL, parse_direct_request
 from modules.agent_reply import short_sentence
 from modules.agent_database import AgentDatabase
+from modules.agent_artifacts import MAX_ATTACHMENTS, MAX_TOTAL_BYTES, read_artifact
+from modules.agent_destination import delivery_reference, normalized_name
 from modules.config import Config
 from modules.embeds import status_embed
 from modules.permissions import is_owner, owner_only
@@ -80,14 +82,17 @@ class Agents(commands.Cog):
         if not is_owner(ctx):
             return
         try:
+            destination = self.destination_for(ctx, prompt)
             await self.acknowledge(ctx)
-            await ctx.author.create_dm()
+            if destination["type"] == "dm":
+                await ctx.author.create_dm()
             job = self.jobs.submit(
                 owner_id=ctx.author.id,
                 provider=provider,
                 mode=mode,
                 prompt=prompt,
                 context=await self.snapshot(),
+                destination=destination,
             )
             self.poliswag.utility.log_to_file(
                 f"[AGENT] owner {ctx.author.id} queued {job['id']} {job['provider']} {mode}"
@@ -101,6 +106,33 @@ class Agents(commands.Cog):
                 "Não consegui abrir a tua DM.",
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+
+    def destination_for(self, ctx, prompt):
+        reference = delivery_reference(prompt)
+        if reference == "dm" or (reference is None and ctx.guild is None):
+            return {"type": "dm"}
+        channel = ctx.channel
+        if reference is not None:
+            channels = (
+                [*ctx.guild.channels, *ctx.guild.threads]
+                if ctx.guild is not None
+                else list(self.poliswag.get_all_channels())
+            )
+            if reference.startswith("<#"):
+                matches = [c for c in channels if c.id == int(reference[2:-1])]
+            else:
+                name = normalized_name(reference.lstrip("#"))
+                matches = [c for c in channels if normalized_name(c.name) == name]
+            if len(matches) != 1 or not hasattr(matches[0], "send"):
+                raise ValueError(
+                    "Não encontrei um único canal para enviar o resultado."
+                )
+            channel = matches[0]
+        return {
+            "type": "channel",
+            "channel_id": channel.id,
+            "guild_id": channel.guild.id,
+        }
 
     @commands.command(name="code", brief="Pede alterações de código a Claude ou Codex")
     @owner_only()
@@ -293,11 +325,52 @@ class Agents(commands.Cog):
             )
         else:
             text = "Ainda estou a tratar do pedido."
-        await user.send(
-            text[:1900],
-            allowed_mentions=discord.AllowedMentions.none(),
-            **kwargs,
-        )
+        files = []
+        try:
+            artifacts = job.get("artifacts", []) if job["state"] == "completed" else []
+            if len(artifacts) > MAX_ATTACHMENTS:
+                raise ValueError("Too many attachments")
+            total = 0
+            for artifact in artifacts:
+                data = read_artifact(self.jobs.directory(job["id"]), artifact["path"])
+                total += len(data)
+                if total > MAX_TOTAL_BYTES:
+                    raise ValueError("Attachments are too large")
+                files.append(
+                    discord.File(io.BytesIO(data), filename=artifact["filename"])
+                )
+            if files:
+                if "file" in kwargs:
+                    files.append(kwargs.pop("file"))
+                kwargs["files"] = files
+            await user.send(
+                text[:1900],
+                allowed_mentions=discord.AllowedMentions.none(),
+                **kwargs,
+            )
+        finally:
+            for file in files:
+                file.close()
+            if "file" in kwargs:
+                kwargs["file"].close()
+
+    async def result_destination(self, job):
+        destination = job.get("destination") or {"type": "dm"}
+        if destination["type"] == "channel":
+            channel = self.poliswag.get_channel(destination["channel_id"])
+            if channel is None:
+                channel = await self.poliswag.fetch_channel(destination["channel_id"])
+            if channel.guild.id != destination["guild_id"] or not hasattr(
+                channel, "send"
+            ):
+                raise ValueError("Invalid delivery channel")
+            return channel
+        if destination["type"] != "dm":
+            raise ValueError("Invalid delivery destination")
+        user = self.poliswag.get_user(Config.MY_ID)
+        if user is None:
+            user = await self.poliswag.fetch_user(Config.MY_ID)
+        return user
 
     @tasks.loop(seconds=10)
     async def deliver_results(self):
@@ -305,18 +378,16 @@ class Agents(commands.Cog):
             if job["state"] not in TERMINAL | {"waiting_input"} or job["notified"]:
                 continue
             try:
-                user = self.poliswag.get_user(Config.MY_ID)
-                if user is None:
-                    user = await self.poliswag.fetch_user(Config.MY_ID)
-                await self.send_result(user, job)
+                destination = await self.result_destination(job)
+                await self.send_result(destination, job)
                 self.jobs.notification_marker(job["id"], job["revision"]).touch(
                     mode=0o600
                 )
-            except (discord.HTTPException, OSError) as error:
+            except (discord.HTTPException, OSError, ValueError) as error:
                 self.poliswag.utility.log_to_file(
                     f"[AGENT] delivery failed for {job['id']}: {error}"
                 )
-                break
+                continue
 
     @deliver_results.before_loop
     async def before_results(self):

@@ -27,6 +27,19 @@ def test_long_sentences_are_bounded_without_removing_report_details():
     assert result["details"] == details
 
 
+def test_attachment_manifest_is_preserved_and_old_replies_remain_readable():
+    assert parse_reply(reply(attachments=["reports/image.png"]))["attachments"] == [
+        "reports/image.png"
+    ]
+    assert parse_reply(reply())["attachments"] == []
+
+
+@pytest.mark.parametrize("attachments", ["image.png", [123], [""], ["image.png"] * 10])
+def test_malformed_attachment_manifest_is_rejected(attachments):
+    with pytest.raises(ValueError):
+        parse_reply(reply(attachments=attachments))
+
+
 @pytest.mark.parametrize(
     "value",
     [
