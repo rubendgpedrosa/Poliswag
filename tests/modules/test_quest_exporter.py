@@ -242,6 +242,158 @@ class TestExport:
     categorises/zone-tags each pokestop, and writes the result as JSON.
     """
 
+    async def test_keeps_different_reward_quantities_separate(self, tmp_path):
+        import json
+
+        base = {
+            "name": "Stop",
+            "lat": 39.75,
+            "lon": -8.8,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 3,
+            "quest_reward_type": 3,
+            "quest_item_id": None,
+            "quest_pokemon_id": None,
+        }
+        exporter = self._make_exporter(
+            tmp_path,
+            [
+                {**base, "quest_reward_amount": 500},
+                {**base, "quest_reward_amount": 1000},
+            ],
+        )
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 2
+        assert len({q["id"] for q in quests}) == 2
+        assert {q["reward"]["amount"] for q in quests} == {500, 1000}
+
+    async def test_keeps_ordinary_and_costume_rewards_at_one_stop_separate(
+        self, tmp_path
+    ):
+        import json
+
+        base = {
+            "name": "Stop",
+            "lat": 39.75,
+            "lon": -8.8,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 3,
+            "quest_reward_type": 7,
+            "quest_item_id": None,
+            "quest_pokemon_id": 1,
+            "quest_reward_amount": 1,
+        }
+        rows = [
+            {
+                **base,
+                "quest_pokemon_form_id": form,
+                "quest_rewards": json.dumps(
+                    [
+                        {
+                            "type": 7,
+                            "info": {
+                                "pokemon_id": 1,
+                                "form_id": form,
+                                "costume_id": costume,
+                            },
+                        }
+                    ]
+                ),
+            }
+            for form, costume in [(163, 0), (897, 0), (163, 11)]
+        ]
+        exporter = self._make_exporter(tmp_path, rows)
+        exporter.poliswag.quest_search.masterfile_data = {
+            "pokemon": {
+                "1": {
+                    "name": "Bulbasaur",
+                    "defaultFormId": 163,
+                    "forms": {
+                        "163": {"name": "Normal"},
+                        "897": {"name": "Fall 2019", "isCostume": True},
+                    },
+                }
+            }
+        }
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 3
+        assert len({q["id"] for q in quests}) == 3
+        rewards = {q["reward"]["type"]: q["reward"] for q in quests}
+        assert rewards["encounter_1"]["formId"] == 0
+        assert rewards["encounter_1"]["costumeId"] == 0
+        assert rewards["encounter_1_f897"]["label"] == "Bulbasaur (Fall 2019) encounter"
+        assert rewards["encounter_1_c11"]["costumeId"] == 11
+        assert all(q["stopsCount"] == 1 for q in quests)
+
+    async def test_missing_or_malformed_variant_metadata_never_merges_with_known_ordinary(
+        self, tmp_path
+    ):
+        import json
+
+        base = {
+            "name": "Stop",
+            "lat": 39.75,
+            "lon": -8.8,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 3,
+            "quest_reward_type": 7,
+            "quest_item_id": None,
+            "quest_pokemon_id": 1,
+            "quest_reward_amount": 1,
+            "quest_pokemon_form_id": 0,
+        }
+        rows = [
+            {**base, "quest_rewards": raw}
+            for raw in [None, "broken", '[{"type":7,"info":{"pokemon_id":1}}]']
+        ]
+        exporter = self._make_exporter(tmp_path, rows)
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        rewards = {q["reward"]["type"]: q["reward"] for q in quests}
+        assert len(quests) == 2
+        assert "formId" not in rewards["encounter_1_unknown"]
+        assert rewards["encounter_1"]["formId"] == 0
+
+    async def test_scanner_omitted_zero_fields_and_costume_id(self, tmp_path):
+        import json
+
+        base = {
+            "name": "Stop",
+            "lat": 39.75,
+            "lon": -8.8,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 3,
+            "quest_reward_type": 7,
+            "quest_item_id": None,
+            "quest_pokemon_id": 1,
+            "quest_reward_amount": 1,
+            "quest_pokemon_form_id": None,
+        }
+        rows = [
+            {**base, "quest_rewards": json.dumps([{"type": 7, "info": info}])}
+            for info in [
+                {"pokemon_id": 1},
+                {"pokemon_id": 1, "costume_id": 11},
+                {"pokemon_id": 2},
+                {"pokemon_id": 1, "costume_id": "broken"},
+            ]
+        ]
+        exporter = self._make_exporter(tmp_path, rows)
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        rewards = {q["reward"]["type"]: q["reward"] for q in quests}
+        assert len(quests) == 3
+        assert rewards["encounter_1"]["costumeId"] == 0
+        assert rewards["encounter_1"]["formId"] == 0
+        assert rewards["encounter_1_c11"]["costumeId"] == 11
+        assert "formId" not in rewards["encounter_1_unknown"]
+
     async def test_writes_merged_quests_to_json(self, tmp_path, mocker):
         from unittest.mock import AsyncMock, MagicMock
         from modules.quest_exporter import QuestExporter
@@ -325,6 +477,7 @@ class TestExport:
 
         assert standard_quest["stopsCount"] == 2
         assert alternative_quest["stopsCount"] == 1
+        assert alternative_quest["reward"]["amount"] == 3
 
         # Zone tagging applied per pokestop.
         zones = {s["zone"] for s in standard_quest["pokestops"]}

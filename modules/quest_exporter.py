@@ -51,7 +51,8 @@ class QuestExporter:
             """
             SELECT name, lat, lon, url,
                    quest_title, quest_target, quest_reward_type,
-                   quest_item_id, quest_pokemon_id, quest_reward_amount
+                   quest_item_id, quest_pokemon_id, quest_reward_amount,
+                   quest_pokemon_form_id, quest_rewards
             FROM pokestop
             WHERE quest_reward_type IS NOT NULL AND deleted = 0
               AND quest_expiry > UNIX_TIMESTAMP()
@@ -65,7 +66,9 @@ class QuestExporter:
                    alternative_quest_reward_type   AS quest_reward_type,
                    alternative_quest_item_id       AS quest_item_id,
                    alternative_quest_pokemon_id    AS quest_pokemon_id,
-                   alternative_quest_reward_amount AS quest_reward_amount
+                   alternative_quest_reward_amount AS quest_reward_amount,
+                   alternative_quest_pokemon_form_id AS quest_pokemon_form_id,
+                   alternative_quest_rewards AS quest_rewards
             FROM pokestop
             WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0
               AND alternative_quest_expiry > UNIX_TIMESTAMP()
@@ -91,10 +94,17 @@ class QuestExporter:
                     pokemon_names,
                     item_names,
                 )
-                key = f"{title}|{reward['type']}"
+                if row["quest_reward_type"] == 7:
+                    self._encounter_variant(reward, row, masterfile)
+                elif row["quest_reward_amount"] and int(row["quest_reward_amount"]) > 0:
+                    reward["amount"] = int(row["quest_reward_amount"])
+                reward_key = reward["type"] + (
+                    f"|{reward['amount']}" if "amount" in reward else ""
+                )
+                key = f"{title}|{reward_key}"
                 if key not in merged:
                     merged[key] = {
-                        "id": self._make_id(title, reward["type"]),
+                        "id": self._make_id(title, reward_key),
                         "title": title,
                         "category": self._categorize(title),
                         "reward": reward,
@@ -190,6 +200,57 @@ class QuestExporter:
     @staticmethod
     def _make_id(title: str, reward_type: str) -> str:
         return hashlib.md5(f"{title}|{reward_type}".encode()).hexdigest()[:12]
+
+    @staticmethod
+    def _encounter_variant(reward: dict, row: dict, masterfile: dict) -> None:
+        """Retain the scanner's form/costume and keep different rewards apart."""
+        pokemon_id = int(row["quest_pokemon_id"])
+        reward["type"] = f"encounter_{pokemon_id}_unknown"
+        reward["label"] += " (variante por confirmar)"
+        details = masterfile.get("pokemon", {}).get(str(pokemon_id), {})
+        details = details if isinstance(details, dict) else {}
+        info = {}
+        try:
+            raw = row.get("quest_rewards")
+            rewards = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(rewards, list):
+                info = next(
+                    (
+                        r.get("info", {})
+                        for r in rewards
+                        if isinstance(r, dict) and r.get("type") == 7
+                    ),
+                    {},
+                )
+        except (ValueError, TypeError):
+            pass
+        info = info if isinstance(info, dict) else {}
+        # Golbat omits zero-valued display fields from a valid encounter info.
+        # A missing raw reward is different: its variant cannot be confirmed.
+        try:
+            if int(info.get("pokemon_id", 0)) != pokemon_id:
+                return
+            form = int(
+                info.get(
+                    "form_id", info.get("form", row.get("quest_pokemon_form_id") or 0)
+                )
+            )
+            costume = int(info.get("costume_id", info.get("costume", 0)))
+        except (TypeError, ValueError):
+            return
+        if form < 0 or costume < 0:
+            return
+        if form == details.get("defaultFormId"):
+            form = 0
+        reward.update(pokemonId=pokemon_id, formId=form, costumeId=costume)
+        suffix = (f"_f{form}" if form else "") + (f"_c{costume}" if costume else "")
+        reward["type"] = f"encounter_{pokemon_id}{suffix}"
+        form_name = (
+            details.get("forms", {}).get(str(form), {}).get("name") if form else None
+        )
+        variant = form_name or (f"Costume #{costume}" if costume else None)
+        name = details.get("name", f"#{pokemon_id}")
+        reward["label"] = f"{name}{f' ({variant})' if variant else ''} encounter"
 
     @staticmethod
     def _map_reward(
