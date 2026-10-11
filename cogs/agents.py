@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands, tasks
 
 from modules.agent_jobs import AgentJobs, TERMINAL, parse_direct_request
+from modules.agent_reply import short_sentence
 from modules.config import Config
 from modules.embeds import status_embed
 from modules.permissions import is_owner, owner_only
@@ -20,12 +21,14 @@ _STATES = {
     "failed": "falhou",
     "cancelled": "cancelada",
     "interrupted": "interrompida",
+    "waiting_input": "à espera de uma decisão",
 }
 _USAGE = (
     "`!ask claude <pergunta>` · `!ask openai <pergunta>`\n"
     "`!code claude <pedido>` · `!code openai <pedido>`\n"
-    "`!jobs` · `!job <código>` · `!cancel <código>` · `!self`\n"
-    "Em DM também podes escrever `claude <pergunta>` ou `code claude <pedido>`."
+    "`!jobs` · `!job <código>` · `!answer <código> <resposta>` · `!cancel <código>` · `!self`\n"
+    "Em DM podes fazer qualquer pergunta; uso Claude por defeito. "
+    "Pede Codex quando quiseres mudar de agente."
 )
 
 
@@ -72,13 +75,8 @@ class Agents(commands.Cog):
         if not is_owner(ctx):
             return
         try:
-            # Resolve the DM before enqueueing: avoid starting work with no way
-            # to tell the owner it started or return its result.
-            dm = await ctx.author.create_dm()
-            await dm.send(
-                embed=status_embed("🤖 Pedido recebido", "A verificar o executor…"),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            # Resolve delivery without sending progress or queue acknowledgements.
+            await ctx.author.create_dm()
             job = self.jobs.submit(
                 owner_id=ctx.author.id,
                 provider=provider,
@@ -86,25 +84,18 @@ class Agents(commands.Cog):
                 prompt=prompt,
                 context=await self.snapshot(),
             )
-            await dm.send(
-                embed=status_embed(
-                    "🤖 Tarefa na fila",
-                    f"`{job['id']}` · {job['provider']} · "
-                    f"{'código' if mode == 'code' else 'consulta'}\n"
-                    "Aviso-te aqui quando terminar. "
-                    f"Estado: `!job {job['id']}`.",
-                ),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-            if ctx.guild is not None:
-                await ctx.send("Enviei o estado da tarefa por DM.")
             self.poliswag.utility.log_to_file(
                 f"[AGENT] owner {ctx.author.id} queued {job['id']} {job['provider']} {mode}"
             )
         except ValueError as error:
-            await ctx.send(embed=status_embed("Pedido não iniciado", str(error)))
+            await ctx.send(
+                short_sentence(error), allowed_mentions=discord.AllowedMentions.none()
+            )
         except discord.HTTPException:
-            await ctx.send(embed=status_embed("Não consegui enviar-te uma DM."))
+            await ctx.send(
+                "Não consegui abrir a tua DM.",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
 
     @commands.command(name="code", brief="Pede alterações de código a Claude ou Codex")
     @owner_only()
@@ -112,7 +103,7 @@ class Agents(commands.Cog):
         """!code claude|codex|openai <pedido> — altera e testa numa cópia separada."""
         await self.submit(ctx, "code", provider, prompt)
 
-    @commands.command(name="ask", brief="Consulta Claude ou Codex sobre o bot")
+    @commands.command(name="ask", brief="Faz uma pergunta a Claude ou Codex")
     @owner_only()
     async def ask(self, ctx, provider: str, *, prompt: str):
         """!ask claude|codex|openai <pergunta> — consulta sem ferramentas de escrita."""
@@ -154,8 +145,6 @@ class Agents(commands.Cog):
         await ctx.author.send(
             embed=embed, allowed_mentions=discord.AllowedMentions.none()
         )
-        if ctx.guild is not None:
-            await ctx.send("Enviei o meu estado por DM.")
 
     @commands.command(name="jobs", brief="Mostra as últimas tarefas dos agentes")
     @owner_only()
@@ -173,13 +162,17 @@ class Agents(commands.Cog):
     @owner_only()
     async def job_status(self, ctx, job_id: str):
         job = self.jobs.get(job_id, ctx.author.id)
-        await self.send_result(ctx.author, job)
+        await self.send_result(ctx.author, job, full=True)
+
+    @commands.command(name="answer", brief="Responde à decisão que bloqueia uma tarefa")
+    @owner_only()
+    async def answer_job(self, ctx, job_id: str, *, response: str):
+        self.jobs.resume(job_id, ctx.author.id, response)
 
     @commands.command(name="cancel", brief="Cancela uma tarefa de Claude ou Codex")
     @owner_only()
     async def cancel_job(self, ctx, job_id: str):
         self.jobs.cancel(job_id, ctx.author.id)
-        await ctx.send(embed=status_embed("Cancelamento pedido", f"`{job_id}`"))
 
     async def handle_direct_request(self, ctx):
         if not is_owner(ctx):
@@ -196,6 +189,15 @@ class Agents(commands.Cog):
             content = content[len(prefix) :]
         parsed = parse_direct_request(content)
         if parsed is None:
+            # In the owner's DM, ordinary questions need no mention or prefix.
+            # Unknown bot commands still follow normal command routing.
+            if (
+                ctx.guild is None
+                and content.strip()
+                and not content.lstrip().startswith("!")
+            ):
+                await self.submit_natural_request(ctx, content.strip())
+                return True
             return False
         await self.submit(ctx, *parsed)
         return True
@@ -203,7 +205,7 @@ class Agents(commands.Cog):
     async def submit_natural_request(self, ctx, text):
         """Only the real owner can delegate free-form mentions.
 
-        A code-capable agent can answer a question or make requested changes.
+        A general-purpose agent can answer any question or make requested changes.
         No other person's messages, attachments, or channel history are included.
         """
         if not is_owner(ctx):
@@ -212,26 +214,60 @@ class Agents(commands.Cog):
         if parsed:
             await self.submit(ctx, *parsed)
             return
+        waiting = [
+            job
+            for job in self.jobs.list(ctx.author.id)
+            if job["state"] == "waiting_input"
+        ]
+        if len(waiting) == 1:
+            try:
+                self.jobs.resume(waiting[0]["id"], ctx.author.id, text)
+            except ValueError as error:
+                await ctx.send(
+                    short_sentence(error),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            return
+        if len(waiting) > 1:
+            await ctx.send(
+                "Qual tarefa devo continuar com `!answer <id> <resposta>`?",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         provider = "codex" if re.search(r"\b(openai|codex)\b", text, re.I) else "claude"
         await self.submit(ctx, "code", provider, text)
 
-    async def send_result(self, user, job):
-        description = f"`{job['id']}` · {job['provider']} · {_STATES[job['state']]}"
-        if job.get("branch"):
-            description += f"\nRamo: `{job['branch']}`"
+    async def send_result(self, user, job, *, full=False):
         answer = self.jobs.directory(job["id"]) / "answer.txt"
         kwargs = {}
-        if job["state"] in TERMINAL:
-            text = answer.read_text() if answer.exists() else job.get("message", "")
-            if job["state"] != "completed" and job.get("message"):
-                text = f"{text}\n\n{job['message']}".strip()
-            description += "\n\n" + text[:3000]
-            if len(text) > 3000:
-                kwargs["file"] = discord.File(
-                    io.BytesIO(text[:500000].encode()), filename=f"{job['id']}.txt"
-                )
+        if job["state"] in {"completed", "waiting_input"}:
+            details = answer.read_text() if answer.exists() else ""
+            text = short_sentence(job.get("reply") or details or "Feito.")
+            kind = job.get("kind", "code" if job.get("mode") == "code" else "chat")
+            if job["state"] == "completed" and kind == "stats":
+                text = f"{text}\n\n{details}" if details and details != text else text
+            if (full or kind == "stats") and job["state"] == "completed" and details:
+                if kind != "stats" or len(text) > 1900:
+                    kwargs["file"] = discord.File(
+                        io.BytesIO(details[:500000].encode()),
+                        filename=f"{job['id']}.txt",
+                    )
+                    if kind == "stats":
+                        text = short_sentence(
+                            job.get("reply") or "O relatório está no ficheiro."
+                        )
+        elif job["state"] in TERMINAL:
+            text = {
+                "cancelled": "Tarefa cancelada.",
+                "interrupted": "O executor reiniciou; o trabalho ficou guardado.",
+            }.get(
+                job["state"],
+                "Não consegui concluir o pedido; o trabalho ficou guardado para revisão.",
+            )
+        else:
+            text = "Ainda estou a tratar do pedido."
         await user.send(
-            embed=status_embed("🤖 Tarefa", description),
+            text[:1900],
             allowed_mentions=discord.AllowedMentions.none(),
             **kwargs,
         )
@@ -239,14 +275,16 @@ class Agents(commands.Cog):
     @tasks.loop(seconds=10)
     async def deliver_results(self):
         for job in self.jobs.list(Config.MY_ID):
-            if job["state"] not in TERMINAL or job["notified"]:
+            if job["state"] not in TERMINAL | {"waiting_input"} or job["notified"]:
                 continue
             try:
                 user = self.poliswag.get_user(Config.MY_ID)
                 if user is None:
                     user = await self.poliswag.fetch_user(Config.MY_ID)
                 await self.send_result(user, job)
-                (self.jobs.directory(job["id"]) / "notified").touch(mode=0o600)
+                self.jobs.notification_marker(job["id"], job["revision"]).touch(
+                    mode=0o600
+                )
             except (discord.HTTPException, OSError) as error:
                 self.poliswag.utility.log_to_file(
                     f"[AGENT] delivery failed for {job['id']}: {error}"
@@ -272,7 +310,9 @@ class Agents(commands.Cog):
                 f"[AGENT] command failed: {original}", "ERROR"
             )
             message = "Não consegui processar o pedido."
-        await ctx.send(embed=status_embed("🤖 Agentes", message))
+        await ctx.send(
+            short_sentence(message), allowed_mentions=discord.AllowedMentions.none()
+        )
 
 
 async def setup(poliswag):

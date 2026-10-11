@@ -69,3 +69,67 @@ def test_invalid_prompt_never_enqueued(queue, prompt):
 )
 def test_only_explicit_provider_requests_are_routed(content, expected):
     assert parse_direct_request(content) == expected
+
+
+def waiting_job(queue):
+    job = submit(queue)
+    write_json(
+        queue.directory(job["id"]) / "result.json",
+        {
+            "state": "waiting_input",
+            "reply": "Qual cidade devo usar?",
+            "revision": 0,
+        },
+    )
+    queue.notification_marker(job["id"]).touch()
+    return job
+
+
+def test_decision_resumes_same_job_without_modifying_original_request(queue):
+    job = waiting_job(queue)
+    resumed = queue.resume(job["id"], 123, "Leiria")
+    assert resumed["state"] == "queued" and resumed["revision"] == 1
+    assert not resumed["notified"]
+    assert resumed["prompt"] == "fix"
+    assert resumed["provider"] == "codex" and resumed["mode"] == "code"
+    assert resumed["turns"] == [
+        {"question": "Qual cidade devo usar?", "answer": "Leiria"}
+    ]
+    assert len(queue.list(123)) == 1
+    queue.notification_marker(job["id"], 1).touch()
+    assert queue.get(job["id"], 123)["notified"]
+
+
+def test_only_owner_can_answer_a_waiting_job(queue):
+    job = waiting_job(queue)
+    with pytest.raises(ValueError, match="não encontrada"):
+        queue.resume(job["id"], 999, "Leiria")
+    assert queue.get(job["id"], 123)["state"] == "waiting_input"
+
+
+def test_pending_and_completed_jobs_cannot_be_resumed(queue):
+    job = submit(queue)
+    with pytest.raises(ValueError, match="decisão"):
+        queue.resume(job["id"], 123, "Leiria")
+    write_json(queue.directory(job["id"]) / "result.json", {"state": "completed"})
+    with pytest.raises(ValueError, match="decisão"):
+        queue.resume(job["id"], 123, "Leiria")
+
+
+def test_decision_history_survives_multiple_blocks(queue):
+    job = waiting_job(queue)
+    queue.resume(job["id"], 123, "Leiria")
+    write_json(
+        queue.directory(job["id"]) / "result.json",
+        {
+            "state": "waiting_input",
+            "reply": "Qual orçamento?",
+            "revision": 1,
+        },
+    )
+    resumed = queue.resume(job["id"], 123, "Cinco euros")
+    assert resumed["revision"] == 2 and len(resumed["turns"]) == 2
+    assert resumed["turns"][1] == {
+        "question": "Qual orçamento?",
+        "answer": "Cinco euros",
+    }

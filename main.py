@@ -26,6 +26,7 @@ from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
 from modules.dm_policy import may_run_in_dm
+from modules.permissions import is_owner
 from modules.http_client import close_session
 from modules.migrations import apply_migrations
 
@@ -90,7 +91,7 @@ class Poliswag(commands.Bot):
             mentions = self.get_cog("Mentions")
             if mentions is not None:
                 await mentions.handle(ctx)
-            elif may_run_in_dm(ctx):
+            elif may_run_in_dm(ctx) and (ctx.guild is not None or is_owner(ctx)):
                 # Fail closed if the cog is unavailable: a tag can never fall
                 # through into a privileged command or an agent invocation.
                 await ctx.send(
