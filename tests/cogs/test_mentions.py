@@ -10,7 +10,7 @@ from modules.config import Config
 @pytest.fixture
 def cog(monkeypatch):
     monkeypatch.setattr(Config, "MY_ID", 123)
-    monkeypatch.setattr(Config, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(Config, "AGENT_JOBS_DIR", "missing-agent-queue")
     bot = MagicMock()
     bot.user.id = 456
     bot.db = AsyncMock()
@@ -159,3 +159,32 @@ async def test_unrelated_message_is_untouched(cog):
     context = ctx("hello <@777>")
     assert not await cog.handle(context)
     context.reply.assert_not_awaited()
+
+
+@pytest.mark.parametrize("dm", [False, True])
+async def test_owner_general_mention_routes_in_server_and_dm(cog, dm):
+    context = ctx("<@456> Why is the sky blue?", owner=True, dm=dm)
+    assert await cog.handle(context)
+    cog.poliswag.get_cog.return_value.submit_natural_request.assert_awaited_once_with(
+        context, "Why is the sky blue?"
+    )
+    context.reply.assert_not_awaited()
+    assert cog.public.model.jobs.list(0) == []
+
+
+async def test_missing_mentions_cog_does_not_greet_nonowner_in_dm(monkeypatch):
+    import main
+
+    context = ctx(dm=True)
+    context.command = None
+    context.send = AsyncMock()
+    monkeypatch.setattr(main, "may_run_in_dm", lambda _: True)
+    bot = MagicMock()
+    bot.user.id = 456
+    bot._mentions_poliswag = lambda m: main.Poliswag._mentions_poliswag(bot, m)
+    bot.get_context = AsyncMock(return_value=context)
+    bot.get_cog.return_value = None
+    bot.invoke = AsyncMock()
+    await main.Poliswag.process_commands(bot, context.message)
+    context.send.assert_not_awaited()
+    bot.invoke.assert_not_awaited()
