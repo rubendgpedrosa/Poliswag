@@ -158,17 +158,21 @@ def test_provider_modes_use_supported_headless_flags(tmp_path):
     request = {"provider": "codex", "mode": "ask"}
     cmd = command_for(request, binaries, tmp_path, tmp_path / "answer.txt")
     assert cmd[cmd.index("--sandbox") + 1] == "read-only"
+    assert "mcp_servers.poliswag_db.args=" in " ".join(cmd)
     request.update(provider="claude")
     cmd = command_for(request, binaries, tmp_path, tmp_path / "answer.txt")
     tools = cmd[cmd.index("--tools") + 1]
     assert "Bash" not in tools and "Edit" not in tools and "Write" not in tools
-    assert json.loads(cmd[cmd.index("--mcp-config") + 1]) == {"mcpServers": {}}
+    servers = json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]
+    assert servers["poliswag_db"]["args"][1] == str(tmp_path.resolve())
+    assert "mcp__poliswag_db__query" in cmd[cmd.index("--allowedTools") + 1]
 
 
 def test_public_command_always_uses_codex_luna_medium_without_shell(tmp_path):
     cmd = public_command("codex", tmp_path, tmp_path / "answer.txt")
     assert cmd[cmd.index("-m") + 1] == "gpt-6-luna"
     assert 'model_reasoning_effort="medium"' in cmd
+    assert "poliswag_db" not in " ".join(cmd)
     assert "features.shell_tool=false" in cmd
     assert "features.unified_exec=false" in cmd
     assert "--ephemeral" in cmd and "--ignore-user-config" in cmd
