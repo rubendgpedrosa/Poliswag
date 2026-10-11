@@ -75,6 +75,14 @@ automatically. Delivery failures retain the chosen destination and retry.
 Owner tasks can query live production databases through Poliswag’s connection.
 Requires the host worker: [setup and execution details](docs/context/agents.md).
 
+Unfiltered shiny statistics use a separate raw spawn archive, captured every
+30 seconds and retained for 48 hours. `!spawnhistory` shows capture health;
+`!spawnhistory export 24` downloads compressed JSON, and `!spawnhistory
+leaderboard 24` recomputes trainer totals without notification, collection, IV
+or area preferences. These are owner-only commands. Hourly averages appear only
+after the requested period has complete collection coverage. See
+[stored attributes and coverage](docs/context/spawn-history.md).
+
 Tagging Poliswag greets or replies instead of listing commands. Owner mentions
 can give requests directly (`@Poliswag fix the quest bug`, optionally choosing
 Claude/OpenAI), with results returned to the requested destination. Other server members get an immediate acknowledgement followed by playful
