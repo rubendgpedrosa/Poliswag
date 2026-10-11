@@ -19,6 +19,7 @@ _COG_DISPLAY_NAMES = {
     "WebStats": "📊 Estatísticas (admin)",
     "Announcements": "📢 Anúncios (admin)",
     "Agents": "🤖 Agentes (dono)",
+    "SpawnHistory": "📈 Histórico de spawns (dono)",
 }
 
 _NO_DESCRIPTION = "Sem descrição."
@@ -27,7 +28,14 @@ _NO_DESCRIPTION = "Sem descrição."
 # compact name-only lines grouped by topic; `!help <comando>` has the detail.
 # Cogs whose cog_check is MY_ID only; single commands use permissions.owner_only.
 _OWNER_COGS = frozenset(
-    {"ContainerManagerCog", "WebStats", "EventPanel", "Accounts", "Agents"}
+    {
+        "ContainerManagerCog",
+        "WebStats",
+        "EventPanel",
+        "Accounts",
+        "Agents",
+        "SpawnHistory",
+    }
 )
 # Aliases worth listing next to the command, for members who look for them.
 _SHOWN_ALIASES = {"questleiria": ("questmarinha",)}
