@@ -20,6 +20,8 @@ def ctx(author=123, content="claude explain", guild=None):
     context = MagicMock()
     context.author.id = author
     context.guild = guild
+    context.channel.id = 789
+    context.channel.guild.id = 321
     context.message.content = content
     context.send = AsyncMock()
     context.reply = AsyncMock()
@@ -321,3 +323,149 @@ async def test_long_stats_are_complete_in_file_with_short_cover_sentence(cog):
     assert user.send.call_args.args == ("Aqui estão os números.",)
     attachment = user.send.call_args.kwargs["file"]
     assert attachment.fp.read().decode() == details
+
+
+async def test_channel_submission_preserves_destination_without_requiring_dms(cog):
+    import discord
+
+    context = ctx(guild=MagicMock())
+    context.author.create_dm.side_effect = discord.Forbidden(
+        MagicMock(status=403), "blocked"
+    )
+    cog.snapshot = AsyncMock(return_value={})
+    cog.jobs.submit = MagicMock(
+        return_value={"id": "abcdef123456", "provider": "claude"}
+    )
+    await cog.submit(context, "code", "claude", "Generate a leaderboard image")
+    assert cog.jobs.submit.call_args.kwargs["destination"] == {
+        "type": "channel",
+        "channel_id": 789,
+        "guild_id": 321,
+    }
+    context.author.create_dm.assert_not_awaited()
+
+
+async def test_explicit_dm_overrides_originating_channel(cog):
+    context = ctx(guild=MagicMock())
+    cog.snapshot = AsyncMock(return_value={})
+    cog.jobs.submit = MagicMock(
+        return_value={"id": "abcdef123456", "provider": "claude"}
+    )
+    await cog.submit(context, "code", "claude", "Generate image. Send via DM")
+    assert cog.jobs.submit.call_args.kwargs["destination"] == {"type": "dm"}
+    context.author.create_dm.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    ["Send to <#999>", "Envia para #moderação", "Send to channel moderação"],
+)
+def test_explicit_channel_overrides_origin(cog, instruction):
+    context = ctx(guild=MagicMock())
+    channel = MagicMock(id=999, name="moderação")
+    channel.name = "moderação"
+    channel.guild.id = 321
+    context.guild.channels = [channel]
+    context.guild.threads = []
+    assert cog.destination_for(context, instruction) == {
+        "type": "channel",
+        "channel_id": 999,
+        "guild_id": 321,
+    }
+
+
+def test_unknown_requested_channel_does_not_silently_redirect(cog):
+    context = ctx(guild=MagicMock())
+    context.guild.channels = []
+    context.guild.threads = []
+    with pytest.raises(ValueError):
+        cog.destination_for(context, "Send to #missing")
+
+
+async def test_image_and_long_report_delivered_to_saved_channel_once(cog):
+    from modules.agent_artifacts import stage_artifacts
+    from modules.agent_jobs import read_json, write_json
+
+    job = save_reply(cog, kind="stats", details="Report row\n" * 300)
+    directory = cog.jobs.directory(job["id"])
+    worktree = directory / "worktree"
+    worktree.mkdir()
+    image_bytes = b"\x89PNG\r\n\x1a\nimage content"
+    (worktree / "leaderboard.png").write_bytes(image_bytes)
+    artifacts = stage_artifacts(worktree, directory, ["leaderboard.png"], 0)
+    request = read_json(directory / "request.json")
+    write_json(
+        directory / "request.json",
+        {
+            **request,
+            "destination": {
+                "type": "channel",
+                "channel_id": 789,
+                "guild_id": 321,
+            },
+        },
+    )
+    write_json(
+        directory / "result.json",
+        {**read_json(directory / "result.json"), "artifacts": artifacts},
+    )
+    channel = MagicMock(send=AsyncMock())
+    channel.guild.id = 321
+    cog.poliswag.get_channel.return_value = channel
+    await cog.deliver_results()
+    await cog.deliver_results()
+    channel.send.assert_awaited_once()
+    files = channel.send.call_args.kwargs["files"]
+    assert [f.filename for f in files] == ["leaderboard.png", f"{job['id']}.txt"]
+    assert files[0].fp.read() == image_bytes
+    assert files[1].fp.read().decode() == "Report row\n" * 300
+    cog.poliswag.get_user.assert_not_called()
+
+
+async def test_failed_channel_delivery_retries_without_dm_fallback(cog):
+    import discord
+    from modules.agent_jobs import read_json, write_json
+
+    job = save_reply(cog)
+    directory = cog.jobs.directory(job["id"])
+    write_json(
+        directory / "request.json",
+        {
+            **read_json(directory / "request.json"),
+            "destination": {
+                "type": "channel",
+                "channel_id": 789,
+                "guild_id": 321,
+            },
+        },
+    )
+    channel = MagicMock(
+        send=AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "blocked"))
+    )
+    channel.guild.id = 321
+    cog.poliswag.get_channel.return_value = channel
+    await cog.deliver_results()
+    assert not cog.jobs.get(job["id"], 123)["notified"]
+    cog.poliswag.get_user.assert_not_called()
+    channel.send.side_effect = None
+    await cog.deliver_results()
+    assert cog.jobs.get(job["id"], 123)["notified"]
+
+
+async def test_missing_image_does_not_mark_job_delivered(cog):
+    from modules.agent_jobs import read_json, write_json
+
+    job = save_reply(cog)
+    directory = cog.jobs.directory(job["id"])
+    write_json(
+        directory / "result.json",
+        {
+            **read_json(directory / "result.json"),
+            "artifacts": [
+                {"path": "artifacts/0/missing.png", "filename": "missing.png"},
+            ],
+        },
+    )
+    await cog.deliver_results()
+    assert not cog.jobs.get(job["id"], 123)["notified"]
+    cog.poliswag.get_user.return_value.send.assert_not_called()

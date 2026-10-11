@@ -133,3 +133,11 @@ def test_decision_history_survives_multiple_blocks(queue):
         "question": "Qual orçamento?",
         "answer": "Cinco euros",
     }
+
+
+def test_destination_survives_restart_and_continuation(queue):
+    destination = {"type": "channel", "channel_id": 789, "guild_id": 321}
+    job = submit(queue, destination=destination)
+    write_json(queue.directory(job["id"]) / "result.json", {"state": "waiting_input"})
+    restarted = AgentJobs(queue.root)
+    assert restarted.resume(job["id"], 123, "Proceed")["destination"] == destination

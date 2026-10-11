@@ -42,6 +42,10 @@ def worker(tmp_path):
         "if 'SLEEP' in prompt: time.sleep(20)\n"
         "if 'EDIT' in prompt: pathlib.Path('README.md').write_text('changed')\n"
         "reply = {'outcome': 'done', 'kind': 'code', 'reply': 'finished', 'details': ''}\n"
+        "if 'ARTIFACT' in prompt:\n"
+        "    reply['attachments'] = ['leaderboard.png']\n"
+        "    if 'MISSING_ARTIFACT' not in prompt:\n"
+        "        pathlib.Path('leaderboard.png').write_bytes(b'image bytes')\n"
         "if 'BLOCK' in prompt:\n"
         "    if 'Decisions supplied' not in prompt:\n"
         "        pathlib.Path('progress.txt').write_text('partial')\n"
@@ -88,6 +92,33 @@ def test_code_job_edits_worktree_without_touching_live_tree(worker):
 
 def test_nonzero_payload_error_is_failure_even_with_exit_zero(worker):
     request = job(worker, "FAIL")
+    worker.run_job(request)
+    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
+
+
+@pytest.mark.parametrize("provider", ["claude", "codex"])
+def test_completed_job_stages_image_before_publishing_completion(worker, provider):
+    request = worker.jobs.submit(
+        owner_id=123,
+        provider=provider,
+        mode="code",
+        prompt="ARTIFACT",
+        context={},
+        destination={"type": "channel", "channel_id": 789, "guild_id": 321},
+    )
+    worker.run_job(request)
+    result = worker.jobs.get(request["id"], 123)
+    assert result["state"] == "completed"
+    assert result["destination"] == request["destination"]
+    artifact = result["artifacts"][0]
+    assert artifact["filename"] == "leaderboard.png"
+    assert (
+        worker.jobs.directory(request["id"]) / artifact["path"]
+    ).read_bytes() == b"image bytes"
+
+
+def test_missing_declared_image_is_a_failure_not_a_false_completion(worker):
+    request = job(worker, "MISSING_ARTIFACT")
     worker.run_job(request)
     assert worker.jobs.get(request["id"], 123)["state"] == "failed"
 
