@@ -21,11 +21,14 @@ from modules.membership import is_member
 from modules.permissions import owner_only
 from modules.shiny_roll import normalise_friend_code
 from modules.shiny_store import ShinyStore
-from modules.shiny_channels import CHANNEL_LOCK, intro_embed
+from modules.shiny_channels import (
+    CHANNEL_CATEGORY,
+    CHANNEL_LOCK,
+    STARTUP_TEXT,
+    intro_embed,
+)
 
 TITLE = "SHINY"
-# The category the players' private channels are created under.
-CHANNEL_CATEGORY = "Shinies"
 _WHEN = (
     "quando houver uma raid ativa na zona (durante o dia, normalmente em "
     "menos de uma hora)"
@@ -253,9 +256,15 @@ class Shiny(commands.Cog):
         map_url = self._map_url(player)
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Ver mapa de shinies", url=map_url))
-        link = await channel.send(embed=intro_embed(), view=view)
+        link = await channel.send(
+            content=STARTUP_TEXT,
+            embed=intro_embed(),
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
         await link.pin()
         await self.store.set_channel_intro(player["discord_id"], link.id)
+        await self.store.set_channel_intro_state(player["discord_id"], "starting")
         await self.store.set_channel_archived(player["discord_id"], False)
         await self._say(
             ctx, f"Canal criado para **{player['trainer_name']}**: {channel.mention}"

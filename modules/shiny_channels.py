@@ -1,8 +1,8 @@
 """Reconcile approved website accounts with their private shiny channels.
 
-The website records approval and queues the trainer link. Once the linker
-resolves it, the scheduler creates the channel; held/off/left accounts have
-their existing channel hidden. Retried introductions reuse the stored message.
+The website records approval and queues the trainer link. The scheduler
+creates the channel on its next tick and updates its setup message as linking
+advances. Held/off/left accounts have their existing channel hidden. Retried introductions reuse the stored message.
 """
 
 import asyncio
@@ -14,11 +14,15 @@ from modules.config import Config
 from modules.embeds import build_embed
 from modules.shiny_store import ShinyStore
 
-CHANNEL_CATEGORY = "Shinies"
+CHANNEL_CATEGORY = "🌟 SHINY ALERTS 🌟"
 ARCHIVE_CATEGORY = "Shinies (arquivo)"
 CHANNEL_LOCK = asyncio.Lock()
 # The pinned first message of a player's channel, above its map button.
 # `!shiny canal` posts the same one.
+STARTUP_TEXT = "Estamos a iniciar os teus alertas de shinies."
+READY_TEXT = "Os teus alertas de shinies estão ativos."
+PROCESSING_TEXT = "Já estamos a associar o teu treinador para preparar os teus alertas."
+FAILED_TEXT = "Não foi possível iniciar os teus alertas. Confirma o teu Código de amizade no Pokédex e tenta associar novamente."
 INTRO_TITLE = "✨ Notificações Pokémon Shiny"
 INTRO_TEXT = (
     "Aqui irás receber as notificações dos Pokémon que a fórmula determina "
@@ -31,18 +35,36 @@ def enabled(row):
         int(row.get("shiny_access") or 0) == 1
         and int(row.get("shiny_map") or 0) == 1
         and row.get("left_at") is None
-        and row.get("status") == "linked"
-        and bool(row.get("player_id"))
     )
 
 
-def intro_embed():
-    return build_embed(INTRO_TITLE, INTRO_TEXT)
+def setup_phase(row):
+    if row.get("status") == "linked" and row.get("player_id"):
+        return "ready"
+    if row.get("status") == "failed":
+        return "failed"
+    return "processing" if row.get("link_processing") else "pending"
+
+
+def intro_embed(phase="ready"):
+    text = INTRO_TEXT
+    if phase == "pending":
+        text = (
+            "O teu pedido foi aprovado e está em fila para associarmos o treinador. "
+            "Quando houver uma raid disponível, podes receber um convite no jogo: ignora-o. "
+            "Atualizamos esta mensagem assim que começarmos."
+        )
+    elif phase == "processing":
+        text = "Podes receber um convite de raid no jogo: ignora-o. Atualizamos esta mensagem quando os alertas estiverem prontos."
+    elif phase == "failed":
+        text = "Os alertas ficam à espera até conseguirmos associar o teu treinador."
+    return build_embed(INTRO_TITLE, text)
 
 
 def map_url(player):
-    name = quote(player["trainer_name"], safe="")
-    return f"{Config.POKEDEX_URL.rstrip('/')}/mapa/{name}"
+    base = f"{Config.POKEDEX_URL.rstrip('/')}/mapa"
+    name = player.get("trainer_name")
+    return f"{base}/{quote(name, safe='')}" if name else base
 
 
 class ShinyChannels:
@@ -136,12 +158,16 @@ class ShinyChannels:
             except discord.NotFound:
                 pass
         # Recover a successful Discord create whose database write failed.
-        if member is not None and row.get("trainer_name"):
-            topic = f"Shinies previstos para {row['trainer_name']}."
+        if member is not None:
+            topics = {
+                f"Shinies previstos para {name}."
+                for name in (row.get("trainer_name"), member.name)
+                if name
+            }
             for channel in guild.text_channels:
                 if (
                     channel.name == f"shiny-{member.name}"
-                    and channel.topic == topic
+                    and channel.topic in topics
                     and channel.overwrites_for(member).view_channel is True
                 ):
                     return channel
@@ -159,18 +185,23 @@ class ShinyChannels:
                 if channel is not None:
                     await self._archive(guild, row, member, channel)
                 return None
+            # Map-only accounts need no Discord channel. Existing channels
+            # keep their map shortcut and the switch-off confirmation.
+            if not row.get("shiny_notify_discord", 1):
+                return channel if not row.get("channel_archived") else None
             category = await self._category(guild, CHANNEL_CATEGORY)
             overwrites = self._overwrites(guild, member, True)
             if channel is None:
                 channel = await guild.create_text_channel(
                     f"shiny-{member.name}",
                     category=category,
-                    topic=f"Shinies previstos para {row['trainer_name']}.",
+                    topic=f"Shinies previstos para {row.get('trainer_name') or member.name}.",
                     overwrites=overwrites,
                 )
             if not row.get("channel_id") or int(row["channel_id"]) != channel.id:
                 await self.store.set_channel(discord_id, channel.id)
                 row["channel_intro_message_id"] = None
+                row["channel_intro_state"] = None
                 row["channel_archived"] = 1
             if channel.category != category or channel.overwrites != overwrites:
                 await channel.edit(category=category, overwrites=overwrites)
@@ -179,6 +210,11 @@ class ShinyChannels:
             if not latest or not enabled(latest[0]):
                 await self._archive(guild, row, member, channel)
                 return None
+            # Use the latest linker state, rather than the snapshot before create.
+            row.update(latest[0])
+            if not row.get("shiny_notify_discord", 1):
+                await self.store.set_channel_archived(discord_id, False)
+                return channel
             await self._intro(guild, row, channel)
             latest = await self.store.channel_players(discord_id)
             if not latest or not enabled(latest[0]):
@@ -196,7 +232,12 @@ class ShinyChannels:
 
     async def _intro(self, guild, row, channel):
         message_id = row.get("channel_intro_message_id")
-        if message_id and not row.get("channel_archived"):
+        phase = setup_phase(row)
+        if (
+            message_id
+            and row.get("channel_intro_state") == phase
+            and not row.get("channel_archived")
+        ):
             return
         message = None
         if message_id:
@@ -214,12 +255,34 @@ class ShinyChannels:
                 ):
                     message = pin
                     break
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(label="Ver mapa de shinies", url=map_url(row)))
+        content = {
+            "pending": STARTUP_TEXT,
+            "processing": PROCESSING_TEXT,
+            "failed": FAILED_TEXT,
+            "ready": READY_TEXT,
+        }[phase]
+        shown_phase = phase
         if message is None:
-            view = discord.ui.View(timeout=None)
-            view.add_item(
-                discord.ui.Button(label="Ver mapa de shinies", url=map_url(row))
+            # Let a new, already-linked channel show the startup line first;
+            # the following tick edits it to the accurate ready state.
+            if phase == "ready":
+                shown_phase = "starting"
+            message = await channel.send(
+                content=STARTUP_TEXT if phase == "ready" else content,
+                embed=intro_embed(phase),
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
-            message = await channel.send(embed=intro_embed(), view=view)
+        elif row.get("channel_intro_state") != phase:
+            await message.edit(
+                content=content,
+                embed=intro_embed(phase),
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         await self.store.set_channel_intro(row["discord_id"], message.id)
         if not message.pinned:
             await message.pin()
+        await self.store.set_channel_intro_state(row["discord_id"], shown_phase)
