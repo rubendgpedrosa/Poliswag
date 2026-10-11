@@ -44,6 +44,9 @@ def alerts():
         record_alert=AsyncMock(return_value=True),
         shiny_eligible=AsyncMock(return_value={(25, 0, 0), (570, 2108, 0)}),
         owns_shiny=AsyncMock(return_value=False),
+        notifications_enabled=AsyncMock(return_value=True),
+        notification_changes=AsyncMock(return_value=[]),
+        claim_notification_change=AsyncMock(return_value=True),
         pending_settings=AsyncMock(return_value=[]),
         confirm_settings=AsyncMock(),
     )
@@ -186,6 +189,8 @@ def with_spawns(alerts, spawns, name="Pikachu", seen_shiny=True):
 class TestAlertEmbed:
     def test_says_what_where_and_until_when(self):
         embed = shiny_alerts.alert_embed(spawn(), "Pikachu", seen_shiny=True)
+        # Gold: a Shiny's colour on the map, and Poracle's template's.
+        assert embed.color.value == 0xF2CD5C
         assert "Pikachu" in embed.title
         assert "https://www.google.com/maps?q=39.7436,-8.8071" in embed.description
         assert "Desaparece às" in embed.description
@@ -604,3 +609,107 @@ async def test_exact_confirmed_costume_gets_its_alert(alerts):
     alerts.store.shiny_eligible.return_value = {(25, 0, 7)}
     await alerts.tick()
     alerts.user.send.assert_awaited_once()
+
+
+class TestDiscordNotifications:
+    @pytest.mark.parametrize(
+        "notify_all,notify_hundo,owned", [(1, 1, False), (1, 1, True), (0, 1, True)]
+    )
+    def test_disabled_overrides_all_filters(self, notify_all, notify_hundo, owned):
+        who = recipient(notify_all=notify_all, notify_hundo=notify_hundo)
+        who["shiny_notify_discord"] = 0
+        assert wants_alert(who, spawn(atk_iv=15, def_iv=15, sta_iv=15), owned) is False
+
+    async def test_a_switch_off_during_a_tick_stops_delivery(self, alerts):
+        with_spawns(alerts, [spawn()])
+        alerts.store.notifications_enabled.return_value = False
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.poliswag.poracle.test_pokemon.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_disabled_recipient_never_reads_collection_or_sends(self, alerts):
+        who = {**recipient(), "shiny_notify_discord": 0}
+        await alerts._alert(who, spawn())
+        alerts.store.owns_shiny.assert_not_awaited()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.poliswag.poracle.test_pokemon.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_confirms_once_in_the_channel_and_keeps_the_map(self, alerts):
+        channel = MagicMock(send=AsyncMock())
+        alerts.poliswag.get_channel.return_value = channel
+        alerts.store.notification_changes.return_value = [
+            {
+                "discord_id": OWNER,
+                "shiny_map": 1,
+                "shiny_notify_discord": 0,
+                "channel_id": 99,
+                "channel_archived": 0,
+            }
+        ]
+        alerts.store.claim_notification_change.side_effect = [True, False]
+        await alerts.tick()
+        await alerts.tick()
+        channel.send.assert_awaited_once()
+        text = channel.send.call_args.kwargs["content"]
+        assert "foram desligadas" in text and "mapa de shinies continua ativo" in text
+        assert channel.send.call_args.kwargs["allowed_mentions"].everyone is False
+        alerts.user.send.assert_not_awaited()
+
+    @pytest.mark.parametrize("channel_id,archived", [(None, 0), (99, 1)])
+    async def test_confirms_by_dm_without_an_accessible_channel(
+        self, alerts, channel_id, archived
+    ):
+        alerts.store.notification_changes.return_value = [
+            {
+                "discord_id": OWNER,
+                "shiny_map": 1,
+                "shiny_notify_discord": 0,
+                "channel_id": channel_id,
+                "channel_archived": archived,
+            }
+        ]
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+        assert "foram desligadas" in alerts.user.send.call_args.kwargs["content"]
+
+    async def test_an_inaccessible_channel_falls_back_to_dm(self, alerts):
+        channel = MagicMock(
+            send=AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "no"))
+        )
+        alerts.poliswag.get_channel.return_value = channel
+        alerts.store.notification_changes.return_value = [
+            {
+                "discord_id": OWNER,
+                "shiny_map": 1,
+                "shiny_notify_discord": 0,
+                "channel_id": 99,
+                "channel_archived": 0,
+            }
+        ]
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+
+    async def test_enabling_is_acknowledged_without_a_disable_message(self, alerts):
+        alerts.store.notification_changes.return_value = [
+            {"discord_id": OWNER, "shiny_notify_discord": 1}
+        ]
+        await alerts.tick()
+        alerts.store.claim_notification_change.assert_awaited_once_with(OWNER, True)
+        alerts.user.send.assert_not_awaited()
+
+    async def test_map_off_confirmation_does_not_claim_the_map_is_on(self, alerts):
+        alerts.store.notification_changes.return_value = [
+            {
+                "discord_id": OWNER,
+                "shiny_map": 0,
+                "shiny_notify_discord": 0,
+                "channel_id": None,
+            }
+        ]
+        await alerts.tick()
+        assert (
+            "mapa de shinies continua ativo"
+            not in alerts.user.send.call_args.kwargs["content"]
+        )
