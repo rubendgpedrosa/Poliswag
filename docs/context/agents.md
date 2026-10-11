@@ -150,6 +150,14 @@ maximum 500 rows and bounded output. Schema discovery and aggregate queries
 use live data; credentials stay inside the bot. SQL writes and file queries
 are rejected. Cancellation and bridge waits are bounded.
 
+`spawn_history_report` computes the unfiltered shiny leaderboard over 1–48
+hours from the independent raw archive. It returns per-trainer aggregates and
+coverage metadata, with NULL hourly rates for an incomplete window. Owner
+workers are instructed to use it instead of filtered alert counts. It shares
+the private bridge's owner/running-job gate and reads in a consistent read-only
+transaction. See [spawn history](spawn-history.md) for the recorded odds and
+retention semantics.
+
 The worker uses an environment allowlist without Discord or database credentials.
 Cancellation/timeouts terminate the process group. A restart marks unfinished
 jobs `interrupted` without rerunning them. Worktrees and logs remain for review.
