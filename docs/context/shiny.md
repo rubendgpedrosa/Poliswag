@@ -109,14 +109,16 @@ never_shiny) and `poliswag.shiny_species_through`. The site reads both tables.
 Through Poracle, so it looks like every other Poracle alert (map tile, IV, CP,
 level, address, Google / Apple buttons). Poliswag builds the spawn as a Golbat
 webhook and hands it to Poracle's `/api/test` with the `shiny` monster
-template, which is Poracle's standard one with a ✨ before the title. The template lives in `/root/poracleng/config/dts.json` (not in git;
+template, which is Poracle's standard one with a ✨ before the title and a gold side bar (2026-10-11; it was the type colour). The template lives in `/root/poracleng/config/dts.json` (not in git;
 a copy is in `templates/poracle/shiny-monster.json`; after editing it,
 `POST /api/dts/reload`, not `/api/reload`). Poracle and Poliswag are the same
 Discord bot, so the alert arrives in the same DM. If Poracle refuses, the
-bot's own plainer embed goes out instead.
+bot's own plainer embed goes out instead. A predicted special background uses the
+`background` / `shiny-background` templates instead
+([background-predictions.md](background-predictions.md)).
 
 `!shiny canal [nome]` (owner) creates a private channel for a linked player
-under the "Shinies" category: the player has read-only access; the owner has
+under the "🌟 SHINY ALERTS 🌟" category: the player has read-only access; the owner has
 explicit write access, including in their own channel. Their map
 link is pinned there and, from then on, their alerts go to the channel
 (`shiny_link.channel_id`) instead of a DM. Having a channel is what switches
@@ -156,14 +158,57 @@ The Pokédex map shows all predicted shinies. Which ones are notified is the pla
 
 | Setting | Column | Default | Effect |
 |---|---|---|---|
+| Enviar notificações no Discord | `shiny_notify_discord` | 1 | 0 stops both channel and pilot DM alerts while leaving the map on; the existing filters are retained |
 | Só os que me faltam / Todos | `shiny_notify_all` | 0 | 0 skips species/forms marked Shiny in `collection_entry` (`ShinyStore.owns_shiny`, read just before recording or sending); 1 notifies everything and never reads the collection |
 | Avisar sempre de shinies 100% | `shiny_notify_hundo` | 1 | Under 0 above, an owned shiny at 15/15/15 is still notified |
+
+Migration 027 (site `db/pokedex/016_shiny_discord_notifications.sql`) adds the
+Discord switch and `shiny_notify_discord_applied`. Each tick acknowledges a
+changed switch with an atomic compare-and-update before sending. A switch-off
+gets one final confirmation in the existing active channel, falling back to a
+DM if unavailable or forbidden; a closed DM is logged without repeating every
+tick. Switching back on updates the acknowledged value without a switch-off
+message. Recipients and link announcements require the switch on; `_alert`
+also rechecks the current player setting before recording or delivering, so a
+mid-tick switch-off suppresses queued spawn work. Map-only accounts need no new
+channel; existing active channels keep their map shortcut, and archived ones
+stay archived until notifications are enabled. Settings confirmation skips the
+ready-channel requirement when notifications are off, matching the site's
+`muted` state. Apply migration 027, restart Poliswag, then deploy the site.
 
 An unknown IV is not 100%: an owned shiny whose IV never arrives is skipped. It is not recorded, so an IV that lands while the spawn is inside `LOOK_BACK` is judged again.
 
 ## Confirming the site's changes ("A aguardar pelo Poliswag…")
 
 The site adds 1 to `trade_player.shiny_settings_revision` on every save of the shiny box (switch, zones, notification settings, the owner's approval) and shows a waiting banner until `shiny_applied_revision` catches up. `ShinyAlerts.tick` reads `ShinyStore.pending_settings()` first, runs its steps, then `confirm_settings(discord_id, revision)` stamps the revision it read. It does not stamp while the channel disagrees with the switch (on and linked without a ready channel; off with a channel not archived). A step that raises, or a stopped bot, confirms nothing, so the banner stays.
+
+## Setup feedback in the channel (owner, 2026-10-10)
+
+Approval creates the private channel on the next scheduler tick, even while
+trainer association is pending, provided Discord notifications are enabled.
+The pinned map introduction starts with **Estamos a iniciar os teus alertas de
+shinies.** Its queue text explains that the trainer is waiting to be associated.
+The same message is edited when processing starts, linking succeeds ("Os teus
+alertas de shinies estão ativos."), or linking fails with an actionable retry
+message. Retrying returns it to the queue. An already-linked new channel also
+gets the startup line. Pending channels use `/pokedex/mapa` until a trainer
+name is known; the button changes to the named map after linking.
+
+Migration 028 / site `017_shiny_setup_feedback.sql` adds
+`shiny_link.channel_intro_state` (last phase successfully shown and pinned) and
+`link_processing_at`. The linker sets the timestamp only after infrastructure
+is ready, immediately before searching the selected codes, and clears it at
+run cleanup. The bot accepts it for 15 minutes so a killed linker cannot leave
+"processing" forever. The host timer feature-detects the column and omits
+progress writes until the migration is applied. Requeueing resets the marker.
+The scheduler observes progress each minute; a short association may move
+straight from queued to ready between ticks. State changes edit the stored
+message instead of adding repeated posts; a failed edit is retried. Held/off/
+left accounts are archived, and map-only accounts get no setup posts.
+
+Apply migrations 027 and 028 before restarting Poliswag and deploying the
+site. This preserves the independent notification setting from the earlier
+change.
 
 ## Current link and channel behavior (owner, 2026-10-10)
 

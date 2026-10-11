@@ -63,6 +63,27 @@ def shiny_draw(encounter_id, player_id):
     return (next(_random(encounter_id, player_id)) >> 7) / _FLOAT_SCALE
 
 
+def personal_draws(encounter_id, player_id):
+    """First and second nextFloat fractions, matching Golbat PR #423.
+
+    The second draw is the experimental background candidate. No extra draw
+    is skipped, and changing a shiny cutoff never changes its position.
+    """
+    draws = _random(encounter_id, player_id)
+    return tuple((next(draws) >> 7) / _FLOAT_SCALE for _ in range(2))
+
+
+def is_background_at(draw, probability):
+    """A configured background cutoff; unknown/invalid rates cannot qualify."""
+    return (
+        math.isfinite(probability)
+        and 0 < probability <= 1
+        and math.isfinite(draw)
+        and 0 <= draw < 1
+        and round(draw * _FLOAT_SCALE) < math.ceil(probability * _FLOAT_SCALE)
+    )
+
+
 def is_shiny_at(draw, odds):
     """Shiny at 1-in-`odds`: `nextFloat() < 1/odds`.
 
