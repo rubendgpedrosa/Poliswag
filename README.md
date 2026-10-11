@@ -64,17 +64,20 @@ Selected via `ENV=` in `.env`:
 
 Owner DMs accept plain questions on any topic, with Claude by default.
 Use `codex <question>` or `use Codex to ...` to choose Codex;
-`code claude <request>` and `code codex <request>` also work. Tasks acknowledge your message immediately and reply by DM when finished, or when an essential decision blocks
+`code claude <request>` and `code codex <request>` also work. Tasks acknowledge your message immediately and reply in the originating channel (or DM) when finished, or when an essential decision blocks
 progress. Replies are one short sentence, witty for casual chat and factual
 for code; stats and requested reports can keep their detail. Answer a blocking
 question normally to resume the same task, or use `!answer <id> <response>`.
 Full code reports are available through `!job <id>`; changes are kept for review.
+Ask `send via DM` to keep a channel request private, or `send to #moderação`
+to choose another channel. Generated images and report files are attached
+automatically. Delivery failures retain the chosen destination and retry.
 Owner tasks can query live production databases through Poliswag’s connection.
 Requires the host worker: [setup and execution details](docs/context/agents.md).
 
 Tagging Poliswag greets or replies instead of listing commands. Owner mentions
 can give requests directly (`@Poliswag fix the quest bug`, optionally choosing
-Claude/OpenAI), with details returned by DM. Other server members get an immediate acknowledgement followed by playful
+Claude/OpenAI), with results returned to the requested destination. Other server members get an immediate acknowledgement followed by playful
 replies, public events, or aggregate game statistics. Public banter runs
 `codex exec` on the host with **GPT-6 Luna and medium reasoning**, using the
 existing Codex login. Only a fixed topic is sent; events and statistics are
