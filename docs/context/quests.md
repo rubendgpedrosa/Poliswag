@@ -1,0 +1,28 @@
+# Quests
+
+Source: `modules/quest_search.py`, `modules/quest_exporter.py`, `modules/quest_map.py`, `modules/image_generator.py` (quest path), `cogs/quests.py`, `cogs/tracker.py`. Tables: `docs/context/database.md`. Config: `docs/context/config.md`.
+
+## Reading quests (`!questleiria` / `!questmarinha`)
+- `QuestSearch` owns a scanner-DB `DatabaseConnector`. `find_quest_by_search_keyword(term, is_leiria)` reads `pokestop` rows where the reward is set and `deleted = 0`.
+- Two scanner field sets exist (`quest_*` and `alternative_quest_*`); `_quest_fields()` picks each column independently, so a row can be half alternative. The live search and the export normalize the same way.
+- Area split is by longitude: Marinha Grande = `lon <= Config.MARINHA_LON_MAX` (−8.9), otherwise Leiria. Shared with the exporter and `scanner_status`.
+- A search matches the translated title, a Pokémon id from `POKEMON_NAME_FILE`, an item id from `ITEM_NAME_FILE`, or the literal `mega energy` / `experience` reward types (12 / 1). Translations come from `TRANSLATIONFILE_ENDPOINT`, the masterfile from `MASTERFILE_ENDPOINT` (24 h cache); `scheduled.py` refreshes both.
+- Results are grouped by reward (`group_pokestops_by_reward`): item "3x Razz Berry", stardust, candy, encounter, mega energy, XP. PokéStops are ordered into a greedy nearest-neighbour walk from the northernmost stop, then chunked at the largest gap in a ±3 window around each page boundary (`group_pokestops_geographically`, 10 per embed). Each page gets a PNG map.
+- Reward sprite slugs: `reward/...` for XP/item/stardust/candy/mega, `pokemon/<id>.png` for encounters, `reward/unknown/0.png` when the masterfile can't classify. Thumbnails use `UI_ICONS_URL`.
+
+## Quest maps
+- `quest_map.fit_quest_map` projects the stops to Web Mercator, centres them, and caps zoom at 16 (min 1); `_WORLD = 256` matches the tileserver's raster-zoom convention (fixed 2026-10-10) — do not "correct" it to 512.
+- `image_generator.generate_static_map_for_group_of_quests` POSTs that payload to `QUEST_MAP_URL/staticmap` (`QUEST_MAP_STYLE`, default `osm-bright`), then `draw_quest_map` composites reward sprites and A–J letter badges (labels placed to avoid sprite/badge collisions). Reward sprites are cached (64, LRU); a failed render keeps the text list.
+- `scripts/preview_quest_map.py` renders a sample without Discord.
+
+## Tracked quests (`!track` family)
+- `tracked_quest_reward` holds `target` substrings via `modules/tracker_store.py`. `!track`, `!untrack`, `!untrackall`, `!tracklist`, `!tracked` are mod-only (`cogs/tracker.py` `cog_check`).
+- After each completed scan, `scheduled.py` (`_check_quest_scan_progress`) runs `check_tracked` into `CONVIVIO_CHANNEL`; `!tracked` runs the same on demand. It searches every tracked term in both areas and posts per-area reward-grouped embeds.
+
+## `quests.json` export (the site's contract)
+- `QuestExporter.export(force=False)` writes `Config.QUEST_JSON_OUTPUT` (default `/pogo-public/quests.json`) plus `quests-meta.json` beside it. Triggered when a scan completes, every 30 min as a safety net, and by `!exportquests`.
+- Writes only when the content hash changed (`force=True` always writes). Payload `{quests, generatedAt}`; each quest is `{id, title, category, reward, stopsCount, pokestops[]}`, each stop `{name, location{lat,lng}, zone (leiria|marinha), done, imageUrl?}`. `id` is `md5(title|reward_type)[:12]`. `category` is throwing / battling / buddy / catching / others, from title regexes.
+- Grouping and ids include the numeric reward `amount`, so "3x Razz" and "5x Razz" stay distinct; encounters group by the exact variant instead.
+- Encounter rewards keep `pokemonId`, a normalized `formId` (masterfile `defaultFormId` → 0) and a separate `costumeId` parsed from raw `quest_rewards`; the reward type carries `_fN` / `_cN` suffixes so ordinary and costume encounters do not merge. Missing or malformed data becomes `_unknown` with no identity fields, so the site cannot mark it as an ordinary reward.
+- Golbat omits zero-valued display fields: a valid encounter info with a matching `pokemon_id` defaults absent form/costume to 0; a missing raw `quest_rewards` is different (the variant cannot be confirmed).
+- The site reads this via `apps/landing/lib/pokedex/quests-today.ts` (an export from an earlier Lisbon day counts for nothing) and matches `pokemonId` + `formId` + `costumeId` exactly before drawing "Quest hoje" links to `/quests?q=<variant>&zona=<zone>`. See PoGoLeiria's `docs/context/quests.md`.
