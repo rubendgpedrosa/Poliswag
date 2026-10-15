@@ -259,3 +259,13 @@ async def test_requeue_clears_old_processing_and_replacement_channel_resets_feed
     assert (
         "channel_intro_state = NULL" in db.execute_query_to_database.call_args.args[0]
     )
+
+
+async def test_manual_channel_activation_requires_shiny_collection_once(store, db):
+    await store.activate_from_channel(7)
+    sql = db.execute_query_to_database.call_args.args[0]
+    assert "shiny_map = 1" in sql
+    assert "CASE WHEN FIND_IN_SET('shiny', collecting) = 0" in sql
+    assert "CONCAT_WS(',', NULLIF(collecting, ''), 'shiny') ELSE collecting END" in sql
+    assert "AND shiny_access = 1 AND left_at IS NULL" in sql
+    assert db.execute_query_to_database.call_args.kwargs["params"] == (7,)
