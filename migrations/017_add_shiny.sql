@@ -1,4 +1,4 @@
--- Shiny prediction (docs/superpowers/specs/2026-10-10-shiny-prediction-design.md).
+-- Shiny prediction (/root/docs-archive/Poliswag/superpowers/specs/2026-10-10-shiny-prediction-design.md).
 --
 -- One row per Discord user who sent a friend code with !shiny. The host
 -- script scripts/shiny_linker turns `pending` into `linked` or `failed`;
