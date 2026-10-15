@@ -1,0 +1,20 @@
+[Unit]
+Description=Persistent shared Android Debug Bridge server
+After=network-online.target
+Wants=network-online.target
+Before=rustdesk-android-watchdog.service shiny-linker.service
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=/root
+ExecStart=/usr/bin/adb -L tcp:localhost:5037 server nodaemon
+# Wait for the foreground server before dependent clients can auto-spawn one.
+ExecStartPost=/usr/bin/python3 /root/Poliswag/scripts/adb-server-ready.py
+ExecStartPost=-/usr/bin/adb connect 192.168.1.222:5555
+Restart=always
+RestartSec=2
+TimeoutStartSec=20
+
+[Install]
+WantedBy=multi-user.target
