@@ -23,10 +23,6 @@ def utc_datetime(value):
     return value.astimezone(timezone.utc)
 
 
-def discord_date(value):
-    return f"<t:{int(utc_datetime(value).timestamp())}:F>"
-
-
 def identity_text(value, fallback):
     return discord.utils.escape_markdown(" ".join(str(value or fallback).split())[:100])
 
@@ -61,14 +57,18 @@ def avatar_thumbnail(value):
 
 
 def decision_embed(original, moderator, accepted, decided_at):
-    """Keep the request identity/date intact and append the decision audit."""
+    """Keep the request identity and show the decision in the title/footer."""
     embed = copy.deepcopy(original)
     embed.color = 0x2ECC71 if accepted else 0xE74C3C
-    verdict = "Aceite" if accepted else "Rejeitado"
-    name = identity_text(moderator.display_name, moderator.name)
-    account = identity_text(moderator.name, str(moderator.id))
-    embed.add_field(name=f"{verdict} por", value=f"{name} (@{account})", inline=False)
-    embed.add_field(name=f"{verdict} em", value=discord_date(decided_at), inline=False)
+    verdict = "aceite" if accepted else "rejeitado"
+    embed.title = f"Pokédex: acesso ao mapa de shinies {verdict}"
+    embed.clear_fields()
+    for field in original.fields:
+        if field.name in {"Nome no servidor", "Conta Discord"}:
+            embed.add_field(name=field.name, value=field.value, inline=field.inline)
+    name = " ".join(str(moderator.display_name or moderator.name).split())
+    embed.set_footer(text=name)
+    embed.timestamp = utc_datetime(decided_at)
     return embed
 
 
@@ -107,15 +107,8 @@ def request_payload(row, base_url):
                 "fields": [
                     {"name": "Nome no servidor", "value": display_name, "inline": True},
                     {"name": "Conta Discord", "value": f"@{account}", "inline": True},
-                    {
-                        "name": "Pedido a",
-                        "value": discord_date(row["shiny_access_requested_at"]),
-                        "inline": False,
-                    },
                 ],
                 **({"thumbnail": {"url": thumbnail}} if thumbnail else {}),
-                "timestamp": datetime.strptime(stamp, "%Y%m%d%H%M%S%f").isoformat()
-                + "Z",
             }
         ],
         "components": [
