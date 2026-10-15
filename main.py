@@ -141,6 +141,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.event_panel")
         await self.load_extension("cogs.announcements")
         await self.load_extension("cogs.shiny")
+        await self.load_extension("cogs.shiny_access_requests")
         await self.load_extension("cogs.spawn_history")
         await self.load_extension("cogs.agents")
         await self.load_extension("cogs.mentions")
