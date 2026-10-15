@@ -1,0 +1,20 @@
+// Insert at the start of loki.process "application_journal", BEFORE redaction.
+// Retain only finite source classes; never put an address into a Loki label.
+// Non-SSH records and failed attempts receive no ssh_source_zone label.
+stage.match {
+  selector = "{unit=~\"ssh.*\"} |= \"Accepted \""
+  stage.static_labels {
+    values = {ssh_source_zone = "external"}
+  }
+  stage.match {
+    selector = "{unit=~\"ssh.*\"} |~ `(?i)(?:^|\\s)Accepted \\S+ for \\S+ from (?:192\\.168\\.1\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])|127\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])|100\\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])|::1|(?:0{1,4}:){7}0{0,3}1|fe[89ab][0-9a-f]:[0-9a-f:]*(?:%[0-9a-z_.-]+)?|fd7a:115c:a1e0:[0-9a-f:]+)\\s`"
+    stage.static_labels {
+      values = {ssh_source_zone = "internal"}
+    }
+  }
+  // The generic journal filter only covers IPv4; redact IPv6 sources too.
+  stage.replace {
+    expression = "(?:^|\\s)Accepted \\S+ for \\S+ from (\\S+)\\s"
+    replace = "REDACTED"
+  }
+}

@@ -1,14 +1,7 @@
-"""Notices when the site stops reporting, without waiting to be asked.
+"""Record website traffic silence as information, never as a collector outage.
 
-The statistics report is something you have to remember to open, which makes
-it the wrong place for the one fact that needs to reach you unprompted: that
-nothing is being recorded any more. A broken collector and a quiet week look
-identical on the page, and the page only lies to whoever opens it.
-
-The check is deliberately dumb. It reads the newest event's timestamp and
-compares it to now. It does not try to tell an outage apart from genuine
-silence, because it cannot, and it says so in the message rather than
-guessing.
+An absent page view cannot distinguish a quiet site from a broken collector.
+Real service health is monitored independently.
 """
 
 import asyncio
@@ -17,12 +10,9 @@ from datetime import datetime, timedelta, timezone
 from modules.config import Config
 from modules.database_connector import connect
 
-# The site is quiet overnight, so hours of silence is normal. A full day with
-# nothing at all is not, whatever the hour.
+# The site is quiet overnight. A full day without recorded page views is
+# useful context, but is not evidence of a service failure.
 SILENT_AFTER = timedelta(hours=24)
-# How long before the same outage is worth mentioning again. Long enough not
-# to nag, short enough that it doesn't scroll away unnoticed.
-REPEAT_AFTER = timedelta(hours=12)
 
 
 class TrackingHealth:
@@ -37,8 +27,8 @@ class TrackingHealth:
             with db.cursor() as cursor:
                 cursor.execute("SET SESSION max_statement_time = 5")
                 # Page views only: /pogoleiria.apk writes its download counts
-                # to the same table, and a download must not make a dead
-                # page-view beacon look alive. (idx_event_created covers it.)
+                # to the same table; count page-view activity separately.
+                # idx_event_created covers this query.
                 cursor.execute(
                     "SELECT MAX(created_at) FROM page_view"
                     " WHERE event_name = 'tool_view'"
@@ -50,13 +40,10 @@ class TrackingHealth:
 
 
 def decide(last_event_at, alerted_at, now=None):
-    """What to do about the collector right now.
+    """Return a once-per-episode traffic observation and the silence duration.
 
-    Pure, so the thresholds can be tested without a database or a clock.
-    Returns one of "alert", "recovered" or None, plus the silence in hours.
-
-    `last_event_at` of None means the table is empty: that is an outage from
-    a cold start, not a healthy pause, and it is reported as one.
+    The existing persisted `alerted_at` column tracks when silence was logged.
+    Empty history is also an observation, with no inferred outage or duration.
     """
     now = now or datetime.now(timezone.utc).replace(tzinfo=None)
     if last_event_at is None:
@@ -67,10 +54,10 @@ def decide(last_event_at, alerted_at, now=None):
         silent = silence >= SILENT_AFTER
 
     if silent:
-        if alerted_at is None or now - alerted_at >= REPEAT_AFTER:
+        if alerted_at is None:
             return "alert", silence
         return None, silence
-    # Only tell someone it came back if they were told it had gone.
+    # Log resumption only after recording a silent episode.
     if alerted_at is not None:
         return "recovered", silence
     return None, silence
@@ -84,14 +71,7 @@ def message(action, silence):
             else f"{int(silence.total_seconds() // 3600)} horas"
         )
         return (
-            f"⚠️ **A recolha de estatísticas está calada há {how_long}.**\n"
-            "Pode ser o coletor, o site, ou mesmo ninguém a visitar — não dá "
-            "para distinguir daqui. Vale a pena ver os logs `[track]` e se o "
-            "landing está de pé."
+            f"Sem visualizações de páginas registadas há {how_long}. "
+            "A ausência de visitas não permite avaliar a saúde do coletor."
         )
-    hours = int(silence.total_seconds() // 3600) if silence else 0
-    return (
-        "✅ **A recolha voltou.** O evento mais recente tem "
-        f"{hours}h. O período em silêncio fica na mesma: não houve registos, "
-        "e isso não prova que não houve visitas."
-    )
+    return "Atividade no site retomada: há visualizações de páginas recentes."
