@@ -52,10 +52,24 @@ class TestApplyMigrations:
 
 # Every file is replayed on every start, so each statement must be a no-op
 # the second time. Anything else needs a real migration-tracking table first.
+def is_guarded_set_update(statement):
+    """A data fix that appends a value to a SET column is safe to replay only
+    when it skips rows that already hold the value."""
+    match = re.fullmatch(
+        r"UPDATE \S+\s+SET (\w+) = CONCAT_WS\(',', NULLIF\(\1, ''\), '(\w+)'\)\s+"
+        r"WHERE .*FIND_IN_SET\('\2', \1\) = 0",
+        statement,
+        re.I | re.S,
+    )
+    return match is not None
+
+
 def is_rerunnable(statement):
     if re.match(r"^CREATE OR REPLACE VIEW\b", statement, re.I):
         return True
     if re.match(r"^CREATE TABLE IF NOT EXISTS\b", statement, re.I):
+        return True
+    if is_guarded_set_update(statement):
         return True
     match = re.fullmatch(r"ALTER TABLE \S+\s+(.+)", statement, re.I | re.S)
     if not match:
@@ -123,6 +137,25 @@ def test_rerunnable_accepts_commas_inside_column_definitions(definition):
         "ADD COLUMN IF NOT EXISTS settings_at DATETIME(6) NULL"
     )
     assert is_rerunnable(sql)
+
+
+def test_rerunnable_accepts_a_guarded_set_append():
+    assert is_rerunnable(
+        "UPDATE db.t SET collecting = CONCAT_WS(',', NULLIF(collecting, ''), 'shiny')\n"
+        "WHERE on = 1 AND FIND_IN_SET('shiny', collecting) = 0"
+    )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "UPDATE db.t SET collecting = CONCAT_WS(',', NULLIF(collecting, ''), 'shiny') WHERE on = 1",
+        "UPDATE db.t SET n = n + 1 WHERE FIND_IN_SET('shiny', collecting) = 0",
+        "DELETE FROM db.t WHERE FIND_IN_SET('shiny', collecting) = 0",
+    ],
+)
+def test_rerunnable_rejects_unguarded_updates(statement):
+    assert not is_rerunnable(statement)
 
 
 @pytest.mark.parametrize(
