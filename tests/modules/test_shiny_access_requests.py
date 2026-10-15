@@ -1,4 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+import os
+import time
+
+import discord
 from unittest.mock import MagicMock
 
 import pytest
@@ -117,3 +122,85 @@ def test_queue_failure_rolls_back_access(database):
         requests.decide_request("123", STAMP, True)
     connection.rollback.assert_called_once()
     connection.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_decision_preserves_identity_avatar_and_request_date(accepted):
+    row = {
+        **player(),
+        "name": "Trainer",
+        "display_name": "Server Nick",
+        "username": "discord.account",
+        "avatar_url": "https://cdn.discordapp.com/avatars/123/a_hash.gif?size=1024",
+    }
+    original = discord.Embed.from_dict(
+        requests.request_payload(row, "https://site")["embeds"][0]
+    )
+    before = original.to_dict()
+    decided = datetime(2026, 10, 15, 13, tzinfo=timezone.utc)
+    moderator = SimpleNamespace(
+        id=456, display_name="Moderator Nick", name="mod.account"
+    )
+    result = requests.decision_embed(original, moderator, accepted, decided).to_dict()
+    assert original.to_dict() == before
+    assert result["fields"][:3] == before["fields"]
+    assert [field["name"] for field in before["fields"]] == [
+        "Nome no servidor",
+        "Conta Discord",
+        "Pedido em",
+    ]
+    assert before["fields"][0]["value"] == "Server Nick"
+    assert before["fields"][1]["value"] == "@discord.account"
+    assert (
+        result["thumbnail"]
+        == before["thumbnail"]
+        == {"url": "https://cdn.discordapp.com/avatars/123/a_hash.webp?size=128"}
+    )
+    assert result["timestamp"] == before["timestamp"]
+    verdict = "Aceite" if accepted else "Rejeitado"
+    assert result["fields"][3]["name"] == f"{verdict} por"
+    assert result["fields"][3]["value"] == "Moderator Nick (@mod.account)"
+    assert result["fields"][4]["name"] == f"{verdict} em"
+    assert result["fields"][4]["value"] == f"<t:{int(decided.timestamp())}:F>"
+
+
+def test_database_datetime_is_utc_even_in_lisbon_summer_time():
+    previous = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "Europe/Lisbon"
+        time.tzset()
+        naive = datetime(2026, 10, 15, 12)
+        expected = int(naive.replace(tzinfo=timezone.utc).timestamp())
+        assert requests.discord_date(naive) == f"<t:{expected}:F>"
+        aware = datetime(2026, 10, 15, 13, tzinfo=timezone(timedelta(hours=1)))
+        assert requests.discord_date(aware) == requests.discord_date(naive)
+        assert requests.request_stamp(aware) == requests.request_stamp(naive)
+    finally:
+        if previous is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous
+        time.tzset()
+
+
+@pytest.mark.parametrize(
+    "avatar",
+    [
+        None,
+        "",
+        "http://site/avatar.png",
+        "javascript:alert(1)",
+        "https://user:password@site/avatar.png",
+    ],
+)
+def test_unsafe_or_missing_avatar_is_omitted(avatar):
+    payload = requests.request_payload(
+        {**player(), "name": None, "avatar_url": avatar}, "https://site"
+    )
+    assert "thumbnail" not in payload["embeds"][0]
+
+
+def test_default_discord_avatar_keeps_png_asset():
+    assert requests.avatar_thumbnail(
+        "https://cdn.discordapp.com/embed/avatars/0.png"
+    ) == ("https://cdn.discordapp.com/embed/avatars/0.png?size=128")
