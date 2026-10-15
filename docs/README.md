@@ -37,10 +37,3 @@ Repo-level: [`../README.md`](../README.md) (setup, `make` targets, commands, pro
 | [`alert-noise-cleanup.md`](context/alert-noise-cleanup.md) | alert-noise work (2026-10-15) |
 | [`pokedex-validation-alerts.md`](context/pokedex-validation-alerts.md) | Pokédex validation owner alerts |
 | [`adb-server.md`](context/adb-server.md) | the shared ADB server |
-
-## Archive — historical, not maintained
-
-| Path | What |
-|---|---|
-| [`reviews/`](reviews/) | dated one-off audits and their evidence (the 100IV-alerts audit, shiny-availability data) |
-| [`superpowers/`](superpowers/) | original design specs (`specs/`) and implementation plans (`plans/`) behind past features |
