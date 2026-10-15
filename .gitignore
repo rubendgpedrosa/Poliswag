@@ -17,3 +17,9 @@ data/
 # runs it before every session); tracked, they left the tree dirty after each run.
 mock_data/scanner_status.json
 mock_data/device_status.json
+
+# Editor / OS / agent scratch files
+.idea/
+.DS_Store
+*.swp
+.opencode/
