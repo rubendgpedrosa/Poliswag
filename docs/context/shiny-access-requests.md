@@ -5,13 +5,13 @@ request to `MOD_CHANNEL_ID`, with **Aceitar** and **Rejeitar** buttons.
 Owner `MY_ID` and `ADMIN_USERS_IDS` may decide requests in that guild channel.
 There are no mentions or pings. The profile link lets moderators inspect the
 requesting player. Each embed shows the member's server name, Discord account,
-avatar and request date. The notifier queries guild membership only for unsent
-requests, preferring the server nickname and server avatar over global identity.
+and avatar. The message creation time identifies when the request was posted;
+there is no separate request-date field or pending embed timestamp. The notifier
+queries guild membership only for unsent requests, preferring the server nickname
+and server avatar over global identity.
 If Discord cannot provide membership, the stored trade-player identity is used.
 Discord CDN avatars use small static WebP images (128px); default avatars retain
 their PNG asset. Invalid/non-HTTPS stored avatar URLs are omitted.
-Request dates are interpreted as UTC and rendered using Discord timestamps in
-the reader's timezone.
 
 ## Delivery and decisions
 
@@ -39,11 +39,13 @@ Rejection clears the pending request while keeping map/access off, retaining the
 relink marker for a future request, and increments the settings revision.
 The normal scheduler handles channels and setup confirmation.
 
-After committing, the bot edits the original embed with the moderator's identity
-and decision and removes the buttons. The original identity, avatar, fields and
-request timestamp remain intact; two fields record who accepted/rejected the
-request (server name and Discord account) and when the transaction completed.
-The decision date is a Discord timestamp, separate from the request date.
+After committing, the bot edits the original embed and removes the buttons.
+The player's two identity fields and avatar remain intact. The title states
+whether access was accepted or rejected, with green/red coloring respectively.
+The footer contains only the moderator's server display name; the embed's native
+UTC timestamp records when the transaction completed. Discord displays the name
+and localized decision date together in the footer. Old request-date/audit fields
+are removed when editing previously posted requests.
 Database failures leave buttons available for retry. If the message edit fails after commit, the private response explains
 that the decision was saved; old buttons cannot apply the decision again.
 
