@@ -137,7 +137,7 @@ def request_payload(row, base_url):
     embed = identity_embed(row, base_url)
     embed.update(
         title="Pokédex: pedido de acesso ao mapa de shinies",
-        description="Pedido de acesso ao mapa de shinies.",
+        description=f"Friend Code: {row.get('friend_code') or 'Não indicado'}",
     )
     return {
         "embeds": [embed],
