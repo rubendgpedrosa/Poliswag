@@ -49,7 +49,17 @@ class AgentJobs:
         status["online"] = time.time() - status.get("heartbeat", 0) < 30
         return status
 
-    def submit(self, *, owner_id, provider, mode, prompt, context, destination=None):
+    def submit(
+        self,
+        *,
+        owner_id,
+        provider,
+        mode,
+        prompt,
+        context,
+        destination=None,
+        origin=None,
+    ):
         provider = PROVIDERS.get(provider.lower())
         if not provider or mode not in {"ask", "code"}:
             raise ValueError("Usa `claude`, `codex` ou `openai`.")
@@ -76,6 +86,7 @@ class AgentJobs:
                 "prompt": prompt.strip(),
                 "context": context,
                 "destination": destination,
+                "origin": origin,
                 "created": time.time(),
             },
         )

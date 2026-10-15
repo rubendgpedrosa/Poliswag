@@ -1,3 +1,4 @@
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -25,6 +26,7 @@ def ctx(author=123, content="claude explain", guild=None):
     context.message.content = content
     context.send = AsyncMock()
     context.reply = AsyncMock()
+    context.message.add_reaction = AsyncMock()
     context.author.send = AsyncMock()
     context.author.create_dm = AsyncMock(return_value=MagicMock(send=AsyncMock()))
     return context
@@ -91,7 +93,9 @@ async def test_failed_channel_acknowledgement_does_not_discard_owner_work(cog):
     import discord
 
     context = ctx(guild=MagicMock())
-    context.reply.side_effect = discord.Forbidden(MagicMock(status=403), "blocked")
+    context.message.add_reaction.side_effect = discord.Forbidden(
+        MagicMock(status=403), "blocked"
+    )
     cog.snapshot = AsyncMock(return_value={})
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
@@ -193,7 +197,7 @@ async def test_submission_acknowledges_before_snapshot_and_work(cog):
     context = ctx(guild=MagicMock())
 
     async def snapshot():
-        context.reply.assert_awaited_once()
+        context.message.add_reaction.assert_awaited_once_with("👀")
         return {}
 
     cog.snapshot = AsyncMock(side_effect=snapshot)
@@ -247,7 +251,7 @@ async def test_automatic_code_result_is_only_a_short_sentence(cog):
     job = save_reply(cog)
     user = MagicMock(send=AsyncMock())
     await cog.send_result(user, job)
-    assert user.send.call_args.args == ("Corrigido e testado.",)
+    assert user.send.call_args.args[0] == "Corrigido e testado."
     assert "file" not in user.send.call_args.kwargs
     assert "embed" not in user.send.call_args.kwargs
     assert not user.send.call_args.kwargs["allowed_mentions"].everyone
@@ -304,7 +308,7 @@ async def test_plain_owner_answer_resumes_waiting_task_with_acknowledgement(cog)
     resumed = cog.jobs.get(job["id"], 123)
     assert resumed["state"] == "queued" and resumed["turns"][0]["answer"] == "Leiria"
     cog.submit.assert_not_awaited()
-    context.reply.assert_awaited_once()
+    context.message.add_reaction.assert_awaited_once_with("👀")
     context.send.assert_not_awaited()
 
 
@@ -320,7 +324,7 @@ async def test_long_stats_are_complete_in_file_with_short_cover_sentence(cog):
     job = save_reply(cog, kind="stats", reply="Aqui estão os números.", details=details)
     user = MagicMock(send=AsyncMock())
     await cog.send_result(user, job)
-    assert user.send.call_args.args == ("Aqui estão os números.",)
+    assert user.send.call_args.args[0] == "Aqui estão os números."
     attachment = user.send.call_args.kwargs["file"]
     assert attachment.fp.read().decode() == details
 
@@ -469,3 +473,151 @@ async def test_missing_image_does_not_mark_job_delivered(cog):
     await cog.deliver_results()
     assert not cog.jobs.get(job["id"], 123)["notified"]
     cog.poliswag.get_user.return_value.send.assert_not_called()
+
+
+def conversation_ctx(channel_id=None):
+    context = ctx(guild=MagicMock() if channel_id is not None else None)
+    if channel_id is not None:
+        context.channel.id = channel_id
+    return context
+
+
+def waiting_job(cog, job_id, origin, *, destination=None):
+    from modules.agent_jobs import write_json
+
+    directory = cog.jobs.directory(job_id)
+    directory.mkdir(parents=True)
+    write_json(
+        directory / "request.json",
+        {
+            "id": job_id,
+            "owner_id": "123",
+            "provider": "claude",
+            "mode": "code",
+            "prompt": "question",
+            "created": 1,
+            "origin": origin,
+            "destination": destination or origin,
+        },
+    )
+    write_json(
+        directory / "result.json",
+        {
+            "state": "waiting_input",
+            "reply": "Which city?",
+            "revision": 0,
+        },
+    )
+    return job_id
+
+
+@pytest.mark.parametrize("source,target", [(789, None), (None, 789), (789, 999)])
+async def test_waiting_task_in_other_conversation_does_not_capture_question(
+    cog, source, target
+):
+    origin = cog.origin_for(conversation_ctx(source))
+    job_id = waiting_job(cog, "abcdef123456", origin)
+    cog.submit = AsyncMock()
+    context = conversation_ctx(target)
+    await cog.submit_natural_request(context, "a separate question")
+    cog.submit.assert_awaited_once_with(
+        context, "code", "claude", "a separate question"
+    )
+    assert cog.jobs.get(job_id, 123)["state"] == "waiting_input"
+
+
+@pytest.mark.parametrize("channel_id", [None, 789, 999])
+async def test_each_conversation_resumes_only_its_own_waiting_task(cog, channel_id):
+    ids = {None: "abcdef123450", 789: "abcdef123451", 999: "abcdef123452"}
+    for source, job_id in ids.items():
+        waiting_job(cog, job_id, cog.origin_for(conversation_ctx(source)))
+    cog.submit = AsyncMock()
+    context = conversation_ctx(channel_id)
+    await cog.submit_natural_request(context, "Leiria")
+    for source, job_id in ids.items():
+        job = cog.jobs.get(job_id, 123)
+        assert job["state"] == ("queued" if source == channel_id else "waiting_input")
+    cog.submit.assert_not_awaited()
+    context.message.add_reaction.assert_awaited_once_with("👀")
+
+
+async def test_delivery_override_does_not_change_followup_conversation(cog):
+    origin = cog.origin_for(conversation_ctx(789))
+    job_id = waiting_job(cog, "abcdef123456", origin, destination={"type": "dm"})
+    cog.submit = AsyncMock()
+    await cog.submit_natural_request(conversation_ctx(None), "a new DM question")
+    assert cog.jobs.get(job_id, 123)["state"] == "waiting_input"
+    cog.submit.assert_awaited_once()
+    await cog.submit_natural_request(conversation_ctx(789), "Leiria")
+    assert cog.jobs.get(job_id, 123)["state"] == "queued"
+    assert cog.jobs.get(job_id, 123)["destination"] == {"type": "dm"}
+
+
+async def test_independent_questions_are_delivered_to_two_channels_and_dm(cog):
+    from modules.agent_jobs import write_json
+
+    cog.jobs.root.mkdir(parents=True, exist_ok=True)
+    write_json(
+        cog.jobs.root / "worker.json",
+        {
+            "heartbeat": time.time(),
+            "providers": {"claude": True},
+        },
+    )
+    cog.snapshot = AsyncMock(return_value={})
+    channels = {i: MagicMock(send=AsyncMock()) for i in (789, 999)}
+    for channel in channels.values():
+        channel.guild.id = 321
+    user = MagicMock(send=AsyncMock())
+    cog.poliswag.get_channel.side_effect = channels.get
+    cog.poliswag.get_user.return_value = user
+    for source, question in [(789, "q1"), (999, "q2"), (None, "q3")]:
+        await cog.submit_natural_request(conversation_ctx(source), question)
+    jobs = cog.jobs.list(123)
+    assert len(jobs) == 3
+    for job in jobs:
+        assert job["origin"] == job["destination"]
+        write_json(
+            cog.jobs.directory(job["id"]) / "result.json",
+            {
+                "state": "completed",
+                "reply": f"Answer for {job['prompt']}",
+            },
+        )
+    await cog.deliver_results()
+    await cog.deliver_results()
+    for target, question in [
+        (channels[789], "q1"),
+        (channels[999], "q2"),
+        (user, "q3"),
+    ]:
+        target.send.assert_awaited_once()
+        assert target.send.call_args.args[0] == f"Answer for {question}"
+
+
+async def test_natural_answer_preserves_sentences_and_paragraphs(cog):
+    text = "Primeira frase. Segunda frase.\n\n" + "Explicação completa. " * 30
+    job = save_reply(cog, kind="chat", reply=text)
+    target = MagicMock(send=AsyncMock())
+    await cog.send_result(target, job)
+    assert target.send.call_args.args[0] == text.strip()
+    assert "embed" not in target.send.call_args.kwargs
+
+
+async def test_very_long_answer_includes_complete_text_attachment(cog):
+    text = "Explicação completa. " * 400
+    job = save_reply(cog, kind="chat", reply=text)
+    target = MagicMock(send=AsyncMock())
+    await cog.send_result(target, job)
+    sent = target.send.call_args.kwargs
+    assert len(target.send.call_args.args[0]) <= 2000
+    assert "embed" not in sent
+    assert sent["file"].fp.read().decode() == text.strip()
+
+
+async def test_acknowledgement_only_reacts(cog):
+    context = ctx()
+    await cog.acknowledge(context)
+    context.message.add_reaction.assert_awaited_once_with("👀")
+    context.reply.assert_not_awaited()
+    context.send.assert_not_awaited()

@@ -155,7 +155,8 @@ class TestBareMention:
         await process(bot, self._message(content))
 
         ctx.send.assert_awaited_once()
-        assert "diz-me" in ctx.send.call_args.args[0]
+        embed = ctx.send.call_args.kwargs["embed"]
+        assert "diz-me" in embed.description
         ctx.send_help.assert_not_awaited()
         bot.invoke.assert_not_awaited()
 
