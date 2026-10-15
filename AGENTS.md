@@ -2,7 +2,7 @@
 
 Discord bot for the PoGoLeiria community (Python, `discord.py`, MariaDB).
 
-Read [docs/context.md](docs/context.md) at the start of every session, then only the topic files in `docs/context/` it lists for the area you touch. Keep that core file to about 800 words; put new detail in a topic file.
+Read [docs/context.md](docs/context.md) at the start of every session, then only the topic files it points to for the area you touch. The map of every document is [docs/README.md](docs/README.md); add new docs there. Keep the core file to about 800 words; put new detail in a topic file.
 
 Rules that apply to every agent here:
 - Never add `Co-Authored-By` lines to commits.
