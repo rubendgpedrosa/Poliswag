@@ -69,6 +69,8 @@ class ShinyStore:
         """The owner's manual channel command activates an approved profile too."""
         await self.db.execute_query_to_database(
             f"UPDATE {Config.DB_POGOLEIRIA}.trade_player SET shiny_map = 1, "
+            "collecting = CASE WHEN FIND_IN_SET('shiny', collecting) = 0 "
+            "THEN CONCAT_WS(',', NULLIF(collecting, ''), 'shiny') ELSE collecting END, "
             "shiny_access_requested_at = NULL WHERE discord_id = %s "
             "AND shiny_access = 1 AND left_at IS NULL",
             params=(discord_id,),
