@@ -5,7 +5,7 @@ Every minute: remove managed rules of anyone no longer active, DM a
 confirmation for each new settings revision, rebuild each active player's
 rules when they differ, and reload Poracle once if anything changed.
 Settings revisions identify confirmation attempts; timestamps are audit data
-only. Spec: docs/superpowers/specs/2026-09-24-pokedex-100iv-alerts-design.md
+only. Spec: /root/docs-archive/Poliswag/superpowers/specs/2026-09-24-pokedex-100iv-alerts-design.md
 """
 
 import asyncio
