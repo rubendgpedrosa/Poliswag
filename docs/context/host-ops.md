@@ -14,3 +14,7 @@ Things that run on the host, outside the container, because they must work when 
 | `python -m scripts.shiny_linker` | `shiny-linker.timer` (every 10 min) → `shiny-linker.service`, venv `/opt/shiny-linker/venv`. Resolves pending `!shiny` friend codes through one scanner account; does nothing unless every guard holds; switches itself off and alerts the owner if the hook or the game misbehaves. `--check` prints the guards, `--validate` re-checks the hook after a game update. Units: `scripts/shiny-linker.{service,timer}`. See [shiny.md](shiny.md). |
 
 **Why:** Docker's `unless-stopped` only recovers a process that exits; a hung bot stays "Up", and it is the bot that sends the tracking-health alert and the owner notices. The systemd units and `/root/db-backup.sh` are not in git: recreate them from this table if the host is rebuilt.
+
+The shared ADB daemon runs under its own persistent systemd service; the
+RustDesk watchdog and shiny linker depend on it. Installation and diagnosis:
+[adb-server.md](adb-server.md).
