@@ -20,7 +20,7 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 ```
 DISCORD_API_KEY, ADMIN_USERS_IDS (comma-sep), MY_ID
 QUEST_CHANNEL_ID, CONVIVIO_CHANNEL_ID, MOD_CHANNEL_ID, ACCOUNTS_CHANNEL_ID
-VOICE_CHANNEL_LEIRIA_ID  (combined MAPA status channel; var name kept for continuity)
+VOICE_CHANNEL_LEIRIA_ID  (combined `STATUS:` scanner channel; var name kept from its old MAPA name)
 EVENT_PANEL_CHANNEL_ID   (announcements channel holding the !eventpanel message)
 EVENTS_ROLE_ID           (permanent Eventos role the panel button grants)
 DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME, DB_DRAGONITE

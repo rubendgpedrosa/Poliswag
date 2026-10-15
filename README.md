@@ -4,7 +4,7 @@ Discord bot and operations glue for the [PoGoLeiria](https://pogoleiria.pt) scan
 
 ## Documentation
 
-The map of every document is [docs/README.md](docs/README.md); start with [docs/context.md](docs/context.md).
+The map of every document is [docs/README.md](docs/README.md); start with [docs/context.md](docs/context.md). Every Discord command is in [docs/context/cogs.md](docs/context/cogs.md), module behaviour in [docs/context/modules.md](docs/context/modules.md), and endpoints/env vars in [docs/context/config.md](docs/context/config.md).
 
 ## Stack
 
@@ -57,116 +57,6 @@ Selected via `ENV=` in `.env`:
 - **DEVELOPMENT** — mock DB seeded from `mock_database/data.sql`, mock JSON responses from `mock_data/`, logs tailed automatically.
 - **PRODUCTION** — connects to the live scanner DB and real endpoints. No mock data.
 
-## Discord commands
-
-### Claude / OpenAI coding agents *(MY_ID only)*
-
-- `!self` — Poliswag's capabilities, agent availability, and live scanner health
-- `!ask claude|openai <question>` — ask any question without editing code
-- `!code claude|openai <request>` — launch a coding task in a separate Git worktree
-- `!jobs`, `!job <id>`, `!cancel <id>` — monitor or cancel work
-
-Owner DMs accept plain questions on any topic, with Claude by default.
-Use `codex <question>` or `use Codex to ...` to choose Codex;
-`code claude <request>` and `code codex <request>` also work. Tasks acknowledge your message immediately and reply in the originating channel (or DM) when finished, or when an essential decision blocks
-progress. Replies are one short sentence, witty for casual chat and factual
-for code; stats and requested reports can keep their detail. Answer a blocking
-question normally to resume the same task, or use `!answer <id> <response>`.
-Full code reports are available through `!job <id>`; changes are kept for review.
-Ask `send via DM` to keep a channel request private, or `send to #moderação`
-to choose another channel. Generated images and report files are attached
-automatically. Delivery failures retain the chosen destination and retry.
-Owner tasks can query live production databases through Poliswag’s connection.
-Requires the host worker: [setup and execution details](docs/context/agents.md).
-
-Unfiltered shiny statistics use a separate raw spawn archive, captured every
-30 seconds and retained for 48 hours. `!spawnhistory` shows capture health;
-`!spawnhistory export 24` downloads compressed JSON, and `!spawnhistory
-leaderboard 24` recomputes trainer totals without notification, collection, IV
-or area preferences. These are owner-only commands. Hourly averages appear only
-after the requested period has complete collection coverage. See
-[stored attributes and coverage](docs/context/spawn-history.md).
-
-Tagging Poliswag greets or replies instead of listing commands. Owner mentions
-can give requests directly (`@Poliswag fix the quest bug`, optionally choosing
-Claude/OpenAI), with results returned to the requested destination. Other server members get an immediate acknowledgement followed by playful
-replies, public events, or aggregate game statistics. Public banter runs
-`codex exec` on the host with **GPT-6 Luna and medium reasoning**, using the
-existing Codex login. Only a fixed topic is sent; events and statistics are
-rendered locally. Public runs have no shell tools, repository, owner history,
-accounts, configuration or credentials in their context. Safe fixed replies
-remain available when the worker is busy, offline, or returns unusable text.
-No separate OpenAI API key is needed for mention replies.
-
-### Quests
-- `!questleiria [area] [search]` — search active quests
-- `!scan` — trigger a new quest scan
-- `!exportquests` *(admin)* — export quest data to the PWA
-
-Quest search replies attach one 1200×600 PNG per page (up to 10 stops), rendered
-by Rampardos using the local map dataset. `QUEST_MAP_URL` selects the server
-(default `https://tileserver.pogoleiria.pt`); `QUEST_MAP_STYLE` defaults to
-`osm-bright`. Markers use the same Pokémon/item reward sprites as alerts, with
-small A–J badges matching the stop list. Compact sprites stay on their exact
-coordinates; letter badges fit around nearby icons, without connector lines.
-Sprite downloads are cached (64 rewards); unavailable icons fall
-back to letter markers. If rendering fails, the stop list and navigation links
-still arrive. Google Static Maps and its API key are no longer used.
-Quest exports combine the scanner's two quest field sets without AR labels,
-and deduplicate the same stop within a quest.
-
-### Quest reward tracking
-- `!track <reward>` / `!untrack <reward>` — manage the watch list
-- `!tracklist` — show current watch list
-- `!untrackall` — clear the watch list
-- `!tracked` — post today's tracked quests to the community channel
-
-### Events
-- `!eventtypes` — list known event types
-- `!exclude <type>` / `!include <type>` — mute/unmute a type in notifications
-- `!excludedlist` — show muted types
-- `!excludeclear` — clear the mute list
-- `!weeklydigest` *(admin)* — post the weekly event summary
-- `!testevent HH:MM` *(admin)* — dry-run the event dispatcher at a given time
-
-### Notifications (Poracle) *(admin)*
-
-Most subcommands accept a **ref** — a `#channel` mention, a raw channel id, a full channel name (e.g. `alertas-level5`), or a **category suffix** (`raros`, `100iv`, `0iv`, `uteis`) that fans out to both `leiria-<suffix>` and `marinha-<suffix>`.
-
-- `!notify channels` — list Discord channels registered in Poracle
-- `!notify list [ref]` — tracked pokémon rules (all channels if no ref)
-- `!notify add <ref> <name[,name…]> [min_iv] [min_cp]` — add rule(s); accepts comma-separated names and fans out across the ref
-- `!notify remove <ref> <name[,name…]|uid>` — delete rule(s); by name (or names, comma-separated) fans out, by UID is exact
-- `!notify enable <ref>` / `!notify disable <ref>` — toggle notification delivery without touching rules
-- `!notify register <#channel>` — register a channel as a Poracle target
-- `!notify test <ref|dm> <pokemon>` — fire a sample notification (100% IV, CP 3000) to a channel or your own DM
-
-### Lures *(admin)*
-- `!lures` — list up to 5 free, healthy accounts with lures available
-- `!uselure <username> <n>` — adjust an account's lure count (positive adds, negative removes)
-
-### Estatísticas *(MY_ID only)*
-
-| Command | Does |
-|---|---|
-| `!webstats [período]` | DMs `MY_ID` the site's page-view statistics. `hoje`, `7d` (default), `30d`, `Nd` (1-365) or `all`. Only `MY_ID` may run it, and the report only ever arrives by DM — the invoking message is deleted from the channel. |
-
-### Operations
-- `!accounts` — render the current account-pool status as an image
-- `!status` *(admin)* — live diagnostic snapshot: last pokémon seen, Rotom devices, Dragonite workers, account pool
-- `!container start|stop` *(admin)* — control the scanner container
-- `!container recreate` *(admin)* — force-recreate the scanner containers (dragonite + rotom-ng)
-- `!container autorecreate on|off` *(admin)* — toggle the automatic red-map recovery ladder
-- `!device status` *(admin)* — check ADB connectivity to the device
-- `!device restartapp` *(admin)* — force-stop and relaunch Pokémon GO via ADB
-- `!device logcat [lines]` *(admin)* — last N logcat lines filtered by aegis/poke
-- `!device autoreboot on|off` *(admin)* — toggle automatic ADB reboot when the device goes offline
-- `!device reboot` *(admin)* — reboot the device via ADB
-
-The `STATUS` voice channel mirrors combined scanner health across both areas (down workers / expected workers, read live from Dragonite), in three states: 🟢 the map is being scanned — at least one worker up, however thin the account pool is; 🔴 every worker down but the device still connected (account problem); ❌ device offline or status data unavailable (Dragonite unreachable). There is deliberately no partial-degradation tier — renaming the channel on every account-pool swing was pure churn against Discord's rename rate limit.
-
-When the map stops scanning, the recovery ladder works out what broke and only restarts that (`modules/stack_recovery.py`). No Aegis workers in rotom-ng and the phone reports Aegis or Pokémon GO not running, or no "running and injected" line for 2 min: the phone's apps are restarted at 5 min. Dragonite or rotom-ng not answering: they are recreated at 5 min. No workers but the phone healthy: it waits for Aegis to reconnect. At 15 min anything still down that a restart can fix gets both (recreate + phone apps), then it stops. Workers connected but no data (accounts, the game's servers), or a phone adb can't reach: the mods are told, nothing is restarted.
-
 ## Project layout
 
 ```
@@ -180,18 +70,6 @@ migrations/  SQL migrations, replayed on every bot start — must be re-runnable
 tests/       pytest suite
 logs/        actions.log (activity) + error.log (errors)
 ```
-
-## Endpoints and integrations
-
-Poliswag talks to the scanner stack via URLs in `.env`:
-
-- **Dragonite admin** (`/status`, `/accounts/stats`, `/quest/all/start`, `/status/quest-area/<id>`) — worker health, account pool, quest scan control.
-- **Rotom** (`/api/status`) — device connectivity.
-- **Home Assistant webhook** (`ALL_DOWN_ENDPOINT`) — alerts when the scanner pipeline degrades.
-- **Poracle-NG** (`PORACLE_API_URL` + `PORACLE_API_SECRET`) — pokémon alert rules per Discord channel, managed via the `!notify` commands.
-- **Golbat DB** — read-only queries for spawn/quest data.
-- **ScrapedDuck events feed** — upstream event calendar.
-- **PokeMiners masterfile** — Pokémon / move name translations.
 
 ## Tests
 
