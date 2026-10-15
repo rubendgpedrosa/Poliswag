@@ -108,7 +108,7 @@ def request_payload(row, base_url):
                     {"name": "Nome no servidor", "value": display_name, "inline": True},
                     {"name": "Conta Discord", "value": f"@{account}", "inline": True},
                     {
-                        "name": "Pedido em",
+                        "name": "Pedido a",
                         "value": discord_date(row["shiny_access_requested_at"]),
                         "inline": False,
                     },
