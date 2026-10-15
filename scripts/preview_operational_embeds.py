@@ -215,7 +215,9 @@ def host_fallback_examples():
     capture = "import json,sys; print(json.dumps({'title':sys.argv[1],'description':sys.argv[2]},ensure_ascii=False))"
     prefix = f'python3() {{ /usr/bin/python3 -c {shlex.quote(capture)} "$3" "$2"; }}\nlog() {{ :; }}\nnow() {{ :; }}\n'
     watchdog = (ROOT / "scripts/watchdog.sh").read_text()
-    command = watchdog[watchdog.index('python3 "$ROOT/scripts/notify_owner.py"') :]
+    command = watchdog[
+        watchdog.index('python3 "$ROOT/scripts/notify_owner.py"') :
+    ].replace(" --discord", "", 1)
     result = subprocess.run(
         ["bash", "-c", prefix + command],
         env={**os.environ, "ROOT": str(ROOT), "age": "900"},

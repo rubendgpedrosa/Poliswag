@@ -57,7 +57,9 @@ _NOTIFY = Path(__file__).resolve().parent.parent / "notify_owner.py"
 
 def notify_owner(message):
     subprocess.run(
-        [sys.executable, str(_NOTIFY), message, "Shiny linker"], timeout=60, check=False
+        [sys.executable, str(_NOTIFY), "--discord", message, "Shiny linker"],
+        timeout=60,
+        check=False,
     )
 
 

@@ -7,7 +7,7 @@ from modules.scanner_status import ScannerStatus
 
 
 @pytest.fixture
-def scanner_status():
+def scanner_status(mocker):
     """A ScannerStatus instance with a mocked poliswag dependency.
 
     The _log helper routes through poliswag.utility.log_to_file, which the
@@ -15,6 +15,9 @@ def scanner_status():
     touching the real logger. stack_recovery.observe is awaited from
     rename_voice_channels, so it needs to be a real AsyncMock.
     """
+    mocker.patch(
+        "modules.scanner_status.notify_owner", new=AsyncMock(return_value=True)
+    )
     poliswag = MagicMock()
     poliswag.stack_recovery.observe = AsyncMock()
     poliswag.account_monitor.connected_worker_count = AsyncMock(return_value=16)
@@ -1669,3 +1672,98 @@ class TestQuestPlateauHelpers:
             "prev_count": -1,
             "flat_streak": 0,
         }
+
+
+class TestMapDiscordAlerts:
+    def _setup(self, scanner_status, mocker):
+        TestTriggerAllDownAction()._setup(scanner_status, mocker, seconds_ago=700)
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", True)
+        dashboard = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        discord_alert = mocker.patch(
+            "modules.scanner_status.notify_owner", new=AsyncMock(return_value=True)
+        )
+        return dashboard, discord_alert
+
+    async def test_down_once_per_episode_dashboard_keeps_updating(
+        self, scanner_status, mocker
+    ):
+        dashboard, discord_alert = self._setup(scanner_status, mocker)
+        await scanner_status.trigger_all_down_action()
+        scanner_status.last_all_down_request_time = 0
+        await scanner_status.trigger_all_down_action()
+        assert dashboard.await_count == 2
+        discord_alert.assert_awaited_once()
+        assert discord_alert.call_args.kwargs["title"] == "Mapa sem dados"
+
+        await scanner_status.trigger_map_restored_action(5)
+        assert discord_alert.await_count == 2
+        assert discord_alert.call_args.kwargs["title"] == "Mapa recuperado"
+        assert scanner_status.map_down_alerted is False
+
+        scanner_status.last_all_down_request_time = 0
+        await scanner_status.trigger_all_down_action()
+        assert discord_alert.await_count == 3
+
+    async def test_failed_dashboard_does_not_block_discord(
+        self, scanner_status, mocker
+    ):
+        dashboard, discord_alert = self._setup(scanner_status, mocker)
+        dashboard.side_effect = RuntimeError("HA unreachable")
+        await scanner_status.trigger_all_down_action()
+        assert scanner_status._map_down_discord_sent is True
+        await scanner_status.trigger_map_restored_action(5)
+        assert discord_alert.await_count == 2
+        assert scanner_status.map_down_alerted is False
+
+    @pytest.mark.parametrize("failure", [False, RuntimeError("Discord unavailable")])
+    async def test_failed_down_delivery_retries_after_cooldown(
+        self, scanner_status, mocker, failure
+    ):
+        _, discord_alert = self._setup(scanner_status, mocker)
+        discord_alert.side_effect = [failure, True]
+        await scanner_status.trigger_all_down_action()
+        assert scanner_status._map_down_discord_sent is False
+        await scanner_status.trigger_all_down_action()
+        assert discord_alert.await_count == 1
+        scanner_status.last_all_down_request_time = 0
+        await scanner_status.trigger_all_down_action()
+        assert discord_alert.await_count == 2
+        assert scanner_status._map_down_discord_sent is True
+
+    @pytest.mark.parametrize("failure", [False, RuntimeError("Discord unavailable")])
+    async def test_failed_recovery_retries_without_repeating_dashboard(
+        self, scanner_status, mocker, failure
+    ):
+        dashboard, discord_alert = self._setup(scanner_status, mocker)
+        await scanner_status.trigger_all_down_action()
+        discord_alert.side_effect = [failure, True]
+        await scanner_status.trigger_map_restored_action(5)
+        assert scanner_status.map_down_alerted is True
+        assert scanner_status._map_down_discord_sent is True
+        await scanner_status.trigger_map_restored_action(6)
+        assert scanner_status.map_down_alerted is False
+        assert scanner_status._map_down_discord_sent is False
+        assert dashboard.await_count == 2
+
+    async def test_no_recovery_dm_if_down_delivery_failed(self, scanner_status, mocker):
+        _, discord_alert = self._setup(scanner_status, mocker)
+        discord_alert.return_value = False
+        await scanner_status.trigger_all_down_action()
+        await scanner_status.trigger_map_restored_action(5)
+        discord_alert.assert_awaited_once()
+
+    async def test_historical_outage_does_not_send_recovery_dm(
+        self, scanner_status, mocker
+    ):
+        _, discord_alert = self._setup(scanner_status, mocker)
+        scanner_status.map_down_alerted = True
+        await scanner_status.trigger_map_restored_action(5)
+        discord_alert.assert_not_awaited()
+
+    async def test_development_sends_neither_route(self, scanner_status, mocker):
+        dashboard, discord_alert = self._setup(scanner_status, mocker)
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", False)
+        await scanner_status.trigger_all_down_action()
+        await scanner_status.trigger_map_restored_action(5)
+        dashboard.assert_not_awaited()
+        discord_alert.assert_not_awaited()
