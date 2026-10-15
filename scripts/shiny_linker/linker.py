@@ -18,10 +18,12 @@ two hours logs in at the site and looks at the map once; the hook only goes
 in when that shows a raid.
 """
 
+import logging
 import random
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 from . import phone as _phone
@@ -49,12 +51,25 @@ BORROW_ATTEMPTS = 3
 # Quarter-second tries for the freed worker after each disconnect.
 WORKER_TRIES = 20
 VERSION_GUARD = "versão validada"
+LOGGER = logging.getLogger(__name__)
 _NOTIFY = Path(__file__).resolve().parent.parent / "notify_owner.py"
 
 
 def notify_owner(message):
     subprocess.run(
         [sys.executable, str(_NOTIFY), message, "Shiny linker"], timeout=60, check=False
+    )
+
+
+def _log_failure(stage, problem, detail):
+    # Formatting just the frames avoids exception strings/chains containing
+    # subprocess argv, authentication tokens or RPC payloads. No locals are read.
+    LOGGER.error(
+        "%s: %s: %s\n%s",
+        stage,
+        type(problem).__name__,
+        detail,
+        "".join(traceback.format_tb(problem.__traceback__)),
     )
 
 
@@ -336,6 +351,7 @@ class Linker:
                 lobby = None
         except self.phone.HookError as problem:
             breaker = str(problem)
+            _log_failure("Hook attach failed", problem, breaker)
         except self.rotom.NoWorker:
             # Not the codes' fault: they keep their attempts for next time.
             error, penalise = "sem worker para a ligação", False
@@ -346,8 +362,13 @@ class Linker:
             error = (
                 str(problem)
                 if isinstance(problem, RunError)
-                else type(problem).__name__
+                else (
+                    _phone.subprocess_detail(problem)
+                    if isinstance(problem, subprocess.SubprocessError)
+                    else type(problem).__name__
+                )
             )
+            _log_failure("Linker run failed", problem, error)
         finally:
             if lobby is not None:
                 try:
@@ -358,13 +379,20 @@ class Linker:
             if attach_attempted:
                 try:
                     detached = hook.detach(send_detach)
-                except Exception:
+                except Exception as problem:
+                    _log_failure("Hook detach failed", problem, type(problem).__name__)
                     detached = False
             self._close()
             if not detached:
                 breaker = breaker or "o hook não saiu do jogo"
-            if self.phone.game_pid() != pid:
+            pid_after = self.phone.game_pid()
+            if pid_after is not None and pid_after != pid:
                 breaker = "o jogo reiniciou durante a ligação"
+            elif pid_after is None and attach_attempted:
+                breaker = (
+                    breaker
+                    or "não foi possível confirmar o estado do jogo após a ligação"
+                )
             if processing:
                 self.store.finish_processing(processing)
 

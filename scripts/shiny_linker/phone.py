@@ -12,6 +12,7 @@ is only ever killed after the hook has removed itself.
 """
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -31,6 +32,8 @@ METHODS = [5012, 159, 160, 815, 1504]
 SOCIAL_ACTIONS = [10000]
 # The hook removes itself after this long whatever happens.
 LIFETIME_MS = 600_000
+LOGGER = logging.getLogger(__name__)
+ERROR_DETAIL_LIMIT = 500
 _HOOK_SOURCE = Path(__file__).with_name("native-method-redirect.js")
 
 
@@ -46,6 +49,28 @@ def _serial():
     return os.environ.get("ADB_DEVICE") or "192.168.1.222:5555"
 
 
+def subprocess_detail(error):
+    """Describe a failed tool without printing its potentially private argv."""
+    argv = getattr(error, "cmd", None)
+    executable = (
+        Path(argv[0]).name if isinstance(argv, (list, tuple)) and argv else "tool"
+    )
+    # Only these tools receive infrastructure commands, never login/RPC data.
+    tool = executable if executable in {"adb", "docker"} else "subprocess"
+    if isinstance(error, subprocess.TimeoutExpired):
+        return f"{tool} timed out after {error.timeout}s"
+    returncode = getattr(error, "returncode", None)
+    detail = f"{tool} failed"
+    if returncode is not None:
+        detail += f" (exit {returncode})"
+    if tool in {"adb", "docker"} and getattr(error, "stderr", None):
+        stderr = error.stderr
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf8", "replace")
+        detail += ": " + " ".join(stderr.split())[:ERROR_DETAIL_LIMIT]
+    return detail
+
+
 def adb(command, timeout=20):
     done = subprocess.run(
         ["adb", "-s", _serial(), "exec-out", command],
@@ -53,14 +78,26 @@ def adb(command, timeout=20):
         timeout=timeout,
     )
     if done.returncode:
-        raise PhoneError("adb command failed")
+        raise PhoneError(
+            subprocess_detail(
+                subprocess.CalledProcessError(
+                    done.returncode, ["adb"], stderr=done.stderr
+                )
+            )
+        )
     return done.stdout.decode("utf8", "replace").strip()
 
 
 def _pid(process):
     try:
         out = adb(f"pidof {process}")
-    except (PhoneError, subprocess.TimeoutExpired):
+    except (PhoneError, subprocess.TimeoutExpired) as error:
+        detail = (
+            subprocess_detail(error)
+            if isinstance(error, subprocess.SubprocessError)
+            else str(error)
+        )
+        LOGGER.warning("Phone check unavailable: %s", detail)
         return None
     return int(out.split()[0]) if out else None
 
@@ -76,7 +113,13 @@ def mapping_pid():
 def game_version():
     try:
         out = adb(f"dumpsys package {GAME}")
-    except (PhoneError, subprocess.TimeoutExpired):
+    except (PhoneError, subprocess.TimeoutExpired) as error:
+        detail = (
+            subprocess_detail(error)
+            if isinstance(error, subprocess.SubprocessError)
+            else str(error)
+        )
+        LOGGER.warning("Phone check unavailable: %s", detail)
         return None
     match = re.search(r"\bversionName=([0-9.]+)", out)
     return match.group(1) if match else None
@@ -125,16 +168,16 @@ class Hook:
         source = _HOOK_SOURCE.read_text().replace(
             "__OWNED_REDIRECT_CONFIG__", json.dumps(config)
         )
-        with tempfile.NamedTemporaryFile("w", suffix=".js") as local:
-            local.write(source)
-            local.flush()
-            subprocess.run(
-                ["adb", "-s", _serial(), "push", local.name, self._script],
-                capture_output=True,
-                check=True,
-                timeout=30,
-            )
         try:
+            with tempfile.NamedTemporaryFile("w", suffix=".js") as local:
+                local.write(source)
+                local.flush()
+                subprocess.run(
+                    ["adb", "-s", _serial(), "push", local.name, self._script],
+                    capture_output=True,
+                    check=True,
+                    timeout=30,
+                )
             with quiet_scanner():
                 self.injector_pid = int(
                     adb(
@@ -153,7 +196,12 @@ class Hook:
                     raise HookError("hook did not become ready")
                 time.sleep(1)
         except (PhoneError, subprocess.SubprocessError, ValueError) as error:
-            raise HookError(f"hook attach failed: {type(error).__name__}") from error
+            detail = (
+                subprocess_detail(error)
+                if isinstance(error, subprocess.SubprocessError)
+                else str(error)
+            )
+            raise HookError(f"hook attach failed: {detail}") from error
         finally:
             try:
                 adb(f"su -c 'rm -f {self._script}'")

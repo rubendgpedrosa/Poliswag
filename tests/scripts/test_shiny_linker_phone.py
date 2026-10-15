@@ -47,8 +47,8 @@ def shell(mocker):
             if needle in text:
                 if isinstance(answer, Exception):
                     raise answer
-                return MagicMock(returncode=0, stdout=answer.encode())
-        return MagicMock(returncode=0, stdout=b"")
+                return MagicMock(returncode=0, stdout=answer.encode(), stderr=b"")
+        return MagicMock(returncode=0, stdout=b"", stderr=b"")
 
     mocker.patch.object(phone.subprocess, "run", side_effect=run)
     mocker.patch.object(phone.time, "sleep")
@@ -71,7 +71,11 @@ def test_pids_and_version_are_read_from_the_phone(shell):
 
 def test_an_unreachable_phone_reads_as_not_running(shell, mocker):
     mocker.patch.object(
-        phone.subprocess, "run", return_value=MagicMock(returncode=1, stdout=b"")
+        phone.subprocess,
+        "run",
+        return_value=MagicMock(
+            returncode=1, stdout=b"", stderr=b"error: device offline"
+        ),
     )
     assert phone.game_pid() is None
     assert phone.game_version() is None
@@ -145,3 +149,65 @@ def test_detach_without_an_attach_is_a_no_op(shell):
     calls, _ = shell
     assert phone.Hook().detach(lambda payload: None) is True
     assert calls == []
+
+
+def test_adb_failure_preserves_bounded_stderr_and_exit_status(shell, mocker):
+    mocker.patch.object(
+        phone.subprocess,
+        "run",
+        return_value=MagicMock(
+            returncode=1, stdout=b"", stderr=b"error: device offline\n" + b"x" * 1000
+        ),
+    )
+    with pytest.raises(
+        phone.PhoneError, match=r"adb failed \(exit 1\): error: device offline"
+    ) as caught:
+        phone.adb("pidof hidden-command-argument")
+    assert len(str(caught.value)) < 550
+    assert "hidden-command-argument" not in str(caught.value)
+
+
+def test_unreachable_phone_logs_transport_failure(shell, mocker, caplog):
+    mocker.patch.object(
+        phone.subprocess,
+        "run",
+        return_value=MagicMock(
+            returncode=1, stdout=b"", stderr=b"error: device offline"
+        ),
+    )
+    assert phone.game_pid() is None
+    assert "device offline" in caplog.text
+
+
+def test_failed_push_is_a_hook_error_with_tool_details(shell):
+    calls, answers = shell
+    answers["push"] = subprocess.CalledProcessError(
+        1, ["adb", "push", "private-argument"], stderr=b"error: device offline"
+    )
+    with pytest.raises(
+        phone.HookError, match=r"adb failed \(exit 1\): error: device offline"
+    ) as caught:
+        phone.Hook().attach(16473)
+    assert "private-argument" not in str(caught.value)
+    assert docker_calls(calls) == []
+
+
+def test_attach_timeout_is_a_hook_error_with_duration(shell):
+    _, answers = shell
+    answers["push"] = subprocess.TimeoutExpired(["adb", "push", "private-argument"], 30)
+    with pytest.raises(phone.HookError, match="adb timed out after 30s"):
+        phone.Hook().attach(16473)
+
+
+def test_unknown_subprocess_does_not_expose_arguments_or_stderr():
+    error = subprocess.CalledProcessError(
+        1, ["curl", "secret-token", "rpc-payload"], stderr=b"secret-token rpc-payload"
+    )
+    assert phone.subprocess_detail(error) == "subprocess failed (exit 1)"
+
+
+def test_generic_subprocess_failure_has_a_safe_fallback():
+    assert (
+        phone.subprocess_detail(subprocess.SubprocessError("private detail"))
+        == "subprocess failed"
+    )

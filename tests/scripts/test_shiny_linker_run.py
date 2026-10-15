@@ -2,6 +2,7 @@
 all faked: which guards block a run, what each failure does to the queue,
 and when the linker switches itself off."""
 
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -381,6 +382,42 @@ class TestFailures:
         world.pid_after = 999
         world.linker().run()
         assert "reiniciou" in world.store.breaker
+
+    def test_an_unavailable_pid_does_not_claim_the_game_restarted(self, world):
+        world.pid_after = None
+        outcome = world.linker().run()
+        assert "confirmar o estado do jogo" in world.store.breaker
+        assert "reiniciou" not in outcome
+        assert world.store.linked == [(1, "Rita99", ID_A)]
+
+    def test_a_failed_login_and_unavailable_pid_do_not_trip_the_breaker(self, world):
+        world.login_error = RuntimeError("login unavailable")
+        world.pid_after = None
+        world.linker().run()
+        assert world.store.breaker is None
+        assert "attach" not in world.events
+
+    def test_a_hook_error_survives_an_unavailable_pid(self, world):
+        world.attach_error = HookError("adb failed (exit 1): device offline")
+        world.pid_after = None
+        world.linker().run()
+        assert world.store.breaker == "adb failed (exit 1): device offline"
+
+    def test_subprocess_failure_logs_safe_details_and_stack(self, world, caplog):
+        world.login_error = subprocess.CalledProcessError(
+            1, ["adb", "push", "secret-token"], stderr=b"error: device offline"
+        )
+        outcome = world.linker().run()
+        assert "adb failed (exit 1): error: device offline" in outcome
+        assert "CalledProcessError" in caplog.text
+        assert "test_shiny_linker_run.py" in caplog.text
+        assert "secret-token" not in caplog.text
+
+    def test_unknown_failure_does_not_log_private_exception_text(self, world, caplog):
+        world.login_error = RuntimeError("secret-token rpc-payload")
+        world.linker().run()
+        assert "RuntimeError" in caplog.text
+        assert "secret-token" not in caplog.text
 
 
 def queue(world, count):
