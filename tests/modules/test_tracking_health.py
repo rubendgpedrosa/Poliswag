@@ -1,9 +1,4 @@
-"""The silent-collector alert.
-
-Pure decision logic, so the thresholds are pinned without a database or a
-clock. The whole point of the alert is that nobody is watching when it
-matters, which is exactly why its edges have to be tested.
-"""
+"""Traffic silence is a once-per-episode observation, never an outage verdict."""
 
 from datetime import datetime, timedelta
 
@@ -23,7 +18,7 @@ class TestSilence:
         action, _ = decide(ago(hours=9), None, NOW)
         assert action is None
 
-    def test_a_full_day_without_events_is(self):
+    def test_a_full_day_without_events_records_silence(self):
         action, silence = decide(ago(hours=24), None, NOW)
         assert action == "alert"
         assert silence == timedelta(hours=24)
@@ -32,7 +27,7 @@ class TestSilence:
         action, _ = decide(ago(hours=23, minutes=59), None, NOW)
         assert action is None
 
-    def test_an_empty_table_is_an_outage_not_a_healthy_pause(self):
+    def test_an_empty_table_records_unknown_duration(self):
         action, silence = decide(None, None, NOW)
         assert action == "alert"
         assert silence is None
@@ -44,9 +39,9 @@ class TestNotNagging:
         action, _ = decide(ago(hours=30), ago(hours=1), NOW)
         assert action is None
 
-    def test_a_long_outage_is_mentioned_again_after_twelve_hours(self):
-        action, _ = decide(ago(hours=40), ago(hours=12), NOW)
-        assert action == "alert"
+    def test_a_long_silence_does_not_repeat_after_twelve_hours(self):
+        action, _ = decide(ago(hours=400), ago(hours=372), NOW)
+        assert action is None
 
 
 class TestRecovery:
@@ -63,7 +58,7 @@ class TestMessages:
     def test_the_alert_states_the_silence_and_refuses_to_guess_the_cause(self):
         text = message("alert", timedelta(hours=26))
         assert "26 horas" in text
-        assert "não dá para distinguir" in text
+        assert "não permite avaliar a saúde do coletor" in text
 
     def test_the_alert_handles_an_empty_table_without_inventing_a_duration(self):
         text = message("alert", None)
@@ -72,7 +67,8 @@ class TestMessages:
 
     def test_recovery_does_not_backfill_the_silent_period(self):
         text = message("recovered", timedelta(minutes=5))
-        assert "não prova que não houve visitas" in text
+        assert "Atividade no site retomada" in text
+        assert "recolha voltou" not in text
 
 
 class TestWhatCountsAsAlive:
