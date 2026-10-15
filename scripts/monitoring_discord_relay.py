@@ -74,22 +74,62 @@ def _alerts(payload):
             raise ValueError("invalid fingerprint")
         identity = fingerprint or json.dumps(labels, sort_keys=True)
         key = hashlib.sha256((host + "|" + identity).encode()).hexdigest()
-        summary = (
-            annotations.get("summary")
-            or labels.get("alertname")
-            or "Alerta operacional"
+        result.append(
+            {
+                "key": key,
+                "status": alert["status"],
+                "host": host,
+                "alertname": labels.get("alertname", "Alerta operacional"),
+                "labels": labels,
+                "annotations": annotations,
+            }
         )
-        description = annotations.get("description", "")
-        status = alert["status"]
-        message = (
-            f"**Estado:** {'Problema detetado' if status == 'firing' else 'Recuperado'}\n"
-            f"**Serviço:** {host[:253]}\n**Resumo:** {summary[:1024]}"
-        )
-        if description:
-            message += f"\n\n{description[:2500]}"
-        body = dm_owner.embed(message, "PoGoLeiria — Monitorização")
-        result.append((key, status, body))
     return result
+
+
+def _check_endpoint(value):
+    """Show the probe endpoint without URL credentials, query or fragment."""
+    try:
+        parsed = urlsplit(value if "://" in value else "//" + value)
+        host = parsed.hostname
+        if not host:
+            return ""
+        port = f":{parsed.port}" if parsed.port else ""
+        return f"{host}{port}{parsed.path}"[:200]
+    except ValueError:
+        return ""
+
+
+def _group_embed(alerts):
+    """Only display selected diagnostic labels, never arbitrary webhook fields."""
+    first = alerts[0]
+    status = "Problema detetado" if first["status"] == "firing" else "Recuperado"
+    header = (
+        f"**Estado:** {status}\n**Serviço:** {first['host'][:253]}\n"
+        f"**Alerta:** {first['alertname'][:256]}\n"
+        f"**Verificações:** {len(alerts)}\n"
+    )
+    # Reserve equal space for every affected check, even in a 100-alert batch.
+    budget = (4096 - len(header) - len(alerts)) // len(alerts)
+    lines = []
+    for alert in alerts:
+        labels = alert["labels"]
+        details = [
+            f"{name}={labels[name][:160]}"
+            for name in ("vantage", "service", "check", "probe", "module")
+            if labels.get(name)
+        ]
+        endpoint = _check_endpoint(labels.get("instance", ""))
+        if endpoint:
+            details.append(f"endpoint={endpoint}")
+        summary = alert["annotations"].get("summary", "")
+        description = alert["annotations"].get("description", "")
+        detail = " · ".join(details + [v for v in (summary, description) if v])
+        detail = detail or alert["alertname"]
+        # A check is one line; escape newlines in values to keep the list readable.
+        line = "• " + " ".join(detail.split())
+        lines.append(line if len(line) <= budget else line[: budget - 1] + "…")
+    return dm_owner.embed(header + "\n".join(lines), "PoGoLeiria — Monitorização")
 
 
 def _save(state_path, state):
@@ -124,8 +164,13 @@ def process_alerts(payload, *, send, state_path=STATE_PATH, now=None):
     ):
         raise RuntimeError("invalid relay state")
     state = {k: v for k, v in state.items() if v["updated"] >= now - RETENTION}
-    sent = 0
-    for key, status, body in alerts:
+    groups = {}
+    seen = set()
+    for alert in alerts:
+        key, status = alert["key"], alert["status"]
+        if (key, status) in seen:
+            continue
+        seen.add((key, status))
         previous = state.get(key)
         if previous and previous["status"] == status:
             # Retain active alerts across long incidents without sending reminders.
@@ -133,12 +178,19 @@ def process_alerts(payload, *, send, state_path=STATE_PATH, now=None):
             continue
         if status == "resolved" and previous is None:
             continue
-        send(body)
-        state[key] = {"status": status, "updated": now}
+        group = (alert["host"], alert["alertname"], status)
+        groups.setdefault(group, []).append(alert)
+
+    sent = 0
+    for group in groups.values():
+        send(_group_embed(group))
+        for alert in group:
+            state[alert["key"]] = {"status": alert["status"], "updated": now}
         if len(state) > MAX_STATE:
             state = dict(
                 sorted(state.items(), key=lambda item: item[1]["updated"])[-MAX_STATE:]
             )
+        # Save the complete delivered group before attempting the next DM.
         _save(state_path, state)
         sent += 1
     _save(state_path, state)

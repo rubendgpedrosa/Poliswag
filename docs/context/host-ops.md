@@ -20,7 +20,7 @@ RustDesk watchdog and shiny linker depend on it. Installation and diagnosis:
 [adb-server.md](adb-server.md).
 
 Pokémon GO operational alerts use private owner Discord DMs (2026-10-15):
-tracking health, map outage/recovery, shiny-linker failures, bot watchdog and
+map outage/recovery, shiny-linker failures, bot watchdog and
 Pokédex approval requests. Map outages send one down and one recovery DM per
 episode, instead of repeated phone pushes. Home Assistant's map webhook now
 only updates `input_boolean.pokemon_map_down`. General backup and household
@@ -54,3 +54,8 @@ unauthenticated HTTP request and an authenticated historical recovery (200,
 no DM), plus inspection of Grafana's loaded receiver and route matchers. No
 synthetic test message was sent to Discord. The bot was restarted to load
 its changed routing and its scheduler heartbeat resumed.
+
+Alert noise policy and the Home Assistant reminder schedule:
+[alert-noise-cleanup.md](alert-noise-cleanup.md). Traffic silence is logged as
+information and no longer sends owner alerts. Related website checks are grouped
+in one Discord message with the affected vantage and endpoint details.

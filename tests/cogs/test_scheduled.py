@@ -1448,3 +1448,51 @@ async def test_long_event_name_fits_discord_title(cog):
     event = {**TestEventDeliveryFailures.events(1)[0], "name": "x" * 255}
     embed = await cog._build_event_embed(event)
     assert len(embed.title) == 256
+
+
+class TestTrackingActivityLogs:
+    @pytest.mark.asyncio
+    async def test_silence_and_resumption_log_once_without_any_notification(self):
+        poliswag = _make_poliswag()
+        cog = Scheduled(poliswag)
+        old = real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
+        cog._tracking.last_event_at = AsyncMock(return_value=old)
+        with patch(
+            "modules.owner_alert.notify_owner", new_callable=AsyncMock
+        ) as notify:
+            await cog._check_tracking_health()
+            assert cog._last_tracking_alert_at is not None
+            await cog._check_tracking_health()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            await cog._check_tracking_health()
+            await cog._check_tracking_health()
+            notify.assert_not_awaited()
+        assert cog._last_tracking_alert_at is None
+        logs = poliswag.utility.log_to_file.call_args_list
+        assert len(logs) == 2
+        assert all(call.args[1] == "INFO" for call in logs)
+        assert "Sem visualizações" in logs[0].args[0]
+        assert "Atividade no site retomada" in logs[1].args[0]
+        assert poliswag.db.execute_query_to_database.await_count == 2
+        poliswag.get_user.assert_not_called()
+        poliswag.fetch_user.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_persisted_silence_does_not_repeat_or_send_recovery_dm(self):
+        poliswag = _make_poliswag()
+        cog = Scheduled(poliswag)
+        cog._last_tracking_alert_at = (
+            real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
+        )
+        cog._tracking.last_event_at = AsyncMock(return_value=None)
+        with patch(
+            "modules.owner_alert.notify_owner", new_callable=AsyncMock
+        ) as notify:
+            await cog._check_tracking_health()
+            poliswag.utility.log_to_file.assert_not_called()
+            poliswag.db.execute_query_to_database.assert_not_awaited()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            await cog._check_tracking_health()
+            notify.assert_not_awaited()
+        assert cog._last_tracking_alert_at is None
+        poliswag.utility.log_to_file.assert_called_once()

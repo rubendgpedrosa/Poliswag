@@ -10,7 +10,7 @@ from modules.embeds import build_embed, status_embed
 from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
-from modules import owner_alert, tracking_health
+from modules import tracking_health
 from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
 from modules.shiny_alerts import ShinyAlerts
@@ -684,15 +684,7 @@ class Scheduled(commands.Cog):
             )
 
     async def _check_tracking_health(self):
-        """Tell MY_ID when the site stops recording, and when it starts again.
-
-        The statistics report cannot do this job: it only speaks to whoever
-        opens it, and a dead collector looks exactly like a quiet week on the
-        page. This is the one analytics fact worth pushing.
-        """
-        if not Config.MY_ID:
-            return
-
+        """Log traffic silence/resumption once per episode, without pushing DMs."""
         last_event_at = await self._tracking.last_event_at()
         action, silence = tracking_health.decide(
             last_event_at, self._last_tracking_alert_at
@@ -701,22 +693,12 @@ class Scheduled(commands.Cog):
             return
 
         now = datetime.datetime.utcnow()
-        delivered = await owner_alert.notify_owner(
-            self.poliswag,
-            tracking_health.message(action, silence),
-            title="Estatísticas do site",
-            tag="poliswag-tracking",
+        when = now if action == "alert" else None
+        await self._save_tracking_alert_at(when)
+        self._last_tracking_alert_at = when
+        self.poliswag.utility.log_to_file(
+            tracking_health.message(action, silence), "INFO"
         )
-        if not delivered:
-            # A failed alert must not burn it: leaving the state alone
-            # means the next tick tries again.
-            self.poliswag.utility.log_to_file(
-                "Could not deliver the tracking-health alert", "ERROR"
-            )
-            return
-
-        self._last_tracking_alert_at = now if action == "alert" else None
-        await self._save_tracking_alert_at(self._last_tracking_alert_at)
 
     async def _load_tracking_alert_at(self):
         try:
