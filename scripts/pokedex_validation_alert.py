@@ -1,4 +1,4 @@
-"""Poll the owner's Pokédex shiny-access queue; notify HA once per request.
+"""Poll the owner's Pokédex shiny-access queue; DM Discord once per request.
 
 Run by pokedex-validation-alert.timer inside the existing Poliswag container.
 Failed delivery leaves the durable watermark unchanged for next-minute retry.
@@ -7,7 +7,7 @@ Failed delivery leaves the durable watermark unchanged for next-minute retry.
 import json
 import os
 from pathlib import Path
-import urllib.request
+from scripts import dm_owner
 
 SQL = """SELECT discord_id, COALESCE(trainer_name, display_name) AS name,
 shiny_access_requested_at FROM trade_player
@@ -52,9 +52,8 @@ def main():
 
     if not Config.IS_PRODUCTION:
         raise RuntimeError("Production only")
-    endpoint = Config.ENDPOINTS.get("owner_alert")
-    if not endpoint:
-        raise RuntimeError("OWNER_ALERT_ENDPOINT is not configured")
+    if not Config.DISCORD_API_KEY or not Config.MY_ID:
+        raise RuntimeError("DISCORD_API_KEY and MY_ID must be configured")
     connection = connect(Config.DB_POGOLEIRIA, dict_rows=True)
     try:
         with connection.cursor() as cursor:
@@ -64,15 +63,16 @@ def main():
         connection.close()
 
     def send(body):
-        request = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        channel = dm_owner.post(
+            "/users/@me/channels",
+            Config.DISCORD_API_KEY,
+            {"recipient_id": str(Config.MY_ID)},
         )
-        with urllib.request.urlopen(request, timeout=10) as response:
-            if not 200 <= response.status < 300:
-                raise RuntimeError(f"Home Assistant returned {response.status}")
+        dm_owner.post(
+            f"/channels/{channel['id']}/messages",
+            Config.DISCORD_API_KEY,
+            {"embeds": [dm_owner.embed(body["message"], body["title"])]},
+        )
 
     count = notify_pending(rows, STATE, send, Config.POKEDEX_URL)
     if count:

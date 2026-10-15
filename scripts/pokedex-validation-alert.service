@@ -1,5 +1,5 @@
 [Unit]
-Description=Poliswag Pokédex pending validation notifications via Home Assistant
+Description=Poliswag Pokédex pending validation notifications via Discord
 After=docker.service network-online.target
 Requires=docker.service
 
