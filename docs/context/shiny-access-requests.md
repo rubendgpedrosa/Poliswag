@@ -5,7 +5,9 @@ request to `MOD_CHANNEL_ID`, with **Aceitar** and **Rejeitar** buttons.
 Owner `MY_ID` and `ADMIN_USERS_IDS` may decide requests in that guild channel.
 There are no mentions or pings. The profile link lets moderators inspect the
 requesting player. Each embed shows the member's server name, Discord account,
-and avatar. The message creation time identifies when the request was posted;
+avatar and the Friend Code the player saved (`trade_player.friend_code`, or
+`Não indicado` when there is none). The message creation time identifies when
+the request was posted;
 there is no separate request-date field or pending embed timestamp. The notifier
 queries guild membership only for unsent requests, preferring the server nickname
 and server avatar over global identity.
@@ -40,7 +42,8 @@ relink marker for a future request, and increments the settings revision.
 The normal scheduler handles channels and setup confirmation.
 
 After committing, the bot edits the original embed and removes the buttons.
-The player's two identity fields and avatar remain intact. The title states
+The player's two identity fields, the avatar and the Friend Code line remain
+intact. The title states
 whether access was accepted or rejected, with green/red coloring respectively.
 The footer contains only the moderator's server display name; the embed's native
 UTC timestamp records when the transaction completed. Discord displays the name

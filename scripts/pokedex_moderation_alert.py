@@ -17,7 +17,8 @@ from modules.shiny_access_requests import (
 from scripts import dm_owner
 
 SQL = """SELECT discord_id, COALESCE(trainer_name, display_name) AS name,
-display_name, username, avatar_url, shiny_access_requested_at FROM trade_player
+display_name, username, avatar_url, friend_code, shiny_access_requested_at
+FROM trade_player
 WHERE left_at IS NULL AND shiny_access = 0
 AND shiny_access_requested_at IS NOT NULL
 ORDER BY shiny_access_requested_at, discord_id"""
