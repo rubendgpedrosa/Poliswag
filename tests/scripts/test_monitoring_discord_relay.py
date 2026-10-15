@@ -81,7 +81,8 @@ def test_accepts_project_hosts_and_stable_fingerprint_fallback(tmp_path, host):
 
 def test_delivery_failure_remains_retryable_and_partial_success_dedupes(tmp_path):
     body = payload()
-    body["alerts"] += payload(fingerprint="second")["alerts"]
+    body["alerts"] += payload(fingerprint="paired")["alerts"]
+    body["alerts"] += payload(host="mapa.pogoleiria.pt", fingerprint="second")["alerts"]
     state = tmp_path / "state"
     sent = []
 
@@ -92,7 +93,7 @@ def test_delivery_failure_remains_retryable_and_partial_success_dedupes(tmp_path
 
     with pytest.raises(OSError):
         relay.process_alerts(body, send=send, state_path=state)
-    assert len(json.loads(state.read_text())) == 1
+    assert len(json.loads(state.read_text())) == 2
     assert relay.process_alerts(body, send=sent.append, state_path=state) == 1
     assert len(sent) == 2
 
@@ -260,3 +261,83 @@ def test_invalid_structure_is_rejected(tmp_path, mutate):
         relay.process_alerts(
             body, send=lambda _: pytest.fail("sent"), state_path=tmp_path / "state"
         )
+
+
+def test_related_vantages_send_once_with_distinct_safe_endpoints(tmp_path):
+    body = payload()
+    first = body["alerts"][0]
+    first["labels"].update(vantage="public", instance="https://pogoleiria.pt/")
+    second = copy.deepcopy(first)
+    second["fingerprint"] = "origin"
+    second["labels"].update(
+        vantage="origin",
+        instance="http://user:password@192.168.1.253:1080/pokedex/procurar?token=secret#private",
+        token="never-show-this",
+    )
+    body["alerts"] += [second, copy.deepcopy(second)]
+    state = tmp_path / "state"
+    sent = []
+    assert relay.process_alerts(body, send=sent.append, state_path=state) == 1
+    assert len(json.loads(state.read_text())) == 2
+    text = sent[0]["description"]
+    assert "vantage=public" in text and "vantage=origin" in text
+    assert "192.168.1.253:1080/pokedex/procurar" in text
+    for secret in ("password", "token=secret", "private", "never-show-this"):
+        assert secret not in text
+    assert relay.process_alerts(body, send=sent.append, state_path=state) == 0
+    for alert in body["alerts"]:
+        alert["status"] = "resolved"
+    assert relay.process_alerts(body, send=sent.append, state_path=state) == 1
+
+
+def test_failed_group_preserves_all_transitions_for_retry(tmp_path):
+    body = payload()
+    body["alerts"] += payload(fingerprint="second")["alerts"]
+    state = tmp_path / "state"
+
+    def fail(_):
+        raise OSError("unavailable")
+
+    with pytest.raises(OSError):
+        relay.process_alerts(body, send=fail, state_path=state)
+    assert not state.exists()
+    sent = []
+    assert relay.process_alerts(body, send=sent.append, state_path=state) == 1
+    assert len(json.loads(state.read_text())) == 2
+
+
+def test_historical_recovery_is_excluded_from_delivered_group(tmp_path):
+    state = tmp_path / "state"
+    relay.process_alerts(payload(), send=lambda _: None, state_path=state)
+    body = payload("resolved")
+    body["alerts"] += payload("resolved", fingerprint="historical")["alerts"]
+    sent = []
+    assert relay.process_alerts(body, send=sent.append, state_path=state) == 1
+    assert "**Verificações:** 1" in sent[0]["description"]
+    assert len(json.loads(state.read_text())) == 1
+
+
+def test_large_group_fits_one_discord_embed(tmp_path):
+    body = {"alerts": []}
+    for i in range(100):
+        alert = payload(fingerprint=str(i))["alerts"][0]
+        alert["labels"].update(vantage="origin", check=str(i) + "x" * 1000)
+        alert["annotations"]["description"] = "y" * 1000
+        body["alerts"].append(alert)
+    sent = []
+    assert (
+        relay.process_alerts(body, send=sent.append, state_path=tmp_path / "state") == 1
+    )
+    assert len(sent[0]["description"]) <= 4096
+    assert sent[0]["description"].count("• ") == 100
+
+
+def test_distinct_alert_types_are_delivered_separately(tmp_path):
+    body = payload()
+    other = payload(fingerprint="second")["alerts"][0]
+    other["labels"]["alertname"] = "CertificateExpiring"
+    body["alerts"].append(other)
+    sent = []
+    assert (
+        relay.process_alerts(body, send=sent.append, state_path=tmp_path / "state") == 2
+    )
