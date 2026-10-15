@@ -2,7 +2,7 @@
 
 ### Host-side error review (not part of the bot)
 
-`scripts/error-review.sh`, run from root's crontab on the **host**, not in the container. Reads new `logs/error.log` entries once a day and has Claude diagnose them into `logs/error-review.md` (dated copies in `logs/reviews/`). Design: [spec](superpowers/specs/2026-09-21-daily-error-review-design.md).
+`scripts/error-review.sh`, run from root's crontab on the **host**, not in the container. Reads new `logs/error.log` entries once a day and has Claude diagnose them into `logs/error-review.md` (dated copies in `logs/reviews/`). Design: `/root/docs-archive/Poliswag/superpowers/specs/2026-09-21-daily-error-review-design.md`.
 
 | Fact | Value |
 |---|---|

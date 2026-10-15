@@ -8,7 +8,7 @@
 #
 # Read-only by construction: it summarises the log itself, and asks Claude for
 # the diagnosis with writing tools withheld. See
-# docs/superpowers/specs/2026-09-21-daily-error-review-design.md
+# /root/docs-archive/Poliswag/superpowers/specs/2026-09-21-daily-error-review-design.md
 #
 set -uo pipefail
 

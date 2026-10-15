@@ -1,7 +1,7 @@
 # Shiny prediction
 
 Read when touching `!shiny`, the linker, or shiny alert DMs.
-Spec: `docs/superpowers/specs/2026-10-10-shiny-prediction-design.md`.
+Spec: `/root/docs-archive/Poliswag/superpowers/specs/2026-10-10-shiny-prediction-design.md`.
 How the formula and the ID route were established, with the phone's crash
 history: `/root/unonwhash/CLAUDE-HANDOVER.md`.
 
@@ -61,7 +61,7 @@ viewer.
   raid passes the same rule. The hook goes in only if there is one; a site
   with gyms but no raid costs the codes nothing. The reply never reaches
   Golbat. `--remote [LAT,LON]` forces the site (with `--check`/`--validate`).
-  Spec: `docs/superpowers/specs/2026-10-10-shiny-linker-remote-raid-design.md`.
+  Spec: `/root/docs-archive/Poliswag/superpowers/specs/2026-10-10-shiny-linker-remote-raid-design.md`.
 - One run works through the queue (up to 50 codes) on **one worker**: a
   lobby of up to 10 codes at a time, the next free account from
   `SHINY_LINKER_ACCOUNTS` (shuffled each run) logged in on the same session
@@ -215,7 +215,7 @@ change.
 `!shiny mapa` DMs a labelled `/pokedex/mapa/<trainer-name>` link. The first message in each new shiny channel has a **Ver mapa de shinies** button pointing to the same named URL. Its embed is `shiny_channels.intro_embed()` ("✨ Notificações Pokémon Shiny" and one line saying the channel receives the predicted shinies for the account), shared by the scheduler and `!shiny canal`; the channels that existed on 2026-10-10 had their pinned embed edited to it, button untouched. No map tokens are generated, rotated or used for access. Old `/shiny/*` links redirect to the logged-in Pokédex map. Newly created channels deny the recipient messages, thread creation, thread replies and adding reactions, while retaining read/history access. Rekrad (`237306098976161793`) joins the notification pilot and has Pokédex feature access; their switch is not enabled on their behalf.
 
 
-Availability review (2026-10-10): both map and alerts now join `poliswag.shiny_eligible_variant` by species, raw scanner form and costume. Migration bot 025 / site 014 creates the view, dated `shiny_release` snapshot and persisted `shiny_confirmed_variant`. `modules/shiny_availability.py` refreshes Leek Duck’s exact form release dates plus PoGoAPI wild flags daily, with atomic replacement, one-hour retries and a two-day grant freshness limit. Future/release-day dates cannot grant access without confirmation. Unmapped costumes need exact live confirmation. Unown, Smeargle and Meltan require a confirmation in the preceding 30 minutes. The full catalog audit and source limitations are in `/root/Poliswag/docs/reviews/2026-10-10-shiny-availability.md` and its CSVs. Release lists do not expose Niantic’s private live enablement flags.
+Availability review (2026-10-10): both map and alerts now join `poliswag.shiny_eligible_variant` by species, raw scanner form and costume. Migration bot 025 / site 014 creates the view, dated `shiny_release` snapshot and persisted `shiny_confirmed_variant`. `modules/shiny_availability.py` refreshes Leek Duck’s exact form release dates plus PoGoAPI wild flags daily, with atomic replacement, one-hour retries and a two-day grant freshness limit. Future/release-day dates cannot grant access without confirmation. Unmapped costumes need exact live confirmation. Unown, Smeargle and Meltan require a confirmation in the preceding 30 minutes. The full catalog audit and source limitations are in `/root/docs-archive/Poliswag/reviews/2026-10-10-shiny-availability.md` and its CSVs. Release lists do not expose Niantic’s private live enablement flags.
 
 
 Alert artwork uses the app's PkmnHomeIcons UICONS_OS_128 set. Shiny and

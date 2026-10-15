@@ -1,5 +1,5 @@
 -- Shinies previstos in the Pokédex (the site's
--- docs/superpowers/specs/2026-10-10-shiny-map-in-pokedex-design.md). The same
+-- /root/docs-archive/PoGoLeiria/superpowers/specs/2026-10-10-shiny-map-in-pokedex-design.md). The same
 -- statements are the site's db/pokedex/011_shiny.sql; whichever runs first
 -- adds them.
 --
