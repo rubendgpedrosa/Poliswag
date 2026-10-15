@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import os
@@ -125,7 +126,7 @@ def test_queue_failure_rolls_back_access(database):
 
 
 @pytest.mark.parametrize("accepted", [True, False])
-def test_decision_preserves_identity_avatar_and_request_date(accepted):
+def test_decision_preserves_identity_avatar_and_records_footer(accepted):
     row = {
         **player(),
         "name": "Trainer",
@@ -136,18 +137,21 @@ def test_decision_preserves_identity_avatar_and_request_date(accepted):
     original = discord.Embed.from_dict(
         requests.request_payload(row, "https://site")["embeds"][0]
     )
-    before = original.to_dict()
+    before = deepcopy(original.to_dict())
     decided = datetime(2026, 10, 15, 13, tzinfo=timezone.utc)
     moderator = SimpleNamespace(
-        id=456, display_name="Moderator Nick", name="mod.account"
+        id=456, display_name="Moderator_* Nick\nSecond line", name="mod.account"
     )
+    # Existing posted requests may still have the old request-date field/timestamp.
+    original.add_field(name="Pedido a", value="old request date", inline=False)
+    original.timestamp = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
+    legacy = original.to_dict()
     result = requests.decision_embed(original, moderator, accepted, decided).to_dict()
-    assert original.to_dict() == before
-    assert result["fields"][:3] == before["fields"]
+    assert original.to_dict() == legacy
+    assert result["fields"] == before["fields"]
     assert [field["name"] for field in before["fields"]] == [
         "Nome no servidor",
         "Conta Discord",
-        "Pedido a",
     ]
     assert before["fields"][0]["value"] == "Server Nick"
     assert before["fields"][1]["value"] == "@discord.account"
@@ -156,12 +160,12 @@ def test_decision_preserves_identity_avatar_and_request_date(accepted):
         == before["thumbnail"]
         == {"url": "https://cdn.discordapp.com/avatars/123/a_hash.webp?size=128"}
     )
-    assert result["timestamp"] == before["timestamp"]
-    verdict = "Aceite" if accepted else "Rejeitado"
-    assert result["fields"][3]["name"] == f"{verdict} por"
-    assert result["fields"][3]["value"] == "Moderator Nick (@mod.account)"
-    assert result["fields"][4]["name"] == f"{verdict} em"
-    assert result["fields"][4]["value"] == f"<t:{int(decided.timestamp())}:F>"
+    assert "timestamp" not in before
+    assert result["timestamp"] == decided.isoformat()
+    assert result["footer"] == {"text": "Moderator_* Nick Second line"}
+    verdict = "aceite" if accepted else "rejeitado"
+    assert result["title"] == f"Pokédex: acesso ao mapa de shinies {verdict}"
+    assert result["color"] == (0x2ECC71 if accepted else 0xE74C3C)
 
 
 def test_database_datetime_is_utc_even_in_lisbon_summer_time():
@@ -170,10 +174,9 @@ def test_database_datetime_is_utc_even_in_lisbon_summer_time():
         os.environ["TZ"] = "Europe/Lisbon"
         time.tzset()
         naive = datetime(2026, 10, 15, 12)
-        expected = int(naive.replace(tzinfo=timezone.utc).timestamp())
-        assert requests.discord_date(naive) == f"<t:{expected}:F>"
+        assert requests.utc_datetime(naive) == naive.replace(tzinfo=timezone.utc)
         aware = datetime(2026, 10, 15, 13, tzinfo=timezone(timedelta(hours=1)))
-        assert requests.discord_date(aware) == requests.discord_date(naive)
+        assert requests.utc_datetime(aware) == requests.utc_datetime(naive)
         assert requests.request_stamp(aware) == requests.request_stamp(naive)
     finally:
         if previous is None:

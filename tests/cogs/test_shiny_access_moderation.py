@@ -58,9 +58,10 @@ async def test_owner_and_mod_can_decide_and_remove_buttons(setup, user):
     decide.assert_called_once_with("123", "20261015120000123456", True)
     assert interaction.message.edit.call_args.kwargs["view"] is None
     embed = interaction.message.edit.call_args.kwargs["embed"]
-    assert embed.fields[0].name == "Aceite por"
-    assert embed.fields[0].value == "Moderator Nick (@mod.account)"
-    assert embed.fields[1].name == "Aceite em"
+    assert not embed.fields
+    assert embed.title == "Pokédex: acesso ao mapa de shinies aceite"
+    assert embed.footer.text == "Moderator Nick"
+    assert embed.timestamp is not None
 
 
 async def test_stale_button_leaves_message_unchanged(setup):
@@ -111,10 +112,11 @@ async def test_acceptance_retains_request_and_records_commit_time(setup, mocker)
     mocker.patch.object(cog_module.discord.utils, "utcnow", side_effect=clock)
     await cog.on_interaction(interaction)
     result = interaction.message.edit.call_args.kwargs["embed"]
-    assert result.to_dict()["fields"][:3] == original.to_dict()["fields"]
+    assert result.to_dict()["fields"] == original.to_dict()["fields"]
     assert result.thumbnail.url == original.thumbnail.url
-    assert result.timestamp == original.timestamp
-    assert result.fields[-1].value == f"<t:{int(decided.timestamp())}:F>"
+    assert original.timestamp is None
+    assert result.timestamp == decided
+    assert result.footer.text == "Moderator Nick"
     assert (
         interaction.message.edit.call_args.kwargs["allowed_mentions"].everyone is False
     )
