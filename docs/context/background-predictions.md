@@ -1,8 +1,9 @@
 # Experimental Special Background predictions
 
-Implemented 11 October 2026 in the existing personal shiny stream. This work
-does not upgrade Golbat, restart services, apply migrations or activate an event.
-Claude is independently redesigning the map popovers; preserve that work.
+Implemented 11 October 2026 in the existing personal shiny stream. No Golbat
+upgrade or event activation is involved; migrations 029/030 add the rule table,
+its preference column and the optional background image. The site draws the pin
+and the popover: see its `docs/context/background-predictions.md`.
 
 `personal_draws`/`personalDraws` hash the eight little-endian encounter bytes
 followed by the exact verified internal player ID text with SHA-1. The first
@@ -75,7 +76,7 @@ editing, `POST /api/dts/reload`). If Poracle refuses, the bot's own embed goes
 out with the same emoji and colour. The event's label is only in that
 fallback: Poracle's template knows nothing of the rule.
 
-## Deployment handoff, after Claude finishes
+## Deploying a rule
 
 1. Review/apply `migrations/029_add_background_predictions.sql` once. The site
    mirrors it as `apps/landing/db/pokedex/018_background_predictions.sql`.
@@ -94,9 +95,9 @@ fallback: Poracle's template knows nothing of the rule.
    output. Use actual verified eligibility, local window converted with the
    correct offset, and reviewed geography. Do not reuse expired research
    windows as current rules. Duplicate IDs fail rather than overwrite a rule.
-3. Deploy the bot and site in coordination with the popover redesign. No
-   Golbat image/config change is necessary. Enable the user's background
-   notification preference and only a reviewed, eligible rule.
+3. Deploy the bot and the site together; the site already draws the pin and
+   the popover. No Golbat image/config change is necessary. Enable the user's
+   background notification preference and only a reviewed, eligible rule.
 4. For a new event, record predictions before encounters and compare the
    complete positive/negative outcomes against the frozen threshold and rule.
    Unknown background eligibility or probability produces no forecast.
