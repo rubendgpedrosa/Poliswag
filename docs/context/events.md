@@ -7,6 +7,10 @@
 Production repair converted 10 current/upcoming rows in place, preserving notification markers, and edited three existing CONVIVIO posts (Brisbane, Marseille/Munich, Lisbon). Backup of original rows/messages: `logs/event-timezone-backup-20260926095958.json`. `scripts/repair_event_timezone.py` is the one-off repair tool (preview by default, `--apply` writes); stop the bot while applying. Historical rows were left untouched. The website now compares against an explicitly formatted Lisbon clock (`apps/landing/lib/events.ts`), reads DATETIME values as strings, and serializes real UTC instants.
 
 
+### Ended-event shiny statistics (2026-10-15)
+
+Species-focused ended-event summaries (Community Day and Spotlight Hour) also read Golbat's `pokemon_shiny_stats` table. They show scanner-wide shiny and encounter totals for the complete calendar day(s), not an exact event-hour count: the table has daily rows and no event-window timestamps. The summary labels this provenance and keeps the existing outside-event-hours caveat; raid summaries do not claim shiny counts because no equivalent raid-period shiny aggregate is available.
+
 ### Event delivery and regression coverage (2026-09-26)
 
 - Event selection is read-only. `Scheduled._send_event_change_notifications(..., acknowledge=True)` marks each successfully sent batch afterward; manual `!testevent` previews never mark delivery. Failed batches remain eligible on the next tick/restart. Plain ended-event lines split at Discord's message limit instead of being truncated. Acceptance by Discord and the subsequent DB marker cannot be atomic: a crash/DB failure between them can still repeat a delivered batch.
