@@ -6,7 +6,12 @@ import discord
 from discord.ext import commands
 
 from modules.config import Config
-from modules.shiny_access_requests import PREFIX, decide_request, parse_button
+from modules.shiny_access_requests import (
+    PREFIX,
+    decide_request,
+    decision_embed,
+    parse_button,
+)
 
 
 class ShinyAccessRequests(commands.Cog):
@@ -57,19 +62,16 @@ class ShinyAccessRequests(commands.Cog):
                 ephemeral=True,
             )
             return
+        decided_at = discord.utils.utcnow()
         verdict = "Aceite" if action == "accept" else "Rejeitado"
         try:
             embed = (
-                interaction.message.embeds[0].copy()
+                interaction.message.embeds[0]
                 if interaction.message.embeds
                 else discord.Embed(title="Pokédex: pedido de acesso ao mapa de shinies")
             )
-            embed.color = 0x2ECC71 if action == "accept" else 0xE74C3C
-            moderator = discord.utils.escape_markdown(str(interaction.user))
-            embed.add_field(
-                name="Decisão",
-                value=f"{verdict} por {moderator} ({interaction.user.id}).",
-                inline=False,
+            embed = decision_embed(
+                embed, interaction.user, action == "accept", decided_at
             )
             await interaction.message.edit(
                 embed=embed, view=None, allowed_mentions=discord.AllowedMentions.none()

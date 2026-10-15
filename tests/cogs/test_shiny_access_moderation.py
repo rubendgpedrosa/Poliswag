@@ -1,4 +1,8 @@
 from types import SimpleNamespace
+from datetime import datetime, timezone
+
+import discord
+from modules.shiny_access_requests import request_payload
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -18,7 +22,7 @@ def setup(mocker):
     cog = cog_module.ShinyAccessRequests(bot)
     interaction = SimpleNamespace(
         data={"custom_id": BUTTON},
-        user=SimpleNamespace(id=2),
+        user=SimpleNamespace(id=2, display_name="Moderator Nick", name="mod.account"),
         guild=object(),
         channel_id=321,
         response=AsyncMock(),
@@ -53,10 +57,10 @@ async def test_owner_and_mod_can_decide_and_remove_buttons(setup, user):
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     decide.assert_called_once_with("123", "20261015120000123456", True)
     assert interaction.message.edit.call_args.kwargs["view"] is None
-    assert (
-        "Aceite por"
-        in interaction.message.edit.call_args.kwargs["embed"].fields[0].value
-    )
+    embed = interaction.message.edit.call_args.kwargs["embed"]
+    assert embed.fields[0].name == "Aceite por"
+    assert embed.fields[0].value == "Moderator Nick (@mod.account)"
+    assert embed.fields[1].name == "Aceite em"
 
 
 async def test_stale_button_leaves_message_unchanged(setup):
@@ -81,3 +85,36 @@ async def test_denies_forged_message_author(setup):
     await cog.on_interaction(interaction)
     decide.assert_not_called()
     interaction.response.send_message.assert_awaited_once()
+
+
+async def test_acceptance_retains_request_and_records_commit_time(setup, mocker):
+    cog, interaction, decide = setup
+    payload = request_payload(
+        {
+            "discord_id": "123",
+            "name": "Trainer",
+            "display_name": "Server Nick",
+            "username": "account",
+            "avatar_url": "https://site/avatar.webp",
+            "shiny_access_requested_at": "2026-10-15 12:00:00.123456",
+        },
+        "https://site",
+    )
+    original = discord.Embed.from_dict(payload["embeds"][0])
+    interaction.message.embeds = [original]
+    decided = datetime(2026, 10, 15, 14, tzinfo=timezone.utc)
+
+    def clock():
+        decide.assert_called_once()
+        return decided
+
+    mocker.patch.object(cog_module.discord.utils, "utcnow", side_effect=clock)
+    await cog.on_interaction(interaction)
+    result = interaction.message.edit.call_args.kwargs["embed"]
+    assert result.to_dict()["fields"][:3] == original.to_dict()["fields"]
+    assert result.thumbnail.url == original.thumbnail.url
+    assert result.timestamp == original.timestamp
+    assert result.fields[-1].value == f"<t:{int(decided.timestamp())}:F>"
+    assert (
+        interaction.message.edit.call_args.kwargs["allowed_mentions"].everyone is False
+    )
