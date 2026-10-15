@@ -147,7 +147,7 @@ def test_decision_preserves_identity_avatar_and_request_date(accepted):
     assert [field["name"] for field in before["fields"]] == [
         "Nome no servidor",
         "Conta Discord",
-        "Pedido em",
+        "Pedido a",
     ]
     assert before["fields"][0]["value"] == "Server Nick"
     assert before["fields"][1]["value"] == "@discord.account"
