@@ -13,17 +13,19 @@ def reply(**changes):
     }
 
 
-def test_multiple_sentences_do_not_become_a_long_chat_message():
+def test_multiple_sentences_and_paragraphs_are_preserved():
     result = parse_reply(
         reply(reply="Já ficou corrigido. Agora vou explicar tudo.\nLong report.")
     )
-    assert result["reply"] == "Já ficou corrigido."
+    assert (
+        result["reply"] == "Já ficou corrigido. Agora vou explicar tudo.\nLong report."
+    )
 
 
-def test_long_sentences_are_bounded_without_removing_report_details():
+def test_natural_answers_are_preserved_without_removing_report_details():
     details = "Leiria: 42 Pokémon\nMarinha: 17 raids"
     result = parse_reply(reply(reply="palavra " * 100, kind="stats", details=details))
-    assert len(result["reply"]) <= 280
+    assert result["reply"] == ("palavra " * 100).strip()
     assert result["details"] == details
 
 

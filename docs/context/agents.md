@@ -21,10 +21,14 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
   general-purpose agent, which can answer questions on any topic or make
   explicitly requested changes. General questions do not require repository
   inspection, and answering a question does not authorize code changes.
-  Tasks acknowledge the message immediately and then work until completion,
+  Tasks acknowledge the message immediately with a 👀 reaction and then work until completion,
   making routine decisions without asking permission to continue. Only a genuinely blocking decision
   interrupts the task with one short question. A plain owner DM or mention
-  resumes the sole waiting task; use `!answer` if more than one is waiting.
+  resumes the sole waiting task from that same channel or DM; use `!answer`
+  if more than one is waiting there. Requests from other conversations create
+  separate jobs and keep their own reply destinations. The origin is stored
+  separately from explicit delivery overrides. For older jobs, the stored
+  destination identifies the conversation (DM when absent).
   The same provider, mode and worktree are preserved, along with the original
   request and decision history. Owner results and questions return to the stored
   destination: the originating channel by default, or DM for a DM request.
@@ -87,10 +91,13 @@ logged by the mention path.
 CLI behavior: [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 and [configuration reference](https://developers.openai.com/codex/config-reference).
 
-Owner replies are plain short sentences (maximum 280 characters), witty for
-casual chat and factual for code. Submission immediately replies with one short
-acknowledgement in the originating channel or DM; subsequent replies wait for
-completion or a blocking decision. Code reports remain available via
+Owner replies use regular text containing the LLM's natural answer, preserving
+sentences and paragraphs without a 280-character or one-sentence limit.
+Submission immediately adds a 👀 reaction to the originating message; it does
+not post a canned acknowledgement. Public requests use the same reaction.
+Replies wait for completion or a blocking decision. Answers exceeding the
+2000-character message limit include the full text as an attachment.
+Code reports remain available via
 `!job <id>` as attachments. Statistics, calendars and explicitly requested
 detailed reports retain their useful rows/text, with a file for long reports.
 Generated files are declared in the response's `attachments` array as relative
@@ -113,7 +120,8 @@ CLI stdout/stderr, private `database/` MCP requests/results while executing,
 staged output `artifacts/`, and optional `continuation.json`, `cancel` and per-revision
 notification markers. Responses declare `done` or `needs_input` and separate
 the short sentence from full details. Only completion, a blocking question,
-or a terminal failure is delivered automatically. Waiting tasks are not
+or a terminal failure is delivered automatically. Conversational replies and
+follow-up questions use regular text; request errors and status commands retain embeds. Waiting tasks are not
 rerun by polling or restart recovery; an owner answer atomically queues
 the next revision, and each revision is delivered once. JSON writes use atomic replacement. The worker
 heartbeat expires after 30 seconds. Maximum five outstanding requests per owner;
