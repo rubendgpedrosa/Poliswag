@@ -207,3 +207,49 @@ def test_default_discord_avatar_keeps_png_asset():
     assert requests.avatar_thumbnail(
         "https://cdn.discordapp.com/embed/avatars/0.png"
     ) == ("https://cdn.discordapp.com/embed/avatars/0.png?size=128")
+
+
+@pytest.mark.parametrize(
+    "reason,expected",
+    [
+        (
+            "código não encontrado (1)",
+            "O Friend Code não foi encontrado no Pokémon GO.",
+        ),
+        (
+            "convite recusado pelo jogo (7)",
+            "O Pokémon GO recusou o convite necessário à associação.",
+        ),
+        ("invalid internal ID: secrets", "Não foi possível concluir a associação."),
+        (None, "Não foi possível concluir a associação."),
+    ],
+)
+def test_failure_embed_has_identity_avatar_safe_reason_and_failure_date(
+    reason, expected
+):
+    row = {
+        "discord_id": "123",
+        "display_name": "Server Nick",
+        "username": "discord.account",
+        "avatar_url": "https://cdn.discordapp.com/avatars/123/hash.png?size=1024",
+        "fail_reason": reason,
+        "resolved_at": "2026-10-15 12:05:00",
+    }
+    payload = requests.failure_payload(row, "https://site/pokedex/")
+    assert payload["allowed_mentions"] == {"parse": []}
+    assert "components" not in payload
+    embed = payload["embeds"][0]
+    assert embed["url"] == "https://site/pokedex/jogador/123"
+    assert embed["title"] == "Pokédex: não foi possível associar o Friend Code"
+    assert [field["name"] for field in embed["fields"]] == [
+        "Nome no servidor",
+        "Conta Discord",
+        "Motivo",
+    ]
+    assert embed["fields"][0]["value"] == "Server Nick"
+    assert embed["fields"][1]["value"] == "@discord.account"
+    assert embed["fields"][2]["value"].startswith(expected)
+    assert "secrets" not in str(payload)
+    assert embed["thumbnail"]["url"].endswith("/hash.webp?size=128")
+    assert embed["footer"] == {"text": "Associação falhada"}
+    assert embed["timestamp"] == "2026-10-15T12:05:00+00:00"
