@@ -14,7 +14,7 @@ from modules.agent_database import AgentDatabase
 from modules.agent_artifacts import MAX_ATTACHMENTS, MAX_TOTAL_BYTES, read_artifact
 from modules.agent_destination import delivery_reference, normalized_name
 from modules.config import Config
-from modules.embeds import status_embed
+from modules.embeds import react_to_request, status_embed
 from modules.permissions import is_owner, owner_only
 
 _STATES = {
@@ -93,19 +93,31 @@ class Agents(commands.Cog):
                 prompt=prompt,
                 context=await self.snapshot(),
                 destination=destination,
+                origin=self.origin_for(ctx),
             )
             self.poliswag.utility.log_to_file(
                 f"[AGENT] owner {ctx.author.id} queued {job['id']} {job['provider']} {mode}"
             )
         except ValueError as error:
             await ctx.send(
-                short_sentence(error), allowed_mentions=discord.AllowedMentions.none()
+                embed=status_embed("🐸 Poliswag", short_sentence(error)),
+                allowed_mentions=discord.AllowedMentions.none(),
             )
         except discord.HTTPException:
             await ctx.send(
-                "Não consegui abrir a tua DM.",
+                embed=status_embed("🐸 Poliswag", "Não consegui abrir a tua DM."),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+
+    @staticmethod
+    def origin_for(ctx):
+        if ctx.guild is None:
+            return {"type": "dm"}
+        return {
+            "type": "channel",
+            "channel_id": ctx.channel.id,
+            "guild_id": ctx.channel.guild.id,
+        }
 
     def destination_for(self, ctx, prompt):
         reference = delivery_reference(prompt)
@@ -252,10 +264,13 @@ class Agents(commands.Cog):
         if parsed:
             await self.submit(ctx, *parsed)
             return
+        origin = self.origin_for(ctx)
         waiting = [
             job
             for job in self.jobs.list(ctx.author.id)
             if job["state"] == "waiting_input"
+            and (job.get("origin") or job.get("destination") or {"type": "dm"})
+            == origin
         ]
         if len(waiting) == 1:
             try:
@@ -263,13 +278,16 @@ class Agents(commands.Cog):
                 await self.acknowledge(ctx)
             except ValueError as error:
                 await ctx.send(
-                    short_sentence(error),
+                    embed=status_embed("🐸 Poliswag", short_sentence(error)),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             return
         if len(waiting) > 1:
             await ctx.send(
-                "Qual tarefa devo continuar com `!answer <id> <resposta>`?",
+                embed=status_embed(
+                    "🐸 Poliswag",
+                    "Qual tarefa devo continuar com `!answer <id> <resposta>`?",
+                ),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
@@ -278,15 +296,7 @@ class Agents(commands.Cog):
 
     @staticmethod
     async def acknowledge(ctx):
-        try:
-            await ctx.reply(
-                "Já estou a tratar disso.",
-                mention_author=False,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-        except discord.HTTPException:
-            # A failed channel acknowledgement must not discard an owner task.
-            pass
+        await react_to_request(ctx.message)
 
     @tasks.loop(seconds=1)
     async def serve_database(self):
@@ -301,7 +311,7 @@ class Agents(commands.Cog):
         kwargs = {}
         if job["state"] in {"completed", "waiting_input"}:
             details = answer.read_text() if answer.exists() else ""
-            text = short_sentence(job.get("reply") or details or "Feito.")
+            text = (job.get("reply") or details or "Feito.").strip()
             kind = job.get("kind", "code" if job.get("mode") == "code" else "chat")
             if job["state"] == "completed" and kind == "stats":
                 text = f"{text}\n\n{details}" if details and details != text else text
@@ -312,9 +322,9 @@ class Agents(commands.Cog):
                         filename=f"{job['id']}.txt",
                     )
                     if kind == "stats":
-                        text = short_sentence(
+                        text = (
                             job.get("reply") or "O relatório está no ficheiro."
-                        )
+                        ).strip()
         elif job["state"] in TERMINAL:
             text = {
                 "cancelled": "Tarefa cancelada.",
@@ -325,6 +335,12 @@ class Agents(commands.Cog):
             )
         else:
             text = "Ainda estou a tratar do pedido."
+        if len(text) > 2000:
+            if "file" in kwargs:
+                kwargs["file"].close()
+            kwargs["file"] = discord.File(
+                io.BytesIO(text.encode()), filename=f"{job['id']}.txt"
+            )
         files = []
         try:
             artifacts = job.get("artifacts", []) if job["state"] == "completed" else []
@@ -344,7 +360,7 @@ class Agents(commands.Cog):
                     files.append(kwargs.pop("file"))
                 kwargs["files"] = files
             await user.send(
-                text[:1900],
+                text[:2000],
                 allowed_mentions=discord.AllowedMentions.none(),
                 **kwargs,
             )
@@ -409,7 +425,8 @@ class Agents(commands.Cog):
             )
             message = "Não consegui processar o pedido."
         await ctx.send(
-            short_sentence(message), allowed_mentions=discord.AllowedMentions.none()
+            embed=status_embed("🐸 Poliswag", short_sentence(message)),
+            allowed_mentions=discord.AllowedMentions.none(),
         )
 
 
