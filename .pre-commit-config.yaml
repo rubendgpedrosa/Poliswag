@@ -48,7 +48,7 @@ repos:
         args: [--fix=lf]
       - id: check-added-large-files
         description: "Prevents giant files from being committed"
-        exclude: ^mock_database/.*\.sql$
+        exclude: ^(mock_database/.*\.sql|templates/poracle/shiny-sprites\.json)$
       - id: check-merge-conflict
         description: "Checks for files containing merge conflict strings"
       - id: detect-private-key
