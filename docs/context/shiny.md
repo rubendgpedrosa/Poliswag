@@ -216,3 +216,17 @@ change.
 
 
 Availability review (2026-10-10): both map and alerts now join `poliswag.shiny_eligible_variant` by species, raw scanner form and costume. Migration bot 025 / site 014 creates the view, dated `shiny_release` snapshot and persisted `shiny_confirmed_variant`. `modules/shiny_availability.py` refreshes Leek Duck’s exact form release dates plus PoGoAPI wild flags daily, with atomic replacement, one-hour retries and a two-day grant freshness limit. Future/release-day dates cannot grant access without confirmation. Unmapped costumes need exact live confirmation. Unown, Smeargle and Meltan require a confirmation in the preceding 30 minutes. The full catalog audit and source limitations are in `/root/Poliswag/docs/reviews/2026-10-10-shiny-availability.md` and its CSVs. Release lists do not expose Niantic’s private live enablement flags.
+
+
+Alert artwork uses the app's PkmnHomeIcons UICONS_OS_128 set. Shiny and
+shiny-background Poracle thumbnails use the `shiny-sprites` custom map;
+regular monster templates select it only when the webhook's `shiny` is true.
+The global `request_shiny_images` setting stays false: it marks species-wide
+eligibility, not this encounter. Poliswag supplies the prediction's shiny flag
+and uses the same checked sprites for fallback embeds and shiny trade summaries.
+`modules/pokemon_sprites.py` preserves available forms/costumes/genders and
+falls back to an existing species sprite, avoiding invented image filenames.
+Refresh `templates/poracle/shiny-sprites.json` with
+`python scripts/update_alert_sprites.py`, then copy it to Poracle's
+`config/customMaps/shiny-sprites.json`. Updating custom maps or the icon source
+requires restarting Poracle; template-only changes use `/api/dts/reload`.

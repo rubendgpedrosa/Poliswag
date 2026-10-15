@@ -121,19 +121,19 @@ class TestBuildDigest:
                 row(pokemon_id=1, pokemon_name="Bulbasaur"),
             ]
         )
-        assert embed.thumbnail.url.endswith("/UICONS_OS_128/pokemon/133.png")
+        assert embed.thumbnail.url.endswith("/UICONS_OS_128/pokemon/133_s.png")
         assert embed.image.url is None
 
     # A post of one or two lines is easy to scroll past; the Pokémon is its
     # picture, at 512px, instead of a corner thumbnail.
     def test_a_small_post_shows_the_pokemon_big(self):
         embed = build_digest([row(), row(pokemon_id=133, pokemon_name="Eevee")])
-        assert embed.image.url.endswith("/UICONS_OS/pokemon/60.png")
+        assert embed.image.url.endswith("/UICONS_OS/pokemon/60_s.png")
         assert embed.thumbnail.url is None
 
     def test_asks_for_the_form_sprite_when_there_is_one(self):
-        embed = build_digest([row(form_id=2332)])
-        assert embed.image.url.endswith("/60_f2332.png")
+        embed = build_digest([row(pokemon_id=25, form_id=2332)])
+        assert embed.image.url.endswith("/25_f2332_s.png")
 
     # "Qualquer Shiny" has no sprite, and a broken image is worse than none.
     def test_shows_no_sprite_when_nothing_has_a_species(self):

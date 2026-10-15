@@ -516,6 +516,7 @@ class TestThroughPoracle:
             "language": "en",
             "template": "shiny",
         }
+        assert webhook["shiny"] is True
         assert webhook["encounter_id"] == ZERO and webhook["pokemon_id"] == 25
         assert (webhook["latitude"], webhook["longitude"]) == (39.7436, -8.8071)
         assert webhook["disappear_time"] == 1791630000
@@ -713,3 +714,11 @@ class TestDiscordNotifications:
             "mapa de shinies continua ativo"
             not in alerts.user.send.call_args.kwargs["content"]
         )
+
+
+@pytest.mark.parametrize("shiny", [True, False])
+def test_webhook_and_fallback_art_follow_prediction(shiny):
+    data = spawn(predicted_shiny=shiny, predicted_background=True)
+    assert shiny_alerts.poracle_webhook(data)["shiny"] is shiny
+    embed = shiny_alerts.alert_embed(data, "Pikachu", True)
+    assert embed.thumbnail.url.endswith("/25_g2_s.png" if shiny else "/25_g2.png")

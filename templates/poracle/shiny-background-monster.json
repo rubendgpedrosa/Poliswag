@@ -10,7 +10,7 @@
       "url": "{{{reactMapUrl}}}?o=dm-shiny",
       "description": "🖼️ **Fundo especial previsto** (experimental)\n@include mon.txt",
       "thumbnail": {
-        "url": "{{{imgUrl}}}"
+        "url": "{{{map 'shiny-sprites' imgUrl}}}"
       },
       "image": {
         "url": "{{{staticMap}}}"
