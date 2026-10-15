@@ -132,5 +132,6 @@ LOG_FILE, ERROR_LOG_FILE
 | `docs/context/host-ops.md` | the host watchdog restarting Poliswag, `scripts/dm_owner.py`, backup-failure DMs |
 | `docs/context/shiny.md` | `!shiny`, the host linker and its guards/breaker, shiny alert DMs |
 | `docs/context/shiny-access-requests.md` | Shiny map access request embeds and moderator approval/rejection buttons |
+| `docs/context/shundo-mentions.md` | Per-player Shundo channel mentions and Poracle templates |
 | `docs/context/spawn-history.md` | raw spawn retention, unfiltered leaderboards, JSON export and coverage gaps |
 | `docs/context/agents.md` | owner-requested Claude/Codex jobs, runtime awareness, host executor and review worktrees |
