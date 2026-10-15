@@ -18,7 +18,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 |--------|---------------|
 | `config.py` / `database_connector.py` | Env config; pymysql wrapper with retries and `connect(...)` for short-lived connections. |
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
-| `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `MAPA` channel rename, recovery ladder. |
+| `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` / `quest_exporter.py` / `quest_map.py` | Quest lookup, `quests.json` export, map PNGs. See `quests.md`. |
 | `event_manager.py` / `event_store.py` / `event_stats.py` / `event_images.py` | ScrapedDuck ingestion, `event` table, notices, end-of-event stats. See `events.md`. |
