@@ -5,5 +5,5 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/docker exec -w /app poliswag python -m scripts.pokedex_validation_alert
+ExecStart=/usr/bin/docker exec -w /app poliswag python -m scripts.pokedex_moderation_alert
 TimeoutStartSec=45
