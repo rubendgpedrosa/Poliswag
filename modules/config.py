@@ -19,6 +19,7 @@ _REQUIRED_ENV_VARS = (
 
 
 class Config:
+    SHINY_LEADERBOARD_ENABLED = os.environ.get("SHINY_LEADERBOARD_ENABLED", "0") == "1"
     # Discord
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
