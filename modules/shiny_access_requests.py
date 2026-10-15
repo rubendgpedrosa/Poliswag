@@ -1,7 +1,9 @@
 """Durable moderation buttons and atomic website shiny-access decisions."""
 
+import copy
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import discord
 
@@ -12,11 +14,67 @@ PREFIX = "shiny-access:"
 BUTTON = re.compile(r"^shiny-access:(accept|reject):(\d{1,20}):(\d{20})$")
 
 
-def request_stamp(value):
-    """Keep the full UTC DATETIME(6), including microseconds, in button IDs."""
+def utc_datetime(value):
+    """Database DATETIME values are UTC even when the host uses Lisbon time."""
     if not isinstance(value, datetime):
         value = datetime.fromisoformat(str(value))
-    return value.strftime("%Y%m%d%H%M%S%f")
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def discord_date(value):
+    return f"<t:{int(utc_datetime(value).timestamp())}:F>"
+
+
+def identity_text(value, fallback):
+    return discord.utils.escape_markdown(" ".join(str(value or fallback).split())[:100])
+
+
+def avatar_thumbnail(value):
+    """Accept HTTPS images; request small static Discord avatars."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+        ):
+            return None
+        if parsed.hostname in {"cdn.discordapp.com", "media.discordapp.net"}:
+            path = (
+                parsed.path
+                if parsed.path.startswith("/embed/avatars/")
+                else re.sub(r"\.(?:gif|png|jpe?g|webp)$", ".webp", parsed.path)
+            )
+            query = dict(parse_qsl(parsed.query))
+            query["size"] = "128"
+            return urlunsplit(
+                (parsed.scheme, parsed.netloc, path, urlencode(query), "")
+            )
+        return value
+    except ValueError:
+        return None
+
+
+def decision_embed(original, moderator, accepted, decided_at):
+    """Keep the request identity/date intact and append the decision audit."""
+    embed = copy.deepcopy(original)
+    embed.color = 0x2ECC71 if accepted else 0xE74C3C
+    verdict = "Aceite" if accepted else "Rejeitado"
+    name = identity_text(moderator.display_name, moderator.name)
+    account = identity_text(moderator.name, str(moderator.id))
+    embed.add_field(name=f"{verdict} por", value=f"{name} (@{account})", inline=False)
+    embed.add_field(name=f"{verdict} em", value=discord_date(decided_at), inline=False)
+    return embed
+
+
+def request_stamp(value):
+    """Keep the full UTC DATETIME(6), including microseconds, in button IDs."""
+    return utc_datetime(value).strftime("%Y%m%d%H%M%S%f")
 
 
 def parse_button(custom_id):
@@ -34,16 +92,28 @@ def parse_button(custom_id):
 def request_payload(row, base_url):
     discord_id = str(row["discord_id"])
     stamp = request_stamp(row["shiny_access_requested_at"])
-    name = discord.utils.escape_markdown(
-        " ".join(str(row["name"] or "Treinador").split())[:80]
+    display_name = identity_text(
+        row.get("display_name"), row.get("name") or "Treinador"
     )
+    account = identity_text(row.get("username"), discord_id)
+    thumbnail = avatar_thumbnail(row.get("avatar_url"))
     return {
         "embeds": [
             {
                 "title": "Pokédex: pedido de acesso ao mapa de shinies",
-                "description": f"**{name}** pediu acesso ao mapa de shinies.\nDiscord: {discord_id}",
+                "description": "Pedido de acesso ao mapa de shinies.",
                 "url": f"{base_url.rstrip('/')}/jogador/{discord_id}",
                 "color": Config.EMBED_COLOR,
+                "fields": [
+                    {"name": "Nome no servidor", "value": display_name, "inline": True},
+                    {"name": "Conta Discord", "value": f"@{account}", "inline": True},
+                    {
+                        "name": "Pedido em",
+                        "value": discord_date(row["shiny_access_requested_at"]),
+                        "inline": False,
+                    },
+                ],
+                **({"thumbnail": {"url": thumbnail}} if thumbnail else {}),
                 "timestamp": datetime.strptime(stamp, "%Y%m%d%H%M%S%f").isoformat()
                 + "Z",
             }

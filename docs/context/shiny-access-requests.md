@@ -4,7 +4,14 @@ The website's pending shiny-map access requests can be sent as one embed per
 request to `MOD_CHANNEL_ID`, with **Aceitar** and **Rejeitar** buttons.
 Owner `MY_ID` and `ADMIN_USERS_IDS` may decide requests in that guild channel.
 There are no mentions or pings. The profile link lets moderators inspect the
-requesting player.
+requesting player. Each embed shows the member's server name, Discord account,
+avatar and request date. The notifier queries guild membership only for unsent
+requests, preferring the server nickname and server avatar over global identity.
+If Discord cannot provide membership, the stored trade-player identity is used.
+Discord CDN avatars use small static WebP images (128px); default avatars retain
+their PNG asset. Invalid/non-HTTPS stored avatar URLs are omitted.
+Request dates are interpreted as UTC and rendered using Discord timestamps in
+the reader's timezone.
 
 ## Delivery and decisions
 
@@ -33,17 +40,21 @@ relink marker for a future request, and increments the settings revision.
 The normal scheduler handles channels and setup confirmation.
 
 After committing, the bot edits the original embed with the moderator's identity
-and decision and removes the buttons. Database failures leave buttons available
-for retry. If the message edit fails after commit, the private response explains
+and decision and removes the buttons. The original identity, avatar, fields and
+request timestamp remain intact; two fields record who accepted/rejected the
+request (server name and Discord account) and when the transaction completed.
+The decision date is a Discord timestamp, separate from the request date.
+Database failures leave buttons available for retry. If the message edit fails after commit, the private response explains
 that the decision was saved; old buttons cannot apply the decision again.
 
-## Activation requires explicit deployment authorization
+## Runtime and rollout
 
-These source changes do not activate the new notifier. The installed
-`pokedex-validation-alert.service` continues calling the unchanged old DM
-script until rollout. On an explicitly authorized rollout, restart Poliswag to
-load the new cog first, install the updated source service unit and reload
-systemd. Keep the existing timer: its service now invokes
-`python -m scripts.pokedex_moderation_alert` instead of the owner-DM module.
-Do not add a second timer or run both notifiers. Do not invoke the new module
+The installed moderation notifier runs through the existing
+`pokedex-validation-alert.timer` and service, invoking
+`python -m scripts.pokedex_moderation_alert`. Its source is bind-mounted, so
+future timer executions use notifier/template changes without a bot restart.
+Cog changes require an explicitly authorized Poliswag restart to load.
+Do not add a second timer or run both notifiers. Do not invoke the notifier
 as a test against live Discord; focused tests mock delivery and database writes.
+A requested owner-DM preview can render the shared payload without moderation
+buttons or pending-request database/state changes.
