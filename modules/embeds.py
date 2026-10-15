@@ -105,3 +105,11 @@ async def build_tracked_summary_embeds(
             icon_url=f"{ui_icons_url}{reward_slug}",
         )
         await channel.send(embed=embed)
+
+
+async def react_to_request(message):
+    """Acknowledge receipt without posting a canned chat message."""
+    try:
+        await message.add_reaction("👀")
+    except discord.HTTPException:
+        pass

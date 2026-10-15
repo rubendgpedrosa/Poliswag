@@ -25,6 +25,7 @@ from modules.trade_stats import TradeStats
 from modules.stack_recovery import StackRecovery
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
+from modules.embeds import status_embed
 from modules.dm_policy import may_run_in_dm
 from modules.permissions import is_owner
 from modules.http_client import close_session
@@ -95,7 +96,9 @@ class Poliswag(commands.Bot):
                 # Fail closed if the cog is unavailable: a tag can never fall
                 # through into a privileged command or an agent invocation.
                 await ctx.send(
-                    "Olá! Estou aqui — diz-me o que precisas. 🐸",
+                    embed=status_embed(
+                        "🐸 Poliswag", "Olá! Estou aqui — diz-me o que precisas. 🐸"
+                    ),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             return

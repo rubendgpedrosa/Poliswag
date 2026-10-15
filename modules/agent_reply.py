@@ -55,7 +55,7 @@ def parse_reply(value):
         raise ValueError("Invalid agent reply")
     return {
         **value,
-        "reply": short_sentence(value["reply"]),
+        "reply": value["reply"].strip()[:500000],
         "details": value["details"][:500000],
         "attachments": attachments,
     }

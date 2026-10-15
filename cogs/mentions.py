@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from modules.config import Config
+from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
 from modules.permissions import is_owner
 from modules.public_conversation import MentionLimiter, PublicConversation
@@ -54,7 +55,7 @@ class Mentions(commands.Cog):
             return True
         if not self.limiter.allow(ctx.guild.id, ctx.author.id):
             return True
-        await self.respond(ctx, "Já dou um salto a isso. 🐸")
+        await react_to_request(message)
         try:
             reply = await asyncio.wait_for(self.public.reply(text), timeout=42)
         except Exception:
@@ -67,7 +68,7 @@ class Mentions(commands.Cog):
     async def respond(ctx, text):
         try:
             await ctx.reply(
-                text[:1900],
+                text[:2000],
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
