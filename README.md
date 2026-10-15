@@ -2,6 +2,10 @@
 
 Discord bot and operations glue for the [PoGoLeiria](https://pogoleiria.pt) scanner (Leiria / Marinha Grande). Handles quest scans, event tracking, account monitoring, scanner health, and user-facing Discord commands.
 
+## Documentation
+
+The map of every document is [docs/README.md](docs/README.md); start with [docs/context.md](docs/context.md).
+
 ## Stack
 
 - Python 3.11, `discord.py`
