@@ -6,6 +6,7 @@ import discord
 from modules.http_client import fetch_data
 from modules.config import Config
 from modules.logging_mixin import LoggingMixin
+from modules.owner_alert import notify_owner
 
 
 class ScannerStatus(LoggingMixin):
@@ -41,9 +42,11 @@ class ScannerStatus(LoggingMixin):
         }
 
         self.last_all_down_request_time = 0
-        # Set once an all-down alert went out; the first fresh tick after it
-        # sends the "map back" half and clears it.
+        # Keep recovery pending until the owner has received the recovery DM.
+        # Separate flags stop retries from repeating successful deliveries.
         self.map_down_alerted = False
+        self._map_down_discord_sent = False
+        self._map_restored_dashboard_sent = False
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
         self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
 
@@ -361,16 +364,32 @@ class ScannerStatus(LoggingMixin):
                         "INFO",
                     )
                 else:
-                    await fetch_data(
-                        "all_down", log_fn=self._log, method="POST", data=payload
-                    )
+                    # HA updates the dashboard independently of Discord delivery.
+                    self.map_down_alerted = True
+                    self._map_restored_dashboard_sent = False
+                    try:
+                        await fetch_data(
+                            "all_down", log_fn=self._log, method="POST", data=payload
+                        )
+                    except Exception as e:
+                        self._log(f"Error sending all-down dashboard update: {e}")
+                    if not self._map_down_discord_sent:
+                        try:
+                            self._map_down_discord_sent = await notify_owner(
+                                self.poliswag,
+                                "O mapa deixou de receber Pokémon há pelo menos "
+                                "10 minutos. Vou avisar quando voltar a receber dados.",
+                                title="Mapa sem dados",
+                                tag="poliswag-map",
+                            )
+                        except Exception as e:
+                            self._log(f"Error sending map-down Discord alert: {e}")
                 self.map_down_alerted = True
             except Exception as e:
                 self._log(f"Error sending all-down notification: {e}")
 
     async def trigger_map_restored_action(self, seconds_ago):
         """The other half of the all-down alert: say once that spawns flow again."""
-        self.map_down_alerted = False
         payload = {
             "type": "map_restored",
             "value": {"last_pokemon_seconds_ago": seconds_ago},
@@ -380,11 +399,31 @@ class ScannerStatus(LoggingMixin):
                 f"[DEV] Would send map-restored notification with payload: {payload}",
                 "INFO",
             )
+            self.map_down_alerted = False
             return
-        try:
-            await fetch_data("all_down", log_fn=self._log, method="POST", data=payload)
-        except Exception as e:
-            self._log(f"Error sending map-restored notification: {e}")
+        if not self._map_restored_dashboard_sent:
+            try:
+                await fetch_data(
+                    "all_down", log_fn=self._log, method="POST", data=payload
+                )
+            except Exception as e:
+                self._log(f"Error sending map-restored notification: {e}")
+            self._map_restored_dashboard_sent = True
+        if self._map_down_discord_sent:
+            try:
+                delivered = await notify_owner(
+                    self.poliswag,
+                    "O mapa voltou a receber Pokémon.",
+                    title="Mapa recuperado",
+                    tag="poliswag-map",
+                )
+            except Exception as e:
+                self._log(f"Error sending map-restored Discord alert: {e}")
+                return
+            if not delivered:
+                return
+            self._map_down_discord_sent = False
+        self.map_down_alerted = False
 
     def _get_combined_status_indicator(
         self, leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected

@@ -1,0 +1,19 @@
+[Unit]
+Description=PoGoLeiria monitoring alerts to private owner Discord DMs
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Poliswag
+EnvironmentFile=/etc/poliswag-monitoring-relay.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -m scripts.monitoring_discord_relay
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
