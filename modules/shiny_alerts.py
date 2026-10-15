@@ -113,6 +113,8 @@ def wants_alert(recipient, spawn, owned):
 PORACLE_TEMPLATE = "shiny"
 PORACLE_BACKGROUND_TEMPLATE = "background"
 PORACLE_SHINY_BACKGROUND_TEMPLATE = "shiny-background"
+PORACLE_SHINY_HERE_TEMPLATE = "shiny-here"
+PORACLE_SHINY_BACKGROUND_HERE_TEMPLATE = "shiny-background-here"
 # The side bar says the same as the map's pins (owner, 2026-10-11): gold is a
 # Shiny, with or without a background; sky blue is a background alone. The
 # templates carry these too; here they colour the bot's own fallback embed.
@@ -120,7 +122,20 @@ SHINY_COLOR = 0xF2CD5C
 BACKGROUND_COLOR = 0x5AA9E6
 
 
-def poracle_template(spawn):
+def is_shundo(spawn):
+    """A predicted shiny at exactly 15/15/15, including legacy shiny rows."""
+    return spawn.get("predicted_shiny") is not False and is_hundo(spawn)
+
+
+def poracle_template(spawn, *, channel=False):
+    # Only the recipient's own channel may ping. A 100% background prediction
+    # without that player's shiny prediction must keep its ordinary template.
+    if channel and is_shundo(spawn):
+        return (
+            PORACLE_SHINY_BACKGROUND_HERE_TEMPLATE
+            if spawn.get("predicted_background")
+            else PORACLE_SHINY_HERE_TEMPLATE
+        )
     if not spawn.get("predicted_background"):
         return PORACLE_TEMPLATE
     if spawn.get("predicted_shiny"):
@@ -377,7 +392,18 @@ class ShinyAlerts:
             else None
         )
         if channel is not None:
-            await channel.send(embed=embed)
+            if is_shundo(spawn):
+                await channel.send(
+                    content="@here",
+                    embed=embed,
+                    allowed_mentions=discord.AllowedMentions(
+                        everyone=True, users=False, roles=False, replied_user=False
+                    ),
+                )
+            else:
+                await channel.send(
+                    embed=embed, allowed_mentions=discord.AllowedMentions.none()
+                )
         elif discord_id in Config.SHINY_ALERT_USER_IDS:
             await self._dm(discord_id, embed=embed)
         else:
@@ -405,7 +431,13 @@ class ShinyAlerts:
                 "name": name,
                 "type": "discord:user",
             }
-        target = {**destination, "language": "en", "template": poracle_template(spawn)}
+        target = {
+            **destination,
+            "language": "en",
+            "template": poracle_template(
+                spawn, channel=destination["type"] == "discord:channel"
+            ),
+        }
         try:
             await self.poliswag.poracle.test_pokemon(poracle_webhook(spawn), target)
             return True

@@ -1,0 +1,48 @@
+{
+  "id": "shiny-background-here",
+  "language": "en",
+  "type": "monster",
+  "platform": "discord",
+  "template": {
+    "embed": {
+      "color": "F2CD5C",
+      "title": "✨🖼️ {{fullName}} {{#eq pokemonId 132}}({{disguisePokemonName}}){{/eq}} {{genderData.emoji}} |{{#if userHasPvpTracks}}{{#or pvpGreat pvpUltra pvpLittle}}{{#if pvpLittle}} 👶#{{pvpLittleBest.rank}} ({{pvpLittleBest.name}}){{/if}}{{#if pvpGreat}} 🔵#{{pvpGreatBest.rank}} ({{pvpGreatBest.name}}){{/if}}{{#if pvpUltra}} 🟡#{{pvpUltraBest.rank}} ({{pvpUltraBest.name}}){{/if}}{{/or}}{{else}} {{round iv}}% ({{atk}}/{{def}}/{{sta}}){{/if}} | CP {{cp}} {{#or (lte size 1) (gte size 5)}}📐 {{/or}}{{boostWeatherEmoji}}{{#if weatherChange}}⚠{{/if}}",
+      "url": "{{{reactMapUrl}}}?o=dm-shiny",
+      "description": "🖼️ **Fundo especial previsto** (experimental)\n@include mon.txt",
+      "thumbnail": {
+        "url": "{{{map 'shiny-sprites' imgUrl}}}"
+      },
+      "image": {
+        "url": "{{{staticMap}}}"
+      }
+    },
+    "components": [
+      {
+        "type": 1,
+        "components": [
+          {
+            "type": 2,
+            "style": 5,
+            "url": "{{{googleMapUrl}}}",
+            "emoji": {
+              "name": "google_maps",
+              "id": "1553351741167116368"
+            },
+            "label": "Google"
+          },
+          {
+            "type": 2,
+            "style": 5,
+            "url": "{{{appleMapUrl}}}",
+            "emoji": {
+              "name": "apple_maps",
+              "id": "1553351742463414303"
+            },
+            "label": "Apple"
+          }
+        ]
+      }
+    ],
+    "content": "@here"
+  }
+}
