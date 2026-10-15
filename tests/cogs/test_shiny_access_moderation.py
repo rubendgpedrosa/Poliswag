@@ -112,7 +112,7 @@ async def test_acceptance_retains_request_and_records_commit_time(setup, mocker)
     mocker.patch.object(cog_module.discord.utils, "utcnow", side_effect=clock)
     await cog.on_interaction(interaction)
     result = interaction.message.edit.call_args.kwargs["embed"]
-    assert result.to_dict()["fields"] == original.to_dict()["fields"]
+    assert result.to_dict()["fields"] == original.to_dict()["fields"][:2]
     assert result.thumbnail.url == original.thumbnail.url
     assert original.timestamp is None
     assert result.timestamp == decided

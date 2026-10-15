@@ -6,10 +6,15 @@ import pytest
 from scripts import pokedex_moderation_alert as alerts
 
 
-def row(discord_id="123", requested="2026-10-15 12:00:00.123456"):
+def row(
+    discord_id="123",
+    requested="2026-10-15 12:00:00.123456",
+    friend_code="123456789012",
+):
     return {
         "discord_id": discord_id,
         "name": "Trainer",
+        "friend_code": friend_code,
         "shiny_access_requested_at": requested,
     }
 
@@ -41,6 +46,21 @@ def test_resolved_and_new_timestamp_requests_notify_again(tmp_path):
     )
 
 
+def test_request_embed_shows_the_saved_friend_code_or_a_fallback(tmp_path):
+    send = Mock()
+    state = tmp_path / "state.json"
+    alerts.notify_pending([row()], state, send, "https://site")
+    assert (
+        send.call_args.args[0]["embeds"][0]["description"]
+        == "Friend Code: 123456789012"
+    )
+    alerts.notify_pending([row("456", friend_code=None)], state, send, "https://site")
+    assert (
+        send.call_args.args[0]["embeds"][0]["description"]
+        == "Friend Code: Não indicado"
+    )
+
+
 def test_main_posts_directly_to_moderation_channel(mocker, tmp_path):
     from modules.config import Config
 
@@ -66,7 +86,8 @@ def test_main_posts_directly_to_moderation_channel(mocker, tmp_path):
     sql = connection.cursor.return_value.__enter__.return_value.execute.call_args_list[
         0
     ].args[0]
-    assert "display_name, username, avatar_url" in sql
+    assert "display_name, username, avatar_url, friend_code" in sql
+    assert payload["embeds"][0]["description"] == "Friend Code: 123456789012"
 
 
 def test_enriches_only_unsent_requests(tmp_path):

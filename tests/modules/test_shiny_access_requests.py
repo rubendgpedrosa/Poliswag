@@ -39,6 +39,12 @@ def test_button_is_timestamp_bound_and_payload_has_no_pings():
         {**player(), "name": "@everyone"}, "https://site/pokedex/"
     )
     assert payload["allowed_mentions"] == {"parse": []}
+    embed = payload["embeds"][0]
+    assert embed["description"] == "Friend Code: 123456789012"
+    assert [field["name"] for field in embed["fields"]] == [
+        "Nome no servidor",
+        "Conta Discord",
+    ]
     for button in payload["components"][0]["components"]:
         assert len(button["custom_id"]) <= 100
         assert requests.parse_button(button["custom_id"])[1:] == ("123", STAMP)
@@ -148,13 +154,14 @@ def test_decision_preserves_identity_avatar_and_records_footer(accepted):
     legacy = original.to_dict()
     result = requests.decision_embed(original, moderator, accepted, decided).to_dict()
     assert original.to_dict() == legacy
-    assert result["fields"] == before["fields"]
+    assert result["fields"] == before["fields"][:2]
     assert [field["name"] for field in before["fields"]] == [
         "Nome no servidor",
         "Conta Discord",
     ]
     assert before["fields"][0]["value"] == "Server Nick"
     assert before["fields"][1]["value"] == "@discord.account"
+    assert before["description"] == "Friend Code: 123456789012"
     assert (
         result["thumbnail"]
         == before["thumbnail"]
