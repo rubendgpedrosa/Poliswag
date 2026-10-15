@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 import discord
 
 from modules.config import Config
+from modules.pokemon_sprites import pokemon_sprite_url
 from modules.embeds import build_embed
 from modules.poracle_client import PoracleError
 from modules.shiny_roll import is_background_at, personal_draws
@@ -157,6 +158,7 @@ def poracle_webhook(spawn):
     return {
         "encounter_id": str(spawn["id"]),
         "pokemon_id": spawn["pokemon_id"],
+        "shiny": spawn.get("predicted_shiny") is not False,
         # COALESCE(form, 0) comes back from the driver as a Decimal, which
         # json refuses: every alert crashed here from 16:54 on 2026-10-10.
         "form": int(spawn["form_id"]),
@@ -228,6 +230,13 @@ def alert_embed(spawn, name, seen_shiny):
             )
         ),
     ]
+    thumbnail = pokemon_sprite_url(
+        spawn["pokemon_id"],
+        form=spawn.get("form_id", 0),
+        costume=spawn.get("costume", 0),
+        gender=spawn.get("gender", 0),
+        shiny=spawn.get("predicted_shiny") is not False,
+    )
     headline = name if spawn["iv"] is None else f"{name} {round(spawn['iv'])}%"
     if spawn.get("predicted_background"):
         kind = (
@@ -236,9 +245,11 @@ def alert_embed(spawn, name, seen_shiny):
             else "🖼️ Fundo especial"
         )
         embed = build_embed(f"{kind} · {headline}", "\n".join(lines))
+        embed.set_thumbnail(url=thumbnail)
         embed.color = SHINY_COLOR if spawn.get("predicted_shiny") else BACKGROUND_COLOR
         return embed
     embed = build_embed(f"✨ {headline}", "\n".join(lines))
+    embed.set_thumbnail(url=thumbnail)
     embed.color = SHINY_COLOR
     return embed
 

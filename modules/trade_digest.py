@@ -17,6 +17,7 @@ import datetime
 
 import discord
 from modules.config import Config
+from modules.pokemon_sprites import LARGE_SPRITE_BASE, SPRITE_BASE, pokemon_sprite_url
 from modules.database_connector import connect
 
 DIGEST_HOUR = 9
@@ -31,14 +32,6 @@ _FIELD_CHARS = 1024
 # From this few entries down, the Pokémon is the post's picture rather than a
 # corner thumbnail: a one-line post still gets looked at.
 _BIG_ART_UP_TO = 2
-
-# The icon set the map, the hub and the trades app all draw with, so a Pokémon
-# looks the same in Discord as it does on the site.
-SPRITE_BASE = "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon"
-# The same files at 512px, for the big picture.
-LARGE_SPRITE_BASE = (
-    "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS/pokemon"
-)
 
 # The site's names for each list (apps/trades lib/lists.ts), so a post and the
 # page it links to say the same thing. The announcer uses them too.
@@ -110,8 +103,12 @@ def describe(row):
 
 
 def sprite_url(row, base=SPRITE_BASE):
-    form = row.get("form_id") or 0
-    return f"{base}/{row['pokemon_id']}{f'_f{form}' if form else ''}.png"
+    return pokemon_sprite_url(
+        row["pokemon_id"],
+        form=row.get("form_id") or 0,
+        shiny=row.get("category") == "shiny",
+        base=base,
+    )
 
 
 # The site's `?o=` origin tag: Discord's in-app browser sends no referrer, so
