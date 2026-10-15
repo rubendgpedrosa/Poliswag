@@ -89,28 +89,58 @@ def parse_button(custom_id):
     return action, discord_id, stamp
 
 
-def request_payload(row, base_url):
+def identity_embed(row, base_url):
+    """Shared server/account identity for requests and association failures."""
     discord_id = str(row["discord_id"])
-    stamp = request_stamp(row["shiny_access_requested_at"])
     display_name = identity_text(
         row.get("display_name"), row.get("name") or "Treinador"
     )
     account = identity_text(row.get("username"), discord_id)
     thumbnail = avatar_thumbnail(row.get("avatar_url"))
     return {
-        "embeds": [
-            {
-                "title": "Pokédex: pedido de acesso ao mapa de shinies",
-                "description": "Pedido de acesso ao mapa de shinies.",
-                "url": f"{base_url.rstrip('/')}/jogador/{discord_id}",
-                "color": Config.EMBED_COLOR,
-                "fields": [
-                    {"name": "Nome no servidor", "value": display_name, "inline": True},
-                    {"name": "Conta Discord", "value": f"@{account}", "inline": True},
-                ],
-                **({"thumbnail": {"url": thumbnail}} if thumbnail else {}),
-            }
+        "url": f"{base_url.rstrip('/')}/jogador/{discord_id}",
+        "color": Config.EMBED_COLOR,
+        "fields": [
+            {"name": "Nome no servidor", "value": display_name, "inline": True},
+            {"name": "Conta Discord", "value": f"@{account}", "inline": True},
         ],
+        **({"thumbnail": {"url": thumbnail}} if thumbnail else {}),
+    }
+
+
+def failure_payload(row, base_url):
+    """Describe a failed association without exposing infrastructure details."""
+    reason = str(row.get("fail_reason") or "").casefold()
+    if reason.startswith("código não encontrado"):
+        explanation = "O Friend Code não foi encontrado no Pokémon GO."
+    elif reason.startswith("convite recusado pelo jogo"):
+        explanation = "O Pokémon GO recusou o convite necessário à associação."
+    else:
+        explanation = (
+            "Não foi possível concluir a associação. "
+            "O jogador deve confirmar o Friend Code e tentar novamente."
+        )
+    embed = identity_embed(row, base_url)
+    embed.update(
+        title="Pokédex: não foi possível associar o Friend Code",
+        color=0xE74C3C,
+        footer={"text": "Associação falhada"},
+        timestamp=utc_datetime(row["resolved_at"]).isoformat(),
+    )
+    embed["fields"].append({"name": "Motivo", "value": explanation, "inline": False})
+    return {"embeds": [embed], "allowed_mentions": {"parse": []}}
+
+
+def request_payload(row, base_url):
+    discord_id = str(row["discord_id"])
+    stamp = request_stamp(row["shiny_access_requested_at"])
+    embed = identity_embed(row, base_url)
+    embed.update(
+        title="Pokédex: pedido de acesso ao mapa de shinies",
+        description="Pedido de acesso ao mapa de shinies.",
+    )
+    return {
+        "embeds": [embed],
         "components": [
             {
                 "type": 1,
