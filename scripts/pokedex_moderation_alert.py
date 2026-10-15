@@ -1,14 +1,19 @@
-"""One moderation-channel embed per pending shiny-map access request.
+"""Moderation-channel embeds for access requests and failed associations.
 
 The existing validation-alert timer invokes this moderation-channel notifier.
 """
 
 import json
 import os
+import re
 import urllib.request
 from pathlib import Path
 
-from modules.shiny_access_requests import request_payload, request_stamp
+from modules.shiny_access_requests import (
+    failure_payload,
+    request_payload,
+    request_stamp,
+)
 from scripts import dm_owner
 
 SQL = """SELECT discord_id, COALESCE(trainer_name, display_name) AS name,
@@ -18,6 +23,23 @@ AND shiny_access_requested_at IS NOT NULL
 ORDER BY shiny_access_requested_at, discord_id"""
 
 STATE = Path("/app/logs/pokedex-moderation-alert.json")
+FAILURE_STATE = Path("/app/logs/pokedex-link-failures.json")
+
+
+def failure_sql(player_schema, link_schema):
+    """Qualify both configured schemas without accepting arbitrary SQL."""
+    for schema in (player_schema, link_schema):
+        if not isinstance(schema, str) or not re.fullmatch(
+            r"[a-zA-Z][a-zA-Z0-9_]*", schema
+        ):
+            raise ValueError("Invalid database schema")
+    return f"""SELECT p.discord_id, COALESCE(p.trainer_name, p.display_name) AS name,
+p.display_name, p.username, p.avatar_url, l.requested_at, l.resolved_at, l.fail_reason
+FROM `{player_schema}`.trade_player p
+JOIN `{link_schema}`.shiny_link l ON l.discord_id = p.discord_id
+WHERE p.left_at IS NULL AND p.shiny_access = 1 AND l.status = 'failed'
+AND l.resolved_at IS NOT NULL
+ORDER BY l.resolved_at, p.discord_id"""
 
 
 def _save(state_path, keys):
@@ -42,6 +64,29 @@ def notify_pending(rows, state_path, send, base_url, enrich=None):
         send(request_payload(enrich(row) if enrich else row, base_url))
         sent.append(key)
         # A later failure must not cause successful messages to repeat.
+        _save(state_path, sent)
+        count += 1
+    _save(state_path, sent)
+    return count
+
+
+def notify_failures(rows, state_path, send, base_url, enrich=None):
+    previous = json.loads(state_path.read_text()) if state_path.exists() else []
+    current = [
+        [
+            str(row["discord_id"]),
+            request_stamp(row["requested_at"]),
+            request_stamp(row["resolved_at"]),
+        ]
+        for row in rows
+    ]
+    sent = [key for key in previous if key in current]
+    count = 0
+    for row, key in zip(rows, current):
+        if key in sent:
+            continue
+        send(failure_payload(enrich(row) if enrich else row, base_url))
+        sent.append(key)
         _save(state_path, sent)
         count += 1
     _save(state_path, sent)
@@ -107,13 +152,6 @@ def main():
         raise RuntimeError("Production only")
     if not Config.DISCORD_API_KEY or not Config.MOD_CHANNEL_ID:
         raise RuntimeError("DISCORD_API_KEY and MOD_CHANNEL_ID must be configured")
-    connection = connect(Config.DB_POGOLEIRIA, dict_rows=True)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(SQL)
-            rows = cursor.fetchall()
-    finally:
-        connection.close()
 
     def send(payload):
         dm_owner.post(
@@ -122,15 +160,32 @@ def main():
             payload,
         )
 
-    count = notify_pending(
-        rows,
-        STATE,
-        send,
-        Config.POKEDEX_URL,
-        enrich=member_enricher(Config.MOD_CHANNEL_ID, Config.DISCORD_API_KEY),
-    )
-    if count:
-        print(f"Notified moderators of {count} new request(s); {len(rows)} pending")
+    enrich = member_enricher(Config.MOD_CHANNEL_ID, Config.DISCORD_API_KEY)
+    connection = connect(Config.DB_POGOLEIRIA, dict_rows=True)
+    errors = []
+    try:
+        for label, query, state, notify in (
+            ("request(s)", SQL, STATE, notify_pending),
+            (
+                "failed association(s)",
+                failure_sql(Config.DB_POGOLEIRIA, Config.DB_POLISWAG),
+                FAILURE_STATE,
+                notify_failures,
+            ),
+        ):
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(query)
+                    rows = cursor.fetchall()
+                count = notify(rows, state, send, Config.POKEDEX_URL, enrich=enrich)
+                if count:
+                    print(f"Notified moderators of {count} new {label}")
+            except Exception as error:
+                errors.append(error)
+    finally:
+        connection.close()
+    if errors:
+        raise ExceptionGroup("Moderation notifications failed", errors)
 
 
 if __name__ == "__main__":

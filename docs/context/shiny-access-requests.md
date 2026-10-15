@@ -60,3 +60,25 @@ Do not add a second timer or run both notifiers. Do not invoke the notifier
 as a test against live Discord; focused tests mock delivery and database writes.
 A requested owner-DM preview can render the shared payload without moderation
 buttons or pending-request database/state changes.
+
+
+## Failed Friend Code associations
+
+The same notifier also posts a separate embed to moderation when an approved
+player's Friend Code association fails. It shows the server name, Discord
+account, avatar, profile link and a curated PT-PT reason. The native timestamp
+in the "Associação falhada" footer records the failure time. It has no decision
+buttons or mentions: approval has already happened, and the player can correct
+the Friend Code or retry from their profile. Raw infrastructure errors and the
+Friend Code itself are never included.
+
+This flow joins the configured community and bot schemas. It includes approved,
+present members even if they disabled Discord alerts or their map, so a recent
+failure remains visible. Held, revoked and departed accounts are excluded.
+Separate durable state in `logs/pokedex-link-failures.json` records Discord ID,
+association-request timestamp and resolution timestamp. Each successful post
+is saved immediately; timer retries and restarts do not repeat it, while a newly
+failed attempt is notified again. Resolved failures are pruned. As with access
+requests, a crash between Discord accepting the message and saving state can
+duplicate a post. Both notification flows are attempted independently, so an
+access-request delivery failure does not suppress failed-association delivery.
