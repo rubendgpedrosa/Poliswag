@@ -43,6 +43,26 @@ Golbat still retains, but does not imply complete coverage before capture starts
   channel or DM. The export contains all stored observation types.
 - `!spawnhistory leaderboard [hours]`: JSON with an unfiltered per-trainer
   leaderboard computed from the archive. Both commands accept 1–48 hours.
+- `!spawnhistory image`: renders the 24-hour leaderboard and DMs only `MY_ID`.
+
+## Daily owner leaderboard
+
+`SHINY_LEADERBOARD_ENABLED=1` enables a separate, one-minute task in the
+SpawnHistory cog. At or after 09:00 Europe/Lisbon, `modules/shiny_leaderboard.py`
+calculates the preceding 24 hours, renders a PNG with the bundled PoGoLeiria
+mark and fonts, and sends it directly through Poliswag to `MY_ID`. No agent,
+LLM or image-generation API is invoked. Discord avatars come from community
+profiles; failed downloads fall back to initials.
+
+`poliswag.last_shiny_leaderboard_date` persists successful delivery across
+restarts (migration 032). A failed send retries on the next tick; a late
+restart catches up once for that local date. Manual image requests do not
+change the daily delivery date. The automatic report uses the same aggregate
+as the JSON command: no personal zone, collection, IV or notification filters.
+Incomplete coverage leaves the JSON full-window averages unavailable. The image
+shows recorded totals divided by the requested hours, marked with an asterisk
+and a warning that missing history may underestimate the rate. The overall
+image rate also divides by trainer count. Stale collection is identified in the DM. Reports are predictions, not catches.
 
 For owner agent requests, the private `poliswag_db.spawn_history_report` MCP tool
 provides the same aggregate report, without transmitting raw player IDs or

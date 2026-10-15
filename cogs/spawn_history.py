@@ -8,21 +8,38 @@ import discord
 from discord.ext import commands, tasks
 
 from modules import spawn_history
+from modules.shiny_leaderboard import ShinyLeaderboard
 from modules.permissions import is_owner, owner_only
 
 
 class SpawnHistory(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        self.leaderboard = ShinyLeaderboard(poliswag)
 
     def cog_check(self, ctx):
         return is_owner(ctx)
 
     async def cog_load(self):
         self.collect.start()
+        self.daily_report.start()
 
     async def cog_unload(self):
         self.collect.cancel()
+        self.daily_report.cancel()
+
+    @tasks.loop(minutes=1)
+    async def daily_report(self):
+        try:
+            await self.leaderboard.tick()
+        except Exception as error:
+            self.poliswag.utility.log_to_file(
+                f"Shiny leaderboard delivery failed: {type(error).__name__}", "ERROR"
+            )
+
+    @daily_report.before_loop
+    async def before_daily_report(self):
+        await self.poliswag.wait_until_ready()
 
     @tasks.loop(seconds=spawn_history.POLL_SECONDS)
     async def collect(self):
@@ -84,6 +101,11 @@ class SpawnHistory(commands.Cog):
             ),
             allowed_mentions=discord.AllowedMentions.none(),
         )
+
+    @history.command(name="image", brief="Envia a leaderboard visual por DM ao dono")
+    @owner_only()
+    async def image_report(self, ctx):
+        await self.leaderboard.send()
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
