@@ -139,6 +139,7 @@ class TestSpeciesSummary:
                 ],
                 [{"area": "Leiria", "total": 3}],
                 [{"area": "MarinhaGrande", "total": 2}],
+                [],
                 [{"area": "Leiria", "total": 100}],
             ]
         )
@@ -152,11 +153,31 @@ class TestSpeciesSummary:
             "1 000 spawns\n💯 0 100IV\n0️⃣ 2 0IV",
         ) in result.areas
 
+    async def test_includes_scanner_daily_shiny_totals(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            side_effect=[
+                [{"area": "Leiria", "total": 500}],
+                [],
+                [],
+                [{"shinies": 12, "encounters": 2400}],
+                [],
+            ]
+        )
+        result = await event_stats.get_summary(
+            _event("community-day", "Nickit Community Day")
+        )
+        assert (
+            "✨ **12** shiny / **2 400** encounters · scanner global (totais diários)"
+            in result.headline
+        )
+        assert result.note.endswith("Shiny: scanner global, totais diários.")
+
     async def test_spotlight_hour_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
             side_effect=[
                 [{"area": "Leiria", "total": 80}],
                 [{"area": "Leiria", "total": 1}],
+                [],
                 [],
                 [],
             ]
@@ -171,7 +192,7 @@ class TestSpeciesSummary:
         self, event_stats
     ):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
-            side_effect=[[{"area": "Leiria", "total": 80}], [], [], []]
+            side_effect=[[{"area": "Leiria", "total": 80}], [], [], [], []]
         )
         extra = {
             "spotlight": {

@@ -325,12 +325,18 @@ class EventStats(LoggingMixin):
             return None
         hundos = await self._by_area("pokemon_hundo_stats", ids, start_date, end_date)
         nundos = await self._by_area("pokemon_nundo_stats", ids, start_date, end_date)
+        shiny = await self._shiny_stats(ids, start_date, end_date)
         day_before = self._day_before(start_date)
         before = await self._by_area("pokemon_stats", ids, day_before, day_before)
 
         total = sum(spawns.values())
         species = ", ".join(name for _pid, name in featured)
         lines = [f"🐾 **{self._number(total)}** spawns · {species}"]
+        if shiny:
+            lines.append(
+                f"✨ **{self._number(shiny[0])}** shiny / **{self._number(shiny[1])}** "
+                "encounters · scanner global (totais diários)"
+            )
         versus = self._versus(total, sum(before.values()))
         if versus:
             lines.append(versus)
@@ -350,7 +356,34 @@ class EventStats(LoggingMixin):
                     ],
                 )
             )
-        return self._layout(lines, columns, start_date, end_date)
+        summary = self._layout(lines, columns, start_date, end_date)
+        if shiny:
+            summary = Summary(
+                headline=summary.headline,
+                areas=summary.areas,
+                note=f"{summary.note} · Shiny: scanner global, totais diários.",
+            )
+        return summary
+
+    async def _shiny_stats(self, pokemon_ids, start_date, end_date):
+        """Return scanner-wide shiny/encounter totals for complete calendar days.
+
+        Golbat stores these counts by day and does not retain the event hours,
+        so the result is deliberately labelled as a daily aggregate rather
+        than presented as an exact event-window count.
+        """
+        placeholders = ", ".join(["%s"] * len(pokemon_ids))
+        rows = await self.poliswag.quest_search.db.get_data_from_database(
+            "SELECT COALESCE(SUM(count), 0) AS shinies, "
+            "COALESCE(SUM(total), 0) AS encounters "
+            "FROM pokemon_shiny_stats "
+            f"WHERE date BETWEEN %s AND %s AND area = %s AND fence = %s "
+            f"AND pokemon_id IN ({placeholders})",
+            params=(start_date, end_date, "world", "world", *pokemon_ids),
+        )
+        if not rows or int(rows[0]["encounters"]) <= 0:
+            return None
+        return int(rows[0]["shinies"]), int(rows[0]["encounters"])
 
     def _featured_species(self, event, suffix_pattern):
         """[(pokemon_id, name)] the event features.
