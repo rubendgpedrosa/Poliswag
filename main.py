@@ -102,10 +102,6 @@ class Poliswag(commands.Bot):
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             return
-        agents = self.get_cog("Agents")
-        if ctx.command is None and agents is not None:
-            if await agents.handle_direct_request(ctx):
-                return
         if ctx.command is not None and not may_run_in_dm(ctx):
             return
         await self.invoke(ctx)
