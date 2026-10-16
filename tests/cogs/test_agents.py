@@ -32,17 +32,10 @@ def ctx(author=123, content="claude explain", guild=None):
     return context
 
 
-@pytest.mark.parametrize("author", [999, 42])
-async def test_nonowner_direct_request_never_enqueued(cog, author):
+async def test_owner_tagged_explicit_code_request_is_routed(cog):
     cog.submit = AsyncMock()
-    assert not await cog.handle_direct_request(ctx(author=author))
-    cog.submit.assert_not_awaited()
-
-
-async def test_owner_dm_routes_explicit_code_request(cog):
-    cog.submit = AsyncMock()
-    context = ctx(content="code openai fix this")
-    assert await cog.handle_direct_request(context)
+    context = ctx()
+    await cog.submit_natural_request(context, "code openai fix this")
     cog.submit.assert_awaited_once_with(context, "code", "openai", "fix this")
 
 
@@ -66,14 +59,6 @@ async def test_nonowner_cannot_call_natural_delegation(cog):
     cog.submit = AsyncMock()
     await cog.submit_natural_request(ctx(author=999), "fix this")
     cog.submit.assert_not_awaited()
-
-
-async def test_channel_requires_leading_bot_mention(cog):
-    cog.submit = AsyncMock()
-    assert not await cog.handle_direct_request(ctx(guild=MagicMock()))
-    context = ctx(content="<@456> claude explain", guild=MagicMock())
-    assert await cog.handle_direct_request(context)
-    cog.submit.assert_awaited_once_with(context, "ask", "claude", "explain")
 
 
 async def test_closed_dm_does_not_launch_work(cog):
@@ -151,28 +136,25 @@ async def test_delivery_marker_prevents_repeated_completion_dm(cog):
         "Help me plan a birthday party",
         "explain scanner accounts",
         "use Codex to explain gravity",
+        "code openai fix this",
     ],
 )
-async def test_owner_plain_dm_routes_any_question(cog, question):
-    cog.submit_natural_request = AsyncMock()
+async def test_owner_untagged_message_never_starts_work(question):
+    import main
+
     context = ctx(content=question)
-    assert await cog.handle_direct_request(context)
-    cog.submit_natural_request.assert_awaited_once_with(context, question)
+    context.command = None
+    bot = MagicMock()
+    bot.user.id = 456
+    bot.get_context = AsyncMock(return_value=context)
+    bot.invoke = AsyncMock()
+    bot._mentions_poliswag = lambda m: main.Poliswag._mentions_poliswag(bot, m)
+    message = MagicMock(author=MagicMock(bot=False), webhook_id=None, content=question)
 
+    await main.Poliswag.process_commands(bot, message)
 
-@pytest.mark.parametrize("content", [" ", "!unknown command"])
-async def test_owner_empty_dm_or_unknown_command_is_not_an_agent_request(cog, content):
-    cog.submit_natural_request = AsyncMock()
-    assert not await cog.handle_direct_request(ctx(content=content))
-    cog.submit_natural_request.assert_not_awaited()
-
-
-async def test_owner_unmentioned_server_question_is_not_routed(cog):
-    cog.submit_natural_request = AsyncMock()
-    assert not await cog.handle_direct_request(
-        ctx(content="Why is the sky blue?", guild=MagicMock())
-    )
-    cog.submit_natural_request.assert_not_awaited()
+    bot.get_cog.assert_not_called()
+    bot.invoke.assert_awaited_once_with(context)
 
 
 async def test_owner_general_question_uses_claude(cog):

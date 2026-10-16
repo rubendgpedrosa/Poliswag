@@ -11,19 +11,18 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
 - `!code claude <task>` or `!code openai <task>`: code edits and local tests.
 - `!jobs`: latest ten tasks; `!job <id>`: state and full report; `!cancel <id>`: cancel.
 - `!answer <id> <response>`: supply an essential decision to a blocked task.
-- Owner DMs accept plain questions on any topic, with no mention or prefix
-  required (Claude by default; request Codex to switch). They also accept
-  `claude <question>`, `codex <question>`, and
-  `code claude <task>` / `code openai <task>`. A leading bot mention accepts
-  the same forms in a server. Owner mentions also accept free-form requests,
-  for example `@Poliswag fix the quest bug` (Claude by default) or
-  `@Poliswag use OpenAI to fix the quest bug`. These go to a code-capable
+- Owner requests need a tag of Poliswag, in a DM or a server. Untagged owner
+  messages (plain text, `claude <question>`, `code claude <task>`) get no reply
+  and start no work; `!` commands are unaffected. Tagged requests accept
+  free-form text (Claude by default) and the explicit forms, for example
+  `@Poliswag fix the quest bug` or `@Poliswag use OpenAI to fix the quest bug`.
+  These go to a code-capable
   general-purpose agent, which can answer questions on any topic or make
   explicitly requested changes. General questions do not require repository
   inspection, and answering a question does not authorize code changes.
   Tasks acknowledge the message immediately with a 👀 reaction and then work until completion,
   making routine decisions without asking permission to continue. Only a genuinely blocking decision
-  interrupts the task with one short question. A plain owner DM or mention
+  interrupts the task with one short question. A tagged owner message
   resumes the sole waiting task from that same channel or DM; use `!answer`
   if more than one is waiting there. Requests from other conversations create
   separate jobs and keep their own reply destinations. The origin is stored
