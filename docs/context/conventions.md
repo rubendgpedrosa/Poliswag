@@ -12,4 +12,4 @@ The core `docs/context.md` keeps the short version; this is the complete list.
 - Tests under `tests/` (pytest). Run via `make test` inside Docker.
 - Logging: `utility.log_to_file(msg, level)` → `logs/actions.log` + `logs/error.log`.
 - Migrations: `setup_hook` replays every `migrations/*.sql` on each start (`modules/migrations.py`), before cogs load. No tracking table, so every statement must be `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`; `test_every_migration_is_rerunnable` enforces it.
-- Scheduler: a tick step taking ≥60s is logged as ERROR (`_run_tick_step`) so stalls reach the daily error review. Each tick ends by touching `logs/heartbeat` for the host watchdog (`docs/context/host-ops.md`).
+- Scheduler: a tick step taking ≥60s is logged as ERROR (`_run_tick_step`) so stalls reach the owner's daily error digest DM. Each tick ends by touching `logs/heartbeat` for the host watchdog (`docs/context/host-ops.md`).
