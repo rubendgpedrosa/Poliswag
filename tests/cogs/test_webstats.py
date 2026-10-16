@@ -13,6 +13,7 @@ import pytest
 from discord.ext import commands
 
 from cogs.webstats import WebStats, setup
+from modules.trade_stats import TradeStats
 
 MY_ID = 98846248865398784
 LINK = "https://pogoleiria.pt/webstats/" + "a" * 64
@@ -252,3 +253,91 @@ class TestExtension:
         bot = AsyncMock()
         await setup(bot)
         bot.add_cog.assert_awaited_once()
+
+
+class TestCommandErrors:
+    async def test_a_cooldown_is_answered_in_the_channel(self, cog):
+        ctx = make_ctx()
+        error = commands.CommandOnCooldown(
+            commands.Cooldown(1, 10), 5.0, commands.BucketType.user
+        )
+        await cog.cog_command_error(ctx, error)
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Tenta outra vez" in description
+
+    async def test_an_unexpected_error_is_logged_and_answered(self, cog):
+        ctx = make_ctx()
+        await cog.cog_command_error(ctx, RuntimeError("boom"))
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "Correu algo mal" in description
+
+
+class TestRotationArgument:
+    async def test_a_period_with_novocodigo_is_refused(self, cog):
+        ctx = make_ctx()
+        await WebStats.webstats.callback(cog, ctx, "novocodigo", "7d")
+        ctx.send.assert_awaited_once()
+        cog.access.rotate.assert_not_awaited()
+
+    async def test_novolink_rotates_like_novocodigo(self, cog):
+        ctx = make_ctx()
+        user = cog.poliswag.fetch_user.return_value
+        await WebStats.webstats.callback(cog, ctx, "novolink")
+        cog.access.rotate.assert_awaited_once()
+        assert "deixou de funcionar" in user.send.await_args_list[1].args[0]
+
+
+class TestExportFailures:
+    async def test_a_dead_export_database_is_reported(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.page_view_stats.collect.side_effect = RuntimeError("down")
+        await WebStats.webstats.callback(cog, ctx, "export", "7d")
+        description = ctx.send.await_args.kwargs["embed"].description
+        assert "base de dados" in description
+
+    async def test_closed_dms_on_export_warn_the_mods(self, cog):
+        ctx = make_ctx()
+        user = cog.poliswag.fetch_user.return_value
+        user.send.side_effect = discord.Forbidden(MagicMock(), "closed")
+        await WebStats.webstats.callback(cog, ctx, "export", "7d")
+        sent = cog.poliswag.MOD_CHANNEL.send.await_args.kwargs["embed"].description
+        assert "exporta\u00e7\u00e3o" in sent
+
+    async def test_a_failed_export_dm_warns_the_mods(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.fetch_user.return_value.send.side_effect = discord.HTTPException(
+            MagicMock(), "nope"
+        )
+        await WebStats.webstats.callback(cog, ctx, "export", "7d")
+        sent = cog.poliswag.MOD_CHANNEL.send.await_args.kwargs["embed"].description
+        assert "exporta\u00e7\u00e3o" in sent
+
+
+class TestDegradedSnapshot:
+    async def test_a_dead_trades_figure_costs_a_line_not_the_report(self, cog):
+        stats = TradeStats()
+        stats.collect = AsyncMock(side_effect=RuntimeError("down"))
+        stats.collect_hundo = AsyncMock(
+            return_value={"active": 1, "leiria": 1, "marinha": 0}
+        )
+        cog.trade_stats = stats
+        ctx = make_ctx()
+        user = cog.poliswag.fetch_user.return_value
+        await WebStats.webstats.callback(cog, ctx, None)
+        user.send.assert_awaited()
+        description = user.send.await_args_list[0].kwargs["embed"].description
+        assert "100IV por DM" in description
+        ctx.send.assert_not_awaited()
+
+    async def test_a_dead_hundo_figure_costs_a_line_not_the_report(self, cog):
+        stats = TradeStats()
+        stats.collect = AsyncMock(return_value={"entries": 5, "users": 2})
+        stats.collect_hundo = AsyncMock(side_effect=RuntimeError("down"))
+        cog.trade_stats = stats
+        ctx = make_ctx()
+        user = cog.poliswag.fetch_user.return_value
+        await WebStats.webstats.callback(cog, ctx, None)
+        user.send.assert_awaited()
+        description = user.send.await_args_list[0].kwargs["embed"].description
+        assert "Novas entradas" in description
+        ctx.send.assert_not_awaited()
