@@ -21,7 +21,7 @@ from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
 
 # A step that alone outlasts the 60s tick interval delays every step after it
-# and the next tick. Logged as ERROR so the daily error review sees it: the
+# and the next tick. Logged as ERROR so the owner's daily error digest sees it: the
 # 2026-09-23 rename stall ran for 5 hours visible only as discord.http
 # warnings on stdout.
 _SLOW_STEP_SECONDS = 60
