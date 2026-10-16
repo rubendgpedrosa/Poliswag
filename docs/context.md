@@ -41,12 +41,8 @@ One cog per area; `scheduled.py` ticks every minute. Auth: **mods** for tracker/
 ## Config and integrations — `context/config.md`
 Endpoints, env vars, dev/prod. Key facts: `ENV=DEVELOPMENT|PRODUCTION`; DEV serves `mock_data/` for infra endpoints; `make up` = dev stack, `docker-compose.prod.yaml` = production.
 
-## Hard conventions (full list: `context/conventions.md`)
-- Modules take the bot instance and reach services via `self.poliswag.<module>`.
-- Three audiences via `modules/permissions.py`: members, mods, owner. Gate with `mods_only()`/`owner_only()` or `cog_check`; body-only gating still shows in `!help`.
-- Automated notices are embeds (`Config.EMBED_COLOR`), never plain text; copy is PT-PT.
-- Migrations replay on every start: statements must be idempotent (`IF NOT EXISTS`); tested.
-- Log with `utility.log_to_file(msg, level)`. Tests: `make test` (Docker); ticks touch `logs/heartbeat`.
+## Hard conventions (detail: `context/conventions.md` — do not duplicate here)
+- Modules/services, audiences/auth, embeds/PT-PT copy, idempotent migrations, logging/tests — see `conventions.md`.
 
 ## Documentation
 Every doc in this repository is indexed in [`docs/README.md`](README.md) — module/cog detail, quests, trades, shiny, events, host ops and the historical archive. Open a topic file only when the task touches it.

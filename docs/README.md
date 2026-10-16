@@ -25,15 +25,14 @@ Repo-level: [`../README.md`](../README.md) (setup, `make` targets, commands, pro
 | [`events.md`](context/events.md) | event ingestion, Lisbon-time storage, CONVIVIO delivery/acks, repair tool, tests |
 | [`event-panel.md`](context/event-panel.md) | `!eventpanel`, the Eventos role button, its @everyone behaviour |
 | [`moderation.md`](context/moderation.md) | the `ignorar-este-canal` trap: ban/purge/unban, invite DM |
-| [`error-review.md`](context/error-review.md) | the host cron that has Claude review `logs/error.log` daily |
 | [`host-ops.md`](context/host-ops.md) | the host watchdog restarting Poliswag, `scripts/dm_owner.py`, backup-failure DMs |
 | [`scanner-updates.md`](context/scanner-updates.md) | host-side scanner update staging and session-protected recovery |
-| [`shiny.md`](context/shiny.md) | `!shiny`, the host linker and its guards/breaker, shiny alert DMs |
+| [`shiny.md`](context/shiny.md) | `!shiny`, host linker guards/breaker, alert DMs — canonical for roll/odds; site files link here, read only the section needed |
 | [`shiny-access-requests.md`](context/shiny-access-requests.md) | shiny-map access request embeds and moderator decisions |
 | [`shundo-mentions.md`](context/shundo-mentions.md) | per-player Shundo channel mentions and Poracle templates |
 | [`spawn-history.md`](context/spawn-history.md) | raw spawn retention, unfiltered leaderboards, JSON export and coverage gaps |
-| [`agents.md`](context/agents.md) | owner-requested Claude/Codex jobs, host executor and review worktrees |
-| [`background-predictions.md`](context/background-predictions.md) | background-based shiny predictions |
-| [`alert-noise-cleanup.md`](context/alert-noise-cleanup.md) | alert-noise work (2026-10-15) |
+| [`agents.md`](context/agents.md) | owner Claude/Codex jobs, host executor, review worktrees — read owner-protocol vs public-safeguards section only as needed |
+| [`background-predictions.md`](context/background-predictions.md) | bot model/rules (rendering in PoGoLeiria `background-predictions.md`; shared Poracle template contract here) |
+| [`alert-noise-cleanup.md`](context/alert-noise-cleanup.md) | dated 2026-10-15 run record (not policy; do not extend — archive future runs) |
 | [`pokedex-validation-alerts.md`](context/pokedex-validation-alerts.md) | Pokédex validation owner alerts |
 | [`adb-server.md`](context/adb-server.md) | the shared ADB server |

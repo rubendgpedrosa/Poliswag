@@ -1,6 +1,6 @@
 # Shiny prediction
 
-Read when touching `!shiny`, the linker, or shiny alert DMs.
+Read when touching `!shiny`, the linker, or shiny alert DMs. Canonical for roll/odds/eligibility — PoGoLeiria `shiny-map.md`/`pokedex-shiny.md` link here; open only the section needed.
 Spec: `/root/docs-archive/Poliswag/superpowers/specs/2026-10-10-shiny-prediction-design.md`.
 How the formula and the ID route were established, with the phone's crash
 history: `/root/unonwhash/CLAUDE-HANDOVER.md`.
