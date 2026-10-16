@@ -1,6 +1,6 @@
 # Shundo channel mentions
 
-A predicted shiny with scanner IVs exactly 15/15/15 adds `@here` to its
+A predicted shiny with scanner IVs exactly 15/15/15 adds `**✨💯 SHINY 100% 💯✨** @here` to its
 existing alert in that recipient's private Shiny channel. Prediction is
 per player: another player's background-only 100% prediction does not ping.
 Unknown IVs, non-100% shinies and DMs do not ping. Normal eligibility,
@@ -9,7 +9,7 @@ notification settings, locations and deduplication still apply.
 `modules/shiny_alerts.py` selects `shiny-here` or `shiny-background-here`
 only for channel destinations. The corresponding monster DTS entries live
 in `templates/poracle/`. They preserve their ordinary templates' artwork and
-buttons, adding only the fixed `template.content: "@here"`. Poracle joins
+buttons, adding only the fixed `template.content: "**✨💯 SHINY 100% 💯✨** @here"`. Poracle joins
 arrays of strings when rendering DTS values, so an `allowed_mentions.parse`
 array would become an invalid string. These templates omit `allowed_mentions`
 and rely on Discord's default mention handling for regular bot channel
