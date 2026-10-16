@@ -55,7 +55,7 @@ no DM), plus inspection of Grafana's loaded receiver and route matchers. No
 synthetic test message was sent to Discord. The bot was restarted to load
 its changed routing and its scheduler heartbeat resumed.
 
-Alert noise policy and the Home Assistant reminder schedule:
-[alert-noise-cleanup.md](alert-noise-cleanup.md). Traffic silence is logged as
+Alert noise policy summary lives here; full 2026-10-15 run record (LogQL/HA IDs):
+[alert-noise-cleanup.md](alert-noise-cleanup.md) — dated, do not extend. Traffic silence is logged as
 information and no longer sends owner alerts. Related website checks are grouped
 in one Discord message with the affected vantage and endpoint details.
