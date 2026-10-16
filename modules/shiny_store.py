@@ -269,3 +269,92 @@ class ShinyStore:
             params=(verdict, discord_id, encounter_id),
         )
         return updated == 1
+
+    async def event_preferences(self, discord_id):
+        rows = await self.db.get_data_from_database(
+            "SELECT event_alerts_enabled, event_pokemon_ids FROM shiny_link "
+            "WHERE discord_id = %s AND status = 'linked'",
+            params=(discord_id,),
+        )
+        return rows[0] if rows else None
+
+    async def set_event_preferences(self, discord_id, enabled, pokemon_ids):
+        import json
+
+        changed = await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET event_alerts_enabled = %s, event_pokemon_ids = %s "
+            "WHERE discord_id = %s AND status = 'linked'",
+            params=(
+                int(enabled),
+                json.dumps(list(pokemon_ids)) if pokemon_ids else None,
+                discord_id,
+            ),
+        )
+        if changed == 1:
+            return True
+        # MySQL also reports zero when the saved setting was unchanged.
+        current = await self.event_preferences(discord_id)
+        if current is None or bool(current["event_alerts_enabled"]) != bool(enabled):
+            return False
+        try:
+            saved = (
+                json.loads(current["event_pokemon_ids"])
+                if current["event_pokemon_ids"]
+                else []
+            )
+        except (ValueError, TypeError):
+            return False
+        return saved == list(pokemon_ids)
+
+    async def event_recipients(self, user_ids):
+        if not user_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(user_ids))
+        return await self.db.get_data_from_database(
+            "SELECT discord_id, player_id, alert_leiria, alert_marinha, event_pokemon_ids "
+            "FROM shiny_link WHERE status = 'linked' AND event_alerts_enabled = 1 "
+            f"AND discord_id IN ({placeholders}) "
+            "AND (event_digest_at IS NULL OR event_digest_at <= UTC_TIMESTAMP() - INTERVAL 5 MINUTE)",
+            params=tuple(user_ids),
+        )
+
+    async def claim_event_digest(self, discord_id):
+        updated = await self.db.execute_query_to_database(
+            "UPDATE shiny_link SET event_digest_at = UTC_TIMESTAMP() "
+            "WHERE discord_id = %s AND status = 'linked' AND event_alerts_enabled = 1 "
+            "AND (event_digest_at IS NULL OR event_digest_at <= UTC_TIMESTAMP() - INTERVAL 5 MINUTE)",
+            params=(discord_id,),
+        )
+        return updated == 1
+
+    async def record_event_alert(self, discord_id, spawn, odds, draw):
+        inserted = await self.db.execute_query_to_database(
+            "INSERT IGNORE INTO shiny_alert (discord_id, encounter_id, pokemon_id, form_id, "
+            "prediction_odds, prediction_draw, delivery_status) "
+            "VALUES (%s, %s, %s, %s, %s, %s, 'pending')",
+            params=(
+                discord_id,
+                spawn["id"],
+                spawn["pokemon_id"],
+                spawn["form_id"],
+                odds,
+                draw,
+            ),
+        )
+        return inserted == 1
+
+    async def mark_event_delivery(self, discord_id, encounter_ids, delivered):
+        if not encounter_ids:
+            return
+        placeholders = ",".join(["%s"] * len(encounter_ids))
+        await self.db.execute_query_to_database(
+            "UPDATE shiny_alert SET delivery_status = %s, "
+            "delivered_at = CASE WHEN %s = 'sent' THEN UTC_TIMESTAMP() ELSE NULL END "
+            f"WHERE discord_id = %s AND encounter_id IN ({placeholders}) AND delivery_status = 'pending'",
+            params=(
+                "sent" if delivered else "failed",
+                "sent" if delivered else "failed",
+                discord_id,
+                *encounter_ids,
+            ),
+        )
