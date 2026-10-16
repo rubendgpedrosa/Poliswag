@@ -58,7 +58,9 @@ class Shiny(commands.Cog):
         "estiver associado. `!shiny` mostra o estado e `!shiny remover` "
         "apaga tudo. `!shiny mapa [nome]` envia por DM o link do mapa de um "
         "jogador associado e `!shiny canal [nome]` cria-lhe um canal privado "
-        "com o mapa e os alertas. Funciona aqui ou em DM ao bot.",
+        "com o mapa e os alertas. `!shiny eventos ligar [570,25]` ativa resumos "
+        "de evento; `!shiny eventos desligar` desativa-os. Funciona aqui ou em "
+        "DM ao bot.",
     )
     # Pilot: the owner alone, until the predictions have been checked in the
     # field. Removing this line opens the command to every member.
@@ -81,6 +83,9 @@ class Shiny(commands.Cog):
             return
         if texto.lower().split()[0] == "mapa":
             await self._send_map_link(ctx, texto[4:].strip() or author.name)
+            return
+        if texto.lower().split()[0] == "eventos":
+            await self._event_preferences(ctx, texto.split()[1:])
             return
         if texto.lower() == "remover":
             await self.store.remove(author.id)
@@ -156,6 +161,62 @@ class Shiny(commands.Cog):
     def _map_url(player):
         name = quote(player["trainer_name"], safe="")
         return f"{Config.POKEDEX_URL.rstrip('/')}/mapa/{name}"
+
+    async def _event_preferences(self, ctx, arguments):
+        if not Config.SHINY_EVENT_DIGESTS_ENABLED:
+            await self._say(ctx, "Os resumos de evento ainda não estão ativos.")
+            return
+        row = await self.store.event_preferences(ctx.author.id)
+        if row is None:
+            await self._say(ctx, "Associa primeiro o teu código com `!shiny <código>`.")
+            return
+        if not arguments:
+            enabled = "ligados" if row["event_alerts_enabled"] else "desligados"
+            await self._say(
+                ctx,
+                f"Resumos de evento {enabled}. `!shiny eventos ligar` inclui todos "
+                "os Pokémon de evento; `!shiny eventos ligar 570,25` escolhe espécies "
+                "pelos números da Pokédex; `!shiny eventos desligar` desativa-os. "
+                "No máximo um resumo a cada 5 minutos, com até 10 previsões.",
+            )
+            return
+        action = arguments[0].lower()
+        if action not in ("ligar", "desligar") or (
+            action == "desligar" and len(arguments) != 1
+        ):
+            await self._say(
+                ctx, "Usa `!shiny eventos ligar [570,25]` ou `!shiny eventos desligar`."
+            )
+            return
+        ids = []
+        if len(arguments) > 1:
+            try:
+                parts = [part.strip() for part in " ".join(arguments[1:]).split(",")]
+                if len(parts) > 100 or any(
+                    not part.isascii() or not part.isdigit() for part in parts
+                ):
+                    raise ValueError
+                ids = sorted({int(part) for part in parts})
+                if any(not 1 <= value <= 65535 for value in ids):
+                    raise ValueError
+            except ValueError:
+                await self._say(
+                    ctx,
+                    "Escolhe até 100 números da Pokédex separados por vírgulas, como `570,25`.",
+                )
+                return
+        if not await self.store.set_event_preferences(
+            ctx.author.id, action == "ligar", ids
+        ):
+            await self._say(
+                ctx,
+                "Não consegui guardar. Confirma que o teu treinador continua associado.",
+            )
+            return
+        await self._say(
+            ctx,
+            "Resumos de evento " + ("ligados." if action == "ligar" else "desligados."),
+        )
 
     async def _send_map_link(self, ctx, name):
         player = await self.store.find_linked(name)

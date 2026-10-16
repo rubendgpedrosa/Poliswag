@@ -274,6 +274,12 @@ class ShinyAlerts:
             await self.store.confirm_settings(
                 row["discord_id"], row["shiny_settings_revision"]
             )
+        # Lazy construction avoids changing baseline reads when summaries are
+        # disabled. This path never calls the game or the linker.
+        if Config.SHINY_EVENT_DIGESTS_ENABLED:
+            from modules.shiny_events import ShinyEventDigests
+
+            await ShinyEventDigests(self.poliswag).tick()
 
     async def _alert_spawns(self):
         now = int(time.time())

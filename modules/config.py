@@ -32,6 +32,11 @@ class Config:
         for part in os.environ.get("SHINY_ALERT_USER_IDS", "").split(",")
         if part.strip()
     ] or [MY_ID]
+    # Event summaries also require each recipient to opt in. The existing
+    # pilot recipient list remains the delivery boundary.
+    SHINY_EVENT_DIGESTS_ENABLED = os.environ.get(
+        "SHINY_EVENT_DIGESTS_ENABLED", "false"
+    ).lower() in ("true", "1", "yes")
 
     # Channels
     QUEST_CHANNEL_ID = int(os.environ.get("QUEST_CHANNEL_ID", "0"))
