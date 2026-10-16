@@ -405,7 +405,7 @@ class ShinyAlerts:
         if channel is not None:
             if is_shundo(spawn):
                 await channel.send(
-                    content="@here",
+                    content="**✨💯 SHINY 100% 💯✨** @here",
                     embed=embed,
                     allowed_mentions=discord.AllowedMentions(
                         everyone=True, users=False, roles=False, replied_user=False
