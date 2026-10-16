@@ -30,7 +30,7 @@ _USAGE = (
     "`!ask claude <pergunta>` · `!ask openai <pergunta>`\n"
     "`!code claude <pedido>` · `!code openai <pedido>`\n"
     "`!jobs` · `!job <código>` · `!answer <código> <resposta>` · `!cancel <código>` · `!self`\n"
-    "Em DM podes fazer qualquer pergunta; uso Claude por defeito. "
+    "Marca-me (@Poliswag) com qualquer pergunta, em DM ou no servidor; uso Claude por defeito. "
     "Pede Codex quando quiseres mudar de agente."
 )
 
@@ -224,36 +224,10 @@ class Agents(commands.Cog):
     async def cancel_job(self, ctx, job_id: str):
         self.jobs.cancel(job_id, ctx.author.id)
 
-    async def handle_direct_request(self, ctx):
-        if not is_owner(ctx):
-            return False
-        content = ctx.message.content
-        if ctx.guild is not None:
-            user = self.poliswag.user
-            if user is None:
-                return False
-            prefixes = (f"<@{user.id}>", f"<@!{user.id}>")
-            prefix = next((p for p in prefixes if content.startswith(p)), None)
-            if prefix is None:
-                return False
-            content = content[len(prefix) :]
-        parsed = parse_direct_request(content)
-        if parsed is None:
-            # In the owner's DM, ordinary questions need no mention or prefix.
-            # Unknown bot commands still follow normal command routing.
-            if (
-                ctx.guild is None
-                and content.strip()
-                and not content.lstrip().startswith("!")
-            ):
-                await self.submit_natural_request(ctx, content.strip())
-                return True
-            return False
-        await self.submit(ctx, *parsed)
-        return True
-
     async def submit_natural_request(self, ctx, text):
         """Only the real owner can delegate free-form mentions.
+
+        Reached only from Mentions, so untagged messages never start work.
 
         A general-purpose agent can answer any question or make requested changes.
         No other person's messages, attachments, or channel history are included.
