@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -129,3 +130,95 @@ async def test_timeout_leaves_attempt_for_recovery(setup):
             bot, {"discord_id": 1, "hundo_settings_revision": 2}, discord.Embed()
         )
     finish.assert_not_called()
+
+
+def claim_db(rowcount=1, notice="notice"):
+    db = MagicMock()
+    cursor = db.cursor.return_value.__enter__.return_value
+    cursor.rowcount = rowcount
+    cursor.fetchone.return_value = notice
+    return db, cursor
+
+
+class TestClaim:
+    """The atomic journal write: one INSERT...SELECT, then the row back."""
+
+    def test_winner_owns_the_notice(self, monkeypatch):
+        notice = {"status": "sending"}
+        db, cursor = claim_db(rowcount=1, notice=notice)
+        monkeypatch.setattr(delivery, "connect", MagicMock(return_value=db))
+        owned, got = delivery.claim(1, 2, 10)
+        assert (owned, got) == (True, notice)
+        insert, select = cursor.execute.call_args_list
+        assert "INSERT IGNORE INTO hundo_confirmation" in insert.args[0]
+        nonce = hashlib.sha256(b"hundo:1:2").hexdigest()[:24]
+        assert insert.args[1] == (2, 10, nonce, 1, 2, 2)
+        assert select.args[1] == (1, 2)
+        db.close.assert_called_once()
+
+    def test_loser_reads_the_winners_notice(self, monkeypatch):
+        notice = {"status": "sending"}
+        db, _ = claim_db(rowcount=0, notice=notice)
+        monkeypatch.setattr(delivery, "connect", MagicMock(return_value=db))
+        assert delivery.claim(1, 2, 10) == (False, notice)
+
+    def test_moved_settings_claim_nothing(self, monkeypatch):
+        db, _ = claim_db(rowcount=0, notice=None)
+        monkeypatch.setattr(delivery, "connect", MagicMock(return_value=db))
+        assert delivery.claim(1, 2, 10) == (False, None)
+
+
+class TestFinish:
+    def test_finish_only_flips_sending_or_uncertain_rows(self, monkeypatch):
+        db, cursor = claim_db()
+        monkeypatch.setattr(delivery, "connect", MagicMock(return_value=db))
+        delivery.finish(1, 2, "sent", "555")
+        sql, params = cursor.execute.call_args.args
+        assert "AND status IN ('sending', 'uncertain')" in sql
+        assert params == ("sent", "555", 1, 2)
+        db.close.assert_called_once()
+
+    def test_finish_without_a_message_keeps_the_old_one(self, monkeypatch):
+        db, cursor = claim_db()
+        monkeypatch.setattr(delivery, "connect", MagicMock(return_value=db))
+        delivery.finish(1, 2, "uncertain")
+        assert cursor.execute.call_args.args[1] == ("uncertain", None, 1, 2)
+
+
+async def test_settings_changed_before_the_claim_sends_nothing(setup):
+    bot, _, _, claim, finish = setup
+    claim.return_value = (True, None)
+    assert (
+        await delivery.send_once(
+            bot, {"discord_id": 1, "hundo_settings_revision": 2}, discord.Embed()
+        )
+        is None
+    )
+    bot.http.request.assert_not_awaited()
+    finish.assert_not_called()
+
+
+async def test_unreadable_history_stays_uncertain(setup):
+    bot, channel, notice, claim, finish = setup
+    claim.return_value = (False, notice)
+    channel.history.side_effect = discord.HTTPException(MagicMock(), "nope")
+    assert (
+        await delivery.send_once(
+            bot, {"discord_id": 1, "hundo_settings_revision": 2}, discord.Embed()
+        )
+        is None
+    )
+    bot.http.request.assert_not_awaited()
+    finish.assert_called_with(1, 2, "uncertain")
+
+
+async def test_closed_dms_are_recorded_as_refused(setup):
+    bot, _, _, claim, finish = setup
+    bot.http.request.side_effect = discord.Forbidden(MagicMock(), "closed")
+    assert (
+        await delivery.send_once(
+            bot, {"discord_id": 1, "hundo_settings_revision": 2}, discord.Embed()
+        )
+        is False
+    )
+    finish.assert_called_once_with(1, 2, "refused")

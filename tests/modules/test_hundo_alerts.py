@@ -996,3 +996,83 @@ async def test_uncertain_confirmation_is_not_acknowledged_or_activated():
     await alerts.tick()
     alerts._record.assert_not_called()
     alerts._sync_player.assert_not_called()
+
+
+class TestRecordHealth:
+    """The per-tick health journal write, and its failure tolerance."""
+
+    def test_record_health_writes_revision_state_and_time(self, hundo_db):
+        _, db, cursor = hundo_db
+        row = {"discord_id": 1, "hundo_settings_revision": 2}
+        HundoAlerts(MagicMock())._record_health(row, "ready")
+        sql, params = cursor.execute.call_args.args
+        assert "hundo_health_revision = %s" in sql
+        assert "hundo_health_state = %s" in sql
+        assert "hundo_health_at = UTC_TIMESTAMP(6)" in sql
+        assert params == (2, "ready", 1, 2)
+        db.close.assert_called_once()
+
+    async def test_failed_health_recording_does_not_fail_the_tick(self):
+        alerts, _ = sender([player(hundo_settings_revision=2)])
+        alerts._record_health = MagicMock(side_effect=RuntimeError("down"))
+        await alerts.tick()  # must not raise
+        assert "health recording failed" in str(
+            alerts.poliswag.utility.log_to_file.call_args_list
+        )
+
+
+class TestHumanRaces:
+    """Poracle humans created or changed under the worker's feet."""
+
+    async def test_created_human_never_visible_fails_the_sync(self):
+        alerts, _ = sender([player()])
+        alerts._human.side_effect = [None, None]
+        await alerts.tick()
+        alerts._sync_player.assert_not_called()
+        assert "Created human not visible yet" in str(
+            alerts.poliswag.utility.log_to_file.call_args_list
+        )
+
+    async def test_foreign_human_is_rejected(self):
+        alerts, _ = sender([player()])
+        alerts._human.return_value = human(type="telegram:user")
+        await alerts.tick()
+        alerts._sync_player.assert_not_called()
+        assert "not a Discord user" in str(
+            alerts.poliswag.utility.log_to_file.call_args_list
+        )
+
+
+class TestHumanRead:
+    def test_human_reads_the_poracle_row(self, hundo_db):
+        connector, db, cursor = hundo_db
+        cursor.fetchone.return_value = human()
+        assert HundoAlerts(MagicMock())._human(1) == human()
+        connector.assert_called_once_with("poracle", dict_rows=True)
+        sql, params = cursor.execute.call_args.args
+        assert "FROM humans WHERE id = %s" in sql
+        assert params == ("1",)
+        db.close.assert_called_once()
+
+
+class TestMissingCount:
+    def test_missing_count_passes_the_costume_setting(self, hundo_db):
+        _, db, cursor = hundo_db
+        cursor.fetchone.return_value = {"n": 7}
+        row = {"discord_id": 1, "show_costumes": 0}
+        assert HundoAlerts(MagicMock())._missing_count(row) == 7
+        sql, params = cursor.execute.call_args.args
+        assert "COUNT(*) AS n" in sql
+        assert params == (1, 0)
+        db.close.assert_called_once()
+
+
+class TestDeliverConfirmation:
+    async def test_deliver_confirmation_delegates_to_send_once(self, monkeypatch):
+        alerts = HundoAlerts(MagicMock())
+        row = player()
+        embed = discord.Embed()
+        send = AsyncMock(return_value=True)
+        monkeypatch.setattr(hundo_alerts, "send_once", send)
+        assert await alerts._deliver_confirmation(row, embed) is True
+        send.assert_awaited_once_with(alerts.poliswag, row, embed)

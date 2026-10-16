@@ -6,7 +6,7 @@ for a single person. Every test here covers a line that was uncovered.
 """
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -234,3 +234,135 @@ class TestConnectionsCannotHangTheScheduler:
         assert kwargs["connect_timeout"]
         assert kwargs["read_timeout"]
         assert kwargs["write_timeout"]
+
+
+class TestTickDisabled:
+    def test_disabled_logs_once_and_reads_nothing(self):
+        ta = announcer()
+        ta._read_batch = MagicMock()
+        with patch.object(Config, "TRADES_CHANNEL_ID", 0):
+            asyncio.run(ta.tick())
+            asyncio.run(ta.tick())
+        ta.poliswag.utility.log_to_file.assert_called_once()
+        ta._read_batch.assert_not_called()
+
+    def test_a_missing_cached_channel_is_fetched(self):
+        ta = announcer()
+        ta._read_batch = lambda: {
+            "cutoff": "2026-09-21 10:00:00",
+            "initialise": False,
+            "connections": [row(actor_id=1)],
+        }
+        ta._record_notices = lambda rows: None
+        ta._advance_watermark = lambda cutoff: None
+        ta.poliswag.get_channel.return_value = None
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        ta.poliswag.fetch_channel = AsyncMock(return_value=channel)
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(ta.tick())
+        ta.poliswag.fetch_channel.assert_awaited_once_with(1)
+        channel.send.assert_awaited_once()
+
+
+class TestInitialiseAndAdvance:
+    def test_initialise_sets_the_watermark(self):
+        ta = announcer()
+        db = fake_db([None])
+        ta._connect = lambda: db
+        ta._initialise("2026-09-21 10:00:00")
+        sql, params = db._cursor.executed[0]
+        assert "last_trade_notice_at" in sql
+        assert params == ("2026-09-21 10:00:00",)
+        db.commit.assert_called_once()
+        db.close.assert_called_once()
+
+    def test_advance_moves_the_watermark(self):
+        ta = announcer()
+        db = fake_db([None])
+        ta._connect = lambda: db
+        ta._advance("2026-09-21 10:00:00")
+        sql, params = db._cursor.executed[0]
+        assert "last_trade_notice_at" in sql
+        assert params == ("2026-09-21 10:00:00",)
+        db.commit.assert_called_once()
+
+    def test_empty_notices_record_nothing(self):
+        ta = announcer()
+        db = fake_db([None])
+        ta._connect = lambda: db
+        ta._record_notices([])
+        assert db._cursor.executed == []
+        db.commit.assert_not_called()
+
+    def test_notices_are_recorded_per_connection(self):
+        ta = announcer()
+        rows = [
+            row(actor_id=1, holder_id=1, wanter_id=10),
+            row(actor_id=1, holder_id=1, wanter_id=11, pokemon_id=133),
+        ]
+        db = fake_db([None])
+        ta._connect = lambda: db
+        ta._record_notices(rows)
+        assert len(db._cursor.executed) == 2
+        sql, params = db._cursor.executed[0]
+        assert "INSERT IGNORE INTO trade_notice" in sql
+        assert params == (10, 1, 25, 0, "normal")
+        db.commit.assert_called_once()
+        db.close.assert_called_once()
+
+    def test_rows_since_the_watermark(self):
+        ta = announcer()
+        db = fake_db(
+            [
+                {"cutoff": "2026-09-21 10:00:00"},
+                {"last_trade_notice_at": "w"},
+                [row(actor_id=1)],
+            ]
+        )
+        ta._connect = lambda: db
+        batch = ta._read_batch()
+        assert batch["initialise"] is False
+        assert batch["connections"] == [row(actor_id=1)]
+        sql, params = db._cursor.executed[-1]
+        assert params == ("2026-09-21 10:00:00", "2026-09-21 10:00:00", "w")
+
+
+class TestTickFirstAndEmptyRuns:
+    def test_first_run_initialises_and_sends_nothing(self):
+        ta = announcer()
+        ta._read_batch = lambda: {
+            "cutoff": "2026-09-21 10:00:00",
+            "initialise": True,
+            "connections": [],
+        }
+        ta._initialise = MagicMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        ta.poliswag.get_channel.return_value = channel
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(ta.tick())
+        ta._initialise.assert_called_once_with("2026-09-21 10:00:00")
+        channel.send.assert_not_called()
+
+    def test_an_empty_batch_advances_and_sends_nothing(self):
+        ta = announcer()
+        ta._read_batch = lambda: {
+            "cutoff": "2026-09-21 10:00:00",
+            "initialise": False,
+            "connections": [],
+        }
+        ta._advance = MagicMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        ta.poliswag.get_channel.return_value = channel
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(ta.tick())
+        ta._advance.assert_called_once_with("2026-09-21 10:00:00")
+        channel.send.assert_not_called()
+
+
+class TestMessageForm:
+    def test_a_line_names_the_form(self):
+        result = announcer()._message("1", [row(actor_id=1, form_name="Fall 2019")])
+        assert "Pikachu (Fall 2019)" in result[1].description
