@@ -9,7 +9,7 @@ Full command table. The core `docs/context.md` keeps only the auth summary.
 | `event.py` | `!eventtypes`, `!exclude`, `!include`, `!excludedlist`, `!excludeclear` | admin-only |
 | `notifications.py` | `!notify channels\|list\|add\|remove\|enable\|disable\|register\|test` | admin-only |
 | `accounts.py` | `!accounts` | `MY_ID` only (`cog_check`) |
-| `container_manager.py` | `!container start\|stop`, `!status` | `MY_ID` only |
+| `container_manager.py` | `!container start\|stop\|recreate\|autorecreate on\|off`, `!status`, `!device status\|restartapp\|logcat [lines]\|autoreboot on\|off\|reboot` (ADB) | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete`, trap channel (see `moderation.md`) | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export; the daily "erro(s) novo(s)" digest is DMed to `MY_ID` since 2026-09-26) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |

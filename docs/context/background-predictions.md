@@ -1,5 +1,7 @@
 # Experimental Special Background predictions
 
+Canonical bot model/rules here; map rendering canonical in PoGoLeiria `docs/context/background-predictions.md`. Shared Poracle template/colour/`dts.json` contract lives here — site file links here, do not duplicate.
+
 Implemented 11 October 2026 in the existing personal shiny stream. No Golbat
 upgrade or event activation is involved; migrations 029/030 add the rule table,
 its preference column and the optional background image. The site draws the pin
