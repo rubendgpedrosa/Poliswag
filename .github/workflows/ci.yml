@@ -23,21 +23,23 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
 
-    # First, check code formatting
+    # First, check code formatting. black/ruff/vulture are already installed
+    # pinned from requirements-dev.txt — never reinstall them unbounded here.
     - name: Lint code with Black
-      run: |
-        pip install black
-        black --check .
+      run: black --check .
 
     - name: Lint code with Ruff
-      run: |
-        pip install ruff
-        ruff check .
+      run: ruff check .
 
     - name: Refresh mock data timestamps
       run: python3 mock_data/refresh.py
@@ -58,6 +60,132 @@ jobs:
         grep -r "TODO" . || true
 
     - name: Check for dead code with Vulture
+      run: vulture . --min-confidence 70
+
+  integration:
+    name: Disposable DB (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each suite gets its own throwaway MariaDB: the marker schema
+          # proves the server is disposable and the suites refuse any
+          # server carrying production-like schemas.
+          - suite: events
+            db_host: 127.0.0.1
+            db_port: 33990
+            db_password: ''
+            db_extra_env: MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1
+            db_marker: event_disposable
+            db_server_args: ''
+          - suite: hundo
+            db_host: 127.0.0.1
+            db_port: 33991
+            db_password: disposable
+            db_extra_env: MARIADB_ROOT_PASSWORD=disposable
+            db_marker: hundo_disposable
+            db_server_args: '--character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci'
+          - suite: spawn
+            db_host: 127.0.0.1
+            db_port: 3306
+            db_password: disposable
+            db_extra_env: MARIADB_ROOT_PASSWORD=disposable
+            db_marker: spawn_history_disposable
+            db_server_args: ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
       run: |
-        pip install vulture
-        vulture . --min-confidence 70
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+
+    - name: Start disposable MariaDB
+      run: |
+        docker run -d --rm --name poliswag-ci-${{ matrix.suite }} \
+          -p ${{ matrix.db_host }}:${{ matrix.db_port }}:3306 \
+          -e MARIADB_DATABASE=${{ matrix.db_marker }} \
+          -e ${{ matrix.db_extra_env }} \
+          mariadb:10.11 ${{ matrix.db_server_args }}
+
+    - name: Wait for disposable MariaDB
+      env:
+        CI_DB_HOST: ${{ matrix.db_host }}
+        CI_DB_PORT: ${{ matrix.db_port }}
+        CI_DB_PASSWORD: ${{ matrix.db_password }}
+      run: |
+        python - <<'EOF'
+        import os
+        import time
+
+        import pymysql
+
+        deadline = time.time() + 120
+        while True:
+            try:
+                db = pymysql.connect(
+                    host=os.environ["CI_DB_HOST"],
+                    port=int(os.environ["CI_DB_PORT"]),
+                    user="root",
+                    password=os.environ.get("CI_DB_PASSWORD", ""),
+                )
+                db.close()
+                break
+            except Exception:
+                if time.time() > deadline:
+                    raise
+                time.sleep(2)
+        print("disposable MariaDB is ready")
+        EOF
+
+    - name: Run events SQL suite (must execute, not skip)
+      if: matrix.suite == 'events'
+      env:
+        EVENT_SQL_TEST_PORT: ${{ matrix.db_port }}
+      run: |
+        set -o pipefail
+        python -m pytest tests/integration/test_events_sql.py -q -rs | tee /tmp/pytest-events.log
+        grep -E "^[0-9]+ passed" /tmp/pytest-events.log
+        if grep -Ei "skipped" /tmp/pytest-events.log; then
+          echo "Suite skipped instead of executing against the disposable DB"
+          exit 1
+        fi
+
+    - name: Run hundo SQL suite (must execute, not skip)
+      if: matrix.suite == 'hundo'
+      env:
+        HUNDO_SQL_TEST_PORT: ${{ matrix.db_port }}
+        HUNDO_SQL_TEST_PASSWORD: disposable
+      run: |
+        set -o pipefail
+        python -m pytest tests/integration/test_hundo_alerts_sql.py -q -rs | tee /tmp/pytest-hundo.log
+        grep -E "^[0-9]+ passed" /tmp/pytest-hundo.log
+        if grep -Ei "skipped" /tmp/pytest-hundo.log; then
+          echo "Suite skipped instead of executing against the disposable DB"
+          exit 1
+        fi
+
+    - name: Run spawn-history SQL suite (must execute, not skip)
+      if: matrix.suite == 'spawn'
+      env:
+        SPAWN_HISTORY_SQL_TEST_HOST: ${{ matrix.db_host }}
+      run: |
+        set -o pipefail
+        python -m pytest tests/integration/test_spawn_history_sql.py -q -rs | tee /tmp/pytest-spawn.log
+        grep -E "^[0-9]+ passed" /tmp/pytest-spawn.log
+        if grep -Ei "skipped" /tmp/pytest-spawn.log; then
+          echo "Suite skipped instead of executing against the disposable DB"
+          exit 1
+        fi
+
+    - name: Remove disposable MariaDB
+      if: always()
+      run: docker rm -f poliswag-ci-${{ matrix.suite }} || true
