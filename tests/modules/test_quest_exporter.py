@@ -163,17 +163,33 @@ class TestMapReward:
             "emoji": "🎒",
         }
 
-    @pytest.mark.parametrize("reward_type", [3, 4])
-    def test_stardust_reward_types(self, reward_type, sample_name_maps):
+    def test_stardust_reward_type(self, sample_name_maps):
         pokemon_names, item_names = sample_name_maps
         result = QuestExporter._map_reward(
-            reward_type, 1000, None, None, pokemon_names, item_names
+            3, 1000, None, None, pokemon_names, item_names
         )
         assert result == {
             "type": "stardust",
             "label": "Stardust x1000",
             "emoji": "✨",
         }
+        assert "pokemonId" not in result
+
+    def test_candy_reward_type_with_species(self, sample_name_maps):
+        pokemon_names, item_names = sample_name_maps
+        result = QuestExporter._map_reward(4, 3, None, 25, pokemon_names, item_names)
+        assert result["type"] == "candy"
+        assert result["pokemonId"] == 25
+        assert "Pikachu" in result["label"]
+        assert "Candy" in result["label"]
+        assert result["emoji"] == "🍬"
+
+    def test_candy_without_species_is_generic(self, sample_name_maps):
+        pokemon_names, item_names = sample_name_maps
+        result = QuestExporter._map_reward(4, 3, None, None, pokemon_names, item_names)
+        assert result["type"] == "candy"
+        assert "pokemonId" not in result
+        assert result["label"] == "Candy x3"
 
     def test_stardust_without_amount(self, sample_name_maps):
         pokemon_names, item_names = sample_name_maps
@@ -204,11 +220,28 @@ class TestMapReward:
     def test_mega_energy_with_amount(self, sample_name_maps):
         pokemon_names, item_names = sample_name_maps
         result = QuestExporter._map_reward(12, 50, None, 25, pokemon_names, item_names)
-        assert result == {
-            "type": "mega_energy",
-            "label": "Mega Energy x50",
-            "emoji": "⚡",
-        }
+        assert result["type"] == "mega_energy"
+        assert result["pokemonId"] == 25
+        assert "Pikachu" in result["label"]
+        assert "Mega Energy" in result["label"]
+        assert result["emoji"] == "⚡"
+
+    def test_mega_energy_without_species_is_generic(self, sample_name_maps):
+        pokemon_names, item_names = sample_name_maps
+        result = QuestExporter._map_reward(
+            12, 50, None, None, pokemon_names, item_names
+        )
+        assert result["type"] == "mega_energy"
+        assert "pokemonId" not in result
+        assert result["label"] == "Mega Energy x50"
+
+    def test_xl_candy_with_species_identity(self, sample_name_maps):
+        pokemon_names, item_names = sample_name_maps
+        result = QuestExporter._map_reward(13, 5, None, 1, pokemon_names, item_names)
+        assert result["type"] == "xl_candy"
+        assert result["pokemonId"] == 1
+        assert "Bulbasaur" in result["label"]
+        assert "XL Candy" in result["label"]
 
     def test_xl_candy_with_amount(self, sample_name_maps):
         pokemon_names, item_names = sample_name_maps
@@ -618,3 +651,339 @@ class TestExport:
 
         payload = json.loads(output.read_text())
         assert payload["quests"] == []
+
+
+class TestRewardSpeciesSeparation:
+    """Different species with the same title/amount must stay separate."""
+
+    @staticmethod
+    def _candy_row(name, pokemon_id, reward_type=4, amount=3):
+        return {
+            "name": name,
+            "lat": 39.75,
+            "lon": -8.80,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 3,
+            "quest_reward_type": reward_type,
+            "quest_item_id": None,
+            "quest_pokemon_id": pokemon_id,
+            "quest_reward_amount": amount,
+        }
+
+    @staticmethod
+    def _make_exporter_with_names(tmp_path, rows):
+        from unittest.mock import AsyncMock, MagicMock
+        from modules.quest_exporter import QuestExporter
+
+        poliswag = MagicMock()
+        qs = poliswag.quest_search
+        qs.db = AsyncMock()
+        qs.translationfile_data = {"data": {}}
+        qs.masterfile_data = {"pokemon": {}, "items": {}}
+
+        def fake_get_data(query):
+            return [] if "alternative_quest_reward_type" in query else rows
+
+        qs.db.get_data_from_database.side_effect = fake_get_data
+        exporter = QuestExporter(poliswag=poliswag)
+        exporter.output_path = str(tmp_path / "quests.json")
+        return exporter
+
+    async def test_mega_species_same_title_amount_stay_separate(self, tmp_path):
+        import json
+
+        rows = [
+            self._candy_row("Stop A", 3, reward_type=12, amount=50),
+            self._candy_row("Stop B", 6, reward_type=12, amount=50),
+        ]
+        exporter = self._make_exporter_with_names(tmp_path, rows)
+        exporter.poliswag.quest_search.masterfile_data = {
+            "pokemon": {"3": {"name": "Venusaur"}, "6": {"name": "Charizard"}},
+            "items": {},
+        }
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 2
+        assert len({q["id"] for q in quests}) == 2
+        by_species = {q["reward"].get("pokemonId"): q for q in quests}
+        assert set(by_species) == {3, 6}
+        assert all(q["reward"]["type"] == "mega_energy" for q in quests)
+        assert "Venusaur" in by_species[3]["reward"]["label"]
+        assert "Charizard" in by_species[6]["reward"]["label"]
+
+    async def test_candy_species_same_title_amount_stay_separate(self, tmp_path):
+        import json
+
+        rows = [
+            self._candy_row("Stop A", 25, reward_type=4, amount=3),
+            self._candy_row("Stop B", 150, reward_type=4, amount=3),
+        ]
+        exporter = self._make_exporter_with_names(tmp_path, rows)
+        exporter.poliswag.quest_search.masterfile_data = {
+            "pokemon": {"25": {"name": "Pikachu"}, "150": {"name": "Mewtwo"}},
+            "items": {},
+        }
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 2
+        assert {q["reward"].get("pokemonId") for q in quests} == {25, 150}
+        assert all(q["reward"]["type"] == "candy" for q in quests)
+
+    async def test_xl_candy_species_stay_separate(self, tmp_path):
+        import json
+
+        rows = [
+            self._candy_row("Stop A", 1, reward_type=13, amount=5),
+            self._candy_row("Stop B", 25, reward_type=13, amount=5),
+        ]
+        exporter = self._make_exporter_with_names(tmp_path, rows)
+        exporter.poliswag.quest_search.masterfile_data = {
+            "pokemon": {"1": {"name": "Bulbasaur"}, "25": {"name": "Pikachu"}},
+            "items": {},
+        }
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 2
+        assert {q["reward"].get("pokemonId") for q in quests} == {1, 25}
+
+    async def test_stardust_same_amount_merges(self, tmp_path):
+        import json
+
+        rows = [
+            self._candy_row("Stop A", None, reward_type=3, amount=500),
+            self._candy_row("Stop B", None, reward_type=3, amount=500),
+        ]
+        exporter = self._make_exporter_with_names(tmp_path, rows)
+        await exporter.export()
+        quests = json.loads((tmp_path / "quests.json").read_text())["quests"]
+        assert len(quests) == 1
+        assert quests[0]["reward"]["type"] == "stardust"
+        assert quests[0]["stopsCount"] == 2
+
+
+class TestReadStoredHash:
+    def test_non_object_metadata_returns_none(self, tmp_path):
+        import json
+
+        for bad in ([1, 2], "string", 123, None):
+            p = tmp_path / "quests-meta.json"
+            p.write_text(json.dumps(bad))
+            assert QuestExporter._read_stored_hash(p) is None
+
+    def test_missing_file_returns_none(self, tmp_path):
+        assert QuestExporter._read_stored_hash(tmp_path / "nope.json") is None
+
+    def test_corrupt_json_returns_none(self, tmp_path):
+        p = tmp_path / "quests-meta.json"
+        p.write_text("{broken")
+        assert QuestExporter._read_stored_hash(p) is None
+
+    def test_non_string_hash_returns_none(self, tmp_path):
+        import json
+
+        p = tmp_path / "quests-meta.json"
+        p.write_text(json.dumps({"contentHash": 123}))
+        assert QuestExporter._read_stored_hash(p) is None
+
+    def test_valid_hash_returned(self, tmp_path):
+        import json
+
+        p = tmp_path / "quests-meta.json"
+        p.write_text(json.dumps({"contentHash": "abc"}))
+        assert QuestExporter._read_stored_hash(p) == "abc"
+
+
+class TestPayloadRecovery:
+    @staticmethod
+    def _row(name="Fonte", amount=500):
+        return {
+            "name": name,
+            "lat": 39.75,
+            "lon": -8.80,
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": 5,
+            "quest_reward_type": 1,
+            "quest_item_id": None,
+            "quest_pokemon_id": None,
+            "quest_reward_amount": amount,
+        }
+
+    @staticmethod
+    def _make_exporter(tmp_path, rows):
+        from unittest.mock import AsyncMock, MagicMock
+        from modules.quest_exporter import QuestExporter
+
+        poliswag = MagicMock()
+        qs = poliswag.quest_search
+        qs.db = AsyncMock()
+        qs.translationfile_data = {"data": {}}
+        qs.masterfile_data = {"pokemon": {}, "items": {}}
+
+        def fake_get_data(query):
+            return [] if "alternative_quest_reward_type" in query else rows
+
+        qs.db.get_data_from_database.side_effect = fake_get_data
+        exporter = QuestExporter(poliswag=poliswag)
+        exporter.output_path = str(tmp_path / "quests.json")
+        return exporter
+
+    async def test_matching_meta_missing_payload_rewrites(self, tmp_path):
+        import json
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        # Delete payload but keep meta: next export must recover.
+        (tmp_path / "quests.json").unlink()
+        assert await exporter.export() is True
+        # After recovery the payload must exist and be valid.
+        assert await exporter.export() is False
+        payload = json.loads((tmp_path / "quests.json").read_text())
+        assert isinstance(payload["quests"], list)
+
+    async def test_matching_meta_corrupt_payload_rewrites(self, tmp_path):
+        import json
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        (tmp_path / "quests.json").write_text("{corrupt")
+        assert await exporter.export() is True
+        payload = json.loads((tmp_path / "quests.json").read_text())
+        assert isinstance(payload["quests"], list)
+
+    async def test_matching_meta_malformed_metadata_rewrites(self, tmp_path):
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        (tmp_path / "quests-meta.json").write_text("[1,2]")
+        assert await exporter.export() is True
+
+    async def test_previous_lisbon_day_payload_rewrites(self, tmp_path):
+        import hashlib
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        payload = json.loads((tmp_path / "quests.json").read_text())
+        quests = payload["quests"]
+        content_hash = hashlib.md5(
+            json.dumps(quests, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        old_generated = (
+            (datetime.now(timezone.utc) - timedelta(days=1))
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        (tmp_path / "quests.json").write_text(
+            json.dumps({"quests": quests, "generatedAt": old_generated})
+        )
+        (tmp_path / "quests-meta.json").write_text(
+            json.dumps({"generatedAt": old_generated, "contentHash": content_hash})
+        )
+        assert await exporter.export() is True
+        fresh = json.loads((tmp_path / "quests.json").read_text())
+        assert fresh["generatedAt"] != old_generated
+
+    async def test_unchanged_empty_export_previous_day_rewrites(self, tmp_path):
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        exporter = self._make_exporter(tmp_path, [])
+        assert await exporter.export() is True
+        payload = json.loads((tmp_path / "quests.json").read_text())
+        assert payload["quests"] == []
+        old_generated = (
+            (datetime.now(timezone.utc) - timedelta(days=1))
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        (tmp_path / "quests.json").write_text(
+            json.dumps({"quests": [], "generatedAt": old_generated})
+        )
+        import hashlib as _hashlib
+
+        empty_hash = _hashlib.md5(
+            json.dumps([], ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        (tmp_path / "quests-meta.json").write_text(
+            json.dumps({"generatedAt": old_generated, "contentHash": empty_hash})
+        )
+        assert await exporter.export() is True
+
+    async def test_interrupted_write_leaves_old_complete_file(self, tmp_path, mocker):
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        before = (tmp_path / "quests.json").read_text()
+        mocker.patch("json.dump", side_effect=RuntimeError("boom"))
+        try:
+            await exporter.export(force=True)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("expected RuntimeError")
+        assert (tmp_path / "quests.json").read_text() == before
+        leftovers = list(tmp_path.glob("quests.json.*.tmp"))
+        assert leftovers == []
+
+    async def test_retry_after_metadata_failure(self, tmp_path, mocker):
+        import json
+        from modules.quest_exporter import QuestExporter
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        real_write = QuestExporter._write_json_atomic
+        calls = {"n": 0}
+
+        def flaky(target, data):
+            from pathlib import Path as _P
+
+            if _P(target).name == "quests-meta.json" and calls["n"] == 0:
+                calls["n"] += 1
+                raise OSError("meta disk full")
+            return real_write(target, data)
+
+        mocker.patch.object(QuestExporter, "_write_json_atomic", side_effect=flaky)
+        try:
+            await exporter.export()
+        except OSError:
+            pass
+        else:
+            raise AssertionError("expected OSError")
+        # Payload succeeded, meta failed: files are out of sync.
+        assert (tmp_path / "quests.json").exists()
+        # Retry must recover (rewrite meta, succeed).
+        mocker.patch.object(QuestExporter, "_write_json_atomic", side_effect=real_write)
+        assert await exporter.export() is True
+        meta = json.loads((tmp_path / "quests-meta.json").read_text())
+        assert "contentHash" in meta
+
+    async def test_recovery_after_only_payload_succeeds(self, tmp_path):
+        import json
+
+        rows = [self._row()]
+        exporter = self._make_exporter(tmp_path, rows)
+        assert await exporter.export() is True
+        # Simulate crash after payload but before meta: delete meta only.
+        (tmp_path / "quests-meta.json").unlink()
+        # Same DB content: without recovery this would look unchanged, but the
+        # missing meta forces a rewrite of both files (payload first).
+        assert await exporter.export() is True
+        assert (tmp_path / "quests-meta.json").exists()
+        fresh = json.loads((tmp_path / "quests.json").read_text())
+        assert isinstance(fresh["quests"], list)
+        # Per-file atomic replace is not a transaction across the pair.
+        assert True
+
+    async def test_atomic_write_uses_temp_and_cleans(self, tmp_path):
+
+        target = tmp_path / "quests.json"
+        QuestExporter._write_json_atomic(target, {"a": 1})
+        assert target.exists()
+        assert list(tmp_path.glob("quests.json.*.tmp")) == []
