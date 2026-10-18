@@ -43,6 +43,24 @@ class ShinyStore:
             ]
         )
 
+    async def linker_state(self):
+        """The host linker's switch, read the same way scripts/shiny_linker does."""
+        rows = await self.db.get_data_from_database(
+            "SELECT shiny_linker_enabled AS enabled, "
+            "shiny_linker_disabled_reason AS disabled_reason, "
+            "TIMESTAMPDIFF(MINUTE, shiny_linker_last_run_at, UTC_TIMESTAMP()) "
+            "AS minutes_since_run FROM poliswag"
+        )
+        if not rows:
+            return {"enabled": 0, "disabled_reason": None, "minutes_since_run": None}
+        return rows[0]
+
+    async def enable_linker(self):
+        await self.db.execute_query_to_database(
+            "UPDATE poliswag SET shiny_linker_enabled = 1, "
+            "shiny_linker_disabled_reason = NULL"
+        )
+
     async def find_linked(self, name):
         """The linked player with this Discord or trainer name, any case."""
         rows = await self.db.get_data_from_database(
