@@ -12,12 +12,49 @@ from modules.config import Config
 from modules.database_connector import connect
 from modules.spawn_history import leaderboard
 
+# The bot's DB user can read every schema, so the bridge itself keeps scanner
+# accounts and credentials out: Dragonite (accounts, passwords, refresh tokens)
+# and the server's own schemas are never reachable, and any identifier naming an
+# account table or a credential column is refused. Comments are refused so a
+# name cannot be split around them, and set operations and CTE column lists so
+# `SELECT *` cannot rename a sensitive column by position.
+_FORBIDDEN_SQL = re.compile(
+    r"/\*|--|#|\b(UNION|EXCEPT|INTERSECT)\b|\)\s*AS\s*\("
+    r"|[`\"]?\b(dragonite|mysql|performance_schema|sys)\b[`\"]?\s*\."
+    r"|\w*account\w*"
+    r"|\b(username|password|passwd|refresh_token|email|friend_code|\w*token_hash)\b",
+    re.I,
+)
+# Other sessions' statement text (processlist, binlogs, InnoDB/query-cache
+# tables) can carry Dragonite's token updates, so SHOW and information_schema
+# are limited to schema discovery.
+_SHOW = re.compile(
+    r"\s*SHOW\s+(FULL\s+)?(TABLES|COLUMNS|FIELDS|INDEX|INDEXES|KEYS|DATABASES"
+    r"|CREATE\s+TABLE)\b",
+    re.I,
+)
+_INFORMATION_SCHEMA = re.compile(r"information_schema[`\"]?\s*\.\s*[`\"]?(\w+)", re.I)
+_SCHEMA_TABLES = {
+    "schemata",
+    "tables",
+    "columns",
+    "statistics",
+    "views",
+    "key_column_usage",
+    "table_constraints",
+}
+# `SELECT *` names no column, so these are redacted from results by name too.
+_REDACTED_COLUMNS = re.compile(
+    r"\w*account\w*|username|password|passwd|refresh_token|email|friend_code"
+    r"|\w*token_hash",
+    re.I,
+)
+
 
 def databases():
     return {
         "poliswag": Config.DB_POLISWAG,
         "scanner": Config.DB_SCANNER_NAME,
-        "dragonite": Config.DB_DRAGONITE,
         "pogoleiria": Config.DB_POGOLEIRIA,
         "poracle": "poracle",
     }
@@ -37,6 +74,20 @@ def query(arguments):
         or re.search(r"\b(INTO\s+(OUTFILE|DUMPFILE)|LOAD_FILE)\b", sql, re.I)
     ):
         raise ValueError("Use a read-only SELECT, SHOW, DESCRIBE or EXPLAIN query.")
+    if (
+        _FORBIDDEN_SQL.search(sql)
+        or re.match(r"\s*SHOW\b", sql, re.I)
+        and not _SHOW.match(sql)
+        or any(
+            table.lower() not in _SCHEMA_TABLES
+            for table in _INFORMATION_SCHEMA.findall(sql)
+        )
+    ):
+        raise ValueError(
+            "Scanner accounts, credentials, usernames, Friend Codes, server "
+            "internals, SQL comments, set operations and CTE column lists are "
+            "not available to agents."
+        )
     if type(rows) is not int or not 1 <= rows <= 500:
         raise ValueError("max_rows must be between 1 and 500.")
     if params is not None and not isinstance(params, (list, dict)):
@@ -60,6 +111,11 @@ def query(arguments):
             row = cursor.fetchone()
             if row is None:
                 break
+            # Joined duplicates come back as `table.column`.
+            row = {
+                k: "[redacted]" if _REDACTED_COLUMNS.fullmatch(k.split(".")[-1]) else v
+                for k, v in row.items()
+            }
             # Convert dates, decimals and bytes to JSON without exposing credentials.
             row = json.loads(json.dumps(row, default=str, ensure_ascii=False))
             size += len(json.dumps(row, ensure_ascii=False))

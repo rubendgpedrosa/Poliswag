@@ -54,14 +54,13 @@ class AgentJobs:
         *,
         owner_id,
         provider,
-        mode,
         prompt,
         context,
         destination=None,
         origin=None,
     ):
         provider = PROVIDERS.get(provider.lower())
-        if not provider or mode not in {"ask", "code"}:
+        if not provider:
             raise ValueError("Usa `claude`, `codex` ou `openai`.")
         if not prompt.strip() or len(prompt) > MAX_PROMPT:
             raise ValueError(f"O pedido deve ter entre 1 e {MAX_PROMPT} caracteres.")
@@ -82,7 +81,8 @@ class AgentJobs:
                 "id": job_id,
                 "owner_id": str(owner_id),
                 "provider": provider,
-                "mode": mode,
+                # Owner agents are read-only; the worker refuses any other mode.
+                "mode": "ask",
                 "prompt": prompt.strip(),
                 "context": context,
                 "destination": destination,
@@ -149,14 +149,15 @@ class AgentJobs:
 
 
 def parse_direct_request(content):
-    """Explicit provider requests in DMs/mentions; ordinary chat is untouched.
+    """Explicit provider requests in tagged owner messages; other text is untouched.
 
-    `claude <question>` is read-only; `code claude <task>` permits code edits.
+    `codex <question>`, `ask codex <question>` and the legacy `code codex <...>`
+    all return (provider, prompt). Every owner request is read-only.
     """
-    parts = content.strip().split(maxsplit=2)
+    parts = content.strip().removeprefix("!").split(maxsplit=2)
     if len(parts) >= 2 and parts[0].lower() in PROVIDERS:
-        return "ask", parts[0].lower(), content.split(maxsplit=1)[1]
+        return parts[0].lower(), content.strip().split(maxsplit=1)[1]
     if len(parts) == 3 and parts[0].lower() in {"code", "ask"}:
         if parts[1].lower() in PROVIDERS:
-            return parts[0].lower(), parts[1].lower(), parts[2]
+            return parts[1].lower(), parts[2]
     return None

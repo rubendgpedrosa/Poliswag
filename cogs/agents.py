@@ -1,4 +1,8 @@
-"""Owner-only Claude/Codex delegation and Poliswag's runtime awareness."""
+"""Owner-only, read-only Claude/Codex delegation and Poliswag's runtime awareness.
+
+Agents start only from a tagged owner message (cogs/mentions.py); there is no
+untagged `!` command that queues or resumes agent work.
+"""
 
 import asyncio
 import io
@@ -27,12 +31,12 @@ _STATES = {
     "waiting_input": "à espera de uma decisão",
 }
 _USAGE = (
-    "`!ask claude <pergunta>` · `!ask openai <pergunta>`\n"
-    "`!code claude <pedido>` · `!code openai <pedido>`\n"
-    "`!jobs` · `!job <código>` · `!answer <código> <resposta>` · `!cancel <código>` · `!self`\n"
     "Marca-me (@Poliswag) com qualquer pergunta, em DM ou no servidor; uso Claude por defeito. "
-    "Pede Codex quando quiseres mudar de agente."
+    "Pede Codex quando quiseres mudar de agente. Só consulto: não altero código.\n"
+    "`@Poliswag answer <código> <resposta>` responde a uma tarefa à espera.\n"
+    "`!jobs` · `!job <código>` · `!cancel <código>` · `!self`"
 )
+_ANSWER = re.compile(r"!?answer\s+([0-9a-f]{12})\s+(.+)", re.I | re.S)
 
 
 class Agents(commands.Cog):
@@ -77,8 +81,8 @@ class Agents(commands.Cog):
             context["scanner"] = {"available": False}
         return context
 
-    async def submit(self, ctx, mode, provider, prompt):
-        # Direct-message routing bypasses command invocation, so gate it here too.
+    async def submit(self, ctx, provider, prompt):
+        # Mentions bypass command invocation, so gate it here too.
         if not is_owner(ctx):
             return
         try:
@@ -89,14 +93,13 @@ class Agents(commands.Cog):
             job = self.jobs.submit(
                 owner_id=ctx.author.id,
                 provider=provider,
-                mode=mode,
                 prompt=prompt,
                 context=await self.snapshot(),
                 destination=destination,
                 origin=self.origin_for(ctx),
             )
             self.poliswag.utility.log_to_file(
-                f"[AGENT] owner {ctx.author.id} queued {job['id']} {job['provider']} {mode}"
+                f"[AGENT] owner {ctx.author.id} queued {job['id']} {job['provider']}"
             )
         except ValueError as error:
             await ctx.send(
@@ -146,18 +149,6 @@ class Agents(commands.Cog):
             "guild_id": channel.guild.id,
         }
 
-    @commands.command(name="code", brief="Pede alterações de código a Claude ou Codex")
-    @owner_only()
-    async def code(self, ctx, provider: str, *, prompt: str):
-        """!code claude|codex|openai <pedido> — altera e testa numa cópia separada."""
-        await self.submit(ctx, "code", provider, prompt)
-
-    @commands.command(name="ask", brief="Faz uma pergunta a Claude ou Codex")
-    @owner_only()
-    async def ask(self, ctx, provider: str, *, prompt: str):
-        """!ask claude|codex|openai <pergunta> — consulta sem ferramentas de escrita."""
-        await self.submit(ctx, "ask", provider, prompt)
-
     @commands.command(name="self", brief="Mostra capacidades e estado do Poliswag")
     @owner_only()
     async def self_status(self, ctx):
@@ -167,8 +158,8 @@ class Agents(commands.Cog):
         embed = status_embed(
             "🤖 Poliswag",
             "Sou o bot do PoGoLeiria. Faço a gestão de quests, eventos, alertas e saúde "
-            "do scanner. Posso delegar consultas e alterações de código "
-            "a Claude ou Codex a teu pedido.",
+            "do scanner. Posso delegar consultas só de leitura a Claude ou Codex "
+            "quando me marcas.",
         )
         embed.add_field(
             name="Estado",
@@ -213,12 +204,6 @@ class Agents(commands.Cog):
         job = self.jobs.get(job_id, ctx.author.id)
         await self.send_result(ctx.author, job, full=True)
 
-    @commands.command(name="answer", brief="Responde à decisão que bloqueia uma tarefa")
-    @owner_only()
-    async def answer_job(self, ctx, job_id: str, *, response: str):
-        self.jobs.resume(job_id, ctx.author.id, response)
-        await self.acknowledge(ctx)
-
     @commands.command(name="cancel", brief="Cancela uma tarefa de Claude ou Codex")
     @owner_only()
     async def cancel_job(self, ctx, job_id: str):
@@ -229,10 +214,14 @@ class Agents(commands.Cog):
 
         Reached only from Mentions, so untagged messages never start work.
 
-        A general-purpose agent can answer any question or make requested changes.
+        A read-only general-purpose agent answers any question; it never edits.
         No other person's messages, attachments, or channel history are included.
         """
         if not is_owner(ctx):
+            return
+        answer = _ANSWER.fullmatch(text.strip())
+        if answer:
+            await self.resume(ctx, *answer.groups())
             return
         parsed = parse_direct_request(text)
         if parsed:
@@ -247,26 +236,29 @@ class Agents(commands.Cog):
             == origin
         ]
         if len(waiting) == 1:
-            try:
-                self.jobs.resume(waiting[0]["id"], ctx.author.id, text)
-                await self.acknowledge(ctx)
-            except ValueError as error:
-                await ctx.send(
-                    embed=status_embed("🐸 Poliswag", short_sentence(error)),
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
+            await self.resume(ctx, waiting[0]["id"], text)
             return
         if len(waiting) > 1:
             await ctx.send(
                 embed=status_embed(
                     "🐸 Poliswag",
-                    "Qual tarefa devo continuar com `!answer <id> <resposta>`?",
+                    "Qual tarefa devo continuar? Marca-me com `answer <código> <resposta>`.",
                 ),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
         provider = "codex" if re.search(r"\b(openai|codex)\b", text, re.I) else "claude"
-        await self.submit(ctx, "code", provider, text)
+        await self.submit(ctx, provider, text)
+
+    async def resume(self, ctx, job_id, response):
+        try:
+            self.jobs.resume(job_id, ctx.author.id, response)
+            await self.acknowledge(ctx)
+        except ValueError as error:
+            await ctx.send(
+                embed=status_embed("🐸 Poliswag", short_sentence(error)),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
 
     @staticmethod
     async def acknowledge(ctx):

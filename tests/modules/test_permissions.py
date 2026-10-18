@@ -39,6 +39,18 @@ class TestPredicates:
         ctx.bot.ADMIN_USERS_IDS = None
         assert is_mod(ctx) is False
 
+    def test_display_name_faynn_never_authorizes_owner_or_mod(self):
+        impostor = _ctx(555)
+        impostor.author.display_name = "faynn"
+        impostor.author.name = "faynn"
+        assert is_owner(impostor) is False
+        assert is_mod(impostor) is False
+
+        owner = _ctx(999)
+        owner.author.display_name = "not-the-configured-name"
+        owner.author.name = "not-the-configured-name"
+        assert is_owner(owner) is True
+
 
 class TestGatedCommands:
     def test_accounts_is_owner_only_not_mods(self):

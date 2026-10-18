@@ -4,6 +4,7 @@ from discord.ext import commands
 
 from modules.role_manager import RoleManager
 from cogs.event_panel import EventPanelView
+from cogs.mentions import directed_mention
 from modules.scanner_status import ScannerStatus
 from modules.scanner_manager import ScannerManager
 from modules.utility import Utility
@@ -107,10 +108,8 @@ class Poliswag(commands.Bot):
         await self.invoke(ctx)
 
     def _mentions_poliswag(self, message):
-        return self.user is not None and any(
-            mention in message.content
-            for mention in (f"<@{self.user.id}>", f"<@!{self.user.id}>")
-        )
+        # Same rule as the Mentions cog: a tag in code or a quote is not a tag.
+        return self.user is not None and directed_mention(message.content, self.user.id)
 
     def _is_bare_mention(self, message):
         return self.user is not None and message.content.strip() in (

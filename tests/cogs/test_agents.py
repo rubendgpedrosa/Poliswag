@@ -32,27 +32,25 @@ def ctx(author=123, content="claude explain", guild=None):
     return context
 
 
-async def test_owner_tagged_explicit_code_request_is_routed(cog):
+async def test_owner_tagged_explicit_provider_request_is_routed(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "code openai fix this")
-    cog.submit.assert_awaited_once_with(context, "code", "openai", "fix this")
+    cog.submit.assert_awaited_once_with(context, "openai", "fix this")
 
 
-async def test_owner_natural_request_is_code_capable(cog):
+async def test_owner_natural_request_defaults_to_claude(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "fix the quest bug")
-    cog.submit.assert_awaited_once_with(context, "code", "claude", "fix the quest bug")
+    cog.submit.assert_awaited_once_with(context, "claude", "fix the quest bug")
 
 
 async def test_owner_natural_request_can_choose_openai(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "use OpenAI to fix this")
-    cog.submit.assert_awaited_once_with(
-        context, "code", "codex", "use OpenAI to fix this"
-    )
+    cog.submit.assert_awaited_once_with(context, "codex", "use OpenAI to fix this")
 
 
 async def test_nonowner_cannot_call_natural_delegation(cog):
@@ -70,7 +68,7 @@ async def test_closed_dm_does_not_launch_work(cog):
         side_effect=discord.Forbidden(MagicMock(status=403), "blocked")
     )
     cog.jobs.submit = MagicMock()
-    await cog.submit(context, "code", "claude", "fix")
+    await cog.submit(context, "claude", "fix")
     cog.jobs.submit.assert_not_called()
 
 
@@ -85,7 +83,7 @@ async def test_failed_channel_acknowledgement_does_not_discard_owner_work(cog):
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
     )
-    await cog.submit(context, "ask", "claude", "stats")
+    await cog.submit(context, "claude", "stats")
     cog.jobs.submit.assert_called_once()
 
 
@@ -93,6 +91,23 @@ def test_every_agent_command_has_owner_gate(cog):
     assert cog.cog_check(ctx())
     assert not cog.cog_check(ctx(author=999))
     assert all(is_owner in command.checks for command in cog.get_commands())
+
+
+def test_no_untagged_command_starts_or_resumes_an_agent(cog):
+    names = {command.name for command in cog.get_commands()}
+    assert names == {"self", "jobs", "job", "cancel"}
+
+
+async def test_tagged_answer_resumes_the_named_task(cog):
+    origin = cog.origin_for(conversation_ctx(789))
+    job_id = waiting_job(cog, "abcdef123456", origin)
+    cog.submit = AsyncMock()
+    context = conversation_ctx(None)
+    await cog.submit_natural_request(context, f"answer {job_id} Leiria")
+    job = cog.jobs.get(job_id, 123)
+    assert job["state"] == "queued" and job["turns"][0]["answer"] == "Leiria"
+    cog.submit.assert_not_awaited()
+    context.message.add_reaction.assert_awaited_once_with("👀")
 
 
 async def test_result_is_private_and_mentions_disabled(cog):
@@ -161,9 +176,7 @@ async def test_owner_general_question_uses_claude(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "Why is the sky blue?")
-    cog.submit.assert_awaited_once_with(
-        context, "code", "claude", "Why is the sky blue?"
-    )
+    cog.submit.assert_awaited_once_with(context, "claude", "Why is the sky blue?")
 
 
 async def test_owner_general_question_can_explicitly_choose_codex(cog):
@@ -171,7 +184,7 @@ async def test_owner_general_question_can_explicitly_choose_codex(cog):
     context = ctx()
     await cog.submit_natural_request(context, "use Codex to explain gravity")
     cog.submit.assert_awaited_once_with(
-        context, "code", "codex", "use Codex to explain gravity"
+        context, "codex", "use Codex to explain gravity"
     )
 
 
@@ -186,7 +199,7 @@ async def test_submission_acknowledges_before_snapshot_and_work(cog):
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
     )
-    await cog.submit(context, "code", "claude", "fix the quest bug")
+    await cog.submit(context, "claude", "fix the quest bug")
     cog.jobs.submit.assert_called_once()
     context.author.create_dm.return_value.send.assert_not_awaited()
     context.author.send.assert_not_awaited()
@@ -211,7 +224,7 @@ def save_reply(
             "id": directory.name,
             "owner_id": "123",
             "provider": "claude",
-            "mode": "code",
+            "mode": "ask",
             "prompt": "fix",
             "created": 1,
         },
@@ -322,7 +335,7 @@ async def test_channel_submission_preserves_destination_without_requiring_dms(co
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
     )
-    await cog.submit(context, "code", "claude", "Generate a leaderboard image")
+    await cog.submit(context, "claude", "Generate a leaderboard image")
     assert cog.jobs.submit.call_args.kwargs["destination"] == {
         "type": "channel",
         "channel_id": 789,
@@ -337,7 +350,7 @@ async def test_explicit_dm_overrides_originating_channel(cog):
     cog.jobs.submit = MagicMock(
         return_value={"id": "abcdef123456", "provider": "claude"}
     )
-    await cog.submit(context, "code", "claude", "Generate image. Send via DM")
+    await cog.submit(context, "claude", "Generate image. Send via DM")
     assert cog.jobs.submit.call_args.kwargs["destination"] == {"type": "dm"}
     context.author.create_dm.assert_awaited_once()
 
@@ -475,7 +488,7 @@ def waiting_job(cog, job_id, origin, *, destination=None):
             "id": job_id,
             "owner_id": "123",
             "provider": "claude",
-            "mode": "code",
+            "mode": "ask",
             "prompt": "question",
             "created": 1,
             "origin": origin,
@@ -502,9 +515,7 @@ async def test_waiting_task_in_other_conversation_does_not_capture_question(
     cog.submit = AsyncMock()
     context = conversation_ctx(target)
     await cog.submit_natural_request(context, "a separate question")
-    cog.submit.assert_awaited_once_with(
-        context, "code", "claude", "a separate question"
-    )
+    cog.submit.assert_awaited_once_with(context, "claude", "a separate question")
     assert cog.jobs.get(job_id, 123)["state"] == "waiting_input"
 
 
