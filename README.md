@@ -48,7 +48,7 @@ pip install -r requirements-dev.txt
 make test-local
 ```
 
-Tests never open real DB connections — a `pytest` autouse fixture in `tests/conftest.py` patches `pymysql.connect` globally. `.env.test` is loaded automatically if no `DISCORD_API_KEY` is set.
+Unit tests never open real DB connections — a `pytest` autouse fixture in `tests/conftest.py` patches `pymysql.connect` globally, and the suite pins a deterministic environment (`dotenv_values` on the explicit repo-root `.env.test` path plus explicit `os.environ` scratch defaults, then `PYTHON_DOTENV_DISABLED`) so ambient values and production `.env` discovery cannot leak in. The `tests/integration/` SQL suites are the opt-in exception: they run only when their selector env is set, against a throwaway MariaDB each, and refuse any server without its marker schema or with a production-like schema on it. Detail and the exact disposable invocations: `docs/context/conventions.md`.
 
 ## Environments
 
