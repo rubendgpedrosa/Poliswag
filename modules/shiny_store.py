@@ -61,6 +61,13 @@ class ShinyStore:
             "shiny_linker_disabled_reason = NULL"
         )
 
+    async def disable_linker(self, reason) -> None:
+        await self.db.execute_query_to_database(
+            "UPDATE poliswag SET shiny_linker_enabled = 0, "
+            "shiny_linker_disabled_reason = %s",
+            params=(reason[:128],),
+        )
+
     async def find_linked(self, name):
         """The linked player with this Discord or trainer name, any case."""
         rows = await self.db.get_data_from_database(
