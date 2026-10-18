@@ -2,6 +2,8 @@ import discord
 import requests
 from datetime import datetime, timedelta
 import json
+import time
+from zoneinfo import ZoneInfo
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
 from modules.embeds import status_embed
@@ -14,6 +16,74 @@ def _cache_fresh(entry, max_age: timedelta) -> bool:
     if not entry:
         return False
     return datetime.now() - datetime.fromisoformat(entry["date"]) < max_age
+
+
+_LISBON = ZoneInfo("Europe/Lisbon")
+
+
+def _same_lisbon_day(iso_date: str) -> bool:
+    """Whether a cached ``date`` ISO string falls on today's Europe/Lisbon day.
+
+    Quest publications reset at Lisbon midnight, so a cache stamped yesterday
+    is stale even when it is still within the one-hour freshness window.
+    Naive stamps are Lisbon wall time (the container runs Europe/Lisbon).
+    """
+    try:
+        cached = datetime.fromisoformat(iso_date)
+    except (ValueError, TypeError):
+        return False
+    try:
+        now_lisbon = datetime.now(_LISBON)
+        if cached.tzinfo is None:
+            cached_lisbon = cached.replace(tzinfo=_LISBON)
+        else:
+            cached_lisbon = cached.astimezone(_LISBON)
+        return cached_lisbon.date() == now_lisbon.date()
+    except Exception:
+        return False
+
+
+def _cache_usable(entry, max_age: timedelta) -> bool:
+    """Fresh by age *and* stamped on today's Lisbon day."""
+    if not entry or "date" not in entry:
+        return False
+    try:
+        age_ok = datetime.now() - datetime.fromisoformat(entry["date"]) < max_age
+    except (ValueError, TypeError):
+        return False
+    return age_ok and _same_lisbon_day(entry["date"])
+
+
+def _row_is_live(row: dict, now_ts: float) -> bool:
+    """Whether a scanner row has not expired yet.
+
+    A row is live only when every expiry column it carries is a parseable
+    future timestamp; a missing, null, malformed or past expiry means the
+    quest is gone. Production SELECTs always return an expiry column, so a
+    row without one can never be trusted as live (read-only: callers SELECT).
+    """
+    seen = False
+    for key in ("quest_expiry", "alternative_quest_expiry"):
+        if key in row:
+            seen = True
+            value = row[key]
+            if value is None:
+                return False
+            try:
+                expiry_ts = float(value)
+            except (TypeError, ValueError):
+                return False
+            if not expiry_ts > now_ts:
+                return False
+    return seen
+
+
+def _filter_live_rows(rows, now_ts=None):
+    if not rows:
+        return []
+    if now_ts is None:
+        now_ts = time.time()
+    return [row for row in rows if _row_is_live(row, now_ts)]
 
 
 _QUEST_FIELD_NAMES = (
@@ -185,30 +255,30 @@ class QuestSearch:
         return matching_ids
 
     async def get_quest_data(self):
-        if self.quest_data and datetime.now() - datetime.fromisoformat(
-            self.quest_data["date"]
-        ) < timedelta(hours=1):
-            return self.quest_data
+        if _cache_usable(self.quest_data, timedelta(hours=1)):
+            live = _filter_live_rows(self.quest_data.get("data", []))
+            return {"data": live, "date": self.quest_data["date"]}
 
         quest_data = await self.db.get_data_from_database("""
-            SELECT name, lat, lon, url, quest_title, quest_pokemon_id, quest_reward_type, quest_item_id, quest_reward_amount, quest_target
-            FROM pokestop WHERE quest_reward_type IS NOT NULL AND deleted = 0;
+            SELECT name, lat, lon, url, quest_title, quest_pokemon_id, quest_reward_type, quest_item_id, quest_reward_amount, quest_target, quest_expiry
+            FROM pokestop WHERE quest_reward_type IS NOT NULL AND deleted = 0 AND quest_expiry > UNIX_TIMESTAMP();
         """)
-        self.quest_data = {"data": quest_data, "date": datetime.now().isoformat()}
+        live = _filter_live_rows(quest_data)
+        self.quest_data = {"data": live, "date": datetime.now().isoformat()}
         return self.quest_data
 
     async def get_alternative_quest_data(self):
-        if self.alternative_quest_data and datetime.now() - datetime.fromisoformat(
-            self.alternative_quest_data["date"]
-        ) < timedelta(hours=1):
-            return self.alternative_quest_data
+        if _cache_usable(self.alternative_quest_data, timedelta(hours=1)):
+            live = _filter_live_rows(self.alternative_quest_data.get("data", []))
+            return {"data": live, "date": self.alternative_quest_data["date"]}
 
         alternative_quest_data = await self.db.get_data_from_database("""
-            SELECT name, lat, lon, url, alternative_quest_title, alternative_quest_pokemon_id, alternative_quest_reward_type, alternative_quest_item_id, alternative_quest_reward_amount, alternative_quest_target
-            FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0;
+            SELECT name, lat, lon, url, alternative_quest_title, alternative_quest_pokemon_id, alternative_quest_reward_type, alternative_quest_item_id, alternative_quest_reward_amount, alternative_quest_target, alternative_quest_expiry
+            FROM pokestop WHERE alternative_quest_reward_type IS NOT NULL AND deleted = 0 AND alternative_quest_expiry > UNIX_TIMESTAMP();
         """)
+        live = _filter_live_rows(alternative_quest_data)
         self.alternative_quest_data = {
-            "data": alternative_quest_data,
+            "data": live,
             "date": datetime.now().isoformat(),
         }
         return self.alternative_quest_data
@@ -242,6 +312,8 @@ class QuestSearch:
     def is_quest_relevant(
         self, quest, search, mapped_pokemon_ids, mapped_item_ids, is_leiria
     ):
+        if not _row_is_live(quest, time.time()):
+            return False
         fields = _quest_fields(quest)
         quest_title = (fields["title"] or "").lower()
         quest_pokemon_id = str(fields["pokemon_id"] or "")
@@ -262,16 +334,26 @@ class QuestSearch:
         return False
 
     def _translate_quest_title(self, quest_title, quest_target):
-        """Look up the PT translation for a quest title, falling back to the
-        (untranslated) title if translation data isn't loaded yet."""
+        """Look up the PT translation for a quest title.
+
+        Falls back to the original (untranslated) title whenever there is no
+        usable translation: data not loaded, malformed envelope, or a missing
+        / empty entry for this key.
+        """
         if self.translationfile_data is None:
             logging.warning("Translation data is not available.")
             return quest_title
-        return (
-            self.translationfile_data["data"]
-            .get(quest_title, "")
-            .replace("{0}", quest_target)
+        data = (
+            self.translationfile_data.get("data")
+            if isinstance(self.translationfile_data, dict)
+            else None
         )
+        if not isinstance(data, dict):
+            return quest_title
+        translated = data.get(quest_title)
+        if not isinstance(translated, str) or not translated.strip():
+            return quest_title
+        return translated.replace("{0}", str(quest_target or ""))
 
     def is_location_relevant(self, quest, is_leiria):
         try:

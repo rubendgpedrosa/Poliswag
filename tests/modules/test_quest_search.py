@@ -211,6 +211,7 @@ class TestIsQuestRelevant:
             "quest_item_id": 1,
             "quest_target": "5",
             "quest_reward_type": 7,
+            "quest_expiry": 4102444800,
         }
         base.update(overrides)
         return base
@@ -777,7 +778,7 @@ class TestGeneratePokemonItemNameMap:
 class TestGetQuestData:
     async def test_returns_cached_when_fresh(self, qs):
         qs.quest_data = {
-            "data": [{"name": "stop"}],
+            "data": [{"name": "stop", "quest_expiry": 4102444800}],
             "date": datetime.now().isoformat(),
         }
         result = await qs.get_quest_data()
@@ -789,22 +790,26 @@ class TestGetQuestData:
             "data": [],
             "date": (datetime.now() - timedelta(hours=2)).isoformat(),
         }
-        qs.db.get_data_from_database.return_value = [{"name": "fresh"}]
+        qs.db.get_data_from_database.return_value = [
+            {"name": "fresh", "quest_expiry": 4102444800}
+        ]
         result = await qs.get_quest_data()
-        assert result["data"] == [{"name": "fresh"}]
+        assert result["data"] == [{"name": "fresh", "quest_expiry": 4102444800}]
         qs.db.get_data_from_database.assert_called_once()
 
     async def test_queries_when_no_cache(self, qs):
         qs.quest_data = None
-        qs.db.get_data_from_database.return_value = [{"name": "first"}]
+        qs.db.get_data_from_database.return_value = [
+            {"name": "first", "quest_expiry": 4102444800}
+        ]
         result = await qs.get_quest_data()
-        assert result["data"] == [{"name": "first"}]
+        assert result["data"] == [{"name": "first", "quest_expiry": 4102444800}]
 
 
 class TestGetAlternativeQuestData:
     async def test_returns_cached_when_fresh(self, qs):
         qs.alternative_quest_data = {
-            "data": [{"name": "ar"}],
+            "data": [{"name": "ar", "alternative_quest_expiry": 4102444800}],
             "date": datetime.now().isoformat(),
         }
         result = await qs.get_alternative_quest_data()
@@ -813,9 +818,13 @@ class TestGetAlternativeQuestData:
 
     async def test_queries_when_stale(self, qs):
         qs.alternative_quest_data = None
-        qs.db.get_data_from_database.return_value = [{"name": "ar"}]
+        qs.db.get_data_from_database.return_value = [
+            {"name": "ar", "alternative_quest_expiry": 4102444800}
+        ]
         result = await qs.get_alternative_quest_data()
-        assert result["data"] == [{"name": "ar"}]
+        assert result["data"] == [
+            {"name": "ar", "alternative_quest_expiry": 4102444800}
+        ]
 
 
 # --- find_quest_by_search_keyword / find_and_process_quest_by_search_keyword --
@@ -837,6 +846,7 @@ class TestFindQuestBySearchKeyword:
                     "quest_item_id": 1,
                     "quest_target": "5",
                     "quest_reward_type": 7,
+                    "quest_expiry": 4102444800,
                     "name": "Leiria Stop",
                     "lat": 39.7,
                     "url": "",
@@ -870,6 +880,7 @@ class TestFindQuestBySearchKeyword:
             "quest_target": "5",
             "quest_reward_type": 7,
             "quest_pokemon_id": 25,
+            "quest_expiry": 4102444800,
         }
         alternative = {
             f"alternative_{key}" if key.startswith("quest_") else key: value
@@ -1015,3 +1026,217 @@ class TestCheckTracked:
         await qs.check_tracked(channel)
         # Header send plus two summary invocations (leiria + marinha).
         assert build_summary.await_count == 2
+
+
+# --- quest expiry and cache correctness (item 4) -----------------------------
+
+
+class TestQuestExpiryFiltering:
+    def _row(self, expiry, **overrides):
+        base = {
+            "name": "Stop",
+            "lat": 39.7,
+            "lon": "-8.8",
+            "url": None,
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "quest_reward_type": 7,
+            "quest_pokemon_id": 25,
+            "quest_item_id": None,
+            "quest_reward_amount": 1,
+            "quest_expiry": expiry,
+        }
+        base.update(overrides)
+        return base
+
+    def _alt_row(self, expiry, **overrides):
+        base = {
+            "name": "Stop AR",
+            "lat": 39.7,
+            "lon": "-8.8",
+            "url": None,
+            "alternative_quest_title": "quest_catch_pokemon",
+            "alternative_quest_target": "5",
+            "alternative_quest_reward_type": 7,
+            "alternative_quest_pokemon_id": 25,
+            "alternative_quest_item_id": None,
+            "alternative_quest_reward_amount": 1,
+            "alternative_quest_expiry": expiry,
+        }
+        base.update(overrides)
+        return base
+
+    async def test_standard_future_kept_expired_dropped(self, qs):
+        import time
+
+        now = time.time()
+        qs.quest_data = None
+        qs.db.get_data_from_database.return_value = [
+            self._row(now + 3600, name="Future"),
+            self._row(now - 3600, name="Expired"),
+        ]
+        result = await qs.get_quest_data()
+        names = {r["name"] for r in result["data"]}
+        assert names == {"Future"}
+        query = qs.db.get_data_from_database.call_args.args[0]
+        assert "quest_expiry" in query
+        assert "UNIX_TIMESTAMP()" in query
+
+    async def test_alternative_future_kept_expired_dropped(self, qs):
+        import time
+
+        now = time.time()
+        qs.alternative_quest_data = None
+        qs.db.get_data_from_database.return_value = [
+            self._alt_row(now + 3600, name="Future AR"),
+            self._alt_row(now - 3600, name="Expired AR"),
+        ]
+        result = await qs.get_alternative_quest_data()
+        names = {r["name"] for r in result["data"]}
+        assert names == {"Future AR"}
+        query = qs.db.get_data_from_database.call_args.args[0]
+        assert "alternative_quest_expiry" in query
+        assert "UNIX_TIMESTAMP()" in query
+
+    async def test_cached_row_crossing_expiry_without_reload(self, qs):
+        import time
+
+        past = time.time() - 10
+        qs.quest_data = {
+            "data": [self._row(past, name="Crossed")],
+            "date": datetime.now().isoformat(),
+        }
+        result = await qs.get_quest_data()
+        assert result["data"] == []
+        qs.db.get_data_from_database.assert_not_called()
+
+    async def test_cached_alternative_row_crossing_expiry_without_reload(self, qs):
+        import time
+
+        past = time.time() - 10
+        qs.alternative_quest_data = {
+            "data": [self._alt_row(past, name="Crossed AR")],
+            "date": datetime.now().isoformat(),
+        }
+        result = await qs.get_alternative_quest_data()
+        assert result["data"] == []
+        qs.db.get_data_from_database.assert_not_called()
+
+    async def test_missing_expiry_is_never_live(self, qs):
+        qs.quest_data = {
+            "data": [{"name": "legacy"}],
+            "date": datetime.now().isoformat(),
+        }
+        result = await qs.get_quest_data()
+        assert result["data"] == []
+        qs.db.get_data_from_database.assert_not_called()
+
+    def test_is_quest_relevant_excludes_expired(self, qs):
+        import time
+
+        now = time.time()
+        qs.pokemon_name_map = {}
+        qs.item_name_map = {}
+        future = self._row(now + 3600)
+        expired = self._row(now - 3600)
+        assert qs.is_quest_relevant(future, "catch", [], [], is_leiria=True) is True
+        assert qs.is_quest_relevant(expired, "catch", [], [], is_leiria=True) is False
+
+    def test_is_quest_relevant_missing_expiry_never_matches(self, qs):
+        quest = {
+            "lon": "-8.8",
+            "quest_title": "quest_catch_pokemon",
+            "quest_target": "5",
+            "quest_reward_type": 7,
+        }
+        assert qs.is_quest_relevant(quest, "catch", [], [], is_leiria=True) is False
+
+
+class TestLisbonDayRollover:
+    def test_same_lisbon_day_today_is_true(self, qs):
+        from modules.quest_search import _same_lisbon_day
+
+        assert _same_lisbon_day(datetime.now().isoformat()) is True
+
+    def test_same_lisbon_day_yesterday_is_false(self, qs):
+        from modules.quest_search import _same_lisbon_day
+
+        yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+        assert _same_lisbon_day(yesterday) is False
+
+    def test_same_lisbon_day_malformed_is_false(self, qs):
+        from modules.quest_search import _same_lisbon_day
+
+        assert _same_lisbon_day("not-a-date") is False
+        assert _same_lisbon_day(None) is False
+
+    async def test_stale_lisbon_day_forces_refetch(self, qs):
+        qs.quest_data = {
+            "data": [{"name": "yesterday"}],
+            "date": (datetime.now() - timedelta(days=1)).isoformat(),
+        }
+        qs.db.get_data_from_database.return_value = [
+            {"name": "today", "quest_expiry": 4102444800}
+        ]
+        result = await qs.get_quest_data()
+        assert result["data"] == [{"name": "today", "quest_expiry": 4102444800}]
+        qs.db.get_data_from_database.assert_called_once()
+
+    async def test_fresh_day_does_not_refetch(self, qs):
+        qs.quest_data = {
+            "data": [{"name": "cached", "quest_expiry": 4102444800}],
+            "date": datetime.now().isoformat(),
+        }
+        result = await qs.get_quest_data()
+        assert result["data"] == [{"name": "cached", "quest_expiry": 4102444800}]
+        qs.db.get_data_from_database.assert_not_called()
+
+
+class TestTranslateFallback:
+    def test_unknown_key_with_data_returns_original(self, qs):
+        assert (
+            qs._translate_quest_title("quest_unknown_key", "5") == "quest_unknown_key"
+        )
+
+    def test_empty_translation_value_returns_original(self, qs):
+        qs.translationfile_data = {"data": {"quest_catch_pokemon": ""}}
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5")
+            == "quest_catch_pokemon"
+        )
+
+    def test_whitespace_translation_value_returns_original(self, qs):
+        qs.translationfile_data = {"data": {"quest_catch_pokemon": "   "}}
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5")
+            == "quest_catch_pokemon"
+        )
+
+    def test_malformed_envelope_returns_original(self, qs):
+        qs.translationfile_data = {"data": None}
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5")
+            == "quest_catch_pokemon"
+        )
+        qs.translationfile_data = {}
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5")
+            == "quest_catch_pokemon"
+        )
+        qs.translationfile_data = {"data": "not-a-dict"}
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5")
+            == "quest_catch_pokemon"
+        )
+
+    def test_known_translation_still_substitutes(self, qs):
+        assert (
+            qs._translate_quest_title("quest_catch_pokemon", "5") == "Catch 5 Pokémon"
+        )
+
+    def test_missing_data_uses_raw_title_in_search(self, qs):
+        qs.translationfile_data = {"data": {}}
+        found = []
+        quest = {"quest_title": "quest_unknown_key", "quest_target": "5"}
+        qs.add_quest_to_found_quests(found, quest)
+        assert found[0]["quest_title"] == "quest_unknown_key"

@@ -1,11 +1,49 @@
 import hashlib
 import json
 import logging
+import os
 import re
+import stat
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from modules.config import Config
+
+_LISBON = ZoneInfo("Europe/Lisbon")
+
+
+def _parse_species_id(value) -> int | None:
+    """Coerce a scanner pokemon id to a positive int, else None."""
+    try:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        species = int(value)
+    except (TypeError, ValueError):
+        return None
+    return species if species > 0 else None
+
+
+def _lisbon_today():
+    return datetime.now(_LISBON).date()
+
+
+def _generated_lisbon_day(generated: str):
+    """Lisbon calendar day of a quests.json ``generatedAt`` stamp."""
+    try:
+        dt = datetime.fromisoformat(generated.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    try:
+        return dt.astimezone(_LISBON).date()
+    except Exception:
+        return None
+
 
 ITEM_EMOJI: dict[int, str] = {
     1: "⚪",
@@ -28,8 +66,13 @@ class QuestExporter:
         """Build the quests payload and write it to disk.
 
         The write is skipped when the quest content is unchanged since the last
-        export (compared via a content hash stored in the meta file), so this is
-        cheap to call on a timer. Pass ``force=True`` to always rewrite.
+        export (compared via a content hash stored in the meta file) *and* the
+        on-disk payload is present, valid and from today's Europe/Lisbon
+        consumer day, so this is cheap to call on a timer. Pass ``force=True``
+        to always rewrite.
+
+        Each file is replaced atomically (temp file plus rename, payload
+        before metadata); the pair itself is not atomic.
 
         Returns ``True`` when the files were (re)written, ``False`` when the
         content was unchanged and the write was skipped.
@@ -98,9 +141,18 @@ class QuestExporter:
                     self._encounter_variant(reward, row, masterfile)
                 elif row["quest_reward_amount"] and int(row["quest_reward_amount"]) > 0:
                     reward["amount"] = int(row["quest_reward_amount"])
-                reward_key = reward["type"] + (
-                    f"|{reward['amount']}" if "amount" in reward else ""
-                )
+                parts = [reward["type"]]
+                if (
+                    reward["type"] in ("candy", "mega_energy", "xl_candy")
+                    and "pokemonId" in reward
+                ):
+                    try:
+                        parts.append(f"#{int(reward['pokemonId'])}")
+                    except (TypeError, ValueError):
+                        pass
+                if "amount" in reward:
+                    parts.append(str(reward["amount"]))
+                reward_key = "|".join(parts)
                 key = f"{title}|{reward_key}"
                 if key not in merged:
                     merged[key] = {
@@ -141,24 +193,28 @@ class QuestExporter:
         ).hexdigest()
 
         if not force and self._read_stored_hash(meta_path) == content_hash:
+            if self._payload_usable(output, content_hash):
+                logging.info(
+                    f"QuestExporter: quest content unchanged ({len(quests)} quests), "
+                    "skipping write"
+                )
+                return False
             logging.info(
-                f"QuestExporter: quest content unchanged ({len(quests)} quests), "
-                "skipping write"
+                "QuestExporter: metadata matches but payload is missing, invalid "
+                "or from a previous Lisbon day — rewriting"
             )
-            return False
 
-        output.parent.mkdir(parents=True, exist_ok=True)
         generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         payload = {"quests": quests, "generatedAt": generated_at}
-        with open(output, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False)
-
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {"generatedAt": generated_at, "contentHash": content_hash},
-                f,
-                ensure_ascii=False,
-            )
+        # Each file is written atomically via a unique same-directory temp file
+        # plus os.replace (per-file only). The payload/metadata pair is not a
+        # transaction: a crash between the two leaves a fresh payload with a
+        # stale meta, which the next export recovers by rewriting.
+        self._write_json_atomic(output, payload)
+        self._write_json_atomic(
+            meta_path,
+            {"generatedAt": generated_at, "contentHash": content_hash},
+        )
 
         logging.info(f"QuestExporter: wrote {len(quests)} quests → {output}")
         return True
@@ -167,9 +223,81 @@ class QuestExporter:
     def _read_stored_hash(meta_path: Path) -> str | None:
         try:
             with open(meta_path, encoding="utf-8") as f:
-                return json.load(f).get("contentHash")
+                data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return None
+        if not isinstance(data, dict):
+            return None
+        value = data.get("contentHash")
+        return value if isinstance(value, str) else None
+
+    @staticmethod
+    def _payload_usable(payload_path: Path, content_hash: str) -> bool:
+        """Whether the on-disk payload already satisfies this export.
+
+        True only when the payload exists, parses to an object with a quests
+        list whose content hash matches, and whose ``generatedAt`` falls on
+        today's Europe/Lisbon consumer day (the site ignores older days).
+        Anything else means the next write must recover, even when the meta
+        hash matches.
+        """
+        try:
+            with open(payload_path, encoding="utf-8") as f:
+                payload = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+        quests = payload.get("quests")
+        if not isinstance(quests, list):
+            return False
+        try:
+            payload_hash = hashlib.md5(
+                json.dumps(quests, ensure_ascii=False, sort_keys=True).encode()
+            ).hexdigest()
+        except (TypeError, ValueError):
+            return False
+        if payload_hash != content_hash:
+            return False
+        generated = payload.get("generatedAt")
+        if not isinstance(generated, str) or not generated:
+            return False
+        return _generated_lisbon_day(generated) == _lisbon_today()
+
+    @staticmethod
+    def _write_json_atomic(target: Path, data) -> None:
+        """Write JSON via a unique same-directory temp file plus replace.
+
+        The temp file takes the destination's mode (or 0644 when the
+        destination does not exist yet) so replacing a world-readable export
+        keeps its readership. Cleans the temp file when the write fails so an
+        interrupted export leaves the previous complete file in place.
+        """
+        target = Path(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            mode = stat.S_IMODE(os.stat(target).st_mode)
+        except OSError:
+            mode = 0o644
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(target.parent), prefix=target.name + ".", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass
+            os.chmod(tmp_name, mode)
+            os.replace(tmp_name, target)
+        except BaseException:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     @staticmethod
     def _translate_title(key: str, target, translations: dict) -> str:
@@ -265,11 +393,27 @@ class QuestExporter:
                 "label": f"{name}{suffix}",
                 "emoji": emoji,
             }
-        if reward_type in (3, 4):
+        if reward_type == 3:
             return {
                 "type": "stardust",
                 "label": f"Stardust{f' x{amount}' if amount else ''}",
                 "emoji": "✨",
+            }
+        if reward_type == 4:
+            species = _parse_species_id(pokemon_id)
+            suffix = f" x{amount}" if amount else ""
+            if species is not None:
+                name = pokemon_names.get(str(species), f"#{species}")
+                return {
+                    "type": "candy",
+                    "label": f"{name} Candy{suffix}",
+                    "emoji": "🍬",
+                    "pokemonId": species,
+                }
+            return {
+                "type": "candy",
+                "label": f"Candy{suffix}",
+                "emoji": "🍬",
             }
         if reward_type == 7:
             name = pokemon_names.get(str(pokemon_id), f"#{pokemon_id}")
@@ -279,16 +423,38 @@ class QuestExporter:
                 "emoji": "🎯",
             }
         if reward_type == 12:
-            name = pokemon_names.get(str(pokemon_id), f"#{pokemon_id}")
+            # Keep the website-compatible type exactly "mega_energy" (the
+            # site's getRewardTypeFilter uses equality); species travels in
+            # the additive pokemonId field and in the grouping/id key.
+            species = _parse_species_id(pokemon_id)
+            suffix = f" x{amount}" if amount else ""
+            if species is not None:
+                name = pokemon_names.get(str(species), f"#{species}")
+                return {
+                    "type": "mega_energy",
+                    "label": f"{name} Mega Energy{suffix}",
+                    "emoji": "⚡",
+                    "pokemonId": species,
+                }
             return {
                 "type": "mega_energy",
-                "label": f"Mega Energy{f' x{amount}' if amount else ''}",
+                "label": f"Mega Energy{suffix}",
                 "emoji": "⚡",
             }
         if reward_type == 13:
+            species = _parse_species_id(pokemon_id)
+            suffix = f" x{amount}" if amount else ""
+            if species is not None:
+                name = pokemon_names.get(str(species), f"#{species}")
+                return {
+                    "type": "xl_candy",
+                    "label": f"{name} XL Candy{suffix}",
+                    "emoji": "🍬",
+                    "pokemonId": species,
+                }
             return {
                 "type": "xl_candy",
-                "label": f"XL Candy{f' x{amount}' if amount else ''}",
+                "label": f"XL Candy{suffix}",
                 "emoji": "🍬",
             }
         if reward_type == 1:
