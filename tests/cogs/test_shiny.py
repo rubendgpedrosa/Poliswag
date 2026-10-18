@@ -99,6 +99,50 @@ async def test_a_dm_from_a_member_works(cog):
     cog.store.request.assert_awaited_once()
 
 
+async def test_ligador_reports_the_switch_and_the_last_run(cog):
+    cog.store.linker_state = AsyncMock(
+        return_value={"enabled": 1, "disabled_reason": None, "minutes_since_run": 3}
+    )
+    ctx = ctx_for(author_id=Config.MY_ID)
+    await Shiny.shiny.callback(cog, ctx, texto="ligador")
+    assert "ligado" in said(ctx) and "última corrida há 3 min" in said(ctx)
+    cog.store.request.assert_not_awaited()
+
+
+async def test_ligador_desligado_shows_the_reason(cog):
+    cog.store.linker_state = AsyncMock(
+        return_value={
+            "enabled": 0,
+            "disabled_reason": "o hook não saiu do jogo",
+            "minutes_since_run": None,
+        }
+    )
+    ctx = ctx_for(author_id=Config.MY_ID)
+    await Shiny.shiny.callback(cog, ctx, texto="ligador")
+    assert "desligado: o hook não saiu do jogo" in said(ctx)
+    assert "nunca correu" in said(ctx)
+
+
+async def test_ligador_ligar_switches_it_back_on(cog):
+    cog.store.enable_linker = AsyncMock()
+    ctx = ctx_for(author_id=Config.MY_ID)
+    await Shiny.shiny.callback(cog, ctx, texto="ligador ligar")
+    cog.store.enable_linker.assert_awaited_once_with()
+    assert "Ligador religado" in said(ctx)
+    assert "injector antigo" in said(ctx)
+
+
+@pytest.mark.parametrize("texto", ["ligador", "ligador ligar"])
+async def test_only_the_owner_may_use_the_ligador_subcommand(cog, texto):
+    cog.store.linker_state = AsyncMock()
+    cog.store.enable_linker = AsyncMock()
+    ctx = ctx_for(author_id=123)
+    await Shiny.shiny.callback(cog, ctx, texto=texto)
+    assert "código de amigo" in said(ctx)
+    cog.store.linker_state.assert_not_awaited()
+    cog.store.enable_linker.assert_not_awaited()
+
+
 def press(custom_id, user_id=123):
     interaction = MagicMock()
     interaction.data = {"custom_id": custom_id}
