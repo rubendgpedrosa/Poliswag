@@ -150,6 +150,14 @@ class Poliswag(commands.Bot):
         await self.tree.sync()
 
     async def get_channels(self):
+        """Resolve each configured channel independently.
+
+        A lookup failure for one channel (Forbidden/NotFound/HTTPException)
+        clears that attribute to None, logs which channel failed, and still
+        attempts the remaining channels. Unset ids also clear to None so a
+        reconnect never keeps a stale reference. Cancellation and unrelated
+        programmer errors propagate.
+        """
         channels = {
             "QUEST_CHANNEL": Config.QUEST_CHANNEL_ID,
             "CONVIVIO_CHANNEL": Config.CONVIVIO_CHANNEL_ID,
@@ -164,8 +172,17 @@ class Poliswag(commands.Bot):
                     f"{attr}_ID is unset or 0; channel will not be resolved",
                     "ERROR",
                 )
+                setattr(self, attr, None)
                 continue
-            setattr(self, attr, await self.fetch_channel(channel_id))
+            try:
+                setattr(self, attr, await self.fetch_channel(channel_id))
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
+                self.utility.log_to_file(
+                    f"Failed to resolve {attr} ({channel_id}): "
+                    f"{type(e).__name__}: {e}",
+                    "ERROR",
+                )
+                setattr(self, attr, None)
 
 
 def main():
