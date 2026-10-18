@@ -18,7 +18,7 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import build_embed
 from modules.membership import is_member
-from modules.permissions import owner_only
+from modules.permissions import is_owner, owner_only
 from modules.shiny_roll import normalise_friend_code
 from modules.shiny_store import ShinyStore
 from modules.shiny_channels import (
@@ -59,8 +59,9 @@ class Shiny(commands.Cog):
         "apaga tudo. `!shiny mapa [nome]` envia por DM o link do mapa de um "
         "jogador associado e `!shiny canal [nome]` cria-lhe um canal privado "
         "com o mapa e os alertas. `!shiny eventos ligar [570,25]` ativa resumos "
-        "de evento; `!shiny eventos desligar` desativa-os. Funciona aqui ou em "
-        "DM ao bot.",
+        "de evento; `!shiny eventos desligar` desativa-os. `!shiny ligador "
+        "[ligar]` mostra o estado do ligador de shiny ou volta a ligá-lo (só "
+        "o dono). Funciona aqui ou em DM ao bot.",
     )
     # Pilot: the owner alone, until the predictions have been checked in the
     # field. Removing this line opens the command to every member.
@@ -86,6 +87,11 @@ class Shiny(commands.Cog):
             return
         if texto.lower().split()[0] == "eventos":
             await self._event_preferences(ctx, texto.split()[1:])
+            return
+        # The pilot's @owner_only() may go away one day; this stays owner-only
+        # on its own. Anyone else gets the unknown-subcommand reply below.
+        if texto.lower().split()[0] == "ligador" and is_owner(ctx):
+            await self._linker(ctx, texto.split()[1:])
             return
         if texto.lower() == "remover":
             await self.store.remove(author.id)
@@ -217,6 +223,29 @@ class Shiny(commands.Cog):
             ctx,
             "Resumos de evento " + ("ligados." if action == "ligar" else "desligados."),
         )
+
+    async def _linker(self, ctx, arguments):
+        """`!shiny ligador` status, `!shiny ligador ligar` switch it on."""
+        if arguments and arguments[0].lower() == "ligar":
+            await self.store.enable_linker()
+            await self._say(
+                ctx,
+                "Ligador religado. A próxima corrida (de 10 em 10 min) para "
+                "primeiro qualquer injector antigo e não liga enquanto um hook "
+                "anterior estiver no jogo.",
+            )
+            return
+        state = await self.store.linker_state()
+        switch = (
+            "ligado"
+            if state["enabled"]
+            else f"desligado: {state.get('disabled_reason') or 'sem motivo'}"
+        )
+        minutes = state.get("minutes_since_run")
+        last = "nunca correu"
+        if minutes is not None:
+            last = f"última corrida há {minutes} min"
+        await self._say(ctx, f"Ligador de shiny: {switch}. {last}.")
 
     async def _send_map_link(self, ctx, name):
         player = await self.store.find_linked(name)
