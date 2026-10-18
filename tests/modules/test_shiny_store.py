@@ -301,3 +301,13 @@ async def test_enable_linker_switches_on_and_forgets_the_reason(store, db):
     assert "shiny_linker_enabled = 1" in sql
     assert "shiny_linker_disabled_reason = NULL" in sql
     assert db.execute_query_to_database.call_args.kwargs.get("params") is None
+
+
+@pytest.mark.parametrize("reason", ["desligado pelo dono", "x" * 160])
+async def test_disable_linker_switches_off_and_truncates_the_reason(store, db, reason):
+    await store.disable_linker(reason)
+    db.execute_query_to_database.assert_awaited_once_with(
+        "UPDATE poliswag SET shiny_linker_enabled = 0, "
+        "shiny_linker_disabled_reason = %s",
+        params=(reason[:128],),
+    )
