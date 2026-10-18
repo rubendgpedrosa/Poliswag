@@ -6,16 +6,23 @@ and manually attach only the attributes each test needs. This keeps the tests
 fast and isolated from the filesystem.
 """
 
+import asyncio
 import logging
 import logging.handlers
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import discord
 import pytest
 
 from modules.config import Config
-from modules.utility import LOG_BACKUP_COUNT, LOG_MAX_BYTES, Utility
+from modules.utility import (
+    LOG_BACKUP_COUNT,
+    LOG_MAX_BYTES,
+    VERSION_CHECK_TIMEOUT,
+    Utility,
+)
 
 
 @pytest.fixture
@@ -342,7 +349,7 @@ class TestGetNewPokemongoVersion:
             async def __aexit__(self_inner, *exc):
                 return False
 
-            def get(self_inner, url):
+            def get(self_inner, url, **kwargs):
                 return _CM()
 
         mocker.patch("modules.utility.get_session", return_value=_Session())
@@ -374,7 +381,7 @@ class TestGetNewPokemongoVersion:
             async def __aexit__(self_inner, *exc):
                 return False
 
-            def get(self_inner, url):
+            def get(self_inner, url, **kwargs):
                 return _CM()
 
         mocker.patch("modules.utility.get_session", return_value=_Session())
@@ -401,7 +408,7 @@ class TestGetNewPokemongoVersion:
             async def __aexit__(self_inner, *exc):
                 return False
 
-            def get(self_inner, url):
+            def get(self_inner, url, **kwargs):
                 return _CM()
 
         mocker.patch("modules.utility.get_session", return_value=_Session())
@@ -435,7 +442,7 @@ class TestGetNewPokemongoVersion:
             async def __aexit__(self_inner, *exc):
                 return False
 
-            def get(self_inner, url):
+            def get(self_inner, url, **kwargs):
                 return _CM()
 
         mocker.patch("modules.utility.get_session", return_value=_Session())
@@ -443,3 +450,59 @@ class TestGetNewPokemongoVersion:
         result = await util.get_new_pokemongo_version()
         assert result == "3.0.0"
         util.poliswag.db.execute_query_to_database.assert_called_once()
+
+    async def test_request_uses_bounded_timeout(self, util, mocker):
+        response = MagicMock()
+        response.status = 200
+
+        async def fake_text():
+            return "9.9.9"
+
+        response.text = fake_text
+        seen = {}
+
+        class _CM:
+            async def __aenter__(self_inner):
+                return response
+
+            async def __aexit__(self_inner, *exc):
+                return False
+
+        class _Session:
+            def get(self_inner, url, **kwargs):
+                seen.update(kwargs)
+                return _CM()
+
+        mocker.patch("modules.utility.get_session", return_value=_Session())
+        util.poliswag.db.get_data_from_database.return_value = [{"version": "1.0.0"}]
+        result = await util.get_new_pokemongo_version()
+        assert result == "9.9.9"
+        assert "timeout" in seen
+        timeout = seen["timeout"]
+        assert isinstance(timeout, aiohttp.ClientTimeout)
+        assert timeout == VERSION_CHECK_TIMEOUT
+        assert timeout.total == 15
+
+    async def test_timeout_returns_none_without_updating_version(self, util, mocker):
+        seen = {}
+
+        class _Session:
+            def get(self_inner, url, **kwargs):
+                seen.update(kwargs)
+
+                class _Boom:
+                    async def __aenter__(_self):
+                        raise asyncio.TimeoutError("timed out")
+
+                    async def __aexit__(_self, *exc):
+                        return False
+
+                return _Boom()
+
+        mocker.patch("modules.utility.get_session", return_value=_Session())
+        result = await util.get_new_pokemongo_version()
+        assert result is None
+        util.poliswag.db.execute_query_to_database.assert_not_called()
+        util.error_logger.error.assert_called_once()
+        assert "timeout" in seen
+        assert seen["timeout"] == VERSION_CHECK_TIMEOUT
