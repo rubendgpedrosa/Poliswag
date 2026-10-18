@@ -1496,3 +1496,255 @@ class TestTrackingActivityLogs:
             notify.assert_not_awaited()
         assert cog._last_tracking_alert_at is None
         poliswag.utility.log_to_file.assert_called_once()
+
+
+# --- digest delivery retryability + Discord limits (items 2) ------------------
+
+
+def _monday_at_10():
+    return real_datetime.datetime(2026, 4, 6, 10, 0)
+
+
+def _daily_at_930():
+    return real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+
+
+class TestWeeklyDigestRetryability:
+    async def test_first_send_failure_then_retry(self, cog):
+        cog._last_weekly_digest_monday = None
+        cog._save_digest_date = AsyncMock()
+        cog._send_weekly_digest = AsyncMock(
+            side_effect=[
+                discord.HTTPException(MagicMock(status=500), "boom"),
+                True,
+            ]
+        )
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = _monday_at_10()
+            await cog._check_weekly_digest()
+            assert cog._last_weekly_digest_monday is None
+            cog._save_digest_date.assert_not_called()
+            await cog._check_weekly_digest()
+        assert cog._last_weekly_digest_monday == _monday_at_10().date()
+        cog._save_digest_date.assert_called_once_with(_monday_at_10().date())
+        assert cog._send_weekly_digest.await_count == 2
+
+    async def test_successful_dedup_does_not_resend(self, cog):
+        mon = _monday_at_10()
+        cog._last_weekly_digest_monday = mon.date()
+        cog._send_weekly_digest = AsyncMock()
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = mon
+            await cog._check_weekly_digest()
+        cog._send_weekly_digest.assert_not_called()
+
+    async def test_quiet_day_still_marks_without_retry_spam(self, cog):
+        cog._last_weekly_digest_monday = None
+        cog._save_digest_date = AsyncMock()
+        cog._send_weekly_digest = AsyncMock(return_value=False)
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = _monday_at_10()
+            await cog._check_weekly_digest()
+            assert cog._last_weekly_digest_monday == _monday_at_10().date()
+            cog._save_digest_date.assert_called_once()
+            await cog._check_weekly_digest()
+        assert cog._send_weekly_digest.await_count == 1
+
+    async def test_missing_channel_still_marks_without_retry_spam(
+        self, cog, monkeypatch
+    ):
+        from modules.config import Config
+
+        monkeypatch.setattr(Config, "CONVIVIO_CHANNEL_ID", 0)
+        cog.poliswag.CONVIVIO_CHANNEL = None
+        cog.poliswag.event_manager.get_weekly_events = AsyncMock(
+            return_value=[
+                {
+                    "event_type": "Community Day",
+                    "name": "X",
+                    "start": "2026-04-06 08:00:00",
+                    "end": "2026-04-06 20:00:00",
+                }
+            ]
+        )
+        assert (await cog._send_weekly_digest()) is False
+        cog.poliswag.utility.log_to_file.assert_called()
+        cog._last_weekly_digest_monday = None
+        cog._save_digest_date = AsyncMock()
+        cog._send_weekly_digest = AsyncMock(return_value=False)
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = _monday_at_10()
+            await cog._check_weekly_digest()
+        assert cog._last_weekly_digest_monday == _monday_at_10().date()
+
+    async def test_configured_but_unresolved_retries_until_delivery(
+        self, cog, monkeypatch
+    ):
+        from modules.config import Config
+
+        monkeypatch.setattr(Config, "CONVIVIO_CHANNEL_ID", 5)
+        cog.poliswag.CONVIVIO_CHANNEL = None
+        recovered = MagicMock()
+        recovered.send = AsyncMock()
+        cog.poliswag.fetch_channel = AsyncMock(
+            side_effect=[
+                discord.HTTPException(MagicMock(status=503), "lookup boom"),
+                recovered,
+            ]
+        )
+        cog.poliswag.event_manager.get_weekly_events = AsyncMock(
+            return_value=[
+                {
+                    "event_type": "Community Day",
+                    "name": "Retryable",
+                    "start": "2026-04-06 08:00:00",
+                    "end": "2026-04-06 20:00:00",
+                }
+            ]
+        )
+        cog._last_weekly_digest_monday = None
+        cog._save_digest_date = AsyncMock()
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = _monday_at_10()
+            mock_dt.datetime.strptime = real_datetime.datetime.strptime
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_weekly_digest()
+            assert cog._last_weekly_digest_monday is None
+            cog._save_digest_date.assert_not_called()
+            assert cog.poliswag.CONVIVIO_CHANNEL is None
+            await cog._check_weekly_digest()
+        assert cog._last_weekly_digest_monday == _monday_at_10().date()
+        cog._save_digest_date.assert_called_once_with(_monday_at_10().date())
+        assert cog.poliswag.CONVIVIO_CHANNEL is recovered
+        recovered.send.assert_awaited_once()
+        assert recovered.send.call_args.kwargs["allowed_mentions"].everyone is False
+
+
+class TestWeeklyDigestLimits:
+    def _many_events(self, count):
+        base = real_datetime.datetime(2026, 4, 7, 12, 0)
+        events = []
+        for i in range(count):
+            start = base + real_datetime.timedelta(hours=i)
+            end = start + real_datetime.timedelta(hours=3)
+            events.append(
+                {
+                    "event_type": "Community Day",
+                    "name": f"Event-{i:03d}-" + "x" * 80,
+                    "start": start.strftime("%Y-%m-%d %H:%M:%S"),
+                    "end": end.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
+        return events
+
+    async def test_oversized_calendar_splits_preserving_all_entries(self, cog):
+        now = real_datetime.datetime(2026, 4, 7, 12, 0)
+        events = self._many_events(80)
+        cog.poliswag.event_manager.get_weekly_events = AsyncMock(return_value=events)
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.datetime.strptime = real_datetime.datetime.strptime
+            mock_dt.timedelta = real_datetime.timedelta
+            result = await cog._send_weekly_digest()
+        assert result is True
+        calls = cog.poliswag.CONVIVIO_CHANNEL.send.await_args_list
+        assert len(calls) > 1
+        for call in calls:
+            embed = call.kwargs["embed"]
+            assert len(embed.description) <= 4096
+            assert len(embed) <= 6000
+            assert call.kwargs["allowed_mentions"].everyone is False
+        combined = "\n".join(c.kwargs["embed"].description for c in calls)
+        for i in range(80):
+            assert f"Event-{i:03d}-" in combined
+
+
+class TestDailyErrorDigestRetryability:
+    @pytest.fixture(autouse=True)
+    def _owner(self, cog, monkeypatch):
+        from modules.config import Config
+
+        monkeypatch.setattr(Config, "MY_ID", 42)
+        self.owner = MagicMock(send=AsyncMock())
+        cog.poliswag.get_user = MagicMock(return_value=self.owner)
+        cog.poliswag.fetch_user = AsyncMock(return_value=self.owner)
+
+    async def test_failed_fetch_then_retry(self, cog):
+        now = _daily_at_930()
+        cog._last_error_digest_at = None
+        cog._save_error_digest_at = AsyncMock()
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
+        cog.poliswag.get_user = MagicMock(return_value=None)
+        cog.poliswag.fetch_user = AsyncMock(
+            side_effect=[
+                discord.HTTPException(MagicMock(status=503), "fetch boom"),
+                self.owner,
+            ]
+        )
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+            assert cog._last_error_digest_at is None
+            cog._save_error_digest_at.assert_not_called()
+            await cog._check_daily_error_digest()
+        assert cog._last_error_digest_at == now
+        cog._save_error_digest_at.assert_called_once_with(now)
+        self.owner.send.assert_awaited_once()
+
+    async def test_failed_send_does_not_advance_marker(self, cog):
+        now = _daily_at_930()
+        cog._last_error_digest_at = None
+        cog._save_error_digest_at = AsyncMock()
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
+        self.owner.send = AsyncMock(
+            side_effect=discord.HTTPException(MagicMock(status=500), "send boom")
+        )
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        assert cog._last_error_digest_at is None
+        cog._save_error_digest_at.assert_not_called()
+        cog.poliswag.utility.log_to_file.assert_called()
+
+    async def test_successful_dedup_does_not_resend(self, cog):
+        now = _daily_at_930()
+        cog._last_error_digest_at = now
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=["line1"])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        self.owner.send.assert_not_called()
+
+    async def test_quiet_day_advances_marker_without_send(self, cog):
+        now = _daily_at_930()
+        cog._last_error_digest_at = None
+        cog._save_error_digest_at = AsyncMock()
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=[])
+        with patch("cogs.scheduled.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = now
+            mock_dt.timedelta = real_datetime.timedelta
+            await cog._check_daily_error_digest()
+        self.owner.send.assert_not_called()
+        assert cog._last_error_digest_at == now
+        cog._save_error_digest_at.assert_called_once_with(now)
+
+
+class TestLurePresenceRetryability:
+    async def test_failed_presence_then_retry(self, cog):
+        cog._last_lure_status_count = 2
+        cog.poliswag.lure_watcher.count_active_lures = AsyncMock(return_value=3)
+        cog.poliswag.change_presence = AsyncMock(
+            side_effect=[
+                discord.HTTPException(MagicMock(status=500), "presence boom"),
+                None,
+            ]
+        )
+        with pytest.raises(discord.HTTPException):
+            await cog._update_lure_status()
+        assert cog._last_lure_status_count == 2
+        await cog._update_lure_status()
+        assert cog._last_lure_status_count == 3
+        assert cog.poliswag.change_presence.await_count == 2

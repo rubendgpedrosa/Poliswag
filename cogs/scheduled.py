@@ -26,6 +26,39 @@ from modules.trade_dm import TradeDM
 # warnings on stdout.
 _SLOW_STEP_SECONDS = 60
 
+# Discord caps an embed description at 4096 chars and a message's embeds at
+# 6000 chars total. The weekly calendar is chunked at line boundaries so no
+# entry is dropped or truncated.
+_WEEKLY_DESCRIPTION_LIMIT = 4096
+
+
+def _split_weekly_description(text, limit=_WEEKLY_DESCRIPTION_LIMIT):
+    """Split a long digest at line boundaries, preserving every entry."""
+    lines = text.split("\n")
+    chunks = []
+    current = []
+    current_len = 0
+    for line in lines:
+        if len(line) > limit:
+            if current:
+                chunks.append("\n".join(current))
+                current = []
+                current_len = 0
+            for i in range(0, len(line), limit):
+                chunks.append(line[i : i + limit])
+            continue
+        extra = len(line) + (1 if current else 0)
+        if current and current_len + extra > limit:
+            chunks.append("\n".join(current))
+            current = [line]
+            current_len = len(line)
+        else:
+            current.append(line)
+            current_len += extra
+    if current:
+        chunks.append("\n".join(current))
+    return chunks or [""]
+
 
 class Scheduled(commands.Cog):
     def __init__(self, poliswag):
@@ -534,21 +567,43 @@ class Scheduled(commands.Cog):
 
     async def _update_lure_status(self):
         """Reflect the live active-lure count in the bot's Discord presence.
-        Skips the API call when the count has not changed since last tick."""
+
+        Skips the API call when the count has not changed since last tick.
+        The count is cached only after change_presence succeeds, so a
+        transport failure retries on the next tick instead of losing a change.
+        """
         count = await self.poliswag.lure_watcher.count_active_lures()
         if count == self._last_lure_status_count:
             return
-        self._last_lure_status_count = count
         await self.poliswag.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.watching, name=f"{count} lures active"
             )
         )
+        self._last_lure_status_count = count
 
     async def _update_accounts_display(self):
         await self.poliswag.account_monitor.update_channel_accounts_stats()
 
     async def _send_weekly_digest(self, channel=None) -> bool:
+        """Post the weekly calendar; split across messages within Discord limits.
+
+        Returns True when at least one message was sent, False on a quiet
+        week (no events after filtering) or when the channel is truly
+        unconfigured (id 0). A quiet week or unconfigured channel still
+        counts as done for _check_weekly_digest's dedup marker, so neither
+        retries every tick. A configured id whose object is missing (startup
+        lookup failed) is recovered via fetch_channel; a lookup failure
+        raises so _check_weekly_digest leaves the marker unset for retry.
+
+        Discord caps an embed description at 4096 chars and a message's
+        embeds at 6000 chars total. The calendar is chunked at line
+        boundaries so no entry is dropped or truncated; mentions stay off on
+        every send. Discord acceptance and the DB marker cannot be atomic: a
+        crash between two batches, or between the last send and the marker
+        write in _check_weekly_digest, may resend an earlier batch on retry
+        (partial-batch duplicates).
+        """
         now = datetime.datetime.now()
         today = now.date()
         events = await self.poliswag.event_manager.get_weekly_events()
@@ -614,17 +669,56 @@ class Scheduled(commands.Cog):
         if not blocks:
             return False
 
-        embed = build_embed(
-            f"Eventos da semana · {date_range}",
-            description="\n\n".join(blocks),
-            footer=f"Atualizado a {now.strftime('%d/%m/%Y %H:%M')}",
-        )
-
         target = channel or self.poliswag.CONVIVIO_CHANNEL
-        await target.send(embed=embed)
+        if target is None:
+            if channel is None and Config.CONVIVIO_CHANNEL_ID:
+                # Configured id but the object is missing (startup lookup
+                # failed): recover here instead of losing the delivery.
+                try:
+                    target = await self.poliswag.fetch_channel(
+                        Config.CONVIVIO_CHANNEL_ID
+                    )
+                except (
+                    discord.Forbidden,
+                    discord.NotFound,
+                    discord.HTTPException,
+                ) as e:
+                    self.poliswag.utility.log_to_file(
+                        f"Weekly digest: CONVIVIO lookup failed: {e}", "ERROR"
+                    )
+                    raise
+                self.poliswag.CONVIVIO_CHANNEL = target
+            if target is None:
+                self.poliswag.utility.log_to_file(
+                    "Weekly digest: no channel configured", "ERROR"
+                )
+                return False
+
+        title = f"Eventos da semana · {date_range}"
+        footer = f"Atualizado a {now.strftime('%d/%m/%Y %H:%M')}"
+        chunks = _split_weekly_description("\n\n".join(blocks))
+        for index, chunk in enumerate(chunks):
+            embed = build_embed(
+                title if index == 0 else f"{title} (cont.)",
+                description=chunk,
+                footer=footer if index == len(chunks) - 1 else None,
+            )
+            await target.send(
+                embed=embed, allowed_mentions=discord.AllowedMentions.none()
+            )
         return True
 
     async def _check_weekly_digest(self):
+        """Send Monday's calendar once; persist the marker only after success.
+
+        A quiet week (no events) or a truly unconfigured channel (id 0) also
+        advances the marker so they do not retry every tick. A transport
+        failure -- including a configured channel whose lookup still fails --
+        leaves the marker unset so the next tick retries; the retry happens
+        on the next 60s tick (bounded, no tight loop). Discord acceptance
+        and the marker write cannot be atomic: a crash between them may
+        duplicate the digest on the next tick.
+        """
         now = datetime.datetime.now()
         today = now.date()
         if today.weekday() != 0:
@@ -633,9 +727,15 @@ class Scheduled(commands.Cog):
             return
         if now.hour < 9:
             return
+        try:
+            await self._send_weekly_digest()
+        except discord.HTTPException as e:
+            self.poliswag.utility.log_to_file(
+                f"Weekly digest send failed: {e}", "ERROR"
+            )
+            return
         self._last_weekly_digest_monday = today
         await self._save_digest_date(today)
-        await self._send_weekly_digest()
 
     async def _check_trade_digest(self):
         """The 09:00 post naming what was added to the lists since yesterday.
@@ -645,7 +745,15 @@ class Scheduled(commands.Cog):
     async def _check_daily_error_digest(self):
         """Once a day, if anything new landed in error.log, DM a summary to
         MY_ID (it went to MOD_CHANNEL until 2026-09-26). Silent when there is
-        nothing new to report."""
+        nothing new to report.
+
+        The marker is written only after a successful DM -- or immediately on
+        a quiet day / missing recipient, so neither retries every tick. A
+        transport failure (including fetch_user) leaves the marker unset so
+        the next 60s tick retries (bounded, no tight loop). Discord acceptance
+        and the marker write cannot be atomic: a crash between them may
+        duplicate the digest on the next tick.
+        """
         now = datetime.datetime.now()
         if (
             self._last_error_digest_at
@@ -658,10 +766,9 @@ class Scheduled(commands.Cog):
         since = self._last_error_digest_at or (now - datetime.timedelta(days=1))
         entries = self.poliswag.utility.read_new_error_entries(since)
 
-        self._last_error_digest_at = now
-        await self._save_error_digest_at(now)
-
         if not entries or not Config.MY_ID:
+            self._last_error_digest_at = now
+            await self._save_error_digest_at(now)
             return
 
         preview = entries[:10]
@@ -673,15 +780,26 @@ class Scheduled(commands.Cog):
             f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
             description[:4000],
         )
-        user = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
-            Config.MY_ID
-        )
         try:
-            await user.send(embed=embed)
+            user = self.poliswag.get_user(
+                Config.MY_ID
+            ) or await self.poliswag.fetch_user(Config.MY_ID)
+            if user is None:
+                self.poliswag.utility.log_to_file(
+                    "Could not DM the daily error digest", "ERROR"
+                )
+                return
+            await user.send(
+                embed=embed, allowed_mentions=discord.AllowedMentions.none()
+            )
         except discord.HTTPException:
             self.poliswag.utility.log_to_file(
                 "Could not DM the daily error digest", "ERROR"
             )
+            return
+
+        self._last_error_digest_at = now
+        await self._save_error_digest_at(now)
 
     async def _check_tracking_health(self):
         """Log traffic silence/resumption once per episode, without pushing DMs."""

@@ -1,3 +1,4 @@
+import aiohttp
 import discord
 import re
 from datetime import datetime, time
@@ -14,6 +15,13 @@ _LOG_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - \w+ - "
 # docker-compose.prod.yaml, so both layers cap out around the same footprint.
 LOG_MAX_BYTES = 10_000_000
 LOG_BACKUP_COUNT = 5
+
+# Bounded request for the Niantic forced-version endpoint, consistent with
+# the other infra timeouts (quest_search HTTP_TIMEOUT_SECONDS=15, poracle
+# default 15, shiny_availability 15). The shared session's default total
+# timeout is minutes-long; without this a stalled version check would hold
+# the scheduler tick open.
+VERSION_CHECK_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
 class Utility:
@@ -73,7 +81,10 @@ class Utility:
     async def get_new_pokemongo_version(self):
         try:
             session = get_session()
-            async with session.get(Config.NIANTIC_FORCED_VERSION_ENDPOINT) as response:
+            async with session.get(
+                Config.NIANTIC_FORCED_VERSION_ENDPOINT,
+                timeout=VERSION_CHECK_TIMEOUT,
+            ) as response:
                 if response.status == 200:
                     retrieved_version = (
                         (await response.text()).strip().replace("\x07", "")
