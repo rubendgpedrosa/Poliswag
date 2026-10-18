@@ -74,11 +74,11 @@ def worker(tmp_path):
 
 def job(worker, prompt="hello", **changes):
     return worker.jobs.submit(
-        owner_id=123, provider="claude", mode="code", prompt=prompt, context=changes
+        owner_id=123, provider="claude", prompt=prompt, context=changes
     )
 
 
-def test_code_job_edits_worktree_without_touching_live_tree(worker):
+def test_job_runs_in_throwaway_worktree_without_touching_live_tree(worker):
     request = job(worker, "EDIT")
     worker.run_job(request)
     result = worker.jobs.get(request["id"], 123)
@@ -101,7 +101,6 @@ def test_completed_job_stages_image_before_publishing_completion(worker, provide
     request = worker.jobs.submit(
         owner_id=123,
         provider=provider,
-        mode="code",
         prompt="ARTIFACT",
         context={},
         destination={"type": "channel", "channel_id": 789, "guild_id": 321},
@@ -166,6 +165,14 @@ def test_restart_marks_running_job_interrupted_without_replay(worker):
     assert not worker.worktrees.exists()
 
 
+def test_code_mode_request_is_refused(worker):
+    request = job(worker)
+    request["mode"] = "code"
+    worker.run_job(request)
+    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
+    assert not worker.worktrees.exists()
+
+
 def test_forged_owner_cannot_execute(worker):
     request = job(worker)
     request["owner_id"] = "999"
@@ -184,9 +191,9 @@ def test_bot_credentials_do_not_enter_agent_environment(monkeypatch):
     )
 
 
-def test_provider_modes_use_supported_headless_flags(tmp_path):
+def test_owner_jobs_are_always_read_only(tmp_path):
     binaries = {"claude": "claude", "codex": "codex"}
-    request = {"provider": "codex", "mode": "ask"}
+    request = {"provider": "codex", "mode": "code"}
     cmd = command_for(request, binaries, tmp_path, tmp_path / "answer.txt")
     assert cmd[cmd.index("--sandbox") + 1] == "read-only"
     assert "mcp_servers.poliswag_db.args=" in " ".join(cmd)
@@ -199,21 +206,31 @@ def test_provider_modes_use_supported_headless_flags(tmp_path):
     assert "mcp__poliswag_db__query" in cmd[cmd.index("--allowedTools") + 1]
 
 
-def test_public_command_always_uses_codex_luna_medium_without_shell(tmp_path):
+def test_public_command_always_uses_codex_luna_low_without_shell(tmp_path):
     cmd = public_command("codex", tmp_path, tmp_path / "answer.txt")
     assert cmd[cmd.index("-m") + 1] == "gpt-6-luna"
-    assert 'model_reasoning_effort="medium"' in cmd
+    assert 'model_reasoning_effort="low"' in cmd
+    assert "medium" not in cmd
     assert "poliswag_db" not in " ".join(cmd)
     assert "features.shell_tool=false" in cmd
     assert "features.unified_exec=false" in cmd
+    assert "features.apply_patch_freeform=false" in cmd
+    assert "features.memories=false" in cmd
+    assert "features.multi_agent=false" in cmd
+    assert "tools.view_image=false" in cmd
+    assert 'web_search="disabled"' in cmd
     assert "--ephemeral" in cmd and "--ignore-user-config" in cmd
+    assert "--ignore-rules" in cmd
     assert "--skip-git-repo-check" in cmd
     assert cmd[cmd.index("--sandbox") + 1] == "read-only"
 
 
-def public_job(worker, topic="greeting"):
+def public_job(worker, topic="greeting", text="Olá", snapshot=None):
     return worker.public_jobs.submit(
-        owner_id=0, provider="codex", mode="ask", prompt=topic, context={}
+        owner_id=0,
+        provider="codex",
+        prompt=topic,
+        context={"text": text, "snapshot": snapshot},
     )
 
 
@@ -226,15 +243,110 @@ def test_public_job_runs_codex_in_empty_directory_without_owner_worktree(worker)
         "assert 'README.md' not in prompt and 'owner' not in prompt.lower()\n"
         "assert not pathlib.Path('README.md').exists()\n"
         "pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text("
-        "json.dumps({'reply': 'Olá! 🐸'}))\n"
+        "json.dumps({'reply': 'Olá! Sou o Poliswag.'}))\n"
     )
     request = public_job(worker)
     worker.run_public_job(request)
     result = worker.public_jobs.get(request["id"], 0)
     assert result["state"] == "completed"
-    assert json.loads(result["reply"]) == {"reply": "Olá! 🐸"}
+    assert json.loads(result["reply"]) == {"reply": "Olá! Sou o Poliswag."}
     assert not worker.worktrees.exists()
     assert worker.jobs.list(123) == []
+
+
+def test_public_job_passes_question_and_snapshot_as_untrusted_data(worker):
+    fake = Path(worker.binaries["codex"])
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        "prompt = sys.stdin.read()\n"
+        "assert 'dados não confiáveis' in prompt\n"
+        'assert \'"text": "Onde há Dragonite?"\' in prompt\n'
+        'assert \'"species": "Dragonite"\' in prompt\n'
+        "assert 'README.md' not in prompt\n"
+        "pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text("
+        "json.dumps({'reply': 'Há Dragonite perto do centro.'}))\n"
+    )
+    snapshot = {
+        "area": "Leiria / Marinha Grande",
+        "sections": [
+            {
+                "kind": "spawns",
+                "status": "ok",
+                "recognized": False,
+                "groups": [{"species": "Dragonite", "count": 3}],
+            }
+        ],
+    }
+    request = public_job(worker, text="Onde há Dragonite?", snapshot=snapshot)
+    worker.run_public_job(request)
+    result = worker.public_jobs.get(request["id"], 0)
+    assert result["state"] == "completed"
+    assert json.loads(result["reply"]) == {"reply": "Há Dragonite perto do centro."}
+
+
+def test_public_job_passes_validated_authoritative_facts_to_the_model(worker):
+    fake = Path(worker.binaries["codex"])
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        "prompt = sys.stdin.read()\n"
+        'assert \'"kind": "events"\' in prompt\n'
+        "assert 'Gible Community Day' in prompt\n"
+        "assert 'admin' not in prompt\n"
+        "pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text("
+        "json.dumps({'reply': 'Há um evento público.'}))\n"
+    )
+    request = public_job(
+        worker,
+        topic="events",
+        text="Que eventos há?",
+        snapshot=None,
+    )
+    request["context"]["facts"] = {
+        "kind": "events",
+        "text": "Gible Community Day",
+        "admin": True,
+    }
+    worker.run_public_job(request)
+    result = worker.public_jobs.get(request["id"], 0)
+    assert result["state"] == "completed"
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        None,
+        {},
+        {"text": "", "snapshot": None},
+        {"text": "x" * 2001, "snapshot": None},
+        {"text": 123, "snapshot": None},
+    ],
+)
+def test_public_job_rejects_missing_or_oversized_question(worker, context):
+    request = public_job(worker)
+    request["context"] = context
+    worker.run_public_job(request)
+    assert worker.public_jobs.get(request["id"], 0)["state"] == "failed"
+
+
+def test_public_job_never_retains_raw_cli_output(worker):
+    fake = Path(worker.binaries["codex"])
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        "print('DB_PASSWORD=SECRET', file=sys.stdout)\n"
+        "print('SECRET', file=sys.stderr)\n"
+        "pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text("
+        "json.dumps({'reply': 'Resposta segura.'}))\n"
+    )
+    request = public_job(worker)
+    worker.run_public_job(request)
+    result = worker.public_jobs.get(request["id"], 0)
+    assert result["state"] == "completed"
+    assert "SECRET" not in result["reply"]
+    assert not (worker.public_jobs.directory(request["id"]) / "stdout.log").exists()
+    assert not (worker.public_jobs.directory(request["id"]) / "stderr.log").exists()
 
 
 @pytest.mark.parametrize(
@@ -244,6 +356,7 @@ def test_public_job_runs_codex_in_empty_directory_without_owner_worktree(worker)
         ("provider", "claude"),
         ("owner_id", "123"),
         ("mode", "code"),
+        ("context", None),
     ],
 )
 def test_public_queue_cannot_escalate_to_owner_agent(worker, field, value):
@@ -281,7 +394,7 @@ def test_restart_interrupts_public_jobs_without_owner_dm(worker):
 @pytest.mark.parametrize("provider", ["claude", "codex"])
 def test_blocking_decision_resumes_existing_worktree(worker, provider):
     request = worker.jobs.submit(
-        owner_id=123, provider=provider, mode="code", prompt="BLOCK", context={}
+        owner_id=123, provider=provider, prompt="BLOCK", context={}
     )
     worker.run_job(request)
     blocked = worker.jobs.get(request["id"], 123)

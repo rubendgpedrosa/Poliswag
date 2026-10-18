@@ -179,6 +179,18 @@ class TestBareMention:
 
         ctx.send_help.assert_not_awaited()
 
+    @pytest.mark.parametrize("content", ["`<@42>` !help", "> <@42>\n!help"])
+    async def test_quoted_or_code_tag_is_not_a_tag(self, content, mocker):
+        mocker.patch("main.may_run_in_dm", return_value=True)
+        ctx = MagicMock(command=MagicMock(), send=AsyncMock())
+        bot, process = self._bot(ctx)
+        bot.get_cog.return_value = MagicMock(handle=AsyncMock())
+
+        await process(bot, self._message(content))
+
+        bot.get_cog.return_value.handle.assert_not_awaited()
+        bot.invoke.assert_awaited_once_with(ctx)
+
 
 def test_exemption_names_the_real_shiny_cog():
     # !shiny is meant for DMs and carries its own membership check.

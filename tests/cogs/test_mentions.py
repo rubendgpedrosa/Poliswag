@@ -15,6 +15,11 @@ def cog(monkeypatch):
     bot.user.id = 456
     bot.db = AsyncMock()
     bot.quest_search.db = AsyncMock()
+    bot.quest_search.pokemon_name_map = {
+        "149": "Dragonite",
+        "42": "Golbat",
+        "1": "Bulbasaur",
+    }
     bot.get_cog.return_value = MagicMock(submit_natural_request=AsyncMock())
     return Mentions(bot)
 
@@ -34,13 +39,109 @@ def ctx(content="<@456>", owner=False, dm=False):
     return context
 
 
-async def test_bare_member_mention_gets_joke_not_help(cog):
+async def test_bare_member_mention_gets_helpful_greeting_not_help(cog):
     context = ctx()
     assert await cog.handle(context)
     assert context.reply.await_count == 1
+    assert "Poliswag" in context.reply.call_args.args[0]
     assert "!help" not in context.reply.call_args.args[0]
     assert not context.reply.call_args.kwargs["allowed_mentions"].everyone
     cog.poliswag.get_cog.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Olá Poliswag, tudo bem?",
+        "I like Poliswag",
+        "<@777> olá",
+        "`<@456>` pedido em código",
+        "```\n<@456> code claude\n```",
+        "```\n<@456> unclosed code block",
+        "> <@456> pedido citado",
+        ">>> <@456> citação multilinha\nlinha seguinte <@456> não conta",
+        "<@&456> menção de cargo",
+        "@everyone menção geral",
+        "@here menção geral",
+        "\\<@456> literal",
+    ],
+)
+async def test_untagged_literal_quoted_and_other_user_tags_do_nothing(cog, content):
+    cog.public.reply = AsyncMock()
+    cog.public.model.line = AsyncMock()
+    cog.public.map_context.snapshot = AsyncMock()
+    context = ctx(content)
+    context.message.reference = MagicMock()
+    assert not await cog.handle(context)
+    context.reply.assert_not_awaited()
+    context.message.add_reaction.assert_not_awaited()
+    cog.public.reply.assert_not_awaited()
+    cog.public.model.line.assert_not_awaited()
+    cog.public.map_context.snapshot.assert_not_awaited()
+    cog.poliswag.db.get_data_from_database.assert_not_awaited()
+    cog.poliswag.quest_search.db.get_data_from_database.assert_not_awaited()
+    cog.poliswag.get_cog.assert_not_called()
+
+
+async def test_reply_reference_without_explicit_tag_does_nothing(cog):
+    cog.public.reply = AsyncMock()
+    cog.public.model.line = AsyncMock()
+    cog.public.map_context.snapshot = AsyncMock()
+    context = ctx("isto é uma resposta à mensagem do bot")
+    context.message.reference = MagicMock(message_id=999)
+    context.message.mentions = [MagicMock(id=456)]
+    assert not await cog.handle(context)
+    context.reply.assert_not_awaited()
+    context.message.add_reaction.assert_not_awaited()
+    cog.public.reply.assert_not_awaited()
+    cog.public.model.line.assert_not_awaited()
+    cog.public.map_context.snapshot.assert_not_awaited()
+    cog.poliswag.get_cog.assert_not_called()
+
+
+async def test_member_question_reaches_model_with_public_map_context(cog):
+    snapshot = {
+        "area": "Leiria / Marinha Grande",
+        "sections": [
+            {
+                "kind": "spawns",
+                "status": "ok",
+                "recognized": True,
+                "truncated": False,
+                "sample_count": 1,
+                "locations": [
+                    {
+                        "species": "Dragonite",
+                        "lat": 39.74,
+                        "lon": -8.8,
+                        "expires_at": "14:30",
+                    }
+                ],
+            }
+        ],
+    }
+    cog.public.map_context.snapshot = AsyncMock(return_value=snapshot)
+    cog.public.model.line = AsyncMock(
+        return_value="Há Dragonite perto do centro até às 14:30."
+    )
+    context = ctx("<@456> Onde há Dragonite?")
+    assert await cog.handle(context)
+    assert "Dragonite" in context.reply.call_args.args[0]
+    cog.public.model.line.assert_awaited_once_with(
+        "map",
+        text="Onde há Dragonite?",
+        context={"snapshot": snapshot, "facts": None},
+    )
+
+
+def test_public_map_context_only_gets_query_interface_and_public_name_copy(cog):
+    map_context = cog.public.map_context
+    assert map_context.db is cog.poliswag.quest_search.db
+    assert map_context._by_id == {149: "Dragonite", 42: "Golbat", 1: "Bulbasaur"}
+    assert not hasattr(map_context, "poliswag")
+    assert not hasattr(map_context, "config")
+    cog.poliswag.quest_search.pokemon_name_map["149"] = "HACKED"
+    assert map_context._by_id[149] == "Dragonite"
 
 
 @pytest.mark.parametrize(
@@ -79,19 +180,30 @@ async def test_owner_bare_mention_only_greets(cog):
 
 
 async def test_nonowner_dm_is_silent(cog):
+    cog.public.reply = AsyncMock()
+    cog.public.model.line = AsyncMock()
     context = ctx(dm=True)
     assert await cog.handle(context)
     context.reply.assert_not_awaited()
+    context.message.add_reaction.assert_not_awaited()
+    cog.public.reply.assert_not_awaited()
+    cog.public.model.line.assert_not_awaited()
+    cog.poliswag.db.get_data_from_database.assert_not_awaited()
     cog.poliswag.get_cog.assert_not_called()
 
 
 @pytest.mark.parametrize("webhook, bot", [(123, False), (None, True)])
 async def test_webhooks_and_bots_cannot_impersonate_owner(cog, webhook, bot):
+    cog.public.reply = AsyncMock()
+    cog.public.model.line = AsyncMock()
     context = ctx(owner=True)
     context.message.webhook_id = webhook
     context.author.bot = bot
     assert not await cog.handle(context)
     context.reply.assert_not_awaited()
+    context.message.add_reaction.assert_not_awaited()
+    cog.public.reply.assert_not_awaited()
+    cog.public.model.line.assert_not_awaited()
     cog.poliswag.get_cog.assert_not_called()
 
 
@@ -160,6 +272,13 @@ async def test_unrelated_message_is_untouched(cog):
     context = ctx("hello <@777>")
     assert not await cog.handle(context)
     context.reply.assert_not_awaited()
+
+
+async def test_untagged_explicit_command_is_not_intercepted(cog):
+    context = ctx("!help")
+    assert not await cog.handle(context)
+    context.reply.assert_not_awaited()
+    cog.poliswag.get_cog.assert_not_called()
 
 
 @pytest.mark.parametrize("dm", [False, True])

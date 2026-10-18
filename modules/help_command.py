@@ -23,6 +23,7 @@ _COG_DISPLAY_NAMES = {
 }
 
 _NO_DESCRIPTION = "Sem descrição."
+_GENERIC_DETAIL = "Não encontrei nenhum comando ou categoria pública com esse nome."
 
 # !help overview: three audiences. Mods (ADMIN_USERS_IDS) and MY_ID get
 # compact name-only lines grouped by topic; `!help <comando>` has the detail.
@@ -71,6 +72,16 @@ class EmbedHelpCommand(commands.HelpCommand):
             return "Outros"
         return _COG_DISPLAY_NAMES.get(cog.qualified_name, cog.qualified_name)
 
+    async def _send_embed(self, embed, *, private=False):
+        """Owner-only help goes to the owner's DM, never the guild channel."""
+        if private and self.context.guild is not None:
+            try:
+                await self.context.author.send(embed=embed)
+            except discord.HTTPException:
+                pass
+            return
+        await self.get_destination().send(embed=embed)
+
     async def prepare_help_command(self, ctx, command=None):
         # Runs for !help, !help <comando> and a bare @Poliswag alike: the
         # command message goes, only the answer stays in the channel.
@@ -82,15 +93,54 @@ class EmbedHelpCommand(commands.HelpCommand):
                 pass
 
     def command_not_found(self, string):
+        # Nonowners get the same neutral answer for unknown and restricted
+        # names, without echoing the requested name.
+        if not is_owner(self.context):
+            return _GENERIC_DETAIL
         return f'Não encontrei nenhum comando chamado "{string}".'
 
     def subcommand_not_found(self, command, string):
+        if not is_owner(self.context):
+            return _GENERIC_DETAIL
         if isinstance(command, commands.Group) and len(command.all_commands) > 0:
             return (
                 f'O comando "{command.qualified_name}" não tem nenhum '
                 f'subcomando chamado "{string}".'
             )
         return f'O comando "{command.qualified_name}" não tem subcomandos.'
+
+    async def _can_view(self, command):
+        """Command and every parent group must pass checks and audience."""
+        current = command
+        while current is not None:
+            if self._audience(
+                getattr(current, "cog", None), current
+            ) == "owner" and not is_owner(self.context):
+                return False
+            try:
+                if not await current.can_run(self.context):
+                    return False
+            except Exception:
+                return False
+            current = current.parent
+        return True
+
+    async def _filter_visible(self, commands):
+        """Filter twice so DM help cannot skip checks like discord.py does."""
+        visible = []
+        for command in await self.filter_commands(commands, sort=True):
+            if await self._can_view(command):
+                visible.append(command)
+        return visible
+
+    def _is_private(self, command):
+        """Any owner-classified command or ancestor group makes help private."""
+        current = command
+        while current is not None:
+            if self._audience(getattr(current, "cog", None), current) == "owner":
+                return True
+            current = getattr(current, "parent", None)
+        return False
 
     def _audience(self, cog, command):
         """ "owner", "mods" or "all", from the same gates that refuse the
@@ -107,6 +157,7 @@ class EmbedHelpCommand(commands.HelpCommand):
     async def send_bot_help(self, mapping):
         prefix = self.context.clean_prefix
         viewer_is_mod = is_mod(self.context)
+        viewer_is_owner = is_owner(self.context)
         public, mods, owner = [], {}, []
         for cog, cog_commands in mapping.items():
             for command in await self.filter_commands(cog_commands, sort=True):
@@ -119,7 +170,8 @@ class EmbedHelpCommand(commands.HelpCommand):
                 if audience == "all":
                     public.append(f"{name} — {command.brief or _NO_DESCRIPTION}")
                 elif audience == "owner":
-                    owner.append(name)
+                    if viewer_is_owner:
+                        owner.append(name)
                 elif viewer_is_mod:
                     topic = _MOD_TOPICS.get(cog.qualified_name, "Outros")
                     mods.setdefault(topic, []).append(name)
@@ -140,11 +192,18 @@ class EmbedHelpCommand(commands.HelpCommand):
             embed.add_field(name="🛡️ Mods", value="\n".join(lines), inline=False)
         if owner:
             embed.add_field(name="🔒 Só para ti", value=" ".join(owner), inline=False)
-        await self.get_destination().send(embed=embed)
+        await self._send_embed(embed, private=bool(owner))
 
     async def send_cog_help(self, cog):
+        owner_category = cog.qualified_name in _OWNER_COGS
+        if owner_category and not is_owner(self.context):
+            await self.send_error_message(_GENERIC_DETAIL)
+            return
         prefix = self.context.clean_prefix
-        filtered = await self.filter_commands(cog.get_commands(), sort=True)
+        filtered = await self._filter_visible(cog.get_commands())
+        if not filtered:
+            await self.send_error_message(_GENERIC_DETAIL)
+            return
         embed = status_embed(self._cog_label(cog))
         for command in filtered:
             embed.add_field(
@@ -152,24 +211,36 @@ class EmbedHelpCommand(commands.HelpCommand):
                 value=command.help or command.brief or _NO_DESCRIPTION,
                 inline=False,
             )
-        await self.get_destination().send(embed=embed)
+        private = owner_category or any(
+            self._is_private(command) for command in filtered
+        )
+        await self._send_embed(embed, private=private)
 
     async def send_group_help(self, group):
+        if not await self._can_view(group):
+            await self.send_error_message(_GENERIC_DETAIL)
+            return
         prefix = self.context.clean_prefix
         embed = status_embed(
             f"📖 {prefix}{group.qualified_name}",
             group.help or group.brief or _NO_DESCRIPTION,
         )
-        filtered = await self.filter_commands(group.commands, sort=True)
+        filtered = await self._filter_visible(group.commands)
         for command in filtered:
             embed.add_field(
                 name=f"{prefix}{command.qualified_name}",
                 value=command.help or command.brief or _NO_DESCRIPTION,
                 inline=False,
             )
-        await self.get_destination().send(embed=embed)
+        private = self._is_private(group) or any(
+            self._is_private(command) for command in filtered
+        )
+        await self._send_embed(embed, private=private)
 
     async def send_command_help(self, command):
+        if not await self._can_view(command):
+            await self.send_error_message(_GENERIC_DETAIL)
+            return
         prefix = self.context.clean_prefix
         embed = status_embed(
             f"📖 {prefix}{command.qualified_name}",
@@ -188,8 +259,8 @@ class EmbedHelpCommand(commands.HelpCommand):
             value=f"`{usage}`",
             inline=False,
         )
-        await self.get_destination().send(embed=embed)
+        await self._send_embed(embed, private=self._is_private(command))
 
     async def send_error_message(self, error):
         embed = status_embed(f"❌ {error}", color=discord.Color.red())
-        await self.get_destination().send(embed=embed)
+        await self._send_embed(embed, private=is_owner(self.context))

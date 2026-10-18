@@ -26,6 +26,9 @@ def _fake_command(name, brief=None, help=None, aliases=None, checks=None):
     cmd.help = help
     cmd.aliases = aliases or []
     cmd.checks = checks or []
+    cmd.can_run = AsyncMock(return_value=True)
+    cmd.parent = None
+    cmd.cog = None
     return cmd
 
 
@@ -41,9 +44,12 @@ def hc():
     help_command.context = MagicMock()
     help_command.context.clean_prefix = "!"
     help_command.context.bot.ADMIN_USERS_IDS = ["111", "999"]
+    help_command.context.bot.can_run = AsyncMock(return_value=True)
+    help_command.context.command = None
     help_command.context.author.id = 555  # a member
     help_command.context.channel = MagicMock()
     help_command.context.channel.send = AsyncMock()
+    help_command.context.author.send = AsyncMock()
     return help_command
 
 
@@ -78,6 +84,10 @@ class _OwnerCog(commands.Cog, name="WebStats"):
 
 def _send(hc):
     return hc.context.channel.send.call_args.kwargs["embed"]
+
+
+def _send_dm(hc):
+    return hc.context.author.send.call_args.kwargs["embed"]
 
 
 def _field(embed, name):
@@ -150,13 +160,14 @@ class TestSendBotHelp:
 
         await hc.send_bot_help(mapping)
 
-        embed = _send(hc)
+        embed = _send_dm(hc)
         assert [f.name for f in embed.fields] == [
             "Para todos",
             "🛡️ Mods",
             "🔒 Só para ti",
         ]
         assert _field(embed, "🔒 Só para ti").value == "`!stats`"
+        hc.context.channel.send.assert_not_awaited()
 
     async def test_owner_check_on_a_single_command_puts_it_in_owner_section(
         self, hc, mocker
@@ -168,7 +179,21 @@ class TestSendBotHelp:
 
         await hc.send_bot_help({_OpenCog(): [cmd]})
 
-        assert [f.name for f in _send(hc).fields] == ["🔒 Só para ti"]
+        assert [f.name for f in _send_dm(hc).fields] == ["🔒 Só para ti"]
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_mod_permissive_filter_never_lists_owner_entries(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        cmd = _fake_command("secret", brief="x", checks=[is_owner])
+        cmd.cog_name = "Agents"
+        hc.context.author.id = 111
+        hc.filter_commands = AsyncMock(return_value=[cmd])
+
+        await hc.send_bot_help({_fake_cog("Agents"): [cmd]})
+
+        embed = _send(hc)
+        assert "secret" not in str(embed.fields)
+        assert "🔒 Só para ti" not in [field.name for field in embed.fields]
 
     async def test_questleiria_is_listed_with_its_marinha_alias(self, hc):
         cmd = _fake_command("questleiria", brief="Procura quests")
@@ -234,6 +259,10 @@ class TestSendGroupHelp:
         group.help = "Gere o dispositivo"
         group.brief = None
         group.commands = [_fake_command("device status", brief="Verifica ligação")]
+        group.can_run = AsyncMock(return_value=True)
+        group.parent = None
+        group.cog = None
+        group.checks = []
         hc.filter_commands = AsyncMock(side_effect=lambda cmds, **kw: list(cmds))
 
         await hc.send_group_help(group)
@@ -249,6 +278,10 @@ class TestSendGroupHelp:
         group.help = None
         group.brief = None
         group.commands = []
+        group.can_run = AsyncMock(return_value=True)
+        group.parent = None
+        group.cog = None
+        group.checks = []
         hc.filter_commands = AsyncMock(return_value=[])
 
         await hc.send_group_help(group)
@@ -310,13 +343,30 @@ class TestSendErrorMessage:
 
 
 class TestCommandNotFound:
-    def test_returns_pt_message(self, hc):
+    def test_nonowner_gets_the_same_neutral_message(self, hc):
+        msg = hc.command_not_found("bogus")
+        assert msg == "Não encontrei nenhum comando ou categoria pública com esse nome."
+        assert "bogus" not in msg
+
+    def test_owner_can_still_see_the_requested_name(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
         msg = hc.command_not_found("bogus")
         assert msg == 'Não encontrei nenhum comando chamado "bogus".'
 
 
 class TestSubcommandNotFound:
-    def test_group_with_subcommands_names_the_missing_one(self, hc):
+    def test_nonowner_never_sees_parent_or_missing_name(self, hc):
+        group = MagicMock(spec=commands.Group)
+        group.qualified_name = "code"
+        group.all_commands = {"status": MagicMock()}
+        msg = hc.subcommand_not_found(group, "bogus")
+        assert msg == "Não encontrei nenhum comando ou categoria pública com esse nome."
+        assert "code" not in msg and "bogus" not in msg
+
+    def test_owner_group_with_subcommands_names_the_missing_one(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
         group = MagicMock(spec=commands.Group)
         group.qualified_name = "device"
         group.all_commands = {"status": MagicMock()}
@@ -324,17 +374,302 @@ class TestSubcommandNotFound:
         assert "device" in msg
         assert "bogus" in msg
 
-    def test_group_without_subcommands(self, hc):
+    def test_owner_group_without_subcommands(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
         group = MagicMock(spec=commands.Group)
         group.qualified_name = "empty"
         group.all_commands = {}
         msg = hc.subcommand_not_found(group, "bogus")
         assert "não tem subcomandos" in msg
 
-    def test_non_group_command(self, hc):
-        command = _fake_command("track")
-        msg = hc.subcommand_not_found(command, "bogus")
-        assert "não tem subcomandos" in msg
+
+class TestDetailedPermissionGating:
+    async def test_restricted_command_detail_is_generic(self, hc):
+        command = _fake_command("code", help="Edita código")
+        command.can_run = AsyncMock(return_value=False)
+
+        await hc.send_command_help(command)
+
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "code" not in embed.title
+        assert "Edita" not in (embed.description or "")
+        assert all("code" not in field.name for field in embed.fields)
+
+    async def test_restricted_parent_group_blocks_nested_subcommand_detail(self, hc):
+        parent = _fake_command("code", help="Privado")
+        parent.can_run = AsyncMock(return_value=False)
+        leaf = _fake_command("code edit", help="Edita")
+        leaf.parent = parent
+        leaf.can_run = AsyncMock(return_value=True)
+
+        await hc.send_command_help(leaf)
+
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "edit" not in embed.title
+        assert "Edita" not in (embed.description or "")
+
+    async def test_restricted_group_detail_does_not_render_parent_description(self, hc):
+        group = _fake_command("device", help="Gere o dispositivo")
+        group.commands = []
+        group.can_run = AsyncMock(return_value=False)
+
+        await hc.send_group_help(group)
+
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "device" not in embed.title
+        assert "Gere o dispositivo" not in (embed.description or "")
+
+    async def test_nonowner_cog_detail_is_generic_without_label(self, hc):
+        cog = _fake_cog("Agents")
+        cog.get_commands.return_value = [_fake_command("ask", help="Privado")]
+        hc.filter_commands = AsyncMock(return_value=[])
+
+        await hc.send_cog_help(cog)
+
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "Agentes" not in embed.title
+        assert all("ask" not in field.name for field in embed.fields)
+
+    async def test_owner_cog_detail_is_sent_to_owner_dm_not_guild(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        cog = _fake_cog("Agents")
+        command = _fake_command("ask", help="Pergunta privada")
+        command.cog = cog
+        cog.get_commands.return_value = [command]
+        hc.filter_commands = AsyncMock(return_value=[command])
+
+        await hc.send_cog_help(cog)
+
+        embed = _send_dm(hc)
+        assert embed.title == "🤖 Agentes (dono)"
+        assert embed.fields[0].name == "!ask"
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_group_detail_is_sent_to_owner_dm_not_guild(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        cog = _fake_cog("ContainerManagerCog")
+        group = _fake_command("device", help="Gere o dispositivo")
+        group.cog = cog
+        group.commands = [_fake_command("device status", help="Verifica")]
+        group.parent = None
+        hc.filter_commands = AsyncMock(return_value=group.commands)
+
+        await hc.send_group_help(group)
+
+        embed = _send_dm(hc)
+        assert embed.title == "📖 !device"
+        assert embed.description == "Gere o dispositivo"
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_nested_leaf_under_owner_parent_is_dm_private(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        cog = _fake_cog("ContainerManagerCog")
+        parent = _fake_command("device", help="Gere")
+        parent.cog = cog
+        parent.can_run = AsyncMock(return_value=True)
+        leaf = _fake_command("device status", help="Verifica")
+        leaf.parent = parent
+        leaf.can_run = AsyncMock(return_value=True)
+        hc.get_command_signature = MagicMock(return_value="!device status")
+
+        await hc.send_command_help(leaf)
+
+        assert _send_dm(hc).title == "📖 !device status"
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_command_detail_is_sent_to_owner_dm_not_guild(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        command = _fake_command("code", help="Edita código")
+        command.cog = _fake_cog("Agents")
+        hc.get_command_signature = MagicMock(return_value="!code")
+
+        await hc.send_command_help(command)
+
+        embed = _send_dm(hc)
+        assert embed.title == "📖 !code"
+        assert embed.description == "Edita código"
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_dm_failure_never_falls_back_to_guild(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        hc.context.author.send = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(status=403), "Forbidden")
+        )
+        command = _fake_command("code", help="Edita código")
+        command.cog = _fake_cog("Agents")
+        hc.get_command_signature = MagicMock(return_value="!code")
+
+        await hc.send_command_help(command)
+
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_help_error_in_guild_is_dm_private(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+
+        await hc.send_error_message('O comando "code" não existe.')
+
+        assert "code" in _send_dm(hc).title
+        hc.context.channel.send.assert_not_awaited()
+
+    async def test_owner_in_dm_still_gets_positive_detail(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        hc.context.author.id = 999
+        hc.context.guild = None
+        command = _fake_command("code", help="Edita código")
+        command.cog = _fake_cog("Agents")
+        hc.get_command_signature = MagicMock(return_value="!code")
+
+        await hc.send_command_help(command)
+
+        assert _send(hc).title == "📖 !code"
+        hc.context.author.send.assert_not_awaited()
+
+
+class _FakeBot:
+    def __init__(self, *, cog=None, all_commands=None, admins=("111",)):
+        self.ADMIN_USERS_IDS = list(admins)
+        self._cog = cog
+        self.all_commands = all_commands or {}
+
+    async def can_run(self, ctx):
+        return True
+
+    def get_cog(self, name):
+        return self._cog if name == "Agents" else None
+
+
+def _callback_context(bot, author_id, *, guild="guild", display_name=None):
+    ctx = MagicMock()
+    ctx.bot = bot
+    ctx.author.id = author_id
+    ctx.author.display_name = display_name or "trainer"
+    ctx.author.send = AsyncMock()
+    ctx.guild = MagicMock() if guild == "guild" else guild
+    ctx.channel.send = AsyncMock()
+    ctx.clean_prefix = "!"
+    ctx.command = None
+    ctx.message.delete = AsyncMock()
+    return ctx
+
+
+def _owner_command():
+    @commands.command(name="code", help="Edita código")
+    @commands.check(is_owner)
+    async def code(ctx):
+        pass
+
+    return code
+
+
+class _AgentsCog(commands.Cog, name="Agents"):
+    def __init__(self, bot):
+        self.bot = bot
+        self.ask.cog = self
+
+    def cog_check(self, ctx):
+        return is_owner(ctx)
+
+    @commands.command(name="ask", help="Pergunta privada")
+    async def ask(self, ctx):
+        pass
+
+
+class TestRealCommandCallback:
+    async def _run(self, hc, ctx, command):
+        hc.context = ctx
+        await hc.command_callback(ctx, command=command)
+
+    async def test_member_detailed_restricted_command_is_generic(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        command = _owner_command()
+        ctx = _callback_context(_FakeBot(all_commands={"code": command}), 555)
+        await self._run(hc, ctx, "code")
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "code" not in embed.title
+        assert "Edita" not in (embed.description or "")
+
+    async def test_mod_detailed_restricted_command_is_generic(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        command = _owner_command()
+        ctx = _callback_context(_FakeBot(all_commands={"code": command}), 111)
+        await self._run(hc, ctx, "code")
+        assert "Não encontrei" in _send(hc).title
+        assert "code" not in _send(hc).title
+
+    async def test_display_name_faynn_does_not_authorize_help(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        command = _owner_command()
+        ctx = _callback_context(
+            _FakeBot(all_commands={"code": command}), 555, display_name="faynn"
+        )
+        await self._run(hc, ctx, "code")
+        assert "Não encontrei" in _send(hc).title
+        assert "faynn" not in str(_send(hc).fields)
+
+    async def test_owner_detailed_command_is_positive_in_dm(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        command = _owner_command()
+        ctx = _callback_context(_FakeBot(all_commands={"code": command}), 999)
+        hc.get_command_signature = MagicMock(return_value="!code")
+        await self._run(hc, ctx, "code")
+        assert _send_dm(hc).title == "📖 !code"
+        ctx.channel.send.assert_not_awaited()
+
+    async def test_member_agents_cog_is_generic(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        bot = _FakeBot()
+        cog = _AgentsCog(bot)
+        bot._cog = cog
+        ctx = _callback_context(bot, 555)
+        await self._run(hc, ctx, "Agents")
+        embed = _send(hc)
+        assert "Não encontrei" in embed.title
+        assert "Agentes" not in embed.title
+        assert all("ask" not in field.name for field in embed.fields)
+
+    async def test_mod_agents_cog_is_generic(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        bot = _FakeBot(admins=("111",))
+        cog = _AgentsCog(bot)
+        bot._cog = cog
+        ctx = _callback_context(bot, 111)
+        await self._run(hc, ctx, "Agents")
+        assert "Não encontrei" in _send(hc).title
+        assert "Agentes" not in _send(hc).title
+
+    async def test_nonowner_agents_cog_in_dm_is_generic(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        bot = _FakeBot()
+        cog = _AgentsCog(bot)
+        bot._cog = cog
+        ctx = _callback_context(bot, 555, guild=None)
+        await self._run(hc, ctx, "Agents")
+        assert "Não encontrei" in _send(hc).title
+        assert "Agentes" not in _send(hc).title
+
+    async def test_owner_agents_cog_is_positive_in_dm(self, hc, mocker):
+        mocker.patch.object(Config, "MY_ID", 999)
+        bot = _FakeBot()
+        cog = _AgentsCog(bot)
+        bot._cog = cog
+        ctx = _callback_context(bot, 999)
+        await self._run(hc, ctx, "Agents")
+        embed = _send_dm(hc)
+        assert embed.title == "🤖 Agentes (dono)"
+        assert embed.fields[0].name == "!ask"
+        ctx.channel.send.assert_not_awaited()
 
 
 class TestDeletesTheCommand:

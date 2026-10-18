@@ -17,13 +17,14 @@ def queue(tmp_path):
 
 
 def submit(queue, **changes):
-    args = dict(owner_id=123, provider="openai", mode="code", prompt="fix", context={})
+    args = dict(owner_id=123, provider="openai", prompt="fix", context={})
     return queue.submit(**{**args, **changes})
 
 
 def test_durable_request_and_owner_isolation(queue):
     job = submit(queue)
     assert job["provider"] == "codex"
+    assert job["mode"] == "ask"
     assert AgentJobs(queue.root).get(job["id"], 123)["state"] == "queued"
     with pytest.raises(ValueError, match="não encontrada"):
         queue.get(job["id"], 999)
@@ -59,9 +60,11 @@ def test_invalid_prompt_never_enqueued(queue, prompt):
 @pytest.mark.parametrize(
     "content, expected",
     [
-        ("Claude what broke?", ("ask", "claude", "what broke?")),
-        ("code openai fix the bug", ("code", "openai", "fix the bug")),
-        ("ask codex explain it", ("ask", "codex", "explain it")),
+        ("Claude what broke?", ("claude", "what broke?")),
+        ("code openai fix the bug", ("openai", "fix the bug")),
+        ("ask codex explain it", ("codex", "explain it")),
+        ("!code codex explain it", ("codex", "explain it")),
+        ("!codex explain it", ("codex", "explain it")),
         ("restart the scanner", None),
         ("claude", None),
         ("!questleiria", None),
@@ -91,7 +94,7 @@ def test_decision_resumes_same_job_without_modifying_original_request(queue):
     assert resumed["state"] == "queued" and resumed["revision"] == 1
     assert not resumed["notified"]
     assert resumed["prompt"] == "fix"
-    assert resumed["provider"] == "codex" and resumed["mode"] == "code"
+    assert resumed["provider"] == "codex" and resumed["mode"] == "ask"
     assert resumed["turns"] == [
         {"question": "Qual cidade devo usar?", "answer": "Leiria"}
     ]

@@ -34,7 +34,7 @@ TOOLS = [
     },
     {
         "name": "query",
-        "description": "Query live production data using read-only SQL; use SHOW TABLES and DESCRIBE to discover schema. Results are bounded; prefer SQL aggregates and LIMIT. Use %s placeholders with params for values.",
+        "description": "Query live production data using read-only SQL; use SHOW TABLES and DESCRIBE to discover schema. Results are bounded; prefer SQL aggregates and LIMIT. Use %s placeholders with params for values. Scanner accounts, credentials, usernames, Friend Codes and SQL comments are refused.",
         "inputSchema": {
             "type": "object",
             "properties": {
