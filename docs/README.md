@@ -29,6 +29,7 @@ Repo-level: [`../README.md`](../README.md) (setup, `make` targets, commands, pro
 | [`scanner-updates.md`](context/scanner-updates.md) | host-side scanner update staging and session-protected recovery |
 | [`shiny.md`](context/shiny.md) | `!shiny`, host linker guards/breaker, alert DMs — canonical for roll/odds; site files link here, read only the section needed |
 | [`shiny-access-requests.md`](context/shiny-access-requests.md) | shiny-map access request embeds and moderator decisions |
+| [`shiny-event-digests.md`](context/shiny-event-digests.md) | opt-in event shiny summaries (`!shiny eventos`), delivery and cooldown persistence |
 | [`shundo-mentions.md`](context/shundo-mentions.md) | per-player Shundo channel mentions and Poracle templates |
 | [`spawn-history.md`](context/spawn-history.md) | raw spawn retention, unfiltered leaderboards, JSON export and coverage gaps |
 | [`agents.md`](context/agents.md) | owner Claude/Codex jobs, host executor, review worktrees — read owner-protocol vs public-safeguards section only as needed |

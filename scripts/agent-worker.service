@@ -18,18 +18,22 @@ MemoryMax=2G
 CPUQuota=150%
 TasksMax=256
 ProtectSystem=strict
-ProtectHome=read-only
+# /root is an empty tmpfs; only what the worker needs is mounted back, so other
+# stacks' configs (Dragonite lab, Poracle, Diadem, backups) are never readable.
+ProtectHome=tmpfs
 PrivateTmp=true
 NoNewPrivileges=true
 # Root-to-root user namespace mapping needs SETFCAP on modern Linux; bwrap
 # also needs SETUID/SETGID. No mount, ptrace, or DAC-override capabilities.
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_SETFCAP
 RestrictSUIDSGID=true
-ReadWritePaths=/root/worktrees/poliswag-agent /root/Poliswag/.git /root/Poliswag/logs/agent-jobs
-ReadWritePaths=/root/.claude /root/.codex /root/.cache
-ReadWritePaths=-/root/.claude.json
+BindReadOnlyPaths=/root/Poliswag /root/.local
+BindPaths=/root/worktrees/poliswag-agent /root/Poliswag/.git /root/Poliswag/logs/agent-jobs
+BindPaths=/root/.claude /root/.codex /root/.cache
+BindPaths=-/root/.claude.json
 InaccessiblePaths=/root/Poliswag/.env /var/run/docker.sock
-InaccessiblePaths=-/root/.ssh -/root/unonwhash -/root/PoGoLeiria -/root/Blissey -/root/xilriws -/root/backups -/root/db-backup.sh -/root/poliswag-mitm
+# Container volumes and layers hold database files and other stacks' secrets.
+InaccessiblePaths=-/var/lib/docker -/var/lib/containerd -/opt -/etc/shadow -/etc/gshadow
 
 [Install]
 WantedBy=multi-user.target
