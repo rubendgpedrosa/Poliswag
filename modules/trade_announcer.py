@@ -84,7 +84,7 @@ class TradeAnnouncer:
                 cursor.execute(
                     """
                     SELECT DISTINCT h.discord_id AS holder_id, w.discord_id AS wanter_id,
-                           h.pokemon_id, h.form_id, h.category,
+                           h.pokemon_id, h.form_id, h.costume_id, h.category,
                            h.created_at AS have_created_at, w.created_at AS want_created_at,
                            CASE WHEN h.created_at >= w.created_at THEN h.discord_id ELSE w.discord_id END actor_id,
                            hp.username AS holder_username, hp.display_name AS holder_display_name,
@@ -93,14 +93,15 @@ class TradeAnnouncer:
                     FROM trade_entry h
                     JOIN trade_entry w ON w.list = 'want'
                       AND (w.pokemon_id = 0 OR w.pokemon_id = h.pokemon_id)
-                      AND (w.form_id = 0 OR w.form_id = h.form_id)
+                      AND (w.form_id = h.form_id OR (w.form_id = 0 AND w.costume_id = 0))
+                      AND (w.costume_id = h.costume_id OR (w.form_id = 0 AND w.costume_id = 0))
                       AND (w.category = 'normal' OR w.category = h.category)
                       AND w.discord_id <> h.discord_id
                     JOIN trade_player hp ON hp.discord_id = h.discord_id AND hp.left_at IS NULL
                     JOIN trade_player wp ON wp.discord_id = w.discord_id AND wp.left_at IS NULL
-                    LEFT JOIN poliswag.pokemon_name pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id
+                    LEFT JOIN poliswag.pokemon_catalogue pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id AND pn.costume_id = h.costume_id
                     LEFT JOIN trade_notice n ON n.wanter_id = w.discord_id AND n.holder_id = h.discord_id
-                      AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.category = h.category
+                      AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.costume_id = h.costume_id AND n.category = h.category
                     WHERE h.list = 'have' AND h.created_at <= %s AND w.created_at <= %s
                       AND GREATEST(h.created_at, w.created_at) > %s
                       AND n.wanter_id IS NULL
@@ -141,12 +142,13 @@ class TradeAnnouncer:
             with db.cursor() as cursor:
                 for row in rows:
                     cursor.execute(
-                        "INSERT IGNORE INTO trade_notice (wanter_id, holder_id, pokemon_id, form_id, category) VALUES (%s,%s,%s,%s,%s)",
+                        "INSERT IGNORE INTO trade_notice (wanter_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
                         (
                             row["wanter_id"],
                             row["holder_id"],
                             row["pokemon_id"],
                             row["form_id"],
+                            row.get("costume_id", 0),
                             row["category"],
                         ),
                     )

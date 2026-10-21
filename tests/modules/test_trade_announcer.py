@@ -307,7 +307,7 @@ class TestInitialiseAndAdvance:
         assert len(db._cursor.executed) == 2
         sql, params = db._cursor.executed[0]
         assert "INSERT IGNORE INTO trade_notice" in sql
-        assert params == (10, 1, 25, 0, "normal")
+        assert params == (10, 1, 25, 0, 0, "normal")
         db.commit.assert_called_once()
         db.close.assert_called_once()
 
