@@ -102,9 +102,9 @@ def test_versioned_catalogue_loads_all_reviewed_source_entries():
     load = getattr(sync, "load_costume_catalogue", None)
     assert load is not None, "A versioned source-backed catalogue loader is required"
     catalogue = load()
-    assert len(catalogue["variants"]) == 323
+    assert len(catalogue["variants"]) == 329
     assert (
-        catalogue["source_entry_count"] == catalogue["mapped_source_entry_count"] == 323
+        catalogue["source_entry_count"] == catalogue["mapped_source_entry_count"] == 329
     )
     assert catalogue["pending"] == []
 
