@@ -199,7 +199,7 @@ class TestRecordAndWatermark:
         assert cursor.execute.call_count == 2
         first = cursor.execute.call_args_list[0]
         assert "INSERT IGNORE INTO trade_dm_notice" in first.args[0]
-        assert first.args[1] == (2, 1, 25, 0, "shiny")
+        assert first.args[1] == (2, 1, 25, 0, 0, "shiny")
         db.commit.assert_called_once()
         db.close.assert_called_once()
 

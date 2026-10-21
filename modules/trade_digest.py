@@ -49,7 +49,7 @@ CATEGORY_LABELS = {
 # asks for, or already wants what this have offers. Same rule as the
 # announcer's, which posts those pairs as they connect.
 _ROWS_SQL = """
-    SELECT e.discord_id, e.list, e.category, e.pokemon_id, e.form_id,
+    SELECT e.discord_id, e.list, e.category, e.pokemon_id, e.form_id, e.costume_id,
            COALESCE(p.trainer_name, p.display_name) AS display_name,
            pn.name AS pokemon_name, pn.form_name,
            (e.list = 'have' AND EXISTS (
@@ -57,19 +57,21 @@ _ROWS_SQL = """
               JOIN trade_player wp ON wp.discord_id = w.discord_id AND wp.left_at IS NULL
               WHERE w.list = 'want' AND w.discord_id <> e.discord_id
                 AND (w.pokemon_id = 0 OR w.pokemon_id = e.pokemon_id)
-                AND (w.form_id = 0 OR w.form_id = e.form_id)
+                AND (w.form_id = e.form_id OR (w.form_id = 0 AND w.costume_id = 0))
+                AND (w.costume_id = e.costume_id OR (w.form_id = 0 AND w.costume_id = 0))
                 AND (w.category = 'normal' OR w.category = e.category))
            OR e.list = 'want' AND EXISTS (
               SELECT 1 FROM trade_entry h
               JOIN trade_player hp ON hp.discord_id = h.discord_id AND hp.left_at IS NULL
               WHERE h.list = 'have' AND h.discord_id <> e.discord_id
                 AND (e.pokemon_id = 0 OR h.pokemon_id = e.pokemon_id)
-                AND (e.form_id = 0 OR h.form_id = e.form_id)
+                AND (e.form_id = h.form_id OR (e.form_id = 0 AND e.costume_id = 0))
+                AND (e.costume_id = h.costume_id OR (e.form_id = 0 AND e.costume_id = 0))
                 AND (e.category = 'normal' OR h.category = e.category))) AS matched
     FROM trade_entry e
     JOIN trade_player p ON p.discord_id = e.discord_id AND p.left_at IS NULL
-    LEFT JOIN poliswag.pokemon_name pn
-      ON pn.pokemon_id = e.pokemon_id AND pn.form_id = e.form_id
+    LEFT JOIN poliswag.pokemon_catalogue pn
+      ON pn.pokemon_id = e.pokemon_id AND pn.form_id = e.form_id AND pn.costume_id = e.costume_id
     WHERE e.created_at > %s AND e.created_at <= %s
     ORDER BY e.created_at, e.discord_id, e.pokemon_id, e.form_id
 """
@@ -106,6 +108,7 @@ def sprite_url(row, base=SPRITE_BASE):
     return pokemon_sprite_url(
         row["pokemon_id"],
         form=row.get("form_id") or 0,
+        costume=row.get("costume_id") or 0,
         shiny=row.get("category") == "shiny",
         base=base,
     )

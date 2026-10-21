@@ -43,26 +43,26 @@ ORIGIN_TAG = "o=pokedex-dm"
 # something back to: `r` lacks it, and has a spare `hp` lacks.
 _NEW_MUTUALS_SQL = """
 SELECT h.discord_id AS holder_id, r.discord_id AS recipient_id,
-       h.pokemon_id, h.form_id, h.category,
+       h.pokemon_id, h.form_id, h.costume_id, h.category,
        COALESCE(hp.trainer_name, hp.display_name) AS holder_name,
        pn.name AS pokemon_name, pn.form_name
 FROM trade_entry h
 JOIN trade_player hp ON hp.discord_id = h.discord_id AND hp.left_at IS NULL
-JOIN poliswag.pokemon_name pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id
+JOIN poliswag.pokemon_catalogue pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id AND pn.costume_id = h.costume_id
 JOIN trade_player r ON r.discord_id <> h.discord_id AND r.left_at IS NULL AND r.trade_dms = 1
   AND FIND_IN_SET(h.category, r.collecting) AND (pn.is_costume = 0 OR r.show_costumes = 1)
 LEFT JOIN collection_entry ce ON ce.discord_id = r.discord_id AND ce.category = h.category
-  AND ce.pokemon_id = h.pokemon_id AND ce.form_id = h.form_id
+  AND ce.pokemon_id = h.pokemon_id AND ce.form_id = h.form_id AND ce.costume_id = h.costume_id
 LEFT JOIN trade_dm_notice n ON n.recipient_id = r.discord_id AND n.holder_id = h.discord_id
-  AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.category = h.category
+  AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.costume_id = h.costume_id AND n.category = h.category
 WHERE h.list = 'have' AND h.pokemon_id > 0 AND h.trade_for_category IS NULL
   AND h.created_at > %s AND h.created_at <= %s
   AND ce.discord_id IS NULL AND n.recipient_id IS NULL
   AND EXISTS (
     SELECT 1 FROM trade_entry g
-    JOIN poliswag.pokemon_name gn ON gn.pokemon_id = g.pokemon_id AND gn.form_id = g.form_id
+    JOIN poliswag.pokemon_catalogue gn ON gn.pokemon_id = g.pokemon_id AND gn.form_id = g.form_id AND gn.costume_id = g.costume_id
     LEFT JOIN collection_entry hc ON hc.discord_id = hp.discord_id AND hc.category = g.category
-      AND hc.pokemon_id = g.pokemon_id AND hc.form_id = g.form_id
+      AND hc.pokemon_id = g.pokemon_id AND hc.form_id = g.form_id AND hc.costume_id = g.costume_id
     WHERE g.discord_id = r.discord_id AND g.list = 'have' AND g.pokemon_id > 0
       AND g.trade_for_category IS NULL
       AND FIND_IN_SET(g.category, hp.collecting) AND (gn.is_costume = 0 OR hp.show_costumes = 1)
@@ -73,12 +73,12 @@ ORDER BY r.discord_id, h.discord_id, h.pokemon_id, h.form_id, h.category
 
 # What the recipient could give the holder back: their spares the holder lacks.
 _GIVE_BACK_SQL = """
-SELECT g.pokemon_id, g.form_id, g.category, gn.name AS pokemon_name, gn.form_name
+SELECT g.pokemon_id, g.form_id, g.costume_id, g.category, gn.name AS pokemon_name, gn.form_name
 FROM trade_entry g
 JOIN trade_player hp ON hp.discord_id = %s
-JOIN poliswag.pokemon_name gn ON gn.pokemon_id = g.pokemon_id AND gn.form_id = g.form_id
+JOIN poliswag.pokemon_catalogue gn ON gn.pokemon_id = g.pokemon_id AND gn.form_id = g.form_id AND gn.costume_id = g.costume_id
 LEFT JOIN collection_entry hc ON hc.discord_id = hp.discord_id AND hc.category = g.category
-  AND hc.pokemon_id = g.pokemon_id AND hc.form_id = g.form_id
+  AND hc.pokemon_id = g.pokemon_id AND hc.form_id = g.form_id AND hc.costume_id = g.costume_id
 WHERE g.discord_id = %s AND g.list = 'have' AND g.pokemon_id > 0 AND g.trade_for_category IS NULL
   AND FIND_IN_SET(g.category, hp.collecting) AND (gn.is_costume = 0 OR hp.show_costumes = 1)
   AND hc.discord_id IS NULL
@@ -223,12 +223,13 @@ class TradeDM:
             with db.cursor() as cursor:
                 for row in rows:
                     cursor.execute(
-                        "INSERT IGNORE INTO trade_dm_notice (recipient_id, holder_id, pokemon_id, form_id, category) VALUES (%s,%s,%s,%s,%s)",
+                        "INSERT IGNORE INTO trade_dm_notice (recipient_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
                         (
                             row["recipient_id"],
                             row["holder_id"],
                             row["pokemon_id"],
                             row["form_id"],
+                            row.get("costume_id", 0),
                             row["category"],
                         ),
                     )
