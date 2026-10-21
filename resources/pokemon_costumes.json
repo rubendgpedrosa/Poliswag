@@ -2515,6 +2515,26 @@
     },
     {
       "pokemon_id": 25,
+      "form_id": 901,
+      "costume_id": 0,
+      "form_name": "VS 2019",
+      "source_entry_ids": [
+        "gamemaster:25.f901"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "PIKACHU_VS_2019",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon/25_f901.png",
+          "shiny_artwork": false
+        }
+      ]
+    },
+    {
+      "pokemon_id": 25,
       "form_id": 949,
       "costume_id": 0,
       "form_name": "Clone",
@@ -2533,6 +2553,26 @@
           "url": "https://cdn08.net/games/resize?src=%2Fpokemongo%2Fdata%2Fimg9%2Fimg9008_5.png&w=120",
           "source_asset_path": "/pokemongo/data/img9/img9008_5.png",
           "source_asset_id": "img9008",
+          "shiny_artwork": false
+        }
+      ]
+    },
+    {
+      "pokemon_id": 25,
+      "form_id": 2332,
+      "costume_id": 0,
+      "form_name": "Costume 2020",
+      "source_entry_ids": [
+        "gamemaster:25.f2332"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "PIKACHU_COSTUME_2020",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon/25_f2332.png",
           "shiny_artwork": false
         }
       ]
@@ -2595,6 +2635,26 @@
           "source_asset_path": "/pokemongo/data/img10/img10750_6.png",
           "source_asset_id": "img10750",
           "shiny_artwork": true
+        }
+      ]
+    },
+    {
+      "pokemon_id": 25,
+      "form_id": 2675,
+      "costume_id": 0,
+      "form_name": "Kariyushi",
+      "source_entry_ids": [
+        "gamemaster:25.f2675"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "PIKACHU_KARIYUSHI",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon/25_f2675.png",
+          "shiny_artwork": false
         }
       ]
     },
@@ -3732,6 +3792,26 @@
           "source_asset_path": "/pokemongo/data/img15/img15534_6.png",
           "source_asset_id": "img15534",
           "shiny_artwork": true
+        }
+      ]
+    },
+    {
+      "pokemon_id": 25,
+      "form_id": 3013,
+      "costume_id": 0,
+      "form_name": "Doctor",
+      "source_entry_ids": [
+        "gamemaster:25.f3013"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "PIKACHU_DOCTOR",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon%20-%20256x256/Addressable%20Assets/pm25.fDOCTOR.icon.png",
+          "shiny_artwork": false
         }
       ]
     },
@@ -6686,6 +6766,26 @@
       ]
     },
     {
+      "pokemon_id": 150,
+      "form_id": 133,
+      "costume_id": 0,
+      "form_name": "Armored",
+      "source_entry_ids": [
+        "gamemaster:150.f133"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "MEWTWO_A",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon/150_f133.png",
+          "shiny_artwork": false
+        }
+      ]
+    },
+    {
       "pokemon_id": 163,
       "form_id": 0,
       "costume_id": 54,
@@ -8047,6 +8147,27 @@
           "shiny_artwork": true
         }
       ]
+    },
+    {
+      "pokemon_id": 302,
+      "form_id": 2666,
+      "costume_id": 0,
+      "form_name": "Costume 2020",
+      "source_entry_ids": [
+        "gamemaster:302.f2666"
+      ],
+      "sources": [
+        "https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json"
+      ],
+      "mapping_evidence": "masterfile form flagged as costume with verified game artwork; label from masterfile/keyword, art checked visually",
+      "game_proto": "SABLEYE_COSTUME_2020_DEPRECATED",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon%20-%20256x256/Addressable%20Assets/pm302.fCOSTUME_2020.icon.png",
+          "shiny_artwork": false
+        }
+      ],
+      "notes": "masterfile still marks this form deprecated; shown for completeness, may be unobtainable"
     },
     {
       "pokemon_id": 302,
@@ -10292,8 +10413,8 @@
     }
   ],
   "pending": [],
-  "source_entry_count": 323,
-  "mapped_source_entry_count": 323,
+  "source_entry_count": 329,
+  "mapped_source_entry_count": 329,
   "source_status": [
     {
       "url": "https://9db.jp/pokego/data/51",
@@ -10323,5 +10444,6 @@
   "source_snapshot_sha256": {
     "catalogue-combined.json": "5efa21bb08a319cfa417f28b6a3bda1153cfdd1565f41ab6e01d5f59dbb5a0da",
     "eurogamer-records.json": "f8fb73c5af6630f51dfaa895c11a843003bf6370699b6b414dfd7fcbd4a262fc"
-  }
+  },
+  "game_master_supplement_count": 6
 }

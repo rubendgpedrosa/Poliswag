@@ -4,7 +4,7 @@ The repository dataset is `resources/pokemon_costumes.json`. It supplements, nev
 
 ## Coverage and provenance
 
-323 reviewed game identities: 208 legacy costume enums and 115 existing real forms. All 322 combined reference entries are mapped; the independently listed Detective Pikachu Returns 2023 makes 323 because it has a separate event Pokédex entry from the 2019 version. Source IDs and image numbers are never game identifiers.
+329 reviewed game identities: 208 legacy costume enums, 115 reference-backed modern forms and 6 game-master costume forms the reference list omitted (Pikachu VS 2019, Costume 2020, Kariyushi and Doctor, Armored Mewtwo, Sableye Costume 2020), each confirmed against published game artwork. All 322 combined reference entries plus the separate Detective Pikachu Returns 2023 entry are mapped. Source IDs and image numbers are never game identifiers.
 
 Owner references: https://9db.jp/pokego/data/51 (320 source entries), https://www.eurogamer.net/pokemon-go-event-costume-pokemon-party-hat-flower-crown-7002 (deduplicated context and three supplemental variants). Bulbapedia's https://bulbapedia.bulbagarden.net/wiki/Event_Pok%C3%A9mon_(GO) was Cloudflare-blocked and contributed no imported rows. The resource retains per-entry citations, game proto labels, mapping evidence and snapshot checksums. A source listing/artwork does not establish current obtainability or shiny release.
 
