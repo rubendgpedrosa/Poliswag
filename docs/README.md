@@ -37,3 +37,5 @@ Repo-level: [`../README.md`](../README.md) (setup, `make` targets, commands, pro
 | [`alert-noise-cleanup.md`](context/alert-noise-cleanup.md) | dated 2026-10-15 run record (not policy; do not extend — archive future runs) |
 | [`pokedex-validation-alerts.md`](context/pokedex-validation-alerts.md) | Pokédex validation owner alerts |
 | [`adb-server.md`](context/adb-server.md) | the shared ADB server |
+
+- [Curated costume catalogue](context/costume-catalogue.md) — real identities, provenance, preserved selections and coordinated manual release.

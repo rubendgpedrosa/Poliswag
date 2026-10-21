@@ -1279,6 +1279,13 @@ class TestRefreshMasterfileData:
     (QuestSearch loads the masterfile in __init__, so that tick never sees a
     reload), again whenever the masterfile reloads, and not on every tick."""
 
+    @pytest.fixture(autouse=True)
+    def reviewed_costume_sync(self):
+        with patch(
+            "cogs.scheduled.sync_pokemon_costumes", new=AsyncMock(return_value=1)
+        ):
+            yield
+
     MASTERFILE = {"pokemon": {"25": {"name": "Pikachu"}}}
 
     def _prime(self, cog, reloaded):

@@ -10,6 +10,7 @@ from modules.embeds import build_embed, status_embed
 from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
+from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules import tracking_health
 from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
@@ -226,6 +227,7 @@ class Scheduled(commands.Cog):
         if not masterfile:
             return
         await sync_pokemon_names(self.poliswag.db, masterfile)
+        await sync_pokemon_costumes(self.poliswag.db, masterfile)
         self._pokemon_names_synced = True
 
     async def _run_tick_step(self, step):
