@@ -1,6 +1,27 @@
+import asyncio
+import re
+
 from discord.ext import commands
 
+from modules.config import Config
 from modules.embeds import build_embed
+from modules.http_client import get_session
+
+LURE_TYPES = {
+    "normal": 501,
+    "glacial": 502,
+    "mossy": 503,
+    "magnetic": 504,
+    "rainy": 505,
+    "sparkly": 506,
+}
+REASONS = {
+    "already_lured": "o stop já tinha lure",
+    "too_far": "o worker não chegou ao stop",
+    "no_item": "a conta não tem esse lure",
+    "inaccessible": "o stop está inacessível",
+    "unknown": "resposta inesperada do jogo",
+}
 
 
 class Lures(commands.Cog):
@@ -39,6 +60,75 @@ class Lures(commands.Cog):
             for a in accounts
         )
         await ctx.send(embed=build_embed("LISTA DE CONTAS DISPONÍVEIS", lines))
+
+    @commands.command(
+        name="lure",
+        brief="Coloca um lure num stop através do PoliSnatch",
+        help="Utilização: `!lure LAT,LON [tipo]`. Tipos: "
+        "normal, glacial, mossy, magnetic, rainy, sparkly (por omissão normal). "
+        "O lure é colocado por um worker do PoliSnatch, que se desloca ao ponto.",
+    )
+    async def lure(self, ctx, coords: str | None = None, tipo: str | None = None):
+        parsed = _parse_coords(coords)
+        if parsed is None:
+            await ctx.send(
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA",
+                    "Utilização: `!lure LAT,LON [tipo]` — por exemplo "
+                    "`!lure 39.7436,-8.8070 glacial`.",
+                )
+            )
+            return
+        lat, lon = parsed
+        lure_type = LURE_TYPES.get((tipo or "normal").lower())
+        if lure_type is None:
+            await ctx.send(
+                embed=build_embed(
+                    "LURE DESCONHECIDO",
+                    "Tipos: " + ", ".join(sorted(LURE_TYPES)) + ".",
+                )
+            )
+            return
+
+        try:
+            job = await _post(
+                "/lure",
+                {
+                    "lat": lat,
+                    "lon": lon,
+                    "lureType": lure_type,
+                    "requestedBy": str(ctx.author.id),
+                },
+            )
+        except Exception as error:  # noqa: BLE001 - report, don't crash
+            await ctx.send(
+                embed=build_embed("POLISNATCH INDISPONÍVEL", str(error)[:200])
+            )
+            return
+
+        await ctx.send(
+            embed=build_embed(
+                "LURE NA FILA",
+                f"Stop em {lat:.5f}, {lon:.5f} — {tipo or 'normal'}. "
+                f"Job `{job['jobId']}`; aviso quando estiver colocado.",
+            )
+        )
+
+        result = await _await_job(job["jobId"], "/lure/")
+        if result is None:
+            await ctx.send(
+                embed=build_embed(
+                    "LURE SEM RESPOSTA", "Nenhum worker completou o trabalho a tempo."
+                )
+            )
+            return
+        if result.get("state") == "done":
+            await ctx.reply(embed=build_embed("LURE COLOCADO", f"{lat:.5f}, {lon:.5f}"))
+            return
+        reason = REASONS.get(
+            str(result.get("failReason")), str(result.get("failReason"))
+        )
+        await ctx.reply(embed=build_embed("LURE NÃO COLOCADO", reason))
 
     @commands.command(
         name="uselure",
@@ -101,3 +191,53 @@ class Lures(commands.Cog):
 
 async def setup(poliswag):
     await poliswag.add_cog(Lures(poliswag))
+
+
+def _parse_coords(value):
+    """'39.74,-8.80' (or '39.74 -8.80') -> (lat, lon), else None."""
+    if not value:
+        return None
+    match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$", value)
+    if match is None:
+        return None
+    lat, lon = float(match.group(1)), float(match.group(2))
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _headers():
+    try:
+        with open(Config.POLISNATCH_LINK_TOKEN_FILE, encoding="utf-8") as handle:
+            token = handle.read().strip()
+    except FileNotFoundError:
+        token = ""
+    return {"Authorization": token} if token else {}
+
+
+async def _post(path, body):
+    session = get_session()
+    async with session.post(
+        Config.POLISNATCH_LINK_URL.rstrip("/") + path, json=body, headers=_headers()
+    ) as reply:
+        if reply.status != 202:
+            raise RuntimeError(f"HTTP {reply.status}")
+        return await reply.json()
+
+
+async def _await_job(job_id, prefix, deadline_s=90.0):
+    """Poll until the job leaves queued/claimed, or give up."""
+    session = get_session()
+    waited = 0.0
+    while waited < deadline_s:
+        async with session.get(
+            Config.POLISNATCH_LINK_URL.rstrip("/") + prefix + job_id, headers=_headers()
+        ) as reply:
+            if reply.status != 200:
+                return None
+            state = await reply.json()
+        if state.get("state") in ("done", "failed", "cancelled"):
+            return state
+        await asyncio.sleep(2.0)
+        waited += 2.0
+    return None
