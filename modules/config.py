@@ -23,6 +23,14 @@ class Config:
     # Discord
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
+    # PoliSnatch's job bridge (link resolver + lure placement). The token stays
+    # in a file: argv and environment end up in `docker inspect` and ps.
+    POLISNATCH_LINK_URL = os.environ.get(
+        "POLISNATCH_LINK_URL", "http://192.168.1.242:9200"
+    )
+    POLISNATCH_LINK_TOKEN_FILE = os.environ.get(
+        "POLISNATCH_LINK_TOKEN_FILE", "/etc/poliswag/secrets/polisnatch-link-token"
+    )
     MY_ID = int(os.environ.get("MY_ID", "0"))
     # Who gets shiny-prediction DMs (modules/shiny_alerts.py). The owner alone
     # while the prediction is being checked in the field; widening the pilot
@@ -92,6 +100,16 @@ class Config:
     # restarts the container when it goes stale (logs/ is bind-mounted).
     HEARTBEAT_FILE = os.environ.get("HEARTBEAT_FILE", "logs/heartbeat")
     AGENT_JOBS_DIR = os.environ.get("AGENT_JOBS_DIR", "logs/agent-jobs")
+
+    # Hermes stores the owner conversation in CT 109; empty key disables calls.
+    HERMES_API_URL = os.environ.get("HERMES_API_URL", "http://192.168.1.60:8642")
+    HERMES_API_KEY = os.environ.get("HERMES_API_KEY", "")
+    HERMES_SESSION_ID = os.environ.get("HERMES_SESSION_ID", "")
+    HERMES_RUNS_DIR = os.environ.get("HERMES_RUNS_DIR", "logs/hermes-runs")
+    # claude-bridge in CT 109 (owner DMs prefixed `c `); empty key disables calls.
+    CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
+    CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+    CLAUDE_RUNS_DIR = os.environ.get("CLAUDE_RUNS_DIR", "logs/claude-runs")
 
     # Logging
     LOG_FILE = os.environ.get("LOG_FILE", "logs/app.log")
