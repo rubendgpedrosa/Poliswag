@@ -64,22 +64,28 @@ class Lures(commands.Cog):
     @commands.command(
         name="lure",
         brief="Coloca um lure num stop através do PoliSnatch",
-        help="Utilização: `!lure LAT,LON [tipo]`. Tipos: "
-        "normal, glacial, mossy, magnetic, rainy, sparkly (por omissão normal). "
-        "O lure é colocado por um worker do PoliSnatch, que se desloca ao ponto.",
+        help="Utilização: `!lure [LAT,LON] [tipo]`. Sem coordenadas, o worker "
+        "coloca o lure no stop mais próximo de si. Tipos: normal, glacial, mossy, "
+        "magnetic, rainy, sparkly (por omissão normal).",
     )
     async def lure(self, ctx, coords: str | None = None, tipo: str | None = None):
-        parsed = _parse_coords(coords)
-        if parsed is None:
-            await ctx.send(
-                embed=build_embed(
-                    "UTILIZAÇÃO INVÁLIDA",
-                    "Utilização: `!lure LAT,LON [tipo]` — por exemplo "
-                    "`!lure 39.7436,-8.8070 glacial`.",
+        # No coordinates: the worker finds the nearest stop on its own map, which
+        # it can also move to - so the lure is not a guess about where it stands.
+        nearest = coords is None
+        if nearest:
+            lat, lon = None, None
+        else:
+            parsed = _parse_coords(coords)
+            if parsed is None:
+                await ctx.send(
+                    embed=build_embed(
+                        "UTILIZAÇÃO INVÁLIDA",
+                        "Utilização: `!lure [LAT,LON] [tipo]` — sem coordenadas, "
+                        "usa o stop mais próximo do worker.",
+                    )
                 )
-            )
-            return
-        lat, lon = parsed
+                return
+            lat, lon = parsed
         lure_type = LURE_TYPES.get((tipo or "normal").lower())
         if lure_type is None:
             await ctx.send(
@@ -109,8 +115,13 @@ class Lures(commands.Cog):
         await ctx.send(
             embed=build_embed(
                 "LURE NA FILA",
-                f"Stop em {lat:.5f}, {lon:.5f} — {tipo or 'normal'}. "
-                f"Job `{job['jobId']}`; aviso quando estiver colocado.",
+                (
+                    "Stop mais próximo do worker"
+                    if nearest
+                    else f"Stop em {lat:.5f}, {lon:.5f}"
+                )
+                + f" — {tipo or 'normal'}. Job `{job['jobId']}`; "
+                "aviso quando estiver colocado.",
             )
         )
 
