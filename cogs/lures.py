@@ -139,6 +139,19 @@ class Lures(commands.Cog):
             )
             return
 
+        if job.get("duplicate"):
+            # Someone else's identical request is still being worked on: follow
+            # that one instead of queueing a second, and say so.
+            await ctx.send(
+                embed=build_embed(
+                    "JÁ EM CURSO",
+                    f"Esse stop já está a ser tratado (job `{job['jobId']}`). "
+                    "Aviso quando terminar.",
+                )
+            )
+            asyncio.create_task(_follow(ctx, job["jobId"], nearest, lat, lon, tipo))
+            return
+
         await ctx.send(
             embed=build_embed(
                 "LURE NA FILA",
@@ -260,7 +273,8 @@ async def _post(path, body):
     async with session.post(
         Config.POLISNATCH_LINK_URL.rstrip("/") + path, json=body, headers=_headers()
     ) as reply:
-        if reply.status != 202:
+        # 202 queued, 200 already in flight for this stop - both are answers.
+        if reply.status not in (200, 202):
             raise RuntimeError(f"HTTP {reply.status}")
         return await reply.json()
 
