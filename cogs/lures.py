@@ -252,3 +252,22 @@ async def _await_job(job_id, prefix, deadline_s=90.0):
         await asyncio.sleep(2.0)
         waited += 2.0
     return None
+
+
+async def _follow(ctx, job_id, nearest, lat, lon, tipo, deadline_s=900.0):
+    """Keeps watching a job the command gave up on, then edits a fresh reply."""
+    result = await _await_job(job_id, "/lure/", deadline_s=deadline_s)
+    if result is None:
+        return
+    where = "Stop mais próximo do worker" if nearest else f"{lat:.5f}, {lon:.5f}"
+    if result.get("state") == "done":
+        verified = result.get("verified")
+        text = where
+        if verified is True:
+            text += " — confirmado no mapa"
+        elif verified is False:
+            text += " — colocado, mas não confirmado no mapa"
+        await ctx.reply(embed=build_embed("LURE COLOCADO", text))
+        return
+    reason = REASONS.get(str(result.get("failReason")), str(result.get("failReason")))
+    await ctx.reply(embed=build_embed("LURE NÃO COLOCADO", reason))
