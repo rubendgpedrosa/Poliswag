@@ -1,4 +1,5 @@
 import asyncio
+import time
 import re
 
 from discord.ext import commands
@@ -29,6 +30,55 @@ class Lures(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.lure_manager = poliswag.lure_manager
+
+    @commands.command(name="pn")
+    async def pn(self, ctx):
+        """What the phones say they are doing. Read, never asked."""
+        try:
+            async with get_session() as session:
+                async with session.get(
+                    Config.POLISNATCH_LINK_URL.rstrip("/") + "/state",
+                    headers=_headers(),
+                ) as reply:
+                    if reply.status != 200:
+                        raise RuntimeError(f"HTTP {reply.status}")
+                    data = await reply.json()
+        except Exception as error:  # noqa: BLE001
+            await ctx.send(embed=build_embed("POLISNATCH INACESSÍVEL", f"`{error}`"))
+            return
+
+        workers = data.get("workers") or {}
+        if not workers:
+            await ctx.send(
+                embed=build_embed(
+                    "SEM ESTADO",
+                    "Nenhum worker reporta estado. O interruptor *Report status to "
+                    "the bridge* está desligado, ou não há telefone ligado.",
+                )
+            )
+            return
+
+        now = time.time()
+        lines = []
+        for name in sorted(workers):
+            beat = workers[name]
+            age = int(now - float(beat.get("receivedAt") or now))
+            bits = []
+            if beat.get("connected") is not None:
+                bits.append("ligado" if beat["connected"] else "desligado")
+            if beat.get("mode"):
+                bits.append(str(beat["mode"]))
+            if beat.get("ticks") is not None:
+                bits.append(f"{beat['ticks']} ticks")
+            if beat.get("rpc_total") is not None:
+                bits.append(f"{beat['rpc_total']} rpc")
+            if beat.get("last_error"):
+                bits.append(f"erro: {beat['last_error']}")
+            state = "vivo" if age < 45 else f"silencioso há {age}s"
+            lines.append(
+                f"**{name}** — {state} — " + (", ".join(bits) or "sem detalhe")
+            )
+        await ctx.send(embed=build_embed("POLISNATCH", "\n".join(lines[:12])))
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
