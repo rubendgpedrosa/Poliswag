@@ -32,8 +32,45 @@ class Lures(commands.Cog):
         self.lure_manager = poliswag.lure_manager
 
     @commands.command(name="pn")
-    async def pn(self, ctx):
-        """What the phones say they are doing. Read, never asked."""
+    async def pn(self, ctx, action: str = "", worker: str = "*"):
+        """What the phones say they are doing - or start/stop/restart their workers.
+
+        !pn            the last word from each phone
+        !pn restart    restart the job workers on every phone
+        !pn stop       stop the job workers (the control poll keeps running)
+        !pn start      start them again
+        """
+        if action:
+            verb = action.lower()
+            if verb not in ("start", "stop", "restart", "status"):
+                await ctx.send(
+                    embed=build_embed(
+                        "AÇÃO DESCONHECIDA", "start, stop, restart ou status"
+                    )
+                )
+                return
+            try:
+                async with get_session() as session:
+                    async with session.post(
+                        Config.POLISNATCH_LINK_URL.rstrip("/") + "/command",
+                        json={"worker": worker, "action": verb},
+                        headers=_headers(),
+                    ) as reply:
+                        if reply.status != 202:
+                            raise RuntimeError(f"HTTP {reply.status}")
+            except Exception as error:  # noqa: BLE001
+                await ctx.send(embed=build_embed("COMANDO NÃO ENTREGUE", f"`{error}`"))
+                return
+            where = "todos os telefones" if worker == "*" else f"`{worker}`"
+            await ctx.send(
+                embed=build_embed(
+                    "COMANDO ENVIADO",
+                    f"`{verb}` para {where}. É entregue no próximo poll (até 5s) "
+                    "e aparece no `!pn` seguinte.",
+                )
+            )
+            return
+
         try:
             async with get_session() as session:
                 async with session.get(
