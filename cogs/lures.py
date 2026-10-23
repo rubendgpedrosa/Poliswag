@@ -3,6 +3,7 @@ import re
 
 from discord.ext import commands
 
+from modules import lure_locks
 from modules.config import Config
 from modules.embeds import build_embed
 from modules.http_client import get_session
@@ -96,6 +97,32 @@ class Lures(commands.Cog):
             )
             return
 
+        # The map is the last word, but the worker is the one who pays to learn
+        # it. A locked stop (a verified lure inside its lifetime) and a short
+        # cooldown are checked here, before anything is queued.
+        key = (
+            lure_locks.stop_key(lat=lat, lon=lon) if nearest is False else "geo:nearest"
+        )
+        state = lure_locks.status(key)
+        if state["locked_for_s"] > 0:
+            minutes = (state["locked_for_s"] + 59) // 60
+            await ctx.send(
+                embed=build_embed(
+                    "STOP JÁ TEM LURE",
+                    f"Esse stop tem lure há {minutes} min. "
+                    "Não vale a pena gastar outro.",
+                )
+            )
+            return
+        if state["cooldown_for_s"] > 0:
+            await ctx.send(
+                embed=build_embed(
+                    "PEDIDO REPETIDO",
+                    f"Já pediste este stop há {state['cooldown_for_s']}s.",
+                )
+            )
+            return
+
         try:
             job = await _post(
                 "/lure",
@@ -133,6 +160,8 @@ class Lures(commands.Cog):
                 )
             )
             return
+        _settle(key, job["jobId"], result, ctx.author.id)
+
         if result.get("state") == "done":
             await ctx.reply(embed=build_embed("LURE COLOCADO", f"{lat:.5f}, {lon:.5f}"))
             return
@@ -271,3 +300,14 @@ async def _follow(ctx, job_id, nearest, lat, lon, tipo, deadline_s=900.0):
         return
     reason = REASONS.get(str(result.get("failReason")), str(result.get("failReason")))
     await ctx.reply(embed=build_embed("LURE NÃO COLOCADO", reason))
+
+
+def _settle(key, job_id, result, discord_id):
+    """Lock the stop only when the lure is verified; otherwise let the cooldown go."""
+    try:
+        if result.get("state") == "done" and result.get("verified") is True:
+            lure_locks.lock(key, fort_id=result.get("fortId"), discord_id=discord_id)
+        else:
+            lure_locks.clear(key)
+    except Exception as error:  # noqa: BLE001 - never break the reply
+        print(f"lure lock: {error} ({job_id})")
