@@ -109,6 +109,11 @@ class Lures(commands.Cog):
                 bits.append(f"{beat['ticks']} ticks")
             if beat.get("rpc_total") is not None:
                 bits.append(f"{beat['rpc_total']} rpc")
+            attempts = beat.get("reconnect_attempts")
+            if attempts:
+                bits.append(f"{attempts} tentativa(s) de reconexão")
+            if beat.get("paused"):
+                bits.append("workers parados")
             if beat.get("last_error"):
                 bits.append(f"erro: {beat['last_error']}")
             state = "vivo" if age < 45 else f"silencioso há {age}s"
