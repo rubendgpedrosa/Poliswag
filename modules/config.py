@@ -23,13 +23,18 @@ class Config:
     # Discord
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
-    # PoliSnatch's job bridge (link resolver + lure placement). The token stays
-    # in a file: argv and environment end up in `docker inspect` and ps.
-    POLISNATCH_LINK_URL = os.environ.get(
-        "POLISNATCH_LINK_URL", "http://192.168.1.242:9200"
+    # PoliSnatch's job API (link resolver + lure placement). The defaults match
+    # modules/polisnatch_api.py, kept literal here so config.py stays importable
+    # on its own (tests/test_conftest_guard.py imports a lone copy). The submit
+    # key is read per call from POLISNATCH_JOBS_KEY or the file below, so
+    # rotating it needs no restart, and it is never logged. The production
+    # container mounts /etc/poliswag/secrets read-only (docker-compose.prod.yaml).
+    POLISNATCH_JOBS_URL = os.environ.get(
+        "POLISNATCH_JOBS_URL", "https://mitm.pogoleiria.pt/v1/jobs"
     )
-    POLISNATCH_LINK_TOKEN_FILE = os.environ.get(
-        "POLISNATCH_LINK_TOKEN_FILE", "/etc/poliswag/secrets/polisnatch-link-token"
+    POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
+    POLISNATCH_JOBS_KEY_FILE = os.environ.get(
+        "POLISNATCH_JOBS_KEY_FILE", "/etc/poliswag/secrets/polisnatch-jobs-key"
     )
     MY_ID = int(os.environ.get("MY_ID", "0"))
     # Who gets shiny-prediction DMs (modules/shiny_alerts.py). The owner alone

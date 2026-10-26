@@ -25,6 +25,9 @@ services:
       # project name and relative bind mounts identically to a host-side run.
       - /var/run/docker.sock:/var/run/docker.sock
       - /root/unonwhash:/root/unonwhash:ro
+      # PoliSnatch submit key (host: `polisnatch-dist jobs-key` writes it).
+      # Read per call, never put in the environment or a log line.
+      - /etc/poliswag/secrets:/etc/poliswag/secrets:ro
     env_file:
       - .env
     networks:

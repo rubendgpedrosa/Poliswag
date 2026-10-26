@@ -12,7 +12,7 @@ Full command table. The core `docs/context.md` keeps only the auth summary.
 | `container_manager.py` | `!container start\|stop\|recreate\|autorecreate on\|off`, `!status`, `!device status\|restartapp\|logcat [lines]\|autoreboot on\|off\|reboot` (ADB) | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete`, trap channel (see `moderation.md`) | — |
 | `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export; the daily "erro(s) novo(s)" digest is DMed to `MY_ID` since 2026-09-26) | admin-only |
-| `lures.py` | `!lures`, `!uselure USERNAME NUMERO` | admin-only (`cog_check`) |
+| `lures.py` | `!lures`, `!uselure USERNAME NUMERO`, `!lure [LAT,LON] [tipo]`, `!pn [start\|stop\|restart\|status] [worker]` | admin-only (`cog_check`) |
 | `webstats.py` | `!stats` / `!webstats`, `!stats export [7d\|30d\|Nd\|all]`, `!stats novocodigo` — answers by DM | `MY_ID` only (`cog_check`) |
 | `pokedex.py` | `!pokedex` / `!trades` / `!trocas` (DM login code), `!resumo [dias]` (trade digest preview) | Members; DM-capable (own membership check) |
 | `event_panel.py` | `!eventpanel` (publica o painel), `!eventpanel test` (DM de ensaio), `!eventpanel clear [confirm]` | `MY_ID` only (`cog_check`) |
