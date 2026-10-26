@@ -1,13 +1,14 @@
-import asyncio
-import time
 import re
+import time
 
+import discord
 from discord.ext import commands
 
 from modules import lure_locks
-from modules.config import Config
 from modules.embeds import build_embed
-from modules.http_client import get_session
+from modules.polisnatch_api import JobApiError
+from modules.polisnatch_jobs import JobPoller, PoliSnatchJobs
+from modules.polisnatch_store import JobStore
 
 LURE_TYPES = {
     "normal": 501,
@@ -23,6 +24,8 @@ REASONS = {
     "no_item": "a conta não tem esse lure",
     "inaccessible": "o stop está inacessível",
     "unknown": "resposta inesperada do jogo",
+    "unknown_job": "o servidor já não conhece este job",
+    "cancelled": "o job foi cancelado",
 }
 
 
@@ -30,6 +33,13 @@ class Lures(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.lure_manager = poliswag.lure_manager
+        self.jobs = PoliSnatchJobs()
+        self.job_store = JobStore()
+        # Started in cog_load: its first tick is the startup sweep for jobs a
+        # previous process left queued or claimed.
+        self.poller = JobPoller(
+            poliswag, self.jobs, self.job_store, announce=self._announce_job
+        )
 
     @commands.command(name="pn")
     async def pn(self, ctx, action: str = "", worker: str = "*"):
@@ -50,16 +60,11 @@ class Lures(commands.Cog):
                 )
                 return
             try:
-                async with get_session() as session:
-                    async with session.post(
-                        Config.POLISNATCH_LINK_URL.rstrip("/") + "/command",
-                        json={"worker": worker, "action": verb},
-                        headers=_headers(),
-                    ) as reply:
-                        if reply.status != 202:
-                            raise RuntimeError(f"HTTP {reply.status}")
-            except Exception as error:  # noqa: BLE001
-                await ctx.send(embed=build_embed("COMANDO NÃO ENTREGUE", f"`{error}`"))
+                await self.jobs.command(worker, verb)
+            except JobApiError as error:
+                await ctx.send(
+                    embed=build_embed("COMANDO NÃO ENTREGUE", _error_text(error))
+                )
                 return
             where = "todos os telefones" if worker == "*" else f"`{worker}`"
             await ctx.send(
@@ -72,25 +77,19 @@ class Lures(commands.Cog):
             return
 
         try:
-            async with get_session() as session:
-                async with session.get(
-                    Config.POLISNATCH_LINK_URL.rstrip("/") + "/state",
-                    headers=_headers(),
-                ) as reply:
-                    if reply.status != 200:
-                        raise RuntimeError(f"HTTP {reply.status}")
-                    data = await reply.json()
-        except Exception as error:  # noqa: BLE001
-            await ctx.send(embed=build_embed("POLISNATCH INACESSÍVEL", f"`{error}`"))
+            workers = await self.jobs.workers()
+        except JobApiError as error:
+            await ctx.send(
+                embed=build_embed("POLISNATCH INACESSÍVEL", _error_text(error))
+            )
             return
 
-        workers = data.get("workers") or {}
         if not workers:
             await ctx.send(
                 embed=build_embed(
                     "SEM ESTADO",
-                    "Nenhum worker reporta estado. O interruptor *Report status to "
-                    "the bridge* está desligado, ou não há telefone ligado.",
+                    "Nenhum worker reporta estado. O telefone não está a reportar "
+                    "estado, ou não está ligado.",
                 )
             )
             return
@@ -124,8 +123,10 @@ class Lures(commands.Cog):
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")
+        self.poller.start()
 
     async def cog_unload(self):
+        await self.poller.stop()
         print(f"{self.__class__.__name__} unloaded!")
 
     def cog_check(self, ctx):
@@ -216,64 +217,157 @@ class Lures(commands.Cog):
             return
 
         try:
-            job = await _post(
-                "/lure",
-                {
-                    "lat": lat,
-                    "lon": lon,
-                    "lureType": lure_type,
-                    "requestedBy": str(ctx.author.id),
-                },
+            job = await self.jobs.submit_lure(
+                lat=lat,
+                lon=lon,
+                nearest=nearest,
+                lure_type=lure_type,
+                requested_by=ctx.author.id,
             )
-        except Exception as error:  # noqa: BLE001 - report, don't crash
+        except JobApiError as error:
             await ctx.send(
-                embed=build_embed("POLISNATCH INDISPONÍVEL", str(error)[:200])
+                embed=build_embed("POLISNATCH INDISPONÍVEL", _error_text(error))
+            )
+            return
+
+        job_id = job.get("jobId")
+        if not job_id:
+            await ctx.send(
+                embed=build_embed(
+                    "RESPOSTA INESPERADA",
+                    "O PoliSnatch aceitou o pedido mas não devolveu um job.",
+                )
             )
             return
 
         if job.get("duplicate"):
-            # Someone else's identical request is still being worked on: follow
-            # that one instead of queueing a second, and say so.
-            await ctx.send(
+            # A stop + lure already queued or claimed is one job, not an error:
+            # follow the existing one instead of spending a second account.
+            message = await ctx.send(
                 embed=build_embed(
                     "JÁ EM CURSO",
-                    f"Esse stop já está a ser tratado (job `{job['jobId']}`). "
-                    "Aviso quando terminar.",
+                    f"Esse stop já está a ser tratado (job `{job_id}`). "
+                    "O resultado é anunciado quando terminar.",
                 )
             )
-            asyncio.create_task(_follow(ctx, job["jobId"], nearest, lat, lon, tipo))
+            await self._record_job(ctx, message, job_id, key, nearest, lat, lon, job)
+            self.poller.wake()
             return
 
-        await ctx.send(
+        where = (
+            "Stop mais próximo do worker"
+            if nearest
+            else f"Stop em {lat:.5f}, {lon:.5f}"
+        )
+        message = await ctx.send(
             embed=build_embed(
                 "LURE NA FILA",
-                (
-                    "Stop mais próximo do worker"
-                    if nearest
-                    else f"Stop em {lat:.5f}, {lon:.5f}"
-                )
-                + f" — {tipo or 'normal'}. Job `{job['jobId']}`; "
+                f"{where} — {tipo or 'normal'}. Job `{job_id}`; "
                 "aviso quando estiver colocado.",
             )
         )
+        if await self._record_job(ctx, message, job_id, key, nearest, lat, lon, job):
+            self.poller.wake()
 
-        result = await _await_job(job["jobId"], "/lure/")
-        if result is None:
+    async def _record_job(self, ctx, message, job_id, key, nearest, lat, lon, job):
+        """Persist the job before waiting on it; False when the store failed."""
+        try:
+            self.job_store.record(
+                job_id,
+                "lure",
+                discord_id=ctx.author.id,
+                channel_id=ctx.channel.id,
+                message_id=message.id,
+                stop_key=key,
+                lat=lat,
+                lon=lon,
+                nearest=nearest,
+                state=job.get("state") or "queued",
+            )
+        except Exception as error:  # noqa: BLE001 - the job is already submitted
+            self._log(f"PoliSnatch: cannot record job {job_id}: {error}", "ERROR")
             await ctx.send(
                 embed=build_embed(
-                    "LURE SEM RESPOSTA", "Nenhum worker completou o trabalho a tempo."
+                    "AVISO INDISPONÍVEL",
+                    "O lure foi pedido, mas não consegui guardar o job; "
+                    "não te consigo avisar quando terminar.",
                 )
             )
-            return
-        _settle(key, job["jobId"], result, ctx.author.id)
+            return False
+        return True
 
-        if result.get("state") == "done":
-            await ctx.reply(embed=build_embed("LURE COLOCADO", f"{lat:.5f}, {lon:.5f}"))
+    async def _announce_job(self, row):
+        """Called by the poller once per finished lure job."""
+        if row.get("kind") != "lure":
+            # Link jobs belong to the shiny linker, which writes shiny_link.
             return
-        reason = REASONS.get(
-            str(result.get("failReason")), str(result.get("failReason"))
+        state = row.get("state")
+        where = (
+            "Stop mais próximo do worker"
+            if row.get("nearest")
+            else _where(row.get("lat"), row.get("lon"))
         )
-        await ctx.reply(embed=build_embed("LURE NÃO COLOCADO", reason))
+        if state == "done":
+            text = where
+            verified = row.get("verified")
+            if verified in (1, True):
+                text += " — confirmado no mapa"
+            elif verified in (0, False):
+                text += " — colocado, mas não confirmado no mapa"
+            embed = build_embed("LURE COLOCADO", text)
+        else:
+            reason = row.get("fail_reason") or state or "unknown"
+            embed = build_embed(
+                "LURE NÃO COLOCADO", REASONS.get(str(reason), str(reason))
+            )
+        await self._deliver(row, embed)
+        _settle(
+            row.get("stop_key"),
+            row["job_id"],
+            {
+                "state": state,
+                "verified": row.get("verified"),
+                "fortId": row.get("fort_id"),
+            },
+            row.get("discord_id"),
+        )
+
+    async def _deliver(self, row, embed):
+        """Edits the queued message, or sends a fresh one when it is gone."""
+        channel_id = row.get("channel_id")
+        if not channel_id:
+            self._log(
+                f"PoliSnatch: job {row.get('job_id')} has no channel to announce on",
+                "ERROR",
+            )
+            return
+        channel = self.poliswag.get_channel(int(channel_id))
+        if channel is None:
+            try:
+                channel = await self.poliswag.fetch_channel(int(channel_id))
+            except discord.NotFound:
+                self._log(
+                    f"PoliSnatch: channel {channel_id} is gone "
+                    f"(job {row.get('job_id')})",
+                    "ERROR",
+                )
+                return
+        message = None
+        if row.get("message_id"):
+            try:
+                message = await channel.fetch_message(int(row["message_id"]))
+            except discord.NotFound:
+                message = None
+        if message is None:
+            await channel.send(embed=embed)
+            return
+        await message.edit(embed=embed)
+
+    def _log(self, message, level="INFO"):
+        try:
+            self.poliswag.utility.log_to_file(message, level)
+        except Exception:  # noqa: BLE001 - never let logging break an announce
+            pass
 
     @commands.command(
         name="uselure",
@@ -351,67 +445,36 @@ def _parse_coords(value):
     return lat, lon
 
 
-def _headers():
-    try:
-        with open(Config.POLISNATCH_LINK_TOKEN_FILE, encoding="utf-8") as handle:
-            token = handle.read().strip()
-    except FileNotFoundError:
-        token = ""
-    return {"Authorization": token} if token else {}
+def _where(lat, lon):
+    if lat is None or lon is None:
+        return "Stop sem coordenadas"
+    return "%.5f, %.5f" % (float(lat), float(lon))
 
 
-async def _post(path, body):
-    session = get_session()
-    async with session.post(
-        Config.POLISNATCH_LINK_URL.rstrip("/") + path, json=body, headers=_headers()
-    ) as reply:
-        # 202 queued, 200 already in flight for this stop - both are answers.
-        if reply.status not in (200, 202):
-            raise RuntimeError(f"HTTP {reply.status}")
-        return await reply.json()
-
-
-async def _await_job(job_id, prefix, deadline_s=90.0):
-    """Poll until the job leaves queued/claimed, or give up."""
-    session = get_session()
-    waited = 0.0
-    while waited < deadline_s:
-        async with session.get(
-            Config.POLISNATCH_LINK_URL.rstrip("/") + prefix + job_id, headers=_headers()
-        ) as reply:
-            if reply.status != 200:
-                return None
-            state = await reply.json()
-        if state.get("state") in ("done", "failed", "cancelled"):
-            return state
-        await asyncio.sleep(2.0)
-        waited += 2.0
-    return None
-
-
-async def _follow(ctx, job_id, nearest, lat, lon, tipo, deadline_s=900.0):
-    """Keeps watching a job the command gave up on, then edits a fresh reply."""
-    result = await _await_job(job_id, "/lure/", deadline_s=deadline_s)
-    if result is None:
-        return
-    where = "Stop mais próximo do worker" if nearest else f"{lat:.5f}, {lon:.5f}"
-    if result.get("state") == "done":
-        verified = result.get("verified")
-        text = where
-        if verified is True:
-            text += " — confirmado no mapa"
-        elif verified is False:
-            text += " — colocado, mas não confirmado no mapa"
-        await ctx.reply(embed=build_embed("LURE COLOCADO", text))
-        return
-    reason = REASONS.get(str(result.get("failReason")), str(result.get("failReason")))
-    await ctx.reply(embed=build_embed("LURE NÃO COLOCADO", reason))
+def _error_text(error):
+    """PT copy for the job API's configuration errors and everything else."""
+    if error.code == "no_key" or error.status == 401:
+        return (
+            "A chave de submissão do PoliSnatch está em falta ou não é válida. "
+            "Gera-a com `polisnatch-dist jobs-key` e instala-a em "
+            "`/etc/poliswag/secrets/polisnatch-jobs-key`."
+        )
+    if error.code == "jobs_disabled" or error.status == 503:
+        return (
+            "Os jobs estão desativados no servidor PoliSnatch: falta-lhe a chave "
+            "de submissão ou um `link_lobby` na configuração."
+        )
+    if error.status is None:
+        return f"PoliSnatch não respondeu (`{error}`)."
+    return f"HTTP {error.status}: {error}"
 
 
 def _settle(key, job_id, result, discord_id):
     """Lock the stop only when the lure is verified; otherwise let the cooldown go."""
+    if not key:
+        return
     try:
-        if result.get("state") == "done" and result.get("verified") is True:
+        if result.get("state") == "done" and result.get("verified") in (1, True):
             lure_locks.lock(key, fort_id=result.get("fortId"), discord_id=discord_id)
         else:
             lure_locks.clear(key)
