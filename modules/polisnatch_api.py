@@ -26,7 +26,7 @@ import os
 from pathlib import Path
 from urllib.parse import quote
 
-DEFAULT_JOBS_URL = "https://mitm.pogoleiria.pt/v1/jobs"
+DEFAULT_JOBS_URL = "https://polisnatch.pogoleiria.pt/v1/jobs"
 DEFAULT_KEY_FILE = "/etc/poliswag/secrets/polisnatch-jobs-key"
 JOBS_URL_ENV = "POLISNATCH_JOBS_URL"
 KEY_FILE_ENV = "POLISNATCH_JOBS_KEY_FILE"
