@@ -41,9 +41,11 @@ LOG_FILE, ERROR_LOG_FILE
 The PoliSnatch submit key (server side: `polisnatch-dist jobs-key`) is read per
 call from `POLISNATCH_JOBS_KEY`, or from `POLISNATCH_JOBS_KEY_FILE` (mode 0600).
 The production container mounts `/etc/poliswag/secrets` read-only for it. With
-neither, nothing is submitted and `!lure`/`!pn` report the jobs as disabled. Job
-ids are stored in `polisnatch_job` (see `database.md`) so a restart resumes
-polling what is still open.
+neither, nothing is submitted and `!lure`/`!pn` report the jobs as disabled. The
+same key can mint a jobs-scoped phone token through the server's
+`POST /v1/jobs/token`, which the owner-only, DM-only `!pstoken` command uses;
+treat it as an admin credential. Job ids are stored in `polisnatch_job` (see
+`database.md`) so a restart resumes polling what is still open.
 
 ## Dev vs prod
 
