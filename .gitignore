@@ -29,3 +29,9 @@ docs/context/shiny.md
 
 # Local copies of the deployment env (secrets) never enter the repo.
 .env.bak*
+
+# Private host notes (owner identity and friends) live in
+# /root/docs-archive, never here.
+docs/private/
+docs/context/owner.md
+*.private.md

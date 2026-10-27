@@ -71,3 +71,9 @@ def test_the_name_rule_does_not_match_the_github_handle(tmp_path):
     sample = tmp_path / "sample.md"
     sample.write_text("https://github.com/rubendgpedrosa\n", encoding="utf-8")
     assert run(str(sample)).returncode == 0
+
+
+def test_a_private_host_note_path_is_refused():
+    result = run("docs/private/owner.md")
+    assert result.returncode == 1
+    assert "a private host note" in result.stdout
