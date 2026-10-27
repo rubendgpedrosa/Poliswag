@@ -271,48 +271,6 @@ async def test_manual_channel_activation_requires_shiny_collection_once(store, d
     assert db.execute_query_to_database.call_args.kwargs["params"] == (7,)
 
 
-async def test_linker_state_reads_the_switch_like_the_host_script(store, db):
-    db.get_data_from_database.return_value = [
-        {"enabled": 1, "disabled_reason": "nota", "minutes_since_run": 4}
-    ]
-    assert await store.linker_state() == {
-        "enabled": 1,
-        "disabled_reason": "nota",
-        "minutes_since_run": 4,
-    }
-    sql = db.get_data_from_database.call_args.args[0]
-    assert "shiny_linker_enabled AS enabled" in sql
-    assert "shiny_linker_disabled_reason AS disabled_reason" in sql
-    assert "TIMESTAMPDIFF(MINUTE, shiny_linker_last_run_at, UTC_TIMESTAMP())" in sql
-    assert "AS minutes_since_run FROM poliswag" in sql
-
-
-async def test_linker_state_is_off_when_there_is_no_row(store, db):
-    assert await store.linker_state() == {
-        "enabled": 0,
-        "disabled_reason": None,
-        "minutes_since_run": None,
-    }
-
-
-async def test_enable_linker_switches_on_and_forgets_the_reason(store, db):
-    await store.enable_linker()
-    sql = db.execute_query_to_database.call_args.args[0]
-    assert "shiny_linker_enabled = 1" in sql
-    assert "shiny_linker_disabled_reason = NULL" in sql
-    assert db.execute_query_to_database.call_args.kwargs.get("params") is None
-
-
-@pytest.mark.parametrize("reason", ["desligado pelo dono", "x" * 160])
-async def test_disable_linker_switches_off_and_truncates_the_reason(store, db, reason):
-    await store.disable_linker(reason)
-    db.execute_query_to_database.assert_awaited_once_with(
-        "UPDATE poliswag SET shiny_linker_enabled = 0, "
-        "shiny_linker_disabled_reason = %s",
-        params=(reason[:128],),
-    )
-
-
 async def test_event_odds_maps_active_rates_and_skips_the_rest(store, db):
     db.get_data_from_database.return_value = [
         {"pokemon_id": 714, "rate": 128},

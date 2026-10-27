@@ -11,16 +11,15 @@ Things that run on the host, outside the container, because they must work when 
 | `/root/db-backup.sh` | Nightly 04:30 dump (not in this repo). On failure it alerts the owner through `notify_owner.py` as well as logging to `/root/backups/db-backup.log`. |
 | `/usr/local/sbin/scanner-update` | Nightly 05:10 UTC via `/etc/cron.d/scanner-update`: stages immutable scanner images and DMs changed results as embeds. Source: `scripts/scanner-update`. Database updates automatically apply during host shutdown/reboot; tileserver is report-only. See [scanner-updates.md](scanner-updates.md) for account-session guards and recovery integration. |
 | `/usr/local/sbin/scanner-db-shutdown` | `scanner-db-shutdown.service` applies downloaded MariaDB patches during orderly host shutdowns/reboots, with fresh backups and authenticated readiness checks. Does nothing when the service starts, Docker restarts, or the hook is manually stopped. Source and unit: `scripts/scanner-db-shutdown{,.service}`. |
-| `python -m scripts.shiny_linker` | `shiny-linker.timer` (every 10 min) → `shiny-linker.service`, venv `/opt/shiny-linker/venv`. Resolves pending `!shiny` friend codes through one scanner account; does nothing unless every guard holds; switches itself off and alerts the owner if the hook or the game misbehaves. `--check` prints the guards, `--validate` re-checks the hook after a game update. Units: `scripts/shiny-linker.{service,timer}`. See [shiny.md](shiny.md). |
 
 **Why:** Docker's `unless-stopped` only recovers a process that exits; a hung bot stays "Up", and it is the bot that sends the tracking-health alert and the owner notices. The systemd units and `/root/db-backup.sh` are not in git: recreate them from this table if the host is rebuilt.
 
 The shared ADB daemon runs under its own persistent systemd service; the
-RustDesk watchdog and shiny linker depend on it. Installation and diagnosis:
+RustDesk watchdog depends on it. Installation and diagnosis:
 [adb-server.md](adb-server.md).
 
 Pokémon GO operational alerts use private owner Discord DMs (2026-10-15):
-map outage/recovery, shiny-linker failures, bot watchdog and
+map outage/recovery, bot watchdog and
 Pokédex approval requests. Map outages send one down and one recovery DM per
 episode, instead of repeated phone pushes. Home Assistant's map webhook now
 only updates `input_boolean.pokemon_map_down`. General backup and household

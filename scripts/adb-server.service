@@ -2,7 +2,7 @@
 Description=Persistent shared Android Debug Bridge server
 After=network-online.target
 Wants=network-online.target
-Before=rustdesk-android-watchdog.service shiny-linker.service
+Before=rustdesk-android-watchdog.service
 
 [Service]
 Type=simple
