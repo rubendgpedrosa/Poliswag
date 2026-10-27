@@ -58,6 +58,12 @@ def jobs_url(env=None):
     return (env.get(JOBS_URL_ENV) or DEFAULT_JOBS_URL).rstrip("/")
 
 
+def using_default_url(env=None) -> bool:
+    """True when the deployment did not set the job API base itself."""
+    env = os.environ if env is None else env
+    return not (env.get(JOBS_URL_ENV) or "").strip()
+
+
 def key_file(env=None):
     env = os.environ if env is None else env
     return env.get(KEY_FILE_ENV) or DEFAULT_KEY_FILE
