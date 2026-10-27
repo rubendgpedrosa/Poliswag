@@ -31,8 +31,8 @@ _STATES = {
     "waiting_input": "à espera de uma decisão",
 }
 _USAGE = (
-    "Marca-me (@Poliswag) com qualquer pergunta, em DM ou no servidor; uso Claude por defeito. "
-    "Pede Codex quando quiseres mudar de agente. Só consulto: não altero código.\n"
+    "Fala comigo por DM: uso a tua conversa privada do Hermes. "
+    "Marca-me na DM e pede Claude ou Codex para uma consulta explícita só de leitura.\n"
     "`@Poliswag answer <código> <resposta>` responde a uma tarefa à espera.\n"
     "`!jobs` · `!job <código>` · `!cancel <código>` · `!self`"
 )
@@ -158,8 +158,8 @@ class Agents(commands.Cog):
         embed = status_embed(
             "🤖 Poliswag",
             "Sou o bot do PoGoLeiria. Faço a gestão de quests, eventos, alertas e saúde "
-            "do scanner. Posso delegar consultas só de leitura a Claude ou Codex "
-            "quando me marcas.",
+            "do scanner. A tua conversa privada por DM usa Hermes. "
+            "Também aceito pedidos explícitos de consulta só de leitura a Claude ou Codex.",
         )
         embed.add_field(
             name="Estado",
@@ -212,7 +212,7 @@ class Agents(commands.Cog):
     async def submit_natural_request(self, ctx, text):
         """Only the real owner can delegate free-form mentions.
 
-        Reached only from Mentions, so untagged messages never start work.
+        Reached from DM mentions for explicit jobs and the default Hermes chat.
 
         A read-only general-purpose agent answers any question; it never edits.
         No other person's messages, attachments, or channel history are included.
@@ -247,8 +247,23 @@ class Agents(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             return
-        provider = "codex" if re.search(r"\b(openai|codex)\b", text, re.I) else "claude"
-        await self.submit(ctx, provider, text)
+        explicit = re.match(
+            r"(?:please\s+)?(?:use|usa|usar|utiliza)\s+(?:o\s+)?(openai|codex|claude)\b\s+.+",
+            text.strip(),
+            re.I | re.S,
+        )
+        if explicit:
+            provider = "claude" if explicit.group(1).lower() == "claude" else "codex"
+            await self.submit(ctx, provider, text)
+            return
+        hermes = self.poliswag.get_cog("Hermes")
+        if hermes is None:
+            await ctx.send(
+                "Não consigo iniciar a conversa do Hermes agora.",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+        await hermes.handle(ctx, text)
 
     async def resume(self, ctx, job_id, response):
         try:

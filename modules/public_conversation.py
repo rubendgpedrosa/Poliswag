@@ -12,9 +12,12 @@ import time
 import unicodedata
 from collections import OrderedDict, deque
 from datetime import datetime, timedelta
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 import discord
+
+from modules.config import Config
 
 # Only requests for private/operational material or code are rejected. Normal
 # game words (shiny, Dragonite, Golbat, quest, raid, map) are allowed.
@@ -57,9 +60,6 @@ _CAPABILITY = re.compile(
     r"\b(?:owner|dono|admin|administrador)\s+(?:only|apenas|pode|can)\b"
     r"[^?]{0,100}\b(?:code|codigo|alterar|editar|mudar|alterac\w*|mudanc\w*|"
     r"changes?|edits?|acesso|permissoes|permissions)\b|"
-    r"\b(?:quem|who)\s+(?:e|is)\s+(?:o\s+)?(?:dono|owner|admin|administrador)\b|"
-    r"\b(?:dono|owner|admin|administrador)\s+(?:do|of)\s+(?:bot|poliswag|"
-    r"servidor|discord)\b|"
     r"\b(?:so|apenas|only)\s+(?:o\s+)?(?:dono|owner|admin|faynn)\b"
     r"[^?]{0,100}\b(?:alterac\w*|mudanc\w*|changes?|edits?)\b|"
     r"\b(?:are\s+you|es|e)\s+(?:a|an|um|uma)?\s*(?:model|bot|ai|llm|"
@@ -71,30 +71,32 @@ _CAPABILITY = re.compile(
 )
 _AREAS = {"Leiria": "Leiria", "MarinhaGrande": "Marinha Grande"}
 _PRIVATE_REPLY = (
-    "Posso ajudar com Pokémon GO e a comunidade PoGoLeiria: mapa, spawns, "
-    "Raids, Quests, Eggs, Lures, eventos, dicas de jogo e links úteis. "
-    "Diz-me o que queres saber sobre o jogo."
+    "Poli-poli! 💧 Isso não vem na minha Pokédex. Posso ajudar com Pokémon GO "
+    "e a comunidade PoGoLeiria: mapa, spawns, Raids, Quests, Eggs, Lures, "
+    "eventos, dicas de jogo e links úteis. O que queres saber, treinador?"
 )
 _NEUTRAL_HELP = (
-    "Posso ajudar com Pokémon GO e a comunidade PoGoLeiria: mapa, spawns, "
-    "Raids, Quests, Eggs, Lures, eventos e dicas de jogo. "
-    "Podes ver o mapa em https://pogoleiria.pt/mapa."
+    "Poli-poli! 💧 Posso ajudar com Pokémon GO e a comunidade PoGoLeiria: "
+    "counters, types, Raids, Quests, Eggs, Lures, eventos, spawns e dicas de "
+    "jogo. Pergunta à vontade!"
 )
+# Generic fallbacks carry no link; only map answers point to the map.
 _UNAVAILABLE = (
-    "Não consegui preparar uma resposta útil agora. Tenta novamente daqui a "
-    "pouco; entretanto podes consultar https://pogoleiria.pt/mapa."
+    "Não consegui preparar uma resposta agora, fiquei às voltas como um "
+    "Poliwag tonto. 🌀 Tenta outra vez daqui a pouco!"
 )
 _MAP_UNAVAILABLE = (
-    "Não tenho agora uma amostra atualizada do mapa para responder a isso. "
-    "Podes ver https://pogoleiria.pt/mapa ou tentar daqui a pouco."
+    "Agora não tenho uma amostra fresquinha do mapa para responder a isso. 💧 "
+    "Espreita https://pogoleiria.pt/mapa ou tenta daqui a pouco."
 )
 _MODEL_UNAVAILABLE = (
-    "Não consegui gerar uma resposta agora, mas podes consultar o mapa público "
-    "em https://pogoleiria.pt/mapa e as quests em https://pogoleiria.pt/quests."
+    "Não consegui gerar uma resposta agora, mas o mapa ao vivo está em "
+    "https://pogoleiria.pt/mapa. 💧"
 )
 _GREETING = (
-    "Olá! Sou o Poliswag, da comunidade PoGoLeiria. Pergunta-me sobre Pokémon "
-    "GO, spawns, raids, quests, eventos ou o mapa de Leiria e Marinha Grande."
+    "Poli-poli! 💧 Sou o Poliswag, o Poliwag com mais estilo da comunidade "
+    "PoGoLeiria. Pergunta-me sobre Pokémon GO, spawns, Raids, Quests, eventos "
+    "ou o mapa de Leiria e Marinha Grande!"
 )
 
 # Public output screening: game terms, numbers, accents and line breaks pass;
@@ -126,11 +128,13 @@ _PRIVATE_CLAIM = re.compile(
     r"mudar|modify|change|programar)\b|"
     r"\b(?:alterar|editar|mudar|modify|change)\s+(?:o\s+)?(?:teu|seu|your)\s+"
     r"(?:codigo|code|source)\b|"
+    # Who faynn is (founder/admin of the community) is public; what faynn can
+    # change or authorize in the bot is not.
     r"\bfaynn\b[^.\n]{0,80}\b(?:alterar|alterac\w*|editar|mudar|mudanc\w*|"
     r"modify|change|changes?|edits?|codigo|code|source|programar|autoriza|"
-    r"authorizes|owner|admin|private|privado)\b|"
+    r"authorizes|private|privado)\b|"
     r"\b(?:alterar|alterac\w*|editar|mudar|mudanc\w*|modify|change|changes?|"
-    r"edits?|codigo|code|source|programar|autoriza|authorizes|owner|admin|"
+    r"edits?|codigo|code|source|programar|autoriza|authorizes|"
     r"private|privado)\b[^.\n]{0,80}\bfaynn\b|"
     r"\b(?:so|apenas|only)\s+(?:o\s+)?faynn\b[^.\n]{0,80}\b(?:pode|can|"
     r"authorizes?|autoriza)\b|"
@@ -180,6 +184,15 @@ def normalized(text):
         for c in unicodedata.normalize("NFKD", text.casefold())
         if not unicodedata.combining(c)
     )
+
+
+@lru_cache(maxsize=8)
+def _private_name_pattern(names):
+    """The deployment's private names, matched as normalized prefixes."""
+    words = [re.escape(normalized(name)) for name in names if name.strip()]
+    if not words:
+        return None
+    return re.compile(r"\b(?:%s)\w*" % "|".join(words))
 
 
 def private_topic(text):
@@ -238,9 +251,11 @@ def safe_reply(value):
     normalized_value = re.sub(
         r"\bfriend\s+code\b|\bcodigo\s+de\s+amigo\b", " ", normalized(value)
     )
+    name_pattern = _private_name_pattern(Config.PRIVATE_NAMES)
     if (
         _SENSITIVE_OUTPUT.search(normalized_value)
         or _PRIVATE_CLAIM.search(normalized_value)
+        or (name_pattern is not None and name_pattern.search(normalized_value))
         or _ASSIGNMENT.search(value)
     ):
         return None

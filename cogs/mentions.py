@@ -37,6 +37,26 @@ def directed_mention(content, bot_id):
     return bool(re.search(rf"(?<!\\)<@!?{bot_id}>", visible))
 
 
+def named_mentions(text, message):
+    """Turn member tags into names so the public model knows who is meant.
+
+    The owner is always called faynn (never his account or real name); other
+    tagged members become their public display name.
+    """
+    names = {Config.MY_ID: "faynn"} if Config.MY_ID > 0 else {}
+    for member in getattr(message, "mentions", None) or ():
+        if member.id not in names and not member.bot:
+            name = getattr(member, "display_name", "") or ""
+            name = re.sub(r"[<>@`*_~|]", "", name).strip()[:32]
+            if name:
+                names[member.id] = name
+
+    def name_for(match):
+        return names.get(int(match.group(1)), match.group(0))
+
+    return re.sub(r"<@!?(\d+)>", name_for, text)
+
+
 class Mentions(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -60,7 +80,7 @@ class Mentions(commands.Cog):
         if not directed_mention(message.content, user.id):
             return False
         text = re.sub(pattern, "", message.content).strip()
-        if is_owner(ctx):
+        if ctx.guild is None and is_owner(ctx):
             agents = self.poliswag.get_cog("Agents")
             if not text:
                 await self.respond(ctx, _GREETING)
@@ -82,6 +102,7 @@ class Mentions(commands.Cog):
         if not self.limiter.allow(ctx.guild.id, ctx.author.id):
             return True
         await react_to_request(message)
+        text = named_mentions(text, message)
         try:
             reply = await asyncio.wait_for(self.public.reply(text), timeout=42)
         except Exception:

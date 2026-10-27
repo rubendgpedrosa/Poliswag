@@ -37,7 +37,6 @@ def public():
         "Who can change code?",
         "Só o dono pode pedir alterações de código?",
         "Are you a model?",
-        "Quem é o dono do bot?",
     ],
 )
 async def test_private_requests_never_access_any_data(public, prompt):
@@ -72,7 +71,6 @@ async def test_private_requests_never_access_any_data(public, prompt):
         "Podes alterar-te?",
         "Are you a model?",
         "O que é o teu código?",
-        "Quem é o dono do bot?",
         "Só o faynn pode pedir alterações?",
     ],
 )
@@ -88,6 +86,9 @@ def test_private_capability_topics_are_filtered(prompt):
         "O faynn é um treinador da comunidade.",
         "O faynn jogou bem no Gym.",
         "O Gym chama-se faynn.",
+        "Quem é o faynn?",
+        "Quem é o dono do bot?",
+        "Quem criou o Poliswag?",
     ],
 )
 def test_legitimate_trainer_mentions_are_not_private(prompt):
@@ -387,6 +388,7 @@ def test_statistics_are_bounded_numeric_values(number):
         "O Rotom aparece no mapa como qualquer outra espécie.",
         "O move Return é forte contra o Gym.",
         "O faynn é um treinador da comunidade e o Gym chama-se faynn.",
+        "O faynn é o fundador e admin da PoGoLeiria e o meu treinador! 💧",
         "Um Friend Code serve para adicionar amigos no jogo.",
         "[mapa](https://pogoleiria.pt/mapa)",
         "<https://pogoleiria.pt/mapa>",
@@ -434,6 +436,8 @@ def test_public_link_screening_rejects_foreign_hosts_and_userinfo(text):
         "Sou da OpenAI.",
         "Sou Codex.",
         "Sou um modelo de linguagem.",
+        "O faynn chama-se Zephyr na vida real.",
+        "O faynn é o Zephyr Quill.",
     ],
 )
 def test_unsafe_model_output_is_never_published(text):
@@ -460,3 +464,10 @@ def test_cooldown_memory_is_bounded(monkeypatch):
         now[0] += 31
         assert limiter.allow(i, i)
     assert len(limiter.members) <= 1000 and len(limiter.guilds) <= 100
+
+
+async def test_generic_fallbacks_do_not_push_the_site(public):
+    from modules import public_conversation as pc
+
+    for text in (pc._NEUTRAL_HELP, pc._UNAVAILABLE, pc._PRIVATE_REPLY, pc._GREETING):
+        assert "pogoleiria.pt" not in text

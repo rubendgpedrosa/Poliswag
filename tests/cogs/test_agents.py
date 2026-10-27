@@ -14,6 +14,7 @@ def cog(tmp_path, monkeypatch):
     monkeypatch.setattr(Config, "AGENT_JOBS_DIR", str(tmp_path / "jobs"))
     bot = MagicMock()
     bot.user.id = 456
+    bot.get_cog.return_value = MagicMock(handle=AsyncMock())
     return Agents(bot)
 
 
@@ -39,11 +40,14 @@ async def test_owner_tagged_explicit_provider_request_is_routed(cog):
     cog.submit.assert_awaited_once_with(context, "openai", "fix this")
 
 
-async def test_owner_natural_request_defaults_to_claude(cog):
+async def test_owner_natural_request_defaults_to_hermes(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "fix the quest bug")
-    cog.submit.assert_awaited_once_with(context, "claude", "fix the quest bug")
+    cog.submit.assert_not_awaited()
+    cog.poliswag.get_cog.return_value.handle.assert_awaited_once_with(
+        context, "fix the quest bug"
+    )
 
 
 async def test_owner_natural_request_can_choose_openai(cog):
@@ -154,10 +158,10 @@ async def test_delivery_marker_prevents_repeated_completion_dm(cog):
         "code openai fix this",
     ],
 )
-async def test_owner_untagged_message_never_starts_work(question):
+async def test_owner_untagged_guild_message_never_starts_work(question):
     import main
 
-    context = ctx(content=question)
+    context = ctx(content=question, guild=MagicMock())
     context.command = None
     bot = MagicMock()
     bot.user.id = 456
@@ -172,11 +176,14 @@ async def test_owner_untagged_message_never_starts_work(question):
     bot.invoke.assert_awaited_once_with(context)
 
 
-async def test_owner_general_question_uses_claude(cog):
+async def test_owner_general_question_uses_hermes(cog):
     cog.submit = AsyncMock()
     context = ctx()
     await cog.submit_natural_request(context, "Why is the sky blue?")
-    cog.submit.assert_awaited_once_with(context, "claude", "Why is the sky blue?")
+    cog.submit.assert_not_awaited()
+    cog.poliswag.get_cog.return_value.handle.assert_awaited_once_with(
+        context, "Why is the sky blue?"
+    )
 
 
 async def test_owner_general_question_can_explicitly_choose_codex(cog):
@@ -515,7 +522,10 @@ async def test_waiting_task_in_other_conversation_does_not_capture_question(
     cog.submit = AsyncMock()
     context = conversation_ctx(target)
     await cog.submit_natural_request(context, "a separate question")
-    cog.submit.assert_awaited_once_with(context, "claude", "a separate question")
+    cog.submit.assert_not_awaited()
+    cog.poliswag.get_cog.return_value.handle.assert_awaited_once_with(
+        context, "a separate question"
+    )
     assert cog.jobs.get(job_id, 123)["state"] == "waiting_input"
 
 
@@ -540,7 +550,8 @@ async def test_delivery_override_does_not_change_followup_conversation(cog):
     cog.submit = AsyncMock()
     await cog.submit_natural_request(conversation_ctx(None), "a new DM question")
     assert cog.jobs.get(job_id, 123)["state"] == "waiting_input"
-    cog.submit.assert_awaited_once()
+    cog.submit.assert_not_awaited()
+    cog.poliswag.get_cog.return_value.handle.assert_awaited_once()
     await cog.submit_natural_request(conversation_ctx(789), "Leiria")
     assert cog.jobs.get(job_id, 123)["state"] == "queued"
     assert cog.jobs.get(job_id, 123)["destination"] == {"type": "dm"}
@@ -565,7 +576,7 @@ async def test_independent_questions_are_delivered_to_two_channels_and_dm(cog):
     cog.poliswag.get_channel.side_effect = channels.get
     cog.poliswag.get_user.return_value = user
     for source, question in [(789, "q1"), (999, "q2"), (None, "q3")]:
-        await cog.submit_natural_request(conversation_ctx(source), question)
+        await cog.submit_natural_request(conversation_ctx(source), "claude " + question)
     jobs = cog.jobs.list(123)
     assert len(jobs) == 3
     for job in jobs:
@@ -614,3 +625,38 @@ async def test_acknowledgement_only_reacts(cog):
     context.message.add_reaction.assert_awaited_once_with("👀")
     context.reply.assert_not_awaited()
     context.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "text", ["How does Codex work?", "What is Claude?", "Compare OpenAI and DeepSeek"]
+)
+async def test_incidental_provider_names_stay_in_hermes_chat(cog, text):
+    cog.submit = AsyncMock()
+    await cog.submit_natural_request(ctx(), text)
+    cog.submit.assert_not_awaited()
+    cog.poliswag.get_cog.return_value.handle.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "text,provider",
+    [
+        ("usa Claude para explicar isto", "claude"),
+        ("use Codex to explain gravity", "codex"),
+        ("please use OpenAI to explain this", "codex"),
+    ],
+)
+async def test_explicit_natural_provider_selection(cog, text, provider):
+    cog.submit = AsyncMock()
+    context = ctx()
+    await cog.submit_natural_request(context, text)
+    cog.submit.assert_awaited_once_with(context, provider, text)
+    cog.poliswag.get_cog.assert_not_called()
+
+
+async def test_missing_hermes_does_not_submit_legacy_job(cog):
+    cog.poliswag.get_cog.return_value = None
+    cog.submit = AsyncMock()
+    context = ctx()
+    await cog.submit_natural_request(context, "hello")
+    cog.submit.assert_not_awaited()
+    context.send.assert_awaited_once()
