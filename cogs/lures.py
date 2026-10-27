@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from modules import lure_locks
 from modules.embeds import build_embed
+from modules.permissions import owner_only
 from modules.polisnatch_api import JobApiError
 from modules.polisnatch_jobs import JobPoller, PoliSnatchJobs
 from modules.polisnatch_store import JobStore
@@ -120,6 +121,69 @@ class Lures(commands.Cog):
                 f"**{name}** — {state} — " + (", ".join(bits) or "sem detalhe")
             )
         await ctx.send(embed=build_embed("POLISNATCH", "\n".join(lines[:12])))
+
+    @commands.command(
+        name="pstoken",
+        brief="Emite um token PoliSnatch para um telefone (só na DM do dono)",
+        help="Utilização: `!pstoken EMAIL [workers] [nome]`. O token aparece uma "
+        "vez, só aqui na DM; o telefone entra com ele e o mesmo email.",
+    )
+    @owner_only()
+    async def pstoken(
+        self, ctx, email: str = "", workers: str = "1", *, name: str = ""
+    ):
+        if ctx.guild is not None:
+            await ctx.send(
+                embed=build_embed("SÓ POR DM", "Usa `!pstoken` na DM com o Poliswag.")
+            )
+            return
+        if not email or "@" not in email:
+            await ctx.send(
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA",
+                    "Utilização: `!pstoken EMAIL [workers] [nome]`.",
+                )
+            )
+            return
+        try:
+            slots = int(workers)
+        except (TypeError, ValueError):
+            slots = 0
+        if not 1 <= slots <= 8:
+            await ctx.send(
+                embed=build_embed(
+                    "UTILIZAÇÃO INVÁLIDA", "workers tem de ser um inteiro de 1 a 8."
+                )
+            )
+            return
+        try:
+            result = await self.jobs.issue_token(email=email, name=name, workers=slots)
+        except JobApiError as error:
+            await ctx.send(embed=build_embed("TOKEN NÃO EMITIDO", _error_text(error)))
+            return
+        token = result.get("token")
+        if not token:
+            await ctx.send(
+                embed=build_embed(
+                    "TOKEN NÃO EMITIDO",
+                    "O servidor aceitou o pedido mas não devolveu o token.",
+                )
+            )
+            return
+        scope = result.get("scope") or {}
+        text = (
+            f"Email: `{result.get('email') or email}`\n"
+            f"Device: `{result.get('device_id') or '?'}`\n"
+            f"Scope: slots={scope.get('max_workers', slots)} · "
+            f"canais={','.join(scope.get('channels') or [])} · jobs=sim\n\n"
+            f"```\n{token}\n```\n"
+            "Aparece uma vez. Entra no PoliSnatch com este token **e o mesmo "
+            "email**. Não o partilhes. Para o revogar: `revoke <device>` na CT 108."
+        )
+        await ctx.send(
+            embed=build_embed("TOKEN POLISNATCH", text),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     async def cog_load(self):
         print(f"{self.__class__.__name__} loaded!")

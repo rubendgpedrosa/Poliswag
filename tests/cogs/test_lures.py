@@ -28,6 +28,7 @@ def cog():
     cog.jobs.submit_lure = AsyncMock()
     cog.jobs.workers = AsyncMock()
     cog.jobs.command = AsyncMock()
+    cog.jobs.issue_token = AsyncMock()
     cog.job_store = MagicMock()
     cog.poller.start = MagicMock()
     cog.poller.stop = AsyncMock()
@@ -41,6 +42,12 @@ def make_ctx(author_id="42", channel_id=9):
     ctx.author.name = "tester"
     ctx.channel.id = channel_id
     ctx.send = AsyncMock(return_value=SimpleNamespace(id=555))
+    return ctx
+
+
+def make_dm_ctx(author_id="111"):
+    ctx = make_ctx(author_id)
+    ctx.guild = None
     return ctx
 
 
@@ -198,6 +205,66 @@ class TestPn:
             await Lures.pn.callback(cog, ctx, action="start", worker="worker-1")
         assert be.call_args.args[0] == "COMANDO NÃO ENTREGUE"
         assert "chave" in be.call_args.args[1]
+
+
+class TestPsToken:
+    async def test_issues_the_token_in_the_owner_dm(self, cog):
+        ctx = make_dm_ctx()
+        cog.jobs.issue_token.return_value = {
+            "device_id": "dev_1",
+            "token": "psd_secret",
+            "email": "a@b.c",
+            "scope": {
+                "max_workers": 2,
+                "channels": ["stable"],
+                "jobs": True,
+            },
+        }
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(
+                cog, ctx, email="a@b.c", workers="2", name="Phone"
+            )
+        cog.jobs.issue_token.assert_awaited_once_with(
+            email="a@b.c", name="Phone", workers=2
+        )
+        text = be.call_args.args[1]
+        assert "psd_secret" in text
+        assert "a@b.c" in text
+        assert "Device: `dev_1`" in text
+        assert "allowed_mentions" in ctx.send.call_args.kwargs
+        cog.poliswag.utility.log_to_file.assert_not_called()
+
+    async def test_a_guild_invocation_is_refused_before_any_call(self, cog):
+        ctx = make_ctx()
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(cog, ctx, email="a@b.c")
+        cog.jobs.issue_token.assert_not_awaited()
+        assert be.call_args.args[0] == "SÓ POR DM"
+
+    async def test_bad_email_and_worker_count_are_refused(self, cog):
+        ctx = make_dm_ctx()
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(cog, ctx, email="nope")
+        assert be.call_args.args[0] == "UTILIZAÇÃO INVÁLIDA"
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(cog, ctx, email="a@b.c", workers="9")
+        assert be.call_args.args[0] == "UTILIZAÇÃO INVÁLIDA"
+        cog.jobs.issue_token.assert_not_awaited()
+
+    async def test_a_missing_key_is_explained(self, cog):
+        ctx = make_dm_ctx()
+        cog.jobs.issue_token.side_effect = JobApiError("no key", code="no_key")
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(cog, ctx, email="a@b.c")
+        assert be.call_args.args[0] == "TOKEN NÃO EMITIDO"
+        assert "chave" in be.call_args.args[1]
+
+    async def test_a_reply_without_a_token_is_an_error(self, cog):
+        ctx = make_dm_ctx()
+        cog.jobs.issue_token.return_value = {"device_id": "dev_1"}
+        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+            await Lures.pstoken.callback(cog, ctx, email="a@b.c")
+        assert be.call_args.args[0] == "TOKEN NÃO EMITIDO"
 
 
 class TestLure:

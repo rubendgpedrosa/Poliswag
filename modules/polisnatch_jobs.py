@@ -90,6 +90,16 @@ class PoliSnatchJobs:
         body = await self._call("GET", "/state", expect=(200,))
         return body.get("workers") or {}
 
+    async def issue_token(self, *, email, name="", workers=1, channels=None):
+        """Mints a jobs-scoped person token; the raw token is in the reply only."""
+        body = {
+            "email": email,
+            "name": name,
+            "workers": workers,
+            "channels": channels or ["stable"],
+        }
+        return await self._call("POST", "/token", body, expect=(201,))
+
 
 class JobPoller:
     """Follows open jobs and announces each outcome exactly once."""

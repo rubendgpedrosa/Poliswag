@@ -213,6 +213,63 @@ class TestReads:
         assert seen == [{"worker": "*", "action": "restart"}]
 
 
+class TestIssueToken:
+    async def test_posts_the_person_and_expects_201(self):
+        seen = []
+
+        async def handler(request):
+            seen.append(
+                (
+                    request.path,
+                    request.headers["Authorization"],
+                    await request.json(),
+                )
+            )
+            return web.json_response(
+                {
+                    "device_id": "dev_1",
+                    "token": "psd_test",
+                    "email": "a@b.c",
+                    "scope": {
+                        "max_workers": 2,
+                        "channels": ["stable"],
+                        "jobs": True,
+                    },
+                },
+                status=201,
+            )
+
+        async with jobs_server(handler) as base:
+            body = await PoliSnatchJobs(base=base, key="k").issue_token(
+                email="a@b.c", workers=2
+            )
+
+        assert body["token"] == "psd_test"
+        path, authorization, payload = seen[0]
+        assert path == "/v1/jobs/token"
+        assert authorization == "Bearer k"
+        assert payload == {
+            "email": "a@b.c",
+            "name": "",
+            "workers": 2,
+            "channels": ["stable"],
+        }
+
+    async def test_no_key_never_sends(self):
+        calls = []
+
+        async def handler(request):
+            calls.append(request.path)
+            return web.json_response({})
+
+        async with jobs_server(handler) as base:
+            with pytest.raises(JobApiError) as exc:
+                await PoliSnatchJobs(base=base, key="").issue_token(email="a@b.c")
+
+        assert exc.value.code == "no_key"
+        assert calls == []
+
+
 class TestClientConfiguration:
     async def test_no_key_never_sends_a_request(self):
         calls = []
