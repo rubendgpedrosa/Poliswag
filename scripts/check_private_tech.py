@@ -5,7 +5,8 @@ Poliswag is the Discord bridge between services: Discord in, HTTP to PoliSnatch
 and the scanner stack, the database out. What lives inside the game, or in front
 of its traffic, belongs to PoliSnatch (CT 108): native hooks and injector
 payloads, the game's own opcodes and the fields they return, and the
-instrumentation or proxy tooling around them.
+instrumentation or proxy tooling around them. The repository is public, so it
+also never carries the owner's real name.
 
     python3 scripts/check_private_tech.py <paths...>   # what pre-commit passes
     python3 scripts/check_private_tech.py --all        # every tracked file (CI)
@@ -69,6 +70,7 @@ TEXT_RULES = [
     (re.compile(r"\b" "mitm" "proxy" r"\b", re.I), "an interception proxy"),
     (re.compile(r"\b" "501" "2" r"\b"), "a game opcode this repo has no use for"),
     (re.compile(r"\b" "get_" "player" r"\b", re.I), "a game RPC name"),
+    (re.compile(r"\b" "Rub" "en" r"\b", re.I), "the owner's real name"),
 ]
 
 
@@ -113,14 +115,16 @@ def report(findings):
     if not findings:
         return 0
     print("This repository is the Discord bridge, not the game side.")
-    print("Game hooks, injectors, opcodes and interception belong in PoliSnatch.\n")
+    print("Game hooks, injectors, opcodes and interception belong in PoliSnatch.")
+    print("It is public, so the owner's real name does not appear here either.\n")
     for name, line, what, text in findings:
         where = f"{name}:{line}" if line else name
         detail = f"  {text}" if text else ""
         print(f"{where}: {what}{detail}")
     print(
-        "\nMove it to PoliSnatch (CT 108). If this is a false positive, keep the "
-        f"line and add `# {ALLOW_MARK}` with a short reason."
+        "\nGame-side code belongs to PoliSnatch (CT 108); private facts do not go "
+        "into a public repository. If this is a false positive, keep the line and "
+        f"add `# {ALLOW_MARK}` with a short reason."
     )
     return 1
 
