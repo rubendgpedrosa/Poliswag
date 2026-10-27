@@ -21,3 +21,6 @@ payloads, the game's own opcodes and the fields they return, instrumentation, an
 the interception proxy. `scripts/check_private_tech.py` refuses those in pre-commit
 and in CI; a line may opt out with `# poliswag-guard: allow` and a reason, a path
 never can.
+
+Private host notes (owner identity, host-side shiny notes) live in
+`/root/docs-archive/Poliswag/private/`, never here.
