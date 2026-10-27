@@ -225,7 +225,8 @@ def public_command(binary, directory, output):
         "-c",
         "tools.view_image=false",
         "-c",
-        'web_search="disabled"',
+        # Indexed (cached) search only: current game data without live pages.
+        'web_search="cached"',
         "-c",
         "project_doc_max_bytes=0",
         "-c",

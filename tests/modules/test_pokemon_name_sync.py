@@ -117,3 +117,17 @@ class TestSyncPokemonNames:
 
         assert await sync_pokemon_names(db, {}) == 0
         db.execute_query_to_database.assert_not_awaited()
+
+
+def test_shadow_legendary_forms_are_not_dex_tiles_but_unown_s_is():
+    from modules.pokemon_name_sync import build_pokemon_name_rows
+
+    masterfile = {
+        "pokemon": {
+            "249": {"name": "Lugia", "forms": {"2729": {"name": "S"}}},
+            "201": {"name": "Unown", "forms": {"19": {"name": "S"}}},
+        }
+    }
+    rows = build_pokemon_name_rows(masterfile)
+    assert (249, 2729) not in {(r[0], r[1]) for r in rows}
+    assert (201, 19) in {(r[0], r[1]) for r in rows}

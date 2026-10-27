@@ -59,6 +59,9 @@ restarts (migration 032). A failed send retries on the next tick; a late
 restart catches up once for that local date. Manual image requests do not
 change the daily delivery date. The automatic report uses the same aggregate
 as the JSON command: no personal zone, collection, IV or notification filters.
+The PNG shows only the first 15 trainers (podium plus 12 rows), labelled as a
+top 15 when more trainers exist. Totals, trainer count and general averages
+still cover every trainer in the aggregate; the JSON report remains complete.
 Incomplete coverage leaves the JSON full-window averages unavailable. The image
 shows recorded totals divided by the requested hours, marked with an asterisk
 and a warning that missing history may underestimate the rate. The overall

@@ -34,6 +34,15 @@ Row = tuple[int, int, str, str | None, int | None, int]
 _EVENT_FORM = re.compile(r"\b(19|20)\d{2}\b|^(Tshirt|Flying) \d+$")
 
 
+# The masterfile's "S" forms of the raid legendaries (Raikou S, Lugia S…) are
+# their Shadow versions, not collectable Pokédex tiles. Unown's "S" is a letter.
+_UNOWN = 201
+
+
+def _is_shadow(pid: int, form_name: str) -> bool:
+    return form_name == "S" and pid != _UNOWN
+
+
 def _is_costume(form_name: str, form) -> int:
     return 1 if form.get("isCostume") or _EVENT_FORM.search(form_name) else 0
 
@@ -56,7 +65,12 @@ def build_pokemon_name_rows(masterfile) -> list[Row]:
         for form_id, form in (details.get("forms") or {}).items():
             form = form or {}
             form_name = form.get("name")
-            if not form_name or form_name == "Normal" or int(form_id) == default_form:
+            if (
+                not form_name
+                or form_name == "Normal"
+                or int(form_id) == default_form
+                or _is_shadow(pid, form_name)
+            ):
                 continue
             rows.append(
                 (pid, int(form_id), name, form_name, None, _is_costume(form_name, form))

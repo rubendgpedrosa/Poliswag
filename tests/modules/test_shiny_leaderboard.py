@@ -126,7 +126,7 @@ def test_podium_handles_small_and_large_reports(count):
         assert image.width == 1080
         assert image.height >= 785
         if count > 3:
-            assert image.height == 747 + (count - 3) * 79 + 38 + 250
+            assert image.height == 747 + (min(count, 15) - 3) * 79 + 38 + 250
 
 
 @pytest.fixture
@@ -302,3 +302,26 @@ def test_podium_ties_use_competition_ranks(drawn_text):
     render_report(data)
     medals = [content for _, content in drawn_text if content.endswith(".º")]
     assert medals == ["1.º", "1.º", "3.º"]
+
+
+def test_top_15_limits_only_display_preserving_full_totals_and_average(drawn_text):
+    import copy
+    from modules.shiny_leaderboard import number
+
+    data = report_fixture(32)
+    original = copy.deepcopy(data)
+    png = render_report(data)
+    texts = [content for _, content in drawn_text]
+    displayed = [value for value in texts if value.startswith("Treinador")]
+    assert len(displayed) == 15
+    assert set(displayed) == {row["trainer"] for row in data["trainers"][:15]}
+    assert "Treinador015" not in texts
+    assert data == original
+    assert number(data["total_predicted_shinies"]) in texts
+    assert "Top 15 · 32 treinadores no total" in texts
+    footer = " ".join(texts)
+    assert "Total ÷ (32 treinadores × 24 h)." in footer
+    average = number(data["total_predicted_shinies"] / 32 / 24, 2)
+    assert f"Média geral: {average} shinies/conta/h" in footer
+    with Image.open(BytesIO(png)) as image:
+        assert image.height == 747 + 12 * 79 + 38 + 250
