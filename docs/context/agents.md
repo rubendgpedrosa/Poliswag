@@ -1,43 +1,142 @@
 # Discord delegation to Claude and Codex
 
-`cogs/agents.py` accepts requests from `MY_ID` only, and only from a message
-that tags Poliswag (a DM is not a tag); mods and other members cannot run or
-inspect owner jobs. Owner agents are **read-only**: they answer and propose
-diffs but never edit code. `scripts/agent_worker.py` runs on the
-host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`.
+The owner's private DM chat uses **Hermes in CT 109**, through `cogs/hermes.py`
+and `modules/hermes_client.py`. Send plain text in a DM, or visibly tag Poliswag
+in that DM. All guild mentions, including the owner's and explicit provider
+requests, use the restricted public path below; they never access Hermes or
+private agent jobs. Guild messages without a visible bot tag do not trigger
+chat. `!` commands retain command dispatch. A message starting with `!ignore` (any author, DM or guild) is dropped before anything else: no Hermes turn, no tag reply, no command — use it for notes the bot must not act on. Bots, webhooks, forged author
+objects and nonowners cannot call Hermes. The Hermes entry point also rejects
+all guild contexts, independently of mention routing.
 
-## Usage
+Owner DMs share one durable server-side conversation:
+`poliswag:owner:<MY_ID>`. Hermes owns its model login, tools, memory and history
+in CT 109. Poliswag sends only the owner's current DM text and fixed instructions,
+never attachments, channel history, another user's messages, scanner context,
+Discord/provider credentials or production configuration. Replies to this
+conversation stay in the owner's DM; new guild messages never enter its history.
 
-- `!self`: capabilities, loaded command count, executor availability, live scanner health.
-- `!jobs`: latest ten tasks; `!job <id>`: state and full report; `!cancel <id>`: cancel.
-  None of these starts or resumes an agent.
-- Every agent request needs a tag of Poliswag, in a DM or a server. There are
-  no `!ask`/`!code`/`!answer` commands; untagged owner messages (plain text,
-  `codex <question>`, `!code codex <task>`) get no reply and start no work.
-  Tagged requests accept free-form text (Claude by default) and the explicit
-  forms `codex <question>` / `ask codex <question>`, for example
-  `@Poliswag why did the quest export fail?` or `@Poliswag use Codex to explain
-  the quest bug`. `@Poliswag answer <id> <response>` answers a named blocked
-  task. These go to a read-only general-purpose agent, which answers questions
-  on any topic; asked for a code change, it explains it and proposes a diff in
-  its report instead of applying it.
-  Tasks acknowledge the message immediately with a 👀 reaction and then work until completion,
-  making routine decisions without asking permission to continue. Only a genuinely blocking decision
-  interrupts the task with one short question. A tagged owner message
-  resumes the sole waiting task from that same channel or DM; use
-  `@Poliswag answer <id> <response>` if more than one is waiting there. Requests from other conversations create
-  separate jobs and keep their own reply destinations. The origin is stored
-  separately from explicit delivery overrides. For older jobs, the stored
-  destination identifies the conversation (DM when absent).
-  The same provider, mode and worktree are preserved, along with the original
-  request and decision history. Owner results and questions return to the stored
-  destination: the originating channel by default, or DM for a DM request.
-  Explicit `send via DM` / `envia por DM` overrides the origin; `send to
-  #moderação`, `envia para <#channel-id>` or `send to channel name` chooses a
-  channel. Channel names must match exactly (case/accents ignored) and be
-  unambiguous. Unknown channels fail submission instead of redirecting the
-  result. Continuations retain the original destination. Legacy jobs without
-  destination metadata keep their original DM behavior; `!job` stays private.
+`HERMES_API_URL` defaults to `http://192.168.1.60:8642` (check the DHCP address).
+`HERMES_API_KEY` is required for requests and defaults empty, disabling calls.
+The bearer key is a Hermes API credential, not a model/provider token. The
+client admits durable work with `POST /v1/runs`, `Idempotency-Key:
+discord:<message-id>`, and `X-Hermes-Session-Key: poliswag:owner:<MY_ID>`.
+`HERMES_SESSION_ID` optionally selects the existing Hermes session explicitly
+(required when migrating the earlier Responses conversation). The payload is
+`input`, fixed sysadmin instructions, and optional `session_id`; it never sends
+`conversation`, model login, attachments, or channel history. Polling
+`GET /v1/runs/<run-id>` returns only the final `output` string. Partial or
+interrupted results are labelled clearly and never presented as success.
+A transient admission disconnect retries once with the identical idempotency
+key/payload; polling retries transient disconnects without submitting work again.
+HTTP operations have short timeouts (60 seconds POST, 30 seconds GET), while a run has a two-hour polling budget. Failure or timeout warns that work may still
+be running, rather than encouraging an automatic repeat.
+
+Hermes acts as the owner's sysadmin across the host and guests: a concrete
+request authorizes routine diagnosis, code/configuration repairs, testing and
+verification in its scope. It reads the target project's AGENTS.md first, keeps
+credentials private and never reboots the Proxmox host. Genuinely necessary
+approvals come only from the authenticated Runs status `approval.request`, not
+model-generated reply text. The owner receives a private embed with action/
+command details (possible credentials hidden) and **Aprovar uma vez** / **Recusar**
+buttons. Only the configured owner's real Discord user in that exact DM can
+respond. Buttons bind the run/request IDs server-side; no permanent approval
+option exists. Timeout (275 seconds), callback failures and invalid choices deny
+the request. `POST /v1/runs/<run-id>/approval` submits the exact `request_id` and
+`choice: once|deny`, then the same run continues. Once decided (or timed out), the approval card is deleted and the decision
+is logged on the turn's live status card (🔓 aprovado / 🚫 recusado, plus an approval count in the final summary). Guild mentions, nonowner DMs
+and legacy agent jobs keep their existing boundaries.
+
+One FIFO active turn and at most five waiting turns serialize the owner's
+conversation. Cancellation frees queue capacity. Missing configuration,
+malformed output and transport failures get generic PT-PT replies without
+exception details or a fallback to another agent. Each message receives an immediate 👀 (progress feedback is described above); the response returns to that origin with mentions disabled,
+grouping related paragraphs into messages up to Discord's 2000-character limit.
+All replies stay in chat: no automatic text/code attachments. Splits preserve prose
+and keep short fenced blocks intact; oversized technical blocks are split at line
+boundaries when possible, closing and reopening the same code fence/language in
+each message. A single overlong code line is hard-wrapped without dropping content.
+Only the first segment replies to the originating Discord message; subsequent
+segments are ordinary channel messages with `silent=True` (suppress push
+notifications), no reply reference and no mentions. Mentions remain disabled
+throughout. Startup recovery uses the same sender, labels the result as recovered,
+and sends ordinary channel messages because it lacks the original message context. A failed segment leaves
+the run pending; as before, a retry after partial delivery may repeat earlier text. Runs survive gateway transport
+interruptions. Poliswag persists a message-to-run map in `HERMES_RUNS_DIR`
+(default `logs/hermes-runs`) when a run is admitted: one record per run,
+holding the run ID and the destination DM channel, removed only after the
+reply is delivered. On startup the Hermes cog re-polls those pending runs
+without re-admitting them — the original Discord message ID stays the
+idempotency key, so the work is never run twice — and delivers terminal
+results to the stored DM. A record left after a failed delivery is kept for
+the next startup; records older than three hours are dropped. A stale approval encountered after a restart is denied, so a stuck run still terminates.
+
+### Progress feedback and control
+
+While a turn runs, `HermesClient` also reads `GET /v1/runs/<run-id>/events`
+(SSE, resumed with `Last-Event-ID`, best effort) and reports status changes from
+polling; polling stays authoritative for approvals and the result, and a broken
+stream or display error never affects the run. The cog keeps the DM typing
+indicator on and, if the turn lasts over three seconds, replies with one live
+status embed edited every four seconds: elapsed time, the last five tool calls
+(✓/✗ with duration), the current tool with a short preview, and Hermes' latest
+commentary. Previews and commentary pass the same credential filter as approval
+cards. On completion the embed collapses to a summary (tool count, time, errors)
+and the origin message gets ✅, ⚠️ (partial) or ❌ after 👀.
+
+The embed carries owner-only buttons (same identity/DM checks as approvals):
+**Parar** calls `POST /v1/runs/<id>/stop`; **Redirecionar** opens a modal whose
+text goes to `POST /v1/runs/<id>/steer` for the running agent. A turn queued
+behind another shows **Na fila** with **Enviar à tarefa atual**: the queued
+request leaves the local queue (only while still queued, never after admission)
+and is sent as steer guidance to the active run instead (💬 reaction); if the run
+refuses it, the request rejoins the queue as a normal turn. When accepted, the queued request's own card is
+deleted and the active turn's card shows the text as 💬 guidance; steers are counted once even
+when the run also emits `run.steered`.
+
+## Claude DM conversation (`c ` prefix)
+
+An owner DM starting with `c ` or `!c` (any case) goes to **Claude Code in CT 109** instead of
+Hermes; the prefix is stripped and a bare `c` gets a usage hint. Everything else in the DM keeps
+going to Hermes. `cogs/claude_chat.py` subclasses the Hermes cog, so the same owner/DM checks,
+FIFO queue, live status card, **Parar**/**Redirecionar**, segmentation and restart recovery apply
+(own records in `CLAUDE_RUNS_DIR`, default `logs/claude-runs`). The routing lives in
+`main.py` (`_CLAUDE`), before the Hermes DM block; tags still go to the mention path.
+
+The backend is `claude-bridge.service` on CT 109 (`/root/claude-bridge/bridge.py`), listening on
+`CLAUDE_API_URL` (`http://192.168.1.240:8643`) with bearer `CLAUDE_API_KEY` (in `.env`; empty
+disables calls). It implements the Runs API subset `HermesClient` uses and runs each turn as
+`claude -p --resume` on one persistent session in `/root/discord-claude`, separate from Hermes
+and from the always-on Remote Control session. Claude runs without permission prompts, so no
+approval cards appear. Tests: `tests/cogs/test_claude_chat.py`.
+
+## Explicit Claude/Codex jobs
+
+`cogs/agents.py` accepts tagged requests from `MY_ID` in DMs only. Owner jobs remain
+**read-only**: they answer and propose diffs but never edit code.
+`scripts/agent_worker.py` runs on CT 105 using the existing Claude Code / Codex
+CLI login. `openai` aliases `codex`. These are separate jobs, not turns in the
+Hermes conversation.
+
+- `!self`: capabilities, command count, executor availability and scanner health.
+- `!jobs`: latest ten tasks; `!job <id>`: state/full report; `!cancel <id>`: cancel.
+- `@Poliswag codex <question>`, `@Poliswag ask claude <question>` and legacy
+  `code <provider> <question>` select the old worker explicitly. Natural forms
+  beginning `use Codex …` / `usa Claude …` also work. Merely mentioning a
+  provider (such as “How does Codex work?”) stays in Hermes.
+- `@Poliswag answer <id> <response>` resumes a named blocked task. A tagged
+  owner DM resumes the sole waiting task in that origin before starting
+  default Hermes chat; multiple waiting jobs prompt for the task ID. Explicit
+  provider requests retain their existing parser priority. Plain owner DMs
+  enter Hermes directly and do not resume legacy jobs.
+
+Jobs retain provider, worktree, original request and decisions. Origin and
+explicit delivery overrides remain separate. Results return to the stored
+origin unless explicitly directed via `send via DM` / `envia por DM`, or an
+unambiguous `send to #channel` / `envia para <#id>` reference. Continuations
+retain their original destination; `!job` stays private. Missing legacy
+destination metadata keeps DM delivery. These commands never start or resume
+jobs without a tag.
 
 ## Public mentions
 
@@ -45,14 +144,25 @@ host, using the existing Claude Code / Codex CLI login. `openai` aliases `codex`
 before command invocation. Code blocks, inline code, blockquotes, escaped tags,
 other users' tags and reply references/auto-pings do not count; untagged chat
 (even containing the literal name Poliswag) triggers no model or data lookup.
-A bare mention greets rather than listing commands. Other server members get
-useful, concise replies to their actual question, the public event calendar, or
+A bare mention greets rather than listing commands. All server members,
+including the owner, get useful, concise replies to their actual question, the public event calendar, or
 aggregate Pokémon/raid counts for yesterday in Leiria/Marinha Grande.
 Conversational DMs from nonowners are silent. Explicit `!commands` remain
 available and are not intercepted. Replies keep Portuguese European prose but
 use English game terms (Egg, Lure, Pokéstop, Gym, Raid, Quest, Shiny, Lucky,
 100IV, Friend Code, Team GO Rocket, species/moves/items/weather/types); local
-fallback labels use Gym and Pokéstop.
+fallback labels use Gym and Pokéstop. Persona (2026-10-21, owner request): a
+stylish, playful Poliwag and fellow trainer, Pokémon-world expressions and a
+light emoji touch (💧🌀✨), help first; local fallback texts match it
+("Poli-poli!"). Public replies may say faynn (Faynn in game) founded and runs
+PoGoLeiria, the site and Poliswag, including "who owns/made the bot"; his real
+name is never given (prompt rule plus an output filter on it). Before the public path, `cogs/mentions.py` (`named_mentions`) turns a tag of
+the owner (`MY_ID`) into "faynn" and other tagged members into their display name
+(markup stripped, 32 chars); unknown tags are then removed as before. General or vague game questions (counters, types,
+moves, PvP, mechanics) are answered from game knowledge; the public Codex run has
+`web_search="cached"` (indexed results, no live page fetches) to check current data,
+and replies carry no external links or source names. pogoleiria.pt links appear only
+when the member asks about the map/Quests/Pokédex; generic fallbacks carry none.
 
 The public path has no repository reader, command invocation, owner/scanner
 snapshot, attachments, channel history, or shared owner conversation.
@@ -65,7 +175,8 @@ Public replies never advertise, confirm or deny private coding/editing
 capabilities, internal tools/providers, private agents, owner/admin commands,
 permission exceptions or who authorizes private actions. Those topics are
 deflected to public Pokémon GO/PoGoLeiria help; output screening rejects
-capability/authorization claims while keeping normal game terms, trainer/Gym
+capability/authorization claims (faynn as founder/admin is fine; faynn plus
+code/edit/authorize wording is not) while keeping normal game terms, trainer/Gym
 names and Friend Code. Detailed help uses the same permission gates:
 nonowner member and mod detail requests get the same neutral response as
 unknown names, without restricted names; owner-only command/cog/group details

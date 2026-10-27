@@ -45,6 +45,7 @@ _TEST_ENV_DEFAULTS = {
     "CLAUDE_API_URL": "http://claude.test.invalid",
     "CLAUDE_API_KEY": "",
     "CLAUDE_RUNS_DIR": "/tmp/poliswag-test/claude-runs",
+    "POLISWAG_PRIVATE_NAMES": "zephyr,quill",
     "QUEST_MAP_URL": "http://tiles.test.invalid",
     "QUEST_MAP_STYLE": "osm-bright",
     "MEGA_JSON_OUTPUT": "/tmp/poliswag-test/megas.json",

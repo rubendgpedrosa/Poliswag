@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from modules.agent_jobs import write_json
+from modules.config import Config
 from modules.conversation_model import (
     INSTRUCTIONS,
     ConversationModel,
@@ -427,7 +428,12 @@ def test_trusted_instructions_use_english_game_terms_and_redirect_off_topic():
     assert "/quests" in INSTRUCTIONS and "/pokedex" in INSTRUCTIONS
     assert "capacidades privadas" in INSTRUCTIONS
     assert "quem autoriza" in INSTRUCTIONS
-    assert "faynn" not in INSTRUCTIONS
+    assert "o faynn (Faynn no jogo) criou e gere" in INSTRUCTIONS
+    assert "nunca digas nem adivinhes o nome real" in INSTRUCTIONS
+    assert not any(
+        name.casefold() in INSTRUCTIONS.casefold() for name in Config.PRIVATE_NAMES
+    )
+    assert "Poli-poli" in INSTRUCTIONS
 
 
 def test_context_is_bounded_by_field_limits_and_section_caps():

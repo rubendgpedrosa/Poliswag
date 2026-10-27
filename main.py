@@ -1,5 +1,7 @@
 #!/usr/bin/python
 import logging
+import re
+
 import discord
 from discord.ext import commands
 
@@ -35,6 +37,10 @@ from modules.migrations import apply_migrations
 from modules.polisnatch_api import using_default_url
 
 LOGGER = logging.getLogger(__name__)
+
+_IGNORED = re.compile(r"\s*!ignore(?:\s|$)", re.I)
+# "c <text>" or "!c <text>" in the owner DM goes to Claude instead of Hermes.
+_CLAUDE = re.compile(r"\s*!?c(?:\s+|$)", re.I)
 
 
 class Poliswag(commands.Bot):
@@ -92,6 +98,10 @@ class Poliswag(commands.Bot):
         """
         if message.author.bot or message.webhook_id is not None:
             return
+        if _IGNORED.match(message.content):
+            # "!ignore <text>" is a note the bot must not act on: no Hermes
+            # turn, no tag reply, no command.
+            return
         ctx = await self.get_context(message)
         if self._mentions_poliswag(message):
             mentions = self.get_cog("Mentions")
@@ -106,6 +116,23 @@ class Poliswag(commands.Bot):
                     ),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
+            return
+        prefix = _CLAUDE.match(message.content)
+        if prefix and ctx.guild is None and is_owner(ctx) and ctx.command is None:
+            claude = self.get_cog("ClaudeChat")
+            if claude is not None:
+                await claude.handle(ctx, message.content[prefix.end() :])
+            return
+        if (
+            ctx.guild is None
+            and is_owner(ctx)
+            and ctx.command is None
+            and message.content.strip()
+            and not message.content.lstrip().startswith("!")
+        ):
+            hermes = self.get_cog("Hermes")
+            if hermes is not None:
+                await hermes.handle(ctx, message.content)
             return
         if ctx.command is not None and not may_run_in_dm(ctx):
             return
@@ -135,6 +162,11 @@ class Poliswag(commands.Bot):
                 "Set it in .env so a moved job API cannot fail silently.",
                 Config.POLISNATCH_JOBS_URL,
             )
+        if not Config.PRIVATE_NAMES:
+            LOGGER.warning(
+                "POLISWAG_PRIVATE_NAMES is unset; model replies that name the "
+                "owner will not be filtered."
+            )
         # Before any cog: several read their state columns in cog_load.
         await apply_migrations(self.db, self.utility.log_to_file)
         await self.load_extension("cogs.quests")
@@ -154,6 +186,8 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.shiny_access_requests")
         await self.load_extension("cogs.spawn_history")
         await self.load_extension("cogs.agents")
+        await self.load_extension("cogs.hermes")
+        await self.load_extension("cogs.claude_chat")
         await self.load_extension("cogs.mentions")
         # Re-registers the persistent view so the buttons on panels posted
         # for previous events keep working across restarts.

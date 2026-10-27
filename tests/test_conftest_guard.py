@@ -146,6 +146,9 @@ def test_config_values_are_test_safe():
     assert Config.QUEST_MAP_URL == "http://tiles.test.invalid"
     assert Config.MEGA_JSON_OUTPUT == "/tmp/poliswag-test/megas.json"
     assert Config.MEGA_SPRITES_DIR == "/tmp/poliswag-test/sprites/mega"
+    assert Config.HERMES_RUNS_DIR == "/tmp/poliswag-test/hermes-runs"
+    assert Config.CLAUDE_RUNS_DIR == "/tmp/poliswag-test/claude-runs"
+    assert Config.PRIVATE_NAMES == ("zephyr", "quill")
     for name, url in Config.ENDPOINTS.items():
         if url is not None:
             assert "192.168." not in url and "duckdns" not in url, name
@@ -169,6 +172,9 @@ def _assert_test_safe_config_lines():
         "assert Config.QUEST_MAP_URL == 'http://tiles.test.invalid'",
         "assert Config.MEGA_JSON_OUTPUT == '/tmp/poliswag-test/megas.json'",
         "assert Config.MEGA_SPRITES_DIR == '/tmp/poliswag-test/sprites/mega'",
+        "assert Config.HERMES_RUNS_DIR == '/tmp/poliswag-test/hermes-runs'",
+        "assert Config.CLAUDE_RUNS_DIR == '/tmp/poliswag-test/claude-runs'",
+        "assert Config.PRIVATE_NAMES == ('zephyr', 'quill')",
         "assert all(v is None or ('192.168.' not in v and 'duckdns' not in v)"
         " for v in Config.ENDPOINTS.values())",
     ]

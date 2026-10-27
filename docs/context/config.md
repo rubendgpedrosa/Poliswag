@@ -30,6 +30,7 @@ ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
 PORACLE_API_URL, PORACLE_API_SECRET
 POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNATCH_JOBS_KEY_FILE
   (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
+POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
 UI_ICONS_URL, TEMPLATE_HTML_DIR, ACCOUNTS_TEMPLATE_HTML_FILE

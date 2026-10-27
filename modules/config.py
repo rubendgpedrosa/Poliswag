@@ -115,6 +115,13 @@ class Config:
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
     CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
     CLAUDE_RUNS_DIR = os.environ.get("CLAUDE_RUNS_DIR", "logs/claude-runs")
+    # Names kept out of anything public. They are deployment data, so the
+    # repository never carries them; unset means nothing is filtered.
+    PRIVATE_NAMES = tuple(
+        part.strip()
+        for part in os.environ.get("POLISWAG_PRIVATE_NAMES", "").split(",")
+        if part.strip()
+    )
 
     # Logging
     LOG_FILE = os.environ.get("LOG_FILE", "logs/app.log")
