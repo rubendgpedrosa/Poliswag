@@ -311,3 +311,15 @@ async def test_disable_linker_switches_off_and_truncates_the_reason(store, db, r
         "shiny_linker_disabled_reason = %s",
         params=(reason[:128],),
     )
+
+
+async def test_event_odds_maps_active_rates_and_skips_the_rest(store, db):
+    db.get_data_from_database.return_value = [
+        {"pokemon_id": 714, "rate": 128},
+        {"pokemon_id": 393, "rate": 128},
+    ]
+    assert await store.event_odds() == {714: 128, 393: 128}
+    sql = db.get_data_from_database.call_args.args[0]
+    # The map's own predicate: a rate of 1 is "always" noise, and an expired
+    # row is a finished event, not a standing one.
+    assert "rate >= 2" in sql and "ends_at > UTC_TIMESTAMP()" in sql
