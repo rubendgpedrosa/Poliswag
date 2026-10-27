@@ -1,8 +1,7 @@
 """Will this wild spawn be shiny for this player?
 
 The game decides it from two values: the spawn's encounter ID and the
-player's internal ID (the one a raid-lobby creator sees in
-`the invite list`, never the friend-code or GET_PLAYER identifiers, which
+player's internal ID (never the friend-code or GET_PLAYER identifiers, which
 differ per viewer). SHA-1 over the encounter ID as eight little-endian bytes
 followed by the ID text seeds a `java.util.Random`; its `nextInt(512)` is the
 roll, and 0 is shiny at the base 1/512 rate. More generally the spawn is
@@ -12,7 +11,7 @@ shiny when the first draw, as a fraction, is under 1/odds (`shiny_draw`,
 Confirmed on 2026-10-10 against three scanner accounts (3 of 3 recorded
 shinies roll 0, 0 of 201 non-shinies do): /root/unonwhash/CLAUDE-HANDOVER.md.
 
-Standard library only: scripts/shiny_linker imports this from its own venv.
+Standard library only, so it can be imported outside the bot's venv.
 """
 
 import hashlib

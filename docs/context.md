@@ -24,18 +24,18 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `event_manager.py` / `event_store.py` / `event_stats.py` / `event_images.py` | ScrapedDuck ingestion, `event` table, notices, end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | Trade digest, match posts and match DMs. See `trades.md`. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
-| `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` / `shiny_odds.py` | Shiny prediction, tables, odds; alerts in private channels, DMs only for pilot users. See `shiny.md`. |
-| `shiny_channels.py` / `shiny_events.py` / `shiny_availability.py` / `shiny_leaderboard.py` | Private shiny channels, opt-in event digests, availability, leaderboard. See `shiny.md`. |
+| `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` / `shiny_odds.py` | Shiny prediction, tables, odds; alerts in private channels, DMs only for pilot users. See the internal shiny notes (not in this repo). |
+| `shiny_channels.py` / `shiny_events.py` / `shiny_availability.py` / `shiny_leaderboard.py` | Private shiny channels, opt-in event digests, availability, leaderboard. See the internal shiny notes (not in this repo). |
 | `spawn_history.py` | 48-hour raw spawn archive and statistics. See `spawn-history.md`. |
 | `account_monitor.py` / `lure_manager.py` / `lure_watcher.py` | Dragonite account image; free accounts + `account_lure` budget; live lure count for presence. |
 | `poracle_client.py` | Async Poracle-NG REST client; `PoracleError` on failure. |
 | `tracker_store.py` / `role_manager.py` / `mega_exporter.py` | `tracked_quest_reward` CRUD; legacy role panel; mega sprites. |
-| `public_conversation.py` / `conversation_model.py` / `permissions.py` / `help_command.py` / `dm_policy.py` | Public tag replies (Codex Luna low + public map data), audiences/help gating, DM policy. See `agents.md`. |
+| `hermes_client.py` / `public_conversation.py` / `conversation_model.py` / `permissions.py` / `help_command.py` / `dm_policy.py` | Public tag replies (Codex Luna low + public map data), audiences/help gating, DM policy. See `agents.md`. |
 | `page_view_stats.py` / `trade_stats.py` / `tracking_health.py` / `migrations.py` | Landing analytics, trade aggregates, traffic-silence log, startup migrations. |
 | `image_generator.py` / `embeds.py` / `utility.py` / `locale_pt.py` | imgkit cards, embed builders, logging/Lisbon time, PT date names. |
 
 ## Cogs (`cogs/`) — full command table in `context/cogs.md`
-One cog per area; `scheduled.py` ticks every minute. Auth: **mods** for tracker/event/notifications/scheduled/lures/announcements and `!scan`/`!exportquests`; **owner only** for accounts, container, webstats, event_panel, shiny, agents, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: only an owner message that tags Poliswag starts an agent (a DM is not a tag), and owner agents are read-only. Tagged members get public game answers with cooldowns; non-owner DMs stay silent. See `agents.md`.
+One cog per area; `scheduled.py` ticks every minute. Auth: **mods** for tracker/event/notifications/scheduled/lures/announcements and `!scan`/`!exportquests`; **owner only** for accounts, container, webstats, event_panel, shiny, agents, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: the owner uses one persistent private Hermes conversation in DMs (plain text or a visible bot tag). Explicit tagged Claude/Codex jobs and blocked-job replies in owner DMs retain the read-only worker path. All tagged guild members, including the owner, get public game answers with cooldowns; non-owner conversational DMs stay silent. See `agents.md`.
 
 ## Databases — detail in `context/database.md`
 - **poliswag** (read/write): scan state, events, quests, shiny, trades, 100IV. Schema = `migrations/*.sql`.

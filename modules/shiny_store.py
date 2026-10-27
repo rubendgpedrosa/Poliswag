@@ -1,7 +1,7 @@
 """Poliswag's side of the shiny tables (migration 017).
 
-shiny_link is shared with the host script scripts/shiny_linker, which is the
-only writer of `linked`/`failed`. This module queues codes, announces
+shiny_link is shared with PoliSnatch, which is the only writer of
+`linked`/`failed`. This module queues codes, announces
 results, and owns shiny_alert and the alert watermark.
 """
 
@@ -41,31 +41,6 @@ class ShinyStore:
                 ("DELETE FROM shiny_alert WHERE discord_id = %s", (discord_id,)),
                 ("DELETE FROM shiny_link WHERE discord_id = %s", (discord_id,)),
             ]
-        )
-
-    async def linker_state(self):
-        """The host linker's switch, read the same way scripts/shiny_linker does."""
-        rows = await self.db.get_data_from_database(
-            "SELECT shiny_linker_enabled AS enabled, "
-            "shiny_linker_disabled_reason AS disabled_reason, "
-            "TIMESTAMPDIFF(MINUTE, shiny_linker_last_run_at, UTC_TIMESTAMP()) "
-            "AS minutes_since_run FROM poliswag"
-        )
-        if not rows:
-            return {"enabled": 0, "disabled_reason": None, "minutes_since_run": None}
-        return rows[0]
-
-    async def enable_linker(self):
-        await self.db.execute_query_to_database(
-            "UPDATE poliswag SET shiny_linker_enabled = 1, "
-            "shiny_linker_disabled_reason = NULL"
-        )
-
-    async def disable_linker(self, reason) -> None:
-        await self.db.execute_query_to_database(
-            "UPDATE poliswag SET shiny_linker_enabled = 0, "
-            "shiny_linker_disabled_reason = %s",
-            params=(reason[:128],),
         )
 
     async def find_linked(self, name):
