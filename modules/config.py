@@ -30,7 +30,7 @@ class Config:
     # rotating it needs no restart, and it is never logged. The production
     # container mounts /etc/poliswag/secrets read-only (docker-compose.prod.yaml).
     POLISNATCH_JOBS_URL = os.environ.get(
-        "POLISNATCH_JOBS_URL", "https://mitm.pogoleiria.pt/v1/jobs"
+        "POLISNATCH_JOBS_URL", "https://polisnatch.pogoleiria.pt/v1/jobs"
     )
     POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
     POLISNATCH_JOBS_KEY_FILE = os.environ.get(

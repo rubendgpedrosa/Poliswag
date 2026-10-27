@@ -41,6 +41,9 @@ jobs:
     - name: Lint code with Ruff
       run: ruff check .
 
+    - name: Refuse game-side and interception code
+      run: python3 scripts/check_private_tech.py --all
+
     - name: Refresh mock data timestamps
       run: python3 mock_data/refresh.py
 

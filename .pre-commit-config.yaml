@@ -54,6 +54,14 @@ repos:
       - id: detect-private-key
         description: "Checks for presence of private keys"
 
+  - repo: local
+    hooks:
+      - id: no-private-tech
+        name: no game hook, injector or interception code
+        entry: python3 scripts/check_private_tech.py
+        language: system
+        pass_filenames: true
+
 fail_fast: false
 
 # 1. pip install pre-commit

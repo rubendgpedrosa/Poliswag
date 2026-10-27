@@ -1,8 +1,8 @@
 """Will this wild spawn be shiny for this player?
 
 The game decides it from two values: the spawn's encounter ID and the
-player's internal ID (never the friend-code or GET_PLAYER identifiers, which
-differ per viewer). SHA-1 over the encounter ID as eight little-endian bytes
+player's internal ID (not the public trainer identifiers, which differ per
+viewer). SHA-1 over the encounter ID as eight little-endian bytes
 followed by the ID text seeds a `java.util.Random`; its `nextInt(512)` is the
 roll, and 0 is shiny at the base 1/512 rate. More generally the spawn is
 shiny when the first draw, as a fraction, is under 1/odds (`shiny_draw`,

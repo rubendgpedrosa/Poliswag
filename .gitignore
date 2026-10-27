@@ -23,3 +23,6 @@ mock_data/device_status.json
 .DS_Store
 *.swp
 .opencode/
+
+# Host-side shiny notes live in /root/docs-archive, not in this repo.
+docs/context/shiny.md
