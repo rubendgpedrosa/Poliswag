@@ -10,6 +10,7 @@ from modules.polisnatch_api import (
     decode,
     error_for,
     health_url,
+    using_default_url,
     job_path,
     jobs_url,
     missing_key_error,
@@ -112,3 +113,9 @@ class TestPayloads:
     def test_error_for_falls_back_to_the_code(self):
         error = error_for(401, {"error": "unauthorized"})
         assert str(error) == "unauthorized"
+
+
+def test_using_default_url_reports_a_missing_setting():
+    assert using_default_url({}) is True
+    assert using_default_url({"POLISNATCH_JOBS_URL": "   "}) is True
+    assert using_default_url({"POLISNATCH_JOBS_URL": "https://host/v1/jobs"}) is False
