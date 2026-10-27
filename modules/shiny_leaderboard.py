@@ -26,6 +26,7 @@ MUTED = "#a7b0be"
 LINE = "#262e3b"
 GOLD = "#f4cc64"
 ELEVATED = "#161e2a"
+MAX_DISPLAYED_TRAINERS = 15
 
 
 def number(value, places=0):
@@ -35,7 +36,8 @@ def number(value, places=0):
 def render_report(data, avatars=None):
     """Render the platform's podium layout from the unchanged report aggregate."""
     avatars = avatars or {}
-    rows = data["trainers"]
+    all_rows = data["trainers"]
+    rows = all_rows[:MAX_DISPLAYED_TRAINERS]
     meta = data["metadata"]
     partial = not meta["complete_window"]
     try:
@@ -283,12 +285,12 @@ def render_report(data, avatars=None):
     elif not rows:
         mean = "Média geral: indisponível · sem treinadores."
     else:
-        average = total / len(rows) / hours
+        average = total / len(all_rows) / hours
         marker = "*" if partial else ""
         mean = (
             f"Média geral: {number(average, 2)}{marker} shinies/conta/h · "
-            f"Total ÷ ({len(rows)} "
-            f"{'treinador' if len(rows) == 1 else 'treinadores'} × {hours_label} h)."
+            f"Total ÷ ({len(all_rows)} "
+            f"{'treinador' if len(all_rows) == 1 else 'treinadores'} × {hours_label} h)."
         )
     paragraphs = [(mean, 21)]
     if partial:
@@ -332,7 +334,7 @@ def render_report(data, avatars=None):
         draw = ImageDraw.Draw(image)
 
     line(footer_y)
-    text(margin, footer_y + 22, "TOTAL DO RANKING", 19, MUTED, weight=650)
+    text(margin, footer_y + 22, "TOTAL GERAL", 19, MUTED, weight=650)
     fitted(
         width - margin,
         footer_y + 18,
@@ -346,7 +348,12 @@ def render_report(data, avatars=None):
     text(
         margin,
         footer_y + 65,
-        f"{len(rows)} " + ("treinador" if len(rows) == 1 else "treinadores"),
+        (
+            f"Top {MAX_DISPLAYED_TRAINERS} · {len(all_rows)} treinadores no total"
+            if len(all_rows) > MAX_DISPLAYED_TRAINERS
+            else f"{len(all_rows)} "
+            + ("treinador" if len(all_rows) == 1 else "treinadores")
+        ),
         22,
         MUTED,
     )

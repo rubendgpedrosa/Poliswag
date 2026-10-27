@@ -218,7 +218,7 @@ def test_public_command_always_uses_codex_luna_low_without_shell(tmp_path):
     assert "features.memories=false" in cmd
     assert "features.multi_agent=false" in cmd
     assert "tools.view_image=false" in cmd
-    assert 'web_search="disabled"' in cmd
+    assert 'web_search="cached"' in cmd
     assert "--ephemeral" in cmd and "--ignore-user-config" in cmd
     assert "--ignore-rules" in cmd
     assert "--skip-git-repo-check" in cmd
