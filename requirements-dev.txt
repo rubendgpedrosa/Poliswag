@@ -1,10 +1,10 @@
 -r requirements.txt
-pytest==9.0.3
-pytest-mock==3.15.1
+pytest==9.1.1
+pytest-mock==3.17.0
 pytest-cov==7.1.0
-pytest-asyncio==1.4.0
-black==26.3.1
-ruff==0.5.7
-vulture==2.14
+pytest-asyncio==1.4.1
+black==26.10.1
+ruff==0.17.3
+vulture==2.16
 docker
 s2sphere==0.2.5
