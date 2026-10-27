@@ -26,3 +26,6 @@ mock_data/device_status.json
 
 # Host-side shiny notes live in /root/docs-archive, not in this repo.
 docs/context/shiny.md
+
+# Local copies of the deployment env (secrets) never enter the repo.
+.env.bak*
