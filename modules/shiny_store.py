@@ -236,6 +236,19 @@ class ShinyStore:
         )
         return {(row["pokemon_id"], row["form_id"], row["costume_id"]) for row in rows}
 
+    async def event_odds(self):
+        """Active event rates by species: the website map's own source.
+
+        The map reads shiny_rate to predict event-boosted spawns; the alerts
+        read it here so both agree on a species that is boosted right now.
+        Expired rows are ignored, exactly as the map ignores them.
+        """
+        rows = await self.db.get_data_from_database(
+            "SELECT pokemon_id, rate FROM shiny_rate "
+            "WHERE rate >= 2 AND (ends_at IS NULL OR ends_at > UTC_TIMESTAMP())"
+        )
+        return {int(row["pokemon_id"]): int(row["rate"]) for row in rows}
+
     async def background_rules(self, now):
         return await self.db.get_data_from_database(
             "SELECT * FROM background_prediction_rule "

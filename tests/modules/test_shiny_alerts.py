@@ -16,6 +16,8 @@ OWNER = 111
 PLAYER = "0123456789abcdef"
 ZERO = "10000000000000000168"  # rolls 0 for PLAYER
 OTHER = "1"  # rolls 113 for PLAYER
+# draw 0.0031306 for PLAYER: shiny at 1/128, never at the base 1/512.
+EVENT_ONLY = "18400000000000000035"
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +45,7 @@ def alerts():
         set_watermark=AsyncMock(),
         record_alert=AsyncMock(return_value=True),
         shiny_eligible=AsyncMock(return_value={(25, 0, 0), (570, 2108, 0)}),
+        event_odds=AsyncMock(return_value={}),
         owns_shiny=AsyncMock(return_value=False),
         notifications_enabled=AsyncMock(return_value=True),
         notification_changes=AsyncMock(return_value=[]),
@@ -260,6 +263,27 @@ class TestAlertSpawns:
         alerts.store.shiny_eligible.return_value = {(931, 2986, 0)}
         await alerts.tick()
         alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 931, 2986)
+
+    async def test_an_event_rate_alerts_a_spawn_the_base_rate_would_not(self, alerts):
+        with_spawns(alerts, [spawn(EVENT_ONLY, pokemon_id=714, form_id=3070)])
+        alerts.store.shiny_eligible.return_value = {(714, 3070, 0)}
+        alerts.store.event_odds.return_value = {714: 128}
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(OWNER, EVENT_ONLY, 714, 3070)
+
+    async def test_that_same_spawn_is_silent_without_the_event_rate(self, alerts):
+        with_spawns(alerts, [spawn(EVENT_ONLY, pokemon_id=714, form_id=3070)])
+        alerts.store.shiny_eligible.return_value = {(714, 3070, 0)}
+        await alerts.tick()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.user.send.assert_not_awaited()
+
+    async def test_an_event_rate_never_hides_a_base_rate_shiny(self, alerts):
+        with_spawns(alerts, [spawn(pokemon_id=393, form_id=0)])
+        alerts.store.shiny_eligible.return_value = {(393, 0, 0)}
+        alerts.store.event_odds.return_value = {393: 128}
+        await alerts.tick()
+        alerts.store.record_alert.assert_awaited_once_with(OWNER, ZERO, 393, 0)
 
     async def test_no_zero_roll_means_no_dm(self, alerts):
         with_spawns(alerts, [spawn(OTHER)])

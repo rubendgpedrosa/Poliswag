@@ -41,6 +41,9 @@ WAIT_FOR_IV = 180
 # How far behind the watermark each tick reads, so a waiting spawn is seen
 # again; shiny_alert keeps the ones already sent from going out twice.
 LOOK_BACK = 300
+# The base wild rate: the map's, and the one every species keeps
+# whatever an event row says, since a better rate only adds spawns.
+BASE_ODDS = 512
 # Which spawns are rolled follows Golbat PR #423: only ones the scanner has
 # seen itself (wild or encountered), never Ditto or anything shown as another
 # species, and not one whose costume is unknown.
@@ -295,6 +298,10 @@ class ShinyAlerts:
             _SPAWNS_SQL, params=(watermark - LOOK_BACK, now + MIN_SECONDS_LEFT)
         )
         eligible = await self.store.shiny_eligible() if spawns else set()
+        # A species boosted right now (a Community Day, a costume event) is
+        # rolled at that rate, as the map does — the alert used to stay at
+        # 1/512 and so arrived four times less often than the event did.
+        odds_by_species = await self.store.event_odds() if spawns else {}
         background_rules = (
             await self.store.background_rules(now)
             if spawns and any(r.get("shiny_notify_background") for r in recipients)
@@ -318,7 +325,8 @@ class ShinyAlerts:
                     )
                 except (ValueError, OverflowError):
                     break  # not an encounter ID; no recipient can roll it
-                shiny = shiny_eligible and shiny_draw < 1 / 512
+                odds = odds_by_species.get(spawn["pokemon_id"], BASE_ODDS)
+                shiny = shiny_eligible and shiny_draw < 1 / odds
                 background = bool(
                     rule
                     and recipient.get("shiny_notify_background")
@@ -411,7 +419,7 @@ class ShinyAlerts:
         if channel is not None:
             if is_shundo(spawn):
                 await channel.send(
-                    content="**✨💯 SHINY 100% 💯✨** @here",
+                    content="**✨💯 SHINY 100% 💯✨** @everyone",
                     embed=embed,
                     allowed_mentions=discord.AllowedMentions(
                         everyone=True, users=False, roles=False, replied_user=False
