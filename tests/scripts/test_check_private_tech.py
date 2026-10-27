@@ -57,3 +57,17 @@ def test_no_paths_is_a_usage_error():
     result = run()
     assert result.returncode == 2
     assert "usage" in result.stderr
+
+
+def test_the_owners_real_name_is_refused(tmp_path):
+    sample = tmp_path / "sample.md"
+    sample.write_text("author: " + "Rub" "en" + "\n", encoding="utf-8")
+    result = run(str(sample))
+    assert result.returncode == 1
+    assert "the owner's real name" in result.stdout
+
+
+def test_the_name_rule_does_not_match_the_github_handle(tmp_path):
+    sample = tmp_path / "sample.md"
+    sample.write_text("https://github.com/rubendgpedrosa\n", encoding="utf-8")
+    assert run(str(sample)).returncode == 0
