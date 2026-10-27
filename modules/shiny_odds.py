@@ -14,7 +14,7 @@ Two jobs each scheduler tick:
 Owns shiny_rate's 'auto' rows, shiny_species and
 poliswag.shiny_species_through; reads golbat's pokemon and
 pokemon_shiny_stats (whose dates are UTC). The site's map reads both tables;
-map and alerts share released/confirmed variant eligibility (alerts stay at base odds).
+map and alerts share released/confirmed variant eligibility and the same override rates.
 """
 
 import math

@@ -58,6 +58,7 @@ def alerts(monkeypatch):
         notifications_enabled=AsyncMock(return_value=True),
         background_notifications_enabled=AsyncMock(return_value=True),
         record_alert=AsyncMock(return_value=True),
+        event_odds=AsyncMock(return_value={}),
     )
     return alerts
 
@@ -130,7 +131,7 @@ async def test_fallback_mentions_only_channel_shundos(alerts, overrides, ping):
     send.assert_awaited_once()
     message = send.call_args.kwargs
     assert message.get("content") == (
-        "**✨💯 SHINY 100% 💯✨** @here" if ping else None
+        "**✨💯 SHINY 100% 💯✨** @everyone" if ping else None
     )
     assert message["allowed_mentions"].everyone is ping
     assert message["allowed_mentions"].users is False
@@ -187,10 +188,10 @@ def test_ping_templates_have_fixed_content_and_existing_alert_structure(kind):
     ping = json.loads((root / f"{kind}-here-monster.json").read_text())
     assert ping["id"] == f"{kind}-here"
     template = ping["template"]
-    assert template["content"] == "**✨💯 SHINY 100% 💯✨** @here"
+    assert template["content"] == "**✨💯 SHINY 100% 💯✨** @everyone"
     # Poracle joins arrays of strings during rendering: an allowed_mentions
     # parse list would become an invalid string. Its regular bot POST permits
-    # the fixed bold shundo content (bare @here kept) by default; there is no variable mention text.
+    # the fixed bold shundo content (bare @everyone kept) by default; there is no variable mention text.
     assert "allowed_mentions" not in template
     assert template["embed"]["color"] == "F2CD5C"
     assert "✨" in template["embed"]["title"]
