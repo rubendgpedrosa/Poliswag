@@ -99,95 +99,12 @@ async def test_a_dm_from_a_member_works(cog):
     cog.store.request.assert_awaited_once()
 
 
-async def test_shinylink_reports_the_switch_and_the_last_run(cog):
-    cog.store.linker_state = AsyncMock(
-        return_value={"enabled": 1, "disabled_reason": None, "minutes_since_run": 3}
-    )
-    ctx = ctx_for(author_id=Config.MY_ID)
-    await Shiny.shinylink.callback(cog, ctx)
-    assert said(ctx) == "Ligador de shiny: ligado. última corrida há 3 min."
-    cog.store.request.assert_not_awaited()
-
-
-@pytest.mark.parametrize(
-    "reason, expected",
-    [("o hook não saiu do jogo", "o hook não saiu do jogo"), (None, "sem motivo")],
-)
-async def test_shinylink_desligado_shows_the_reason(cog, reason, expected):
-    cog.store.linker_state = AsyncMock(
-        return_value={
-            "enabled": 0,
-            "disabled_reason": reason,
-            "minutes_since_run": None,
-        }
-    )
-    ctx = ctx_for(author_id=Config.MY_ID)
-    await Shiny.shinylink.callback(cog, ctx)
-    assert said(ctx) == f"Ligador de shiny: desligado: {expected}. nunca correu."
-
-
-@pytest.mark.parametrize("action", ["on", "ON", "On"])
-async def test_shinylink_on_switches_it_back_on(cog, action):
-    cog.store.enable_linker = AsyncMock()
-    cog.store.disable_linker = AsyncMock()
-    cog.store.linker_state = AsyncMock()
-    ctx = ctx_for(author_id=Config.MY_ID)
-    await Shiny.shinylink.callback(cog, ctx, acao=action)
-    cog.store.enable_linker.assert_awaited_once_with()
-    cog.store.disable_linker.assert_not_awaited()
-    cog.store.linker_state.assert_not_awaited()
-    assert said(ctx) == (
-        "Ligador religado. A próxima corrida (de 10 em 10 min) para "
-        "primeiro qualquer injector antigo e não liga enquanto um hook "
-        "anterior estiver no jogo."
-    )
-
-
-@pytest.mark.parametrize("action", ["off", "OFF", "Off"])
-async def test_shinylink_off_stores_the_manual_reason(cog, action):
-    cog.store.enable_linker = AsyncMock()
-    cog.store.disable_linker = AsyncMock()
-    cog.store.linker_state = AsyncMock()
-    ctx = ctx_for(author_id=Config.MY_ID)
-    await Shiny.shinylink.callback(cog, ctx, acao=action)
-    cog.store.disable_linker.assert_awaited_once_with("desligado pelo dono")
-    cog.store.enable_linker.assert_not_awaited()
-    cog.store.linker_state.assert_not_awaited()
-    assert said(ctx) == "Ligador desligado. Volta a ligá-lo com `!shinylink on`."
-
-
-@pytest.mark.parametrize("action", ["ligar", "desligar", "status", "wat"])
-async def test_shinylink_unknown_argument_shows_usage(cog, action):
-    cog.store.enable_linker = AsyncMock()
-    cog.store.disable_linker = AsyncMock()
-    cog.store.linker_state = AsyncMock()
-    ctx = ctx_for(author_id=Config.MY_ID)
-    await Shiny.shinylink.callback(cog, ctx, acao=action)
-    assert said(ctx) == "Usa `!shinylink`, `!shinylink on` ou `!shinylink off`."
-    cog.store.enable_linker.assert_not_awaited()
-    cog.store.disable_linker.assert_not_awaited()
-    cog.store.linker_state.assert_not_awaited()
-
-
 @pytest.mark.parametrize("texto", ["ligador", "ligador ligar"])
 async def test_the_old_linker_subcommand_is_ordinary_invalid_input(cog, texto):
-    cog.store.linker_state = AsyncMock()
-    cog.store.enable_linker = AsyncMock()
     ctx = ctx_for(author_id=Config.MY_ID)
     await Shiny.shiny.callback(cog, ctx, texto=texto)
     assert "código de amigo" in said(ctx)
-    cog.store.linker_state.assert_not_awaited()
-    cog.store.enable_linker.assert_not_awaited()
     cog.store.request.assert_not_awaited()
-
-
-@pytest.mark.parametrize("author_id, allowed", [(Config.MY_ID, True), (123, False)])
-def test_shinylink_is_independently_owner_only(author_id, allowed):
-    from modules.permissions import is_owner
-
-    assert is_owner in Shiny.shinylink.checks
-    ctx = ctx_for(author_id=author_id)
-    assert Shiny.shinylink.checks[0](ctx) is allowed
 
 
 def press(custom_id, user_id=123):

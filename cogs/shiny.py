@@ -1,10 +1,9 @@
 """!shiny — a member hands over a friend code so shinies can be predicted.
 
-The code is only the way in: the host script scripts/shiny_linker has a
-scanner account look the trainer up by that code, invite them to a private
-raid lobby and read the internal player ID the game's shiny roll uses
-(modules/shiny_roll.py). This cog queues the code and reports status;
-modules/shiny_alerts.py tells the member when it resolves.
+The code is only the way in: PoliSnatch resolves it and returns the internal
+player ID the game's shiny roll uses (modules/shiny_roll.py). This cog queues the
+code and reports status; modules/shiny_alerts.py tells the member when it
+resolves. Resolution stays owner-gated until the pilot is checked in the field.
 
 Nothing proves a code belongs to whoever sent it. The resolution DM names
 the trainer it matched, which is what makes a wrong code visible.
@@ -29,7 +28,6 @@ from modules.shiny_channels import (
 )
 
 TITLE = "SHINY"
-MANUAL_OFF = "desligado pelo dono"
 _WHEN = (
     "quando houver uma raid ativa na zona (durante o dia, normalmente em "
     "menos de uma hora)"
@@ -218,48 +216,6 @@ class Shiny(commands.Cog):
             ctx,
             "Resumos de evento " + ("ligados." if action == "ligar" else "desligados."),
         )
-
-    @commands.command(
-        name="shinylink",
-        brief="Mostra ou altera o estado do ligador de shiny",
-        help="`!shinylink` mostra o estado e a última corrida do ligador de shiny. "
-        "`!shinylink on` liga-o e `!shinylink off` desliga-o até o dono o voltar "
-        "a ligar. Só o dono pode usar este comando.",
-    )
-    @owner_only()
-    async def shinylink(self, ctx, acao: str = ""):
-        action = acao.lower()
-        if action == "on":
-            await self.store.enable_linker()
-            await self._say(
-                ctx,
-                "Ligador religado. A próxima corrida (de 10 em 10 min) para "
-                "primeiro qualquer injector antigo e não liga enquanto um hook "
-                "anterior estiver no jogo.",
-            )
-            return
-        if action == "off":
-            await self.store.disable_linker(MANUAL_OFF)
-            await self._say(
-                ctx, "Ligador desligado. Volta a ligá-lo com `!shinylink on`."
-            )
-            return
-        if action:
-            await self._say(
-                ctx, "Usa `!shinylink`, `!shinylink on` ou `!shinylink off`."
-            )
-            return
-        state = await self.store.linker_state()
-        switch = (
-            "ligado"
-            if state["enabled"]
-            else f"desligado: {state.get('disabled_reason') or 'sem motivo'}"
-        )
-        minutes = state.get("minutes_since_run")
-        last = "nunca correu"
-        if minutes is not None:
-            last = f"última corrida há {minutes} min"
-        await self._say(ctx, f"Ligador de shiny: {switch}. {last}.")
 
     async def _send_map_link(self, ctx, name):
         player = await self.store.find_linked(name)

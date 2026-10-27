@@ -3,7 +3,7 @@
 Two jobs each scheduler tick:
 
 1. Tell a pilot user (Config.SHINY_ALERT_USER_IDS) their friend code resolved
-   or failed. The host script scripts/shiny_linker writes the result; this
+   or failed. PoliSnatch writes the result; this
    sends one DM and stamps announced_at. Anyone else's link is stamped
    without a DM: during the pilot the bot messages nobody but its users.
 2. For linked players with a channel of their own (`!shiny canal`) or in

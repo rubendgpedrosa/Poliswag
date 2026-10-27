@@ -1,10 +1,10 @@
-"""The PoliSnatch job API contract, shared by the bot and the host linker.
+"""The PoliSnatch job API contract, shared by the bot and the resolver.
 
 PoliSnatch owns the queue: Poliswag submits a link (friend code) or a lure,
 gets a job id back, and polls it until it leaves queued/claimed. This module
 holds the parts both callers must agree on - the base URL, the submit key, the
-auth header and the error shape - and nothing else. Standard library only: the
-host linker (`scripts/shiny_linker`) runs in its own venv, which has no aiohttp.
+auth header and the error shape - and nothing else. Standard library only: a resolver
+may run outside the bot's venv, where aiohttp is not installed.
 
     POST   /link       {friendCode}          -> 202 {jobId, state}
     POST   /lure       {lat, lon | nearest}  -> 202, or 200 {..., duplicate: true}
