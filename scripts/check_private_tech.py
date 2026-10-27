@@ -49,6 +49,10 @@ PATH_RULES = [
         re.compile(r"(?:^|/)scripts/shiny-linker(?:\.service|\.timer)?$", re.I),
         "a host linker unit",
     ),
+    (
+        re.compile(r"(?:^|/)docs/(?:private/|context/owner\.md$)", re.I),
+        "a private host note",
+    ),
 ]
 
 TEXT_RULES = [
