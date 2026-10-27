@@ -32,3 +32,11 @@ addopts = [
     "--cov-report=term-missing",
 ]
 asyncio_mode = "auto"
+
+[tool.ruff]
+# The rule set is pinned on purpose: ruff's defaults move between releases,
+# so the CI gate would change under us on every bump. Widen it deliberately
+# (for example I for import order) once the existing findings are fixed.
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
