@@ -71,7 +71,7 @@ actuated and no test push was sent.
 `input_text.battery_alert_notice` and
 `input_text.salvador_maintenance_notice` persist summary signatures/timestamps,
 preventing repeat unchanged notices during the same week. The weekday gate
-ensures new routine issues also wait for the weekly summary, as Ruben requested.
+ensures new routine issues also wait for the weekly summary, as the owner requested.
 
 Verification: 141 focused Python tests passed. The source-classification
 regression covered 3,114 combinations, including CIDR boundaries and privacy.

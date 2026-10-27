@@ -10,7 +10,7 @@ Includes requests caused by a changed Friend Code. It never approves access.
 
 New (Discord ID, request timestamp) pairs POST to the existing
 OWNER_ALERT_ENDPOINT. Home Assistant's "Poliswag: owner alerts" automation sends
-these to Ruben's iPhone. The message names up to five players, gives the total
+these to the owner's phone. The message names up to five players, gives the total
 queue count, and includes the /pokedex/procurar approval-page URL. One tag groups
 these notifications. No reminders for unchanged requests.
 
