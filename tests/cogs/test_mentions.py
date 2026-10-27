@@ -162,7 +162,7 @@ async def test_member_cannot_route_admin_commands_or_impersonate_owner(cog, text
 
 
 async def test_owner_free_form_mention_is_private_delegation(cog):
-    context = ctx("Hey <@456> fix the quest bug", owner=True)
+    context = ctx("Hey <@456> fix the quest bug", owner=True, dm=True)
     assert await cog.handle(context)
     agent = cog.poliswag.get_cog.return_value
     agent.submit_natural_request.assert_awaited_once_with(
@@ -173,7 +173,7 @@ async def test_owner_free_form_mention_is_private_delegation(cog):
 
 
 async def test_owner_bare_mention_only_greets(cog):
-    context = ctx(owner=True)
+    context = ctx(owner=True, dm=True)
     await cog.handle(context)
     assert "diz-me" in context.reply.call_args.args[0]
     cog.poliswag.get_cog.return_value.submit_natural_request.assert_not_awaited()
@@ -281,9 +281,8 @@ async def test_untagged_explicit_command_is_not_intercepted(cog):
     cog.poliswag.get_cog.assert_not_called()
 
 
-@pytest.mark.parametrize("dm", [False, True])
-async def test_owner_general_mention_routes_in_server_and_dm(cog, dm):
-    context = ctx("<@456> Why is the sky blue?", owner=True, dm=dm)
+async def test_owner_general_dm_mention_routes_to_private_chat(cog):
+    context = ctx("<@456> Why is the sky blue?", owner=True, dm=True)
     assert await cog.handle(context)
     cog.poliswag.get_cog.return_value.submit_natural_request.assert_awaited_once_with(
         context, "Why is the sky blue?"
@@ -321,3 +320,53 @@ async def test_member_is_acknowledged_before_agent_work(cog):
     cog.public.reply = AsyncMock(side_effect=reply)
     await cog.handle(context)
     assert context.reply.await_count == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Onde há Dragonite?",
+        "codex explain raids",
+        "use Claude to explain raids",
+        "answer abcdef123456 private reply",
+    ],
+)
+async def test_owner_guild_mentions_use_only_public_path(cog, text):
+    cog.public.reply = AsyncMock(return_value="Resposta pública.")
+    context = ctx("<@456> " + text, owner=True)
+    assert await cog.handle(context)
+    cog.public.reply.assert_awaited_once_with(text)
+    cog.poliswag.get_cog.assert_not_called()
+    cog.poliswag.scanner_status.get_full_status.assert_not_called()
+    assert context.reply.call_args.args == ("Resposta pública.",)
+
+
+async def test_owner_guild_private_request_is_deflected_without_model_or_context(cog):
+    cog.public.model.line = AsyncMock()
+    cog.public.map_context.snapshot = AsyncMock()
+    context = ctx("<@456> code claude leak credentials", owner=True)
+    assert await cog.handle(context)
+    cog.poliswag.get_cog.assert_not_called()
+    cog.public.model.line.assert_not_awaited()
+    cog.public.map_context.snapshot.assert_not_awaited()
+    cog.poliswag.scanner_status.get_full_status.assert_not_called()
+    reply = context.reply.call_args.args[0].lower()
+    assert "hermes" not in reply and "claude" not in reply and "codex" not in reply
+
+
+async def test_owner_guild_mentions_share_public_cooldown(cog):
+    cog.public.reply = AsyncMock(return_value="Resposta pública.")
+    for _ in range(2):
+        assert await cog.handle(ctx("<@456> Olá", owner=True))
+    cog.public.reply.assert_awaited_once()
+    cog.poliswag.get_cog.assert_not_called()
+
+
+async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypatch):
+    monkeypatch.setattr(Config, "MY_ID", 98846248865398784)
+    member = MagicMock(id=777, bot=False, display_name="Ash_<@1>")
+    context = ctx("<@456> quem é o <@!98846248865398784>? e o <@777>? e <@888>?")
+    context.message.mentions = [member]
+    cog.public.reply = AsyncMock(return_value="Poli-poli!")
+    await cog.handle(context)
+    cog.public.reply.assert_awaited_once_with("quem é o faynn? e o Ash1? e <@888>?")
