@@ -189,6 +189,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.hermes")
         await self.load_extension("cogs.claude_chat")
         await self.load_extension("cogs.mentions")
+        await self.load_extension("cogs.support")
         # Re-registers the persistent view so the buttons on panels posted
         # for previous events keep working across restarts.
         self.add_view(EventPanelView(self))

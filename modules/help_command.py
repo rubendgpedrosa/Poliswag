@@ -20,6 +20,7 @@ _COG_DISPLAY_NAMES = {
     "Announcements": "📢 Anúncios (admin)",
     "Agents": "🤖 Agentes (dono)",
     "SpawnHistory": "📈 Histórico de spawns (dono)",
+    "Support": "💚 Apoio",
 }
 
 _NO_DESCRIPTION = "Sem descrição."
