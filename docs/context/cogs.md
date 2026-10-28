@@ -21,4 +21,5 @@ Full command table. The core `docs/context.md` keeps only the auth summary.
 | `shiny_access_requests.py` | Listener for the shiny-map **Aceitar**/**Rejeitar** buttons on the moderation-channel embeds | `MY_ID` or `ADMIN_USERS_IDS`, only in `MOD_CHANNEL_ID` |
 | `agents.py` | `!self`, `!jobs`, `!job`, `!cancel`; read-only agent requests only from owner messages that tag Poliswag (see `agents.md`) | `MY_ID` only; host worker, private queue, separate worktrees |
 | `spawn_history.py` | `!spawnhistory`, `!spawnhistory export [hours]`, `!spawnhistory leaderboard [hours]`; independent 30-second collector | `MY_ID` only |
+| `support.py` | `!mbway` — dados de apoio por MB Way | Público; só responde por DM (em canal apaga o comando). O texto vem de `MBWAY_DETAILS` |
 | `mentions.py` | Owner mentions delegate free-form requests privately; other tagged members get public game, map and event answers | Actual Discord identity; owner agents read-only; public Codex Luna low without shell/history; validated public data and cooldowns |
