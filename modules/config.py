@@ -37,6 +37,10 @@ class Config:
         "POLISNATCH_JOBS_KEY_FILE", "/etc/poliswag/secrets/polisnatch-jobs-key"
     )
     MY_ID = int(os.environ.get("MY_ID", "0"))
+    # Apoio por MB Way (!mbway). Free text so the owner can change the
+    # wording, not just the number, without touching code; empty means the
+    # command points at the Revolut link instead. Never committed.
+    MBWAY_DETAILS = os.environ.get("MBWAY_DETAILS", "")
     # Who gets shiny-prediction DMs (modules/shiny_alerts.py). The owner alone
     # while the prediction is being checked in the field; widening the pilot
     # is this list.

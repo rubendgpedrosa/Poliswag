@@ -31,6 +31,7 @@ PORACLE_API_URL, PORACLE_API_SECRET
 POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNATCH_JOBS_KEY_FILE
   (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
 POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
+MBWAY_DETAILS  (free text `!mbway` sends by DM; empty points at the Revolut link)
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
 UI_ICONS_URL, TEMPLATE_HTML_DIR, ACCOUNTS_TEMPLATE_HTML_FILE
@@ -47,6 +48,14 @@ same key can mint a jobs-scoped phone token through the server's
 `POST /v1/jobs/token`, which the owner-only, DM-only `!pstoken` command uses;
 treat it as an admin credential. Job ids are stored in `polisnatch_job` (see
 `database.md`) so a restart resumes polling what is still open.
+
+`MBWAY_DETAILS` is the owner's own number, so it lives only in the protected `.env`
+(and the empty test value in `.env.test`). `!mbway` deletes the command message in a
+channel and answers by DM; with the var empty it says so and links
+`https://revolut.me/rubendgpedrosa`, the same route as the site's support card.
+`env_file` is read at container creation, so after editing `.env` recreate the
+container (`docker compose -f docker-compose.prod.yaml up -d --no-build poliswag`);
+a plain restart keeps the old environment.
 
 ## Dev vs prod
 

@@ -12,13 +12,17 @@ commands and carry their own membership check.
 
 The Shiny cog (cogs/shiny.py) is exempt the same way: `!shiny` takes a friend
 code in a DM and checks membership itself.
+
+The Support cog (cogs/support.py) is exempt because `!mbway` is only ever
+meant to hand the owner's payment details to one person, and a DM is the only
+place that asks for it: in a channel it deletes the command and DMs anyway.
 """
 
 from modules.config import Config
 
 # Cog qualified names. The cog was "Trades" until 2026-09-24; a rename that
 # forgets this set silently drops members' DM logins (a test pins it).
-DM_EXEMPT_COGS = frozenset({"Pokedex", "Shiny"})
+DM_EXEMPT_COGS = frozenset({"Pokedex", "Shiny", "Support"})
 
 
 def may_run_in_dm(ctx) -> bool:
