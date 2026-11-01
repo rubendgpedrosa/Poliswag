@@ -332,7 +332,10 @@ class QuestExporter:
     @staticmethod
     def _encounter_variant(reward: dict, row: dict, masterfile: dict) -> None:
         """Retain the scanner's form/costume and keep different rewards apart."""
-        pokemon_id = int(row["quest_pokemon_id"])
+        pokemon_id = int(row["quest_pokemon_id"] or 0)
+        if pokemon_id <= 0:
+            # Nothing to look up: leave the unconfirmed-encounter label alone.
+            return
         reward["type"] = f"encounter_{pokemon_id}_unknown"
         reward["label"] += " (variante por confirmar)"
         details = masterfile.get("pokemon", {}).get(str(pokemon_id), {})
@@ -416,9 +419,19 @@ class QuestExporter:
                 "emoji": "🍬",
             }
         if reward_type == 7:
-            name = pokemon_names.get(str(pokemon_id), f"#{pokemon_id}")
+            species = _parse_species_id(pokemon_id)
+            if not species:
+                # The scanner sent an encounter it cannot name: golbat stores
+                # pokemon_id 0 for a species its game data predates. Printing
+                # "#0" invents a Pokémon; say the species is unconfirmed.
+                return {
+                    "type": "encounter_unknown",
+                    "label": "Encontro (espécie por confirmar)",
+                    "emoji": "🎯",
+                }
+            name = pokemon_names.get(str(species), f"#{species}")
             return {
-                "type": f"encounter_{pokemon_id}",
+                "type": f"encounter_{species}",
                 "label": f"{name} encounter",
                 "emoji": "🎯",
             }

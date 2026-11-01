@@ -987,3 +987,20 @@ class TestPayloadRecovery:
         QuestExporter._write_json_atomic(target, {"a": 1})
         assert target.exists()
         assert list(tmp_path.glob("quests.json.*.tmp")) == []
+
+
+def test_an_encounter_the_scanner_cannot_name_is_not_species_zero():
+    # golbat stores pokemon_id 0 when its game data predates the reward's
+    # species; "-0" used to be printed as "#0 encounter" on the map.
+    exporter = QuestExporter.__new__(QuestExporter)
+    reward = exporter._map_reward(7, None, None, 0, {}, {})
+    assert reward["type"] == "encounter_unknown"
+    assert reward["label"] == "Encontro (espécie por confirmar)"
+    assert "pokemonId" not in reward
+
+
+def test_a_named_encounter_still_carries_its_species():
+    exporter = QuestExporter.__new__(QuestExporter)
+    reward = exporter._map_reward(7, None, None, 714, {"714": "Noibat"}, {})
+    assert reward["type"] == "encounter_714"
+    assert reward["label"] == "Noibat encounter"

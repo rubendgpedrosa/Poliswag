@@ -27,3 +27,20 @@ def test_large_art_uses_the_same_variant():
 def test_map_never_points_at_an_unlisted_image():
     sprites = sprite_map()
     assert all(url in sprites for url in sprites.values())
+
+
+def test_costume_filed_under_the_canonical_form_still_draws():
+    # Noibat's Halloween costume arrives with Golbat's form id (3070) and the
+    # set files it as 714_c85.png; before this fallback the alert showed the
+    # placeholder while the site showed the right art.
+    # Reviewed art wins over the icon set, and we serve that art ourselves.
+    assert pokemon_sprite_url(714, form=3070, costume=85).endswith(
+        "714-0-85-normal.webp"
+    )
+
+
+def test_an_exact_form_and_costume_still_wins():
+    # Reviewed art for this costume exists, so it takes precedence over the set.
+    assert pokemon_sprite_url(263, form=946, costume=47).endswith(
+        "263-946-47-normal.webp"
+    )

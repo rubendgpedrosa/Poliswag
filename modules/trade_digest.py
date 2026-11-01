@@ -17,7 +17,7 @@ import datetime
 
 import discord
 from modules.config import Config
-from modules.pokemon_sprites import LARGE_SPRITE_BASE, SPRITE_BASE, pokemon_sprite_url
+from modules.pokemon_sprites import LARGE_SPRITE_BASE, pokemon_sprite_url
 from modules.database_connector import connect
 
 DIGEST_HOUR = 9
@@ -104,7 +104,7 @@ def describe(row):
     return f"{name} · {quality}" if quality else name
 
 
-def sprite_url(row, base=SPRITE_BASE):
+def sprite_url(row, base=None):
     return pokemon_sprite_url(
         row["pokemon_id"],
         form=row.get("form_id") or 0,
