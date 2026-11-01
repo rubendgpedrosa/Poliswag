@@ -17,6 +17,33 @@ from modules.http_client import get_session
 from modules import spawn_history
 
 LISBON = ZoneInfo("Europe/Lisbon")
+SITE_ENV = Path("/etc/pogoleiria/landing/.env.local")
+
+
+def predictions_enabled() -> bool:
+    """Whether the site is still predicting shinies.
+
+    The roll stopped predicting when the game changed how shinies are decided;
+    the site turned it off with SHINY_MAP_ENABLED=0 in its .env.local. The
+    leaderboard is built on that same prediction, so it reads the same switch
+    instead of carrying a second opinion. Read every tick: flipping the file is
+    the whole operation, no image rebuild involved. A missing file is treated as
+    "on", so losing the mount cannot silently disable a working feature.
+    """
+    try:
+        for line in SITE_ENV.read_text(encoding="utf-8").splitlines():
+            name, _, value = line.partition("=")
+            if name.strip() == "SHINY_MAP_ENABLED":
+                return value.strip().strip('"').strip("'") not in (
+                    "0",
+                    "false",
+                    "False",
+                )
+    except OSError:
+        return True
+    return True
+
+
 ASSETS = Path(__file__).resolve().parent.parent / "templates/shiny-leaderboard"
 # sRGB equivalents of packages/ui/src/tokens.css (PoGoLeiria platform).
 BG = "#01040a"
@@ -33,8 +60,13 @@ def number(value, places=0):
     return f"{value:,.{places}f}".replace(",", " ").replace(".", ",")
 
 
-def render_report(data, avatars=None):
-    """Render the platform's podium layout from the unchanged report aggregate."""
+def render_report(data, avatars=None, mode="shiny"):
+    """Render the platform's podium layout from the unchanged report aggregate.
+
+    ``mode="shundo"`` draws the same board for shiny Pokémon caught at 15/15/15:
+    the aggregate carries that count in ``predicted_shinies``, so only the
+    wording changes.
+    """
     avatars = avatars or {}
     all_rows = data["trainers"]
     rows = all_rows[:MAX_DISPLAYED_TRAINERS]
@@ -136,12 +168,6 @@ def render_report(data, avatars=None):
             anchor="mm",
         )
 
-    def rate(row):
-        if hours is None:
-            return "—"
-        value = number(row["predicted_shinies"] / hours, 2)
-        return value + ("*" if partial else "")
-
     with Image.open(ASSETS / "brand-header-400.webp") as source:
         logo = source.convert("RGBA").resize((450, 450), Image.Resampling.LANCZOS)
     logo = logo.rotate(-8, resample=Image.Resampling.BICUBIC, expand=True)
@@ -150,8 +176,25 @@ def render_report(data, avatars=None):
     header.alpha_composite(logo, (730, -125))
     image.paste(header, (0, 0), header)
     text(margin, 45, "POGOLEIRIA", 30, weight=900)
-    text(margin, 110, "Ranking Shiny", 62, display=True, weight=800)
-    text(margin, 190, "Leiria · Marinha Grande", 30, MUTED)
+    text(
+        margin,
+        110,
+        "Ranking Shundo" if mode == "shundo" else "Ranking Shiny",
+        62,
+        display=True,
+        weight=800,
+    )
+    text(
+        margin,
+        190,
+        (
+            "Shiny 100% IV · Leiria · Marinha Grande"
+            if mode == "shundo"
+            else "Leiria · Marinha Grande"
+        ),
+        30,
+        MUTED,
+    )
     text(width - margin, 204, "DIÁRIO · 09:00", 22, MUTED, weight=600, anchor="rt")
     line(265)
     start = datetime.fromisoformat(meta["window_start_utc"]).astimezone(LISBON)
@@ -212,12 +255,19 @@ def render_report(data, avatars=None):
             weight=650,
             anchor="mt",
         )
-        text(x + 150, podium_bottom - 25, f"{rate(row)} / hora", 23, MUTED, anchor="mm")
 
     if remaining:
         text(margin, table_y, "#", 19, MUTED, weight=650)
         text(margin + 126, table_y, "TREINADOR", 19, MUTED, weight=650)
-        text(823, table_y, "SHINIES", 19, MUTED, weight=650, anchor="rt")
+        text(
+            823,
+            table_y,
+            "SHUNDOS" if mode == "shundo" else "SHINIES",
+            19,
+            MUTED,
+            weight=650,
+            anchor="rt",
+        )
         text(
             width - margin,
             table_y,
@@ -256,16 +306,6 @@ def render_report(data, avatars=None):
                 weight=750,
                 anchor="rm",
             )
-            fitted(
-                width - margin,
-                middle,
-                rate(row),
-                170,
-                28,
-                min_size=21,
-                color=MUTED,
-                anchor="rm",
-            )
             line(y + row_height)
     elif not rows:
         text(
@@ -280,27 +320,16 @@ def render_report(data, avatars=None):
         )
 
     total = data["total_predicted_shinies"]
-    if hours is None:
-        mean = "Média geral: indisponível · duração do período inválida."
-    elif not rows:
+    if not rows:
         mean = "Média geral: indisponível · sem treinadores."
     else:
-        average = total / len(all_rows) / hours
-        marker = "*" if partial else ""
+        average = total / len(all_rows)
         mean = (
-            f"Média geral: {number(average, 2)}{marker} shinies/conta/h · "
+            f"Média geral: {number(average, 2)} por conta · "
             f"Total ÷ ({len(all_rows)} "
-            f"{'treinador' if len(all_rows) == 1 else 'treinadores'} × {hours_label} h)."
+            f"{'treinador' if len(all_rows) == 1 else 'treinadores'})."
         )
     paragraphs = [(mean, 21)]
-    if partial:
-        paragraphs.append(
-            (
-                "* Contagens registadas ÷ horas do período pedido; "
-                "as médias podem estar subestimadas por falta de histórico.",
-                21,
-            )
-        )
     paragraphs.extend(
         [
             ("Previsões, não capturas confirmadas.", 23),
@@ -410,9 +439,9 @@ class ShinyLeaderboard:
         if not data["metadata"].get("available"):
             raise ValueError("A recolha ainda não começou.")
         png = await asyncio.to_thread(render_report, data, await self.avatars())
-        owner = self.poliswag.get_user(Config.MY_ID) or await self.poliswag.fetch_user(
-            Config.MY_ID
-        )
+        channel = self.poliswag.get_channel(
+            Config.CONVIVIO_CHANNEL_ID
+        ) or await self.poliswag.fetch_channel(Config.CONVIVIO_CHANNEL_ID)
         partial = not data["metadata"]["complete_window"]
         content = "Leaderboard shiny sem filtros pessoais. " + (
             "Histórico parcial; a imagem indica a cobertura e a base da média."
@@ -425,7 +454,40 @@ class ShinyLeaderboard:
             BytesIO(png), filename="pogoleiria-shiny-leaderboard.png"
         )
         try:
-            return await owner.send(
+            return await channel.send(
+                content,
+                file=attachment,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        finally:
+            attachment.close()
+
+    async def send_shundo(self, data=None, hours=24):
+        """The shiny + 100% IV board, drawn with the same layout."""
+        if data is None:
+            data = await asyncio.to_thread(spawn_history.shundo_leaderboard, hours)
+        if not data["metadata"].get("available"):
+            raise ValueError("A recolha ainda não começou.")
+        png = await asyncio.to_thread(
+            render_report, data, await self.avatars(), "shundo"
+        )
+        # The shundo board is the owner's: it stays in his DM while the shiny
+        # board goes to the community channel.
+        channel = self.poliswag.get_user(
+            Config.MY_ID
+        ) or await self.poliswag.fetch_user(Config.MY_ID)
+        if not data["trainers"]:
+            content = f"Nenhum shundo (shiny 100% IV) nas últimas {hours} h."
+        else:
+            content = (
+                f"Ranking shundo — shiny com 100% IV nas últimas {hours} h. "
+                "A previsão é determinística por treinador, como no ranking shiny."
+            )
+        attachment = discord.File(
+            BytesIO(png), filename="pogoleiria-shundo-leaderboard.png"
+        )
+        try:
+            return await channel.send(
                 content,
                 file=attachment,
                 allowed_mentions=discord.AllowedMentions.none(),
@@ -435,6 +497,9 @@ class ShinyLeaderboard:
 
     async def tick(self, now=None):
         if not Config.SHINY_LEADERBOARD_ENABLED:
+            return
+        if not predictions_enabled():
+            # Shiny predictions are off site-wide; there is nothing to rank.
             return
         local = (now or datetime.now(LISBON)).astimezone(LISBON)
         if local.hour < 9:
@@ -451,6 +516,8 @@ class ShinyLeaderboard:
                 self.last_date = today
                 return
             await self.send()
+            if Config.SHUNDO_LEADERBOARD_ENABLED:
+                await self.send_shundo()
             self.last_date = today
             await self.poliswag.db.execute_query_to_database(
                 "UPDATE poliswag SET last_shiny_leaderboard_date=%s",

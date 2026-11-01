@@ -301,3 +301,25 @@ def leaderboard(hours=24):
         "total_predicted_shinies": sum(row["predicted_shinies"] for row in rows),
         "trainers": rows,
     }
+
+
+def shundo_leaderboard(hours=24):
+    """The same aggregate, ranked by shiny Pokémon caught at 15/15/15.
+
+    A shundo is the combination the community chases: shiny *and* perfect IV.
+    The leaderboard already counted those per trainer; this keeps only the
+    trainers who have at least one and re-ranks by that count.
+    """
+    data = leaderboard(hours)
+    rows = [
+        {**row, "predicted_shinies": row["hundo_shinies"]}
+        for row in data["trainers"]
+        if row["hundo_shinies"]
+    ]
+    rows.sort(key=lambda row: (-row["predicted_shinies"], row["trainer"].casefold()))
+    return {
+        **data,
+        "mode": "shundo",
+        "trainers": rows,
+        "total_predicted_shinies": sum(row["predicted_shinies"] for row in rows),
+    }

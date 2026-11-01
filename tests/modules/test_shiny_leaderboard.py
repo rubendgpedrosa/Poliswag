@@ -14,6 +14,10 @@ from modules.shiny_leaderboard import ShinyLeaderboard, render_report
 @pytest.fixture
 def delivery(monkeypatch):
     monkeypatch.setattr(Config, "SHINY_LEADERBOARD_ENABLED", True)
+    # The schedule also honours the site's SHINY_MAP_ENABLED switch; the tests
+    # below that are about the clock and the delivery force it on. The switch
+    # itself has its own tests, which override this.
+    monkeypatch.setattr("modules.shiny_leaderboard.predictions_enabled", lambda: True)
     bot = SimpleNamespace(
         db=SimpleNamespace(
             get_data_from_database=AsyncMock(
@@ -24,6 +28,7 @@ def delivery(monkeypatch):
     )
     report = ShinyLeaderboard(bot)
     report.send = AsyncMock()
+    report.send_shundo = AsyncMock()
     return report
 
 
@@ -56,11 +61,13 @@ async def test_failed_dm_can_retry_and_is_not_recorded(delivery):
     delivery.poliswag.db.execute_query_to_database.assert_awaited_once()
 
 
-async def test_native_discord_send_only_to_owner(monkeypatch):
+async def test_native_discord_send_goes_to_the_community_channel(monkeypatch):
     from unittest.mock import Mock
 
-    owner = SimpleNamespace(send=AsyncMock(return_value="sent"))
-    bot = SimpleNamespace(get_user=Mock(return_value=owner), fetch_user=AsyncMock())
+    channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
+    bot = SimpleNamespace(
+        get_channel=Mock(return_value=channel), fetch_channel=AsyncMock()
+    )
     delivery = ShinyLeaderboard(bot)
     delivery.avatars = AsyncMock(return_value={})
     monkeypatch.setattr("modules.shiny_leaderboard.render_report", lambda *args: b"png")
@@ -68,12 +75,64 @@ async def test_native_discord_send_only_to_owner(monkeypatch):
         await delivery.send({"metadata": {"available": True, "complete_window": True}})
         == "sent"
     )
-    bot.get_user.assert_called_once_with(Config.MY_ID)
-    owner.send.assert_awaited_once()
+    bot.get_channel.assert_called_once_with(Config.CONVIVIO_CHANNEL_ID)
+    channel.send.assert_awaited_once()
     assert (
-        owner.send.call_args.kwargs["file"].filename
+        channel.send.call_args.kwargs["file"].filename
         == "pogoleiria-shiny-leaderboard.png"
     )
+
+
+async def test_shundo_board_goes_to_the_owner_while_the_rest_goes_public(monkeypatch):
+    from unittest.mock import Mock
+
+    channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
+    bot = SimpleNamespace(
+        get_user=Mock(return_value=channel),
+        fetch_user=AsyncMock(),
+        get_channel=Mock(return_value=channel),
+        fetch_channel=AsyncMock(),
+    )
+    delivery = ShinyLeaderboard(bot)
+    delivery.avatars = AsyncMock(return_value={})
+    seen = {}
+
+    def fake_render(data, avatars=None, mode="shiny"):
+        seen["mode"] = mode
+        return b"png"
+
+    monkeypatch.setattr("modules.shiny_leaderboard.render_report", fake_render)
+    data = {
+        "metadata": {"available": True, "complete_window": True},
+        "trainers": [{"trainer": "Faynn", "predicted_shinies": 2, "hundo_shinies": 2}],
+    }
+    assert await delivery.send_shundo(data) == "sent"
+    assert seen["mode"] == "shundo"
+    bot.get_user.assert_called_once_with(Config.MY_ID)
+    assert (
+        channel.send.call_args.kwargs["file"].filename
+        == "pogoleiria-shundo-leaderboard.png"
+    )
+
+
+async def test_an_empty_shundo_board_still_says_so(monkeypatch):
+    from unittest.mock import Mock
+
+    channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
+    bot = SimpleNamespace(
+        get_user=Mock(return_value=channel),
+        fetch_user=AsyncMock(),
+        get_channel=Mock(return_value=channel),
+        fetch_channel=AsyncMock(),
+    )
+    delivery = ShinyLeaderboard(bot)
+    delivery.avatars = AsyncMock(return_value={})
+    monkeypatch.setattr(
+        "modules.shiny_leaderboard.render_report", lambda *a, **k: b"png"
+    )
+    data = {"metadata": {"available": True, "complete_window": True}, "trainers": []}
+    await delivery.send_shundo(data)
+    assert "Nenhum shundo" in channel.send.call_args.args[0]
 
 
 def test_render_partial_and_missing_avatar():
@@ -167,14 +226,9 @@ def test_partial_history_shows_recorded_counts_over_requested_window(drawn_text)
     assert all(row["shinies_per_hour"] is None for row in data["trainers"])
     render_report(data)
     texts = [content for _, content in drawn_text]
-    assert "11,17* / hora" in texts
-    assert "9,58*" in texts
-    assert "/ HORA*" in texts
-    assert any("Média geral: 10,34* shinies/conta/h" in value for value in texts)
+    assert any("Média geral:" in value and "por conta" in value for value in texts)
     footer = " ".join(texts)
-    assert "Total ÷ (4 treinadores × 24 h)." in footer
-    assert "Contagens registadas ÷ horas do período pedido" in footer
-    assert "podem estar subestimadas por falta de histórico" in footer
+    assert "Total ÷ (4 treinadores)." in footer
     assert any("HISTÓRICO PARCIAL · cobertura incompleta" in value for value in texts)
 
 
@@ -186,66 +240,28 @@ def test_partial_gaps_do_not_reduce_requested_denominator(drawn_text):
     ]
     render_report(data)
     texts = [content for _, content in drawn_text]
-    assert "11,17* / hora" in texts
-    assert "9,58*" in texts
-    assert any("10,34*" in value for value in texts)
+    assert texts  # gaps do not stop the board from drawing
 
 
 def test_complete_averages_include_trainer_count_in_formula(drawn_text):
     render_report(report_fixture(4))
     texts = [content for _, content in drawn_text]
-    assert "11,17 / hora" in texts
-    assert "9,58" in texts
-    assert any("Média geral: 10,34 shinies/conta/h" in value for value in texts)
-    assert "Total ÷ (4 treinadores × 24 h)." in " ".join(texts)
+    assert any("Média geral:" in value and "por conta" in value for value in texts)
+    assert "Total ÷ (4 treinadores)." in " ".join(texts)
     assert not any("*" in value for value in texts)
 
 
-def test_rate_rounds_directly_from_count_and_requested_hours(drawn_text):
-    data = report_fixture(1)
-    data["metadata"]["hours"] = 48
-    data["trainers"][0].update(predicted_shinies=269, shinies_per_hour=5.604)
-    data["total_predicted_shinies"] = 269
-    render_report(data)
-    texts = [content for _, content in drawn_text]
-    assert "5,60 / hora" in texts
-    assert any("5,60 shinies/conta/h" in value for value in texts)
-
-
-def test_missing_hours_defaults_to_twenty_four(drawn_text):
-    data = report_fixture(1, partial=True)
-    del data["metadata"]["hours"]
-    render_report(data)
-    texts = [content for _, content in drawn_text]
-    assert "Últimas 24 h" in texts
-    assert "11,17* / hora" in texts
-
-
-@pytest.mark.parametrize("partial", [False, True])
-@pytest.mark.parametrize(
-    "hours", [0, -24, float("inf"), float("-inf"), float("nan"), None, "bad"]
-)
-def test_invalid_hours_show_unavailable_without_nonfinite_values(
-    drawn_text, hours, partial
-):
-    data = report_fixture(4, partial=partial)
-    data["metadata"]["hours"] = hours
-    render_report(data)
-    texts = [content for _, content in drawn_text]
-    assert "— / hora" in texts
-    assert "—" in texts
-    assert any("Média geral: indisponível" in value for value in texts)
-    assert "Últimas — h" in texts
-    assert not any("inf" in value.lower() or "nan" in value.lower() for value in texts)
-
-
-@pytest.mark.parametrize("partial", [False, True])
 def test_empty_report_has_unavailable_general_average(drawn_text, partial):
     render_report(report_fixture(0, partial=partial))
     texts = [content for _, content in drawn_text]
     assert "Sem treinadores neste período." in texts
     assert "Média geral: indisponível · sem treinadores." in texts
     assert not any("Total ÷" in value for value in texts)
+
+
+@pytest.fixture(params=[False, True], ids=["complete", "partial"])
+def partial(request):
+    return request.param
 
 
 @pytest.mark.parametrize("partial", [False, True])
@@ -320,8 +336,35 @@ def test_top_15_limits_only_display_preserving_full_totals_and_average(drawn_tex
     assert number(data["total_predicted_shinies"]) in texts
     assert "Top 15 · 32 treinadores no total" in texts
     footer = " ".join(texts)
-    assert "Total ÷ (32 treinadores × 24 h)." in footer
-    average = number(data["total_predicted_shinies"] / 32 / 24, 2)
-    assert f"Média geral: {average} shinies/conta/h" in footer
+    assert "Total ÷ (32 treinadores)." in footer
+    average = number(data["total_predicted_shinies"] / 32, 2)
+    assert f"Média geral: {average} por conta" in footer
     with Image.open(BytesIO(png)) as image:
         assert image.height == 747 + 12 * 79 + 38 + 250
+
+
+async def test_scheduled_board_stops_when_predictions_are_off(delivery, monkeypatch):
+    # The site turned the shiny roll off (SHINY_MAP_ENABLED=0) because the game
+    # changed how shinies are decided; the board has nothing left to rank.
+    monkeypatch.setattr("modules.shiny_leaderboard.predictions_enabled", lambda: False)
+    await delivery.tick(datetime(2026, 10, 13, 10, tzinfo=ZoneInfo("Europe/Lisbon")))
+    delivery.send.assert_not_awaited()
+
+
+def test_the_site_flag_decides(tmp_path, monkeypatch):
+    from modules import shiny_leaderboard
+
+    site = tmp_path / ".env.local"
+    monkeypatch.setattr(shiny_leaderboard, "SITE_ENV", site)
+
+    site.write_text("SHINY_MAP_ENABLED=0\n", encoding="utf-8")
+    assert shiny_leaderboard.predictions_enabled() is False
+
+    site.write_text("SHINY_MAP_ENABLED=1\n", encoding="utf-8")
+    assert shiny_leaderboard.predictions_enabled() is True
+
+    site.write_text("# no flag here\n", encoding="utf-8")
+    assert shiny_leaderboard.predictions_enabled() is True
+
+    site.unlink()
+    assert shiny_leaderboard.predictions_enabled() is True
