@@ -17,6 +17,7 @@ from discord.ext import commands
 
 from modules.config import Config
 from modules.embeds import build_embed
+from modules.mbway_requests import owner_text, record, where_text
 
 UNSET = (
     "O MB Way não está disponível de momento. "
@@ -59,6 +60,32 @@ class Support(commands.Cog):
 
         details = (Config.MBWAY_DETAILS or "").strip()
         await self._send(ctx, details or UNSET)
+        await self._note_owner(ctx, unset=not details)
+
+    async def _note_owner(self, ctx, unset):
+        """Tells the owner who asked and how many times before.
+
+        Runs after the member already has the answer, so a database or DM
+        failure here costs the owner a notification and nothing else.
+        """
+        owner_id = getattr(Config, "MY_ID", 0) or 0
+        if not owner_id:
+            return
+        try:
+            tally = await record(self.poliswag.db, ctx.author)
+            user = self.poliswag.get_user(owner_id)
+            if user is None:
+                user = await self.poliswag.fetch_user(owner_id)
+            if user is None:
+                return
+            await user.send(
+                embed=build_embed(
+                    "PEDIDO DE MB WAY",
+                    owner_text(ctx.author, tally, where_text(ctx), unset=unset),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - never break the member's flow
+            print(f"MbWay: não avisei o dono ({exc})")
 
     async def _send(self, ctx, text):
         embed = build_embed("APOIO POR MB WAY", text)
