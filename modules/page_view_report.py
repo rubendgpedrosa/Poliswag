@@ -15,6 +15,7 @@ import json
 import re
 
 from modules.embeds import build_embed
+from modules import scan_areas
 
 DIMENSIONS = {
     "devices": ("Dispositivo / sistema / navegador", ("device", "os", "browser")),
@@ -49,10 +50,13 @@ def source(value):
 def hundo_line(hundo):
     """Players with 100IV DMs on, and whatever stands between the rest and
     their alerts; the extras only when there is something to say."""
-    line = (
-        f"**100IV por DM:** {hundo['active']} ativos "
-        f"(Leiria {hundo['leiria']} · Marinha {hundo['marinha']})"
+    per_area = " · ".join(
+        f"{scan_areas.label(key)} {count}"
+        for key, count in (hundo.get("areas") or {}).items()
     )
+    line = f"**100IV por DM:** {hundo['active']} ativos"
+    if per_area:
+        line += f" ({per_area})"
     extras = [
         f"{hundo[key]} {label}"
         for key, label in (

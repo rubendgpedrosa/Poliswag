@@ -24,7 +24,7 @@ def refresh_scanner_status() -> None:
     data = {
         "areas": [
             {
-                "name": "LeiriaBigger",
+                "name": "Leiria",
                 "worker_managers": [
                     {
                         "expected_workers": 3,

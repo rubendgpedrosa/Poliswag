@@ -32,8 +32,7 @@ def recipient(**changes):
     row = {
         "discord_id": 111,
         "player_id": PLAYER,
-        "alert_leiria": True,
-        "alert_marinha": False,
+        "alert_areas": "leiria",
         "event_pokemon_ids": None,
     }
     row.update(changes)

@@ -5,6 +5,7 @@ import asyncio
 from modules.config import Config
 from modules.database_connector import connect
 from modules.hundo_alerts import collects_hundo, is_active
+from modules import scan_areas
 
 # Enough of trade_player for hundo_alerts.is_active, plus area and health.
 _HUNDO_SQL = """
@@ -71,17 +72,20 @@ class TradeStats:
 
 
 def _areas(row):
-    # A SET column arrives as "leiria,marinha" (what hundo_alerts reads too).
-    return set((row["hundo_areas"] or "").split(","))
+    # A SET column arrives as "leiria,marinha" and an empty selection means
+    # every active area (hundo_alerts._area_keys reads it the same way).
+    chosen = {key for key in (row["hundo_areas"] or "").split(",") if key}
+    keys = scan_areas.active_keys()
+    return chosen & set(keys) if chosen else set(keys)
 
 
 def summarize_hundo(rows):
     active = [r for r in rows if is_active(r)]
     waiting = [r for r in rows if collects_hundo(r) and not is_active(r)]
+    keys = scan_areas.active_keys()
     return {
         "active": len(active),
-        "leiria": sum("leiria" in _areas(r) for r in active),
-        "marinha": sum("marinha" in _areas(r) for r in active),
+        "areas": {key: sum(key in _areas(r) for r in active) for key in keys},
         # Switched on but not confirmed yet, or the confirmation DM bounced.
         "waiting": sum(
             r["hundo_dm_refused_revision"] < r["hundo_settings_revision"]

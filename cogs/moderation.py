@@ -5,6 +5,8 @@ from discord.ext import commands
 
 from modules.config import Config
 from modules.embeds import status_embed
+from modules import scan_areas
+from modules.role_manager import _TEAM_ROLES
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 # What a bot may upload per file without a server boost.
@@ -130,14 +132,11 @@ class Moderation(commands.Cog):
             return
 
         custom_id = interaction.data["custom_id"]
-        if custom_id.startswith("Alertas") or custom_id in [
-            "Leiria",
-            "Marinha",
-            "Remote",
-            "Mystic",
-            "Valor",
-            "Instinct",
-        ]:
+        if (
+            custom_id.startswith("Alertas")
+            or custom_id in scan_areas.alert_roles()
+            or custom_id in [*_TEAM_ROLES, "Remote"]
+        ):
             await self.poliswag.role_manager.response_user_role_selection(interaction)
 
     @commands.Cog.listener()

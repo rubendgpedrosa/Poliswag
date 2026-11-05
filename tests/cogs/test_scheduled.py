@@ -497,6 +497,27 @@ class TestCheckVersionUpdate:
 # --- _check_quest_scan_progress ----------------------------------------------
 
 
+def quest_progress(leiria, marinha, completed=False):
+    """The scanner_status payload shape: per-area stats plus an overall flag."""
+    return {
+        "areas": {
+            "leiria": {
+                "completed": completed,
+                "scanned": leiria[0],
+                "total": leiria[1],
+                "percentage": leiria[2],
+            },
+            "marinha": {
+                "completed": completed,
+                "scanned": marinha[0],
+                "total": marinha[1],
+                "percentage": marinha[2],
+            },
+        },
+        "completed": completed,
+    }
+
+
 class TestCheckQuestScanProgress:
     async def test_day_changed_sends_start_message(self, cog):
         cog.poliswag.scanner_manager.is_day_change.return_value = True
@@ -518,16 +539,7 @@ class TestCheckQuestScanProgress:
         cog.poliswag.quest_scanning_message = MagicMock()
         cog.poliswag.quest_scanning_message.edit = AsyncMock()
         cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
-            return_value={
-                "leiriaCompleted": True,
-                "marinhaCompleted": True,
-                "leiriaScanned": 10,
-                "leiriaTotal": 10,
-                "marinhaScanned": 8,
-                "marinhaTotal": 8,
-                "leiriaPercentage": 100.0,
-                "marinhaPercentage": 100.0,
-            }
+            return_value=quest_progress((10, 10, 100.0), (8, 8, 100.0), completed=True)
         )
         await cog._check_quest_scan_progress()
         cog.poliswag.quest_search.check_tracked.assert_awaited_once()
@@ -539,16 +551,7 @@ class TestCheckQuestScanProgress:
         cog.poliswag.quest_scanning_message = MagicMock()
         cog.poliswag.quest_scanning_message.edit = AsyncMock()
         cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
-            return_value={
-                "leiriaCompleted": False,
-                "marinhaCompleted": False,
-                "leiriaScanned": 5,
-                "leiriaTotal": 10,
-                "marinhaScanned": 2,
-                "marinhaTotal": 8,
-                "leiriaPercentage": 50.0,
-                "marinhaPercentage": 25.0,
-            }
+            return_value=quest_progress((5, 10, 50.0), (2, 8, 25.0))
         )
         await cog._check_quest_scan_progress()
         cog.poliswag.quest_scanning_message.edit.assert_awaited_once()
@@ -570,37 +573,19 @@ class TestCheckQuestScanProgress:
         # progress embed path ends in the `elif QUEST_CHANNEL` branch.
         cog.poliswag.utility.find_quest_scanning_message = AsyncMock(return_value=None)
         cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
-            return_value={
-                "leiriaCompleted": False,
-                "marinhaCompleted": False,
-                "leiriaScanned": 1,
-                "leiriaTotal": 10,
-                "marinhaScanned": 1,
-                "marinhaTotal": 10,
-                "leiriaPercentage": 10.0,
-                "marinhaPercentage": 10.0,
-            }
+            return_value=quest_progress((1, 10, 10.0), (1, 10, 10.0))
         )
         await cog._check_quest_scan_progress()
         cog.poliswag.QUEST_CHANNEL.send.assert_awaited_once()
 
     async def test_unchanged_state_with_existing_message_skips_edit(self, cog):
-        # Same (leiriaScanned, marinhaScanned) pair on consecutive ticks, with
-        # a tracking message already posted, must not re-render the embed.
+        # Same per-area scanned pair on consecutive ticks, with a tracking
+        # message already posted, must not re-render the embed.
         cog.poliswag.scanner_manager.is_day_change.return_value = False
         cog.poliswag.quest_scanning_message = MagicMock()
         cog.poliswag.quest_scanning_message.edit = AsyncMock()
         cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
-            return_value={
-                "leiriaCompleted": False,
-                "marinhaCompleted": False,
-                "leiriaScanned": 5,
-                "leiriaTotal": 10,
-                "marinhaScanned": 2,
-                "marinhaTotal": 8,
-                "leiriaPercentage": 50.0,
-                "marinhaPercentage": 25.0,
-            }
+            return_value=quest_progress((5, 10, 50.0), (2, 8, 25.0))
         )
         await cog._check_quest_scan_progress()
         cog.poliswag.quest_scanning_message.edit.assert_awaited_once()
@@ -619,16 +604,7 @@ class TestCheckQuestScanProgress:
         cog.poliswag.quest_scanning_message = stale_message
         cog.poliswag.QUEST_CHANNEL.send = AsyncMock(return_value=MagicMock())
         cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
-            return_value={
-                "leiriaCompleted": False,
-                "marinhaCompleted": False,
-                "leiriaScanned": 5,
-                "leiriaTotal": 10,
-                "marinhaScanned": 2,
-                "marinhaTotal": 8,
-                "leiriaPercentage": 50.0,
-                "marinhaPercentage": 25.0,
-            }
+            return_value=quest_progress((5, 10, 50.0), (2, 8, 25.0))
         )
         await cog._check_quest_scan_progress()
         stale_message.edit.assert_awaited_once()
@@ -644,24 +620,17 @@ class TestCheckQuestScanProgress:
 
 class TestBuildProgressEmbed:
     @pytest.mark.parametrize(
-        "leiria_pct,marinha_pct,expected_emoji",
+        "percentage,expected_emoji",
         [
-            (0.0, 0.0, "🔍"),
-            (30.0, 30.0, "⏳"),
-            (60.0, 60.0, "⌛"),
-            (90.0, 90.0, "🔜"),
+            (0.0, "🔍"),
+            (30.0, "⏳"),
+            (60.0, "⌛"),
+            (90.0, "🔜"),
         ],
     )
-    def test_emoji_selection(self, cog, leiria_pct, marinha_pct, expected_emoji):
+    def test_emoji_selection(self, cog, percentage, expected_emoji):
         embed = cog._build_progress_embed(
-            {
-                "leiriaScanned": 1,
-                "leiriaTotal": 10,
-                "marinhaScanned": 1,
-                "marinhaTotal": 10,
-                "leiriaPercentage": leiria_pct,
-                "marinhaPercentage": marinha_pct,
-            }
+            quest_progress((1, 10, percentage), (1, 10, percentage))
         )
         assert expected_emoji in embed.title
 

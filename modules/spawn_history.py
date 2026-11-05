@@ -16,6 +16,7 @@ import pymysql
 from modules.config import Config
 from modules.database_connector import connect
 from modules.shiny_roll import is_player_id, is_shiny_at, shiny_draw
+from modules import scan_areas
 
 RETENTION_HOURS = 48
 POLL_SECONDS = 30
@@ -250,7 +251,7 @@ def leaderboard(hours=24):
         if len(trainers) > 100:
             raise ValueError("A leaderboard suporta até 100 treinadores.")
         cursor.execute(
-            "SELECT encounter_id, pokemon_id, lon, atk_iv, def_iv, sta_iv, shiny_odds "
+            "SELECT encounter_id, pokemon_id, lat, lon, atk_iv, def_iv, sta_iv, shiny_odds "
             "FROM spawn_history WHERE first_seen_at >= %s AND first_seen_at < %s "
             "AND shiny_eligible=1 AND seen_type IN ('wild','encounter') "
             "AND pokemon_id<>132 AND is_ditto=0 AND costume_id<>255 "
@@ -260,11 +261,13 @@ def leaderboard(hours=24):
         spawns = list(cursor.fetchall())
     finally:
         connection.close()
+    area_keys = scan_areas.active_keys()
     rows = []
     for trainer in trainers:
         if not is_player_id(trainer["player_id"]):
             raise ValueError("Treinador associado sem ID de previsão válido.")
-        predicted = base = hundos = leiria = 0
+        predicted = base = hundos = 0
+        area_counts = {key: 0 for key in area_keys}
         species = set()
         for spawn in spawns:
             draw = shiny_draw(spawn["encounter_id"], trainer["player_id"])
@@ -277,7 +280,9 @@ def leaderboard(hours=24):
                     15,
                     15,
                 )
-                leiria += float(spawn["lon"]) > Config.MARINHA_LON_MAX
+                key = scan_areas.area_for(spawn["lat"], spawn["lon"])
+                if key in area_counts:
+                    area_counts[key] += 1
         rows.append(
             {
                 "trainer": trainer["trainer_name"],
@@ -285,8 +290,7 @@ def leaderboard(hours=24):
                 "base_512_shinies": base,
                 "hundo_shinies": hundos,
                 "unique_species": len(species),
-                "leiria": leiria,
-                "marinha": predicted - leiria,
+                "areas": area_counts,
                 "shinies_per_hour": (
                     round(predicted / hours, 3) if metadata["complete_window"] else None
                 ),

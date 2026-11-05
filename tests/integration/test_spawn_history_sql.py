@@ -269,7 +269,7 @@ def test_report_ignores_preferences_and_exposes_only_aggregates(
     report = spawn_history.leaderboard(24)
     row = report["trainers"][0]
     assert row["predicted_shinies"] == 2 and report["eligible_spawns"] == 2
-    assert row["leiria"] == 1 and row["marinha"] == 1 and row["hundo_shinies"] == 1
+    assert row["areas"] == {"leiria": 1, "marinha": 1} and row["hundo_shinies"] == 1
     assert row["shinies_per_hour"] is None and "player_id" not in row
     sql("UPDATE spawn_history_state SET started_at=last_capture_at-86400")
     report = spawn_history.leaderboard(24)

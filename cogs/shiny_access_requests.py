@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 
 from modules.config import Config
+from modules import scan_areas
 from modules.shiny_access_requests import (
     PREFIX,
     decide_request,
@@ -45,6 +46,7 @@ class ShinyAccessRequests(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         action, discord_id, stamp = parsed
         try:
+            await scan_areas.ensure()
             changed = await asyncio.to_thread(
                 decide_request, discord_id, stamp, action == "accept"
             )

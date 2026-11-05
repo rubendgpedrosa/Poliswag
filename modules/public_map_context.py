@@ -16,9 +16,9 @@ from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+from modules import scan_areas
+
 _LISBON = ZoneInfo("Europe/Lisbon")
-# Leiria / Marinha Grande coverage. Fixed, never supplied by the member.
-BBOX = (39.6, -9.1, 39.9, -8.65)  # lat_min, lon_min, lat_max, lon_max
 MAX_ROWS = 20
 MAX_TEXT = 2000
 QUERY_TIMEOUT = 5
@@ -140,7 +140,10 @@ def _coordinate(lat, lon):
         return None
     if not math.isfinite(lat) or not math.isfinite(lon):
         return None
-    if not BBOX[0] <= lat <= BBOX[2] or not BBOX[1] <= lon <= BBOX[3]:
+    box = scan_areas.bbox()
+    if box is None:
+        return None
+    if not box[0] <= lat <= box[2] or not box[1] <= lon <= box[3]:
         return None
     return round(lat, 5), round(lon, 5)
 
@@ -211,6 +214,11 @@ class PublicMapContext:
         """Return a bounded snapshot for the relevant sections, or None."""
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
             return None
+        await scan_areas.ensure()
+        box = scan_areas.bbox()
+        area = scan_areas.labels(" / ")
+        if box is None or not area:
+            return None
         topic = normalized(text)
         species = self.recognize(text)
         sections = []
@@ -236,15 +244,15 @@ class PublicMapContext:
             )
         except (asyncio.TimeoutError, Exception):
             return {
-                "area": "Leiria / Marinha Grande",
-                "bbox": list(BBOX),
+                "area": area,
+                "bbox": list(box),
                 "generated_at": datetime.now(_LISBON).isoformat(timespec="seconds"),
                 "status": "unavailable",
                 "sections": [],
             }
         payload = {
-            "area": "Leiria / Marinha Grande",
-            "bbox": list(BBOX),
+            "area": area,
+            "bbox": list(box),
             "generated_at": datetime.now(_LISBON).isoformat(timespec="seconds"),
             "note": "Amostra pública limitada; não é um inventário completo.",
             "sections": sections,
@@ -261,6 +269,9 @@ class PublicMapContext:
 
     async def _spawns(self, species):
         try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "spawns", "status": "unavailable"}
             now = time.time()
             if species:
                 ids = [pokemon_id for pokemon_id, _ in species]
@@ -273,7 +284,7 @@ class PublicMapContext:
                     "AND lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s "
                     f"AND pokemon_id IN ({placeholders}) "
                     "ORDER BY expire_timestamp ASC LIMIT 21",
-                    (BBOX[0], BBOX[2], BBOX[1], BBOX[3], *ids),
+                    (box[0], box[2], box[1], box[3], *ids),
                 )
                 locations = []
                 for row in rows[:MAX_ROWS]:
@@ -308,7 +319,7 @@ class PublicMapContext:
                 "AND expire_timestamp > UNIX_TIMESTAMP() "
                 "AND lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s "
                 "GROUP BY pokemon_id ORDER BY count DESC, pokemon_id ASC LIMIT 20",
-                (BBOX[0], BBOX[2], BBOX[1], BBOX[3]),
+                (box[0], box[2], box[1], box[3]),
             )
             groups = []
             for row in rows[:MAX_ROWS]:
@@ -331,10 +342,13 @@ class PublicMapContext:
 
     async def _raids(self, species):
         try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "raids", "status": "unavailable"}
             now = time.time()
             ids = [pokemon_id for pokemon_id, _ in species]
             species_filter = ""
-            params = [BBOX[0], BBOX[2], BBOX[1], BBOX[3]]
+            params = [box[0], box[2], box[1], box[3]]
             if ids:
                 placeholders = ", ".join(["%s"] * len(ids))
                 species_filter = (
@@ -397,6 +411,9 @@ class PublicMapContext:
 
     async def _lures(self):
         try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "lures", "status": "unavailable"}
             now = time.time()
             rows = await self._rows(
                 "SELECT name, lat, lon, lure_id, lure_expire_timestamp "
@@ -404,7 +421,7 @@ class PublicMapContext:
                 "AND lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s "
                 "AND lure_expire_timestamp > UNIX_TIMESTAMP() "
                 "ORDER BY lure_expire_timestamp ASC LIMIT 20",
-                (BBOX[0], BBOX[2], BBOX[1], BBOX[3]),
+                (box[0], box[2], box[1], box[3]),
             )
             items = []
             for row in rows[:MAX_ROWS]:
@@ -433,6 +450,9 @@ class PublicMapContext:
 
     async def _quests(self, species, reward_types):
         try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "quests", "status": "unavailable"}
             now = time.time()
             ids = [pokemon_id for pokemon_id, _ in species]
             rows = []
@@ -445,7 +465,7 @@ class PublicMapContext:
                 )
                 species_filter = ""
                 reward_filter = ""
-                params = [BBOX[0], BBOX[2], BBOX[1], BBOX[3]]
+                params = [box[0], box[2], box[1], box[3]]
                 if ids:
                     placeholders = ", ".join(["%s"] * len(ids))
                     species_filter = f"AND {prefix}_pokemon_id IN ({placeholders}) "

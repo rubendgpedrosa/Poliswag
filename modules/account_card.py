@@ -6,6 +6,8 @@ wkhtmltoimage's old WebKit: no CSS grid, no gap, unreliable flex-grow. The
 template only places fixed-size boxes.
 """
 
+from modules import scan_areas
+
 # Pixel geometry. The template's CSS uses these same numbers; the tests check
 # that a rendered layout and build_card_view's height stay in step.
 CARD_WIDTH = 800
@@ -48,10 +50,6 @@ OUT_LABELS = {
     "disabled": "disabled",
     "provider_disabled": "provider-disabled",
 }
-
-# Display order + short label for the area-performance footer -- fixed order
-# so Leiria always renders before Marinha regardless of dict/query row order.
-AREA_LABELS = (("Leiria", "Leiria"), ("MarinhaGrande", "Marinha"))
 
 
 def bar_segments(values, width=CONTENT_WIDTH):
@@ -173,12 +171,12 @@ def _status(pools):
 
 def area_lines(area_performance):
     lines = []
-    for db_area, label in AREA_LABELS:
-        stats = (area_performance or {}).get(db_area)
+    for row in scan_areas.active_areas():
+        stats = (area_performance or {}).get(row["dragonite_area"])
         if not stats or not stats.get("total"):
             continue
         rate = round(stats.get("iv", 0) / stats["total"] * 100)
-        lines.append({"name": label, "rate": rate, "spawns": stats["total"]})
+        lines.append({"name": row["label"], "rate": rate, "spawns": stats["total"]})
     return lines
 
 
