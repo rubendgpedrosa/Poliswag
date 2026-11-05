@@ -151,7 +151,7 @@ _SEED_AREAS = (
         "label": "Porto de Mós",
         "dragonite_area": "PortoDeMos",
         "poracle_area": "portodemos",
-        "alert_role": "AlertasPortoMos",
+        "alert_role": "AlertasPortoDeMos",
         "sort_order": 4,
         "active": 0,
     },
