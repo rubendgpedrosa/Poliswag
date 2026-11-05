@@ -51,6 +51,7 @@ ACCEPT = ", ".join(
         "application/vnd.docker.distribution.manifest.v2+json",
     )
 )
+PRUNE_FAILURES = (RuntimeError, subprocess.TimeoutExpired, ValueError)
 
 
 def log(message):
@@ -112,6 +113,22 @@ def inspect_container(name):
 
 def inspect_image(reference):
     return json.loads(run(["docker", "image", "inspect", reference]))[0]
+
+
+def listed_tags(repository):
+    return run(
+        ["docker", "image", "ls", "--format", "{{.Repository}}:{{.Tag}}", repository]
+    ).split()
+
+
+def newest_created(tags):
+    def created(tag):
+        value = inspect_image(tag).get("Created")
+        if not value:
+            raise ValueError(f"{tag} has no creation time")
+        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    return max(tags, key=created)
 
 
 class Registry:
@@ -258,16 +275,22 @@ def save_overrides(records):
 
 
 def prune_tags(repository, keep):
-    # Untag only; an image still used by a container refuses and is kept.
-    listed = run(["docker", "image", "ls", "--format", "{{.Repository}}:{{.Tag}}", repository])
-    for tag in listed.split():
+    # Untag only; Docker refuses only when the tag is the image's last
+    # reference and a container still uses it. The recorded rollback is in keep.
+    try:
+        listed = listed_tags(repository)
+    except PRUNE_FAILURES as error:
+        log(f"could not list {repository}: {error}")
+        return
+    for tag in listed:
         if tag in keep:
             continue
         try:
             run(["docker", "image", "rm", tag])
-            log(f"removed {tag}")
-        except RuntimeError as error:
+        except PRUNE_FAILURES as error:
             log(f"kept {tag}: {error}")
+        else:
+            log(f"removed {tag}")
 
 
 def fingerprint(container):
@@ -332,6 +355,7 @@ def check_and_stage(args, resources):
     records = state["services"]
     configs = {}
     errors = []
+    prunes = {}
     for name in args.services or SERVICES:
         path, service, policy = SERVICES[name]
         try:
@@ -405,17 +429,38 @@ def check_and_stage(args, resources):
                 )
                 record["downloaded"] = True
                 record["rollback"] = f'scanner-previous/{name}:{before["Image"][7:19]}'
-            if policy == "stage" and not args.check:
-                # Superseded candidates and rollbacks used to pile up (GBs each).
-                staged = f"scanner-staged/{name}:{digest[7:19]}"
-                prune_tags(f"scanner-staged/{name}", {staged} if record["downloaded"] else set())
-                if record.get("rollback"):
-                    prune_tags(f"scanner-previous/{name}", {record["rollback"]})
             after = inspect_container(name)
             if fingerprint(before) != fingerprint(after):
                 raise RuntimeError(
                     "O serviço foi alterado durante a verificação. Será verificado novamente na próxima execução."
                 )
+            prune_jobs = []
+            if policy == "stage" and not args.check:
+                # Superseded candidates and rollbacks used to pile up (GBs each).
+                staged = f"scanner-staged/{name}:{digest[7:19]}"
+                previous_repository = f"scanner-previous/{name}"
+                prune_jobs = [
+                    (
+                        f"scanner-staged/{name}",
+                        {staged} if record["downloaded"] else set(),
+                    )
+                ]
+                if record.get("rollback"):
+                    prune_jobs.append((previous_repository, {record["rollback"]}))
+                else:
+                    try:
+                        legacy = listed_tags(previous_repository)
+                        if legacy:
+                            record["rollback"] = newest_created(legacy)
+                    except PRUNE_FAILURES as error:
+                        log(
+                            f"could not adopt a rollback from {previous_repository}: {error}"
+                        )
+                    else:
+                        if legacy:
+                            prune_jobs.append(
+                                (previous_repository, {record["rollback"]})
+                            )
             records[name] = record
             result = (
                 "current"
@@ -427,6 +472,8 @@ def check_and_stage(args, resources):
                 )
             )
             log(f"{name}: {tag}; {result}")
+            if prune_jobs:
+                prunes[name] = prune_jobs
         except Exception as error:
             errors.append(f"{name}: {error}")
             log(f"ERROR {errors[-1]}")
@@ -436,6 +483,9 @@ def check_and_stage(args, resources):
         return 1 if errors else 0
     save_overrides(records)
     atomic_json(state_path, state)
+    for jobs in prunes.values():
+        for repository, keep in jobs:
+            prune_tags(repository, keep)
     pending_records = {k: v for k, v in records.items() if v.get("pending")}
     notification = {
         "updates": {
