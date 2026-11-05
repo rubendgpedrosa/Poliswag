@@ -17,7 +17,7 @@ from PIL import Image
 import pytest
 
 from modules.config import Config
-from modules.image_generator import ImageGenerator
+from modules.image_generator import ImageGenerator, _recompress_png
 
 
 class TestInit:
@@ -147,43 +147,147 @@ class TestGenerateStaticMapForGroupOfQuests:
         assert ig.poliswag.utility.log_to_file.call_args.args[1] == "WARNING"
 
 
+def _summary(in_use=0, good=0, never_used=0, cooldown=0, out_detail=None):
+    out_detail = out_detail or {}
+    out = sum(out_detail.values())
+    ready = good + never_used
+    return {
+        "in_use": in_use,
+        "good": good,
+        "never_used": never_used,
+        "ready": ready,
+        "cooldown": cooldown,
+        "out": out,
+        "out_detail": out_detail,
+        "missing_token": 0,
+        "total": in_use + ready + cooldown + out,
+        "partition_sum": in_use + ready + cooldown + out,
+    }
+
+
+def _device(names=("PocoF2Pro",), connected=True, total=50, in_use=45):
+    return {
+        "connected": connected,
+        "names": list(names) if connected else [],
+        "workers": {
+            "total": total if connected else 0,
+            "in_use": in_use if connected else 0,
+        },
+    }
+
+
+def _pools(level=True):
+    pools = [
+        {
+            "key": "scanning",
+            "title": "Scanning",
+            "accounts": _summary(45, 199, 6, 57, {"banned": 5}),
+            "device": _device(),
+        }
+    ]
+    if level:
+        pools.append(
+            {
+                "key": "levelling",
+                "title": "Levelling",
+                "accounts": _summary(16, 0, 0, 1),
+                "device": _device(("RedmiNote4",), total=16, in_use=16),
+            }
+        )
+    return pools
+
+
 class TestGenerateImageFromAccountStats:
     async def test_returns_none_and_logs_on_error(self, ig, mocker, tmp_path):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
-        (tmp_path / "accounts.html").write_text("<html>{{ good }}</html>")
+        (tmp_path / "accounts.html").write_text("<html>{{ grand_total }}</html>")
         mocker.patch(
             "modules.image_generator.imgkit.from_file",
             side_effect=RuntimeError("render failed"),
         )
-        result = await ig.generate_image_from_account_stats(
-            {"good": 1, "cooldown": 2, "disabled": 3}, True
-        )
+        result = await ig.generate_image_from_account_stats(_pools())
         assert result is None
         ig.poliswag.utility.log_to_file.assert_called_once()
         msg, level = ig.poliswag.utility.log_to_file.call_args.args
         assert "account image" in msg
         assert level == "ERROR"
 
-    async def test_returns_bytes_on_success_with_missing_keys_defaulted(
-        self, ig, mocker, tmp_path
-    ):
+    async def test_image_height_follows_the_layout(self, ig, mocker, tmp_path):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
-        (tmp_path / "accounts.html").write_text("<html>{{ good }}</html>")
-        captured = {}
+        (tmp_path / "accounts.html").write_text("<html>{{ height }}</html>")
+        heights = []
 
         def fake_from_file(path, out, options):
-            captured["html"] = rendered(path)
+            heights.append((int(options["height"]), int(rendered(path)[6:-7])))
             return b"IMG"
 
         mocker.patch(
             "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
         )
-        # Empty dict — .get() defaults all fields to 0.
-        result = await ig.generate_image_from_account_stats({}, False)
-        assert result == b"IMG"
-        assert "0" in captured["html"]
+        area = {"Leiria": {"total": 100, "iv": 99}}
+        await ig.generate_image_from_account_stats(_pools(level=True), area)
+        await ig.generate_image_from_account_stats(_pools(level=False), area)
+        await ig.generate_image_from_account_stats(_pools(level=False), None)
+        both, scan_only, no_footer = heights
+        # The output is rendered at 2x; the template lays out at 1x.
+        assert all(opt == 2 * tpl for opt, tpl in heights)
+        assert both[0] > scan_only[0] > no_footer[0]
 
-    async def _render_area_lines(self, ig, mocker, tmp_path, area_performance, **kw):
+    async def test_real_template_renders_every_section(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        captured = {}
+        mocker.patch(
+            "modules.image_generator.imgkit.from_file",
+            side_effect=lambda path, out, options: captured.setdefault(
+                "html", rendered(path)
+            )
+            or b"IMG",
+        )
+        await ig.generate_image_from_account_stats(
+            _pools(), {"Leiria": {"total": 100, "iv": 99}}
+        )
+        html = captured["html"]
+        assert "Scanning" in html and "Levelling" in html
+        assert "PocoF2Pro" in html and "RedmiNote4" in html
+        assert "45/50 workers" in html and "16/16 workers" in html
+        assert (
+            '<span class="figure">329</span><span class="unit">in total</span>' in html
+        )
+        assert "ready includes 6 never used" in html and "out: 5 banned" in html
+        assert "status-success" in html
+        assert "spawns/h" in html
+
+    async def test_renders_at_twice_the_css_size(self, ig, mocker, tmp_path):
+        ig.TEMPLATE_HTML_DIR = str(tmp_path)
+        (tmp_path / "accounts.html").write_text("<html>{{ width }}</html>")
+        seen = {}
+
+        def fake_from_file(path, out, options):
+            seen.update(options)
+            return b"IMG"
+
+        mocker.patch(
+            "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
+        )
+        await ig.generate_image_from_account_stats(_pools(level=False))
+        assert seen["width"] == "1600"
+
+    async def test_real_template_without_levelling_pool(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        captured = {}
+        mocker.patch(
+            "modules.image_generator.imgkit.from_file",
+            side_effect=lambda path, out, options: captured.setdefault(
+                "html", rendered(path)
+            )
+            or b"IMG",
+        )
+        await ig.generate_image_from_account_stats(_pools(level=False))
+        html = captured["html"]
+        assert "Scanning" in html and "Levelling" not in html
+        assert "spawns/h" not in html
+
+    async def _render_area_lines(self, ig, mocker, tmp_path, area_performance):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
         (tmp_path / "accounts.html").write_text(
             "{% for l in area_lines %}"
@@ -198,12 +302,7 @@ class TestGenerateImageFromAccountStats:
             )
             or b"IMG",
         )
-        await ig.generate_image_from_account_stats(
-            {"good": 1, "cooldown": 2, "disabled": 3},
-            True,
-            area_performance,
-            **kw,
-        )
+        await ig.generate_image_from_account_stats(_pools(), area_performance)
         return captured["html"]
 
     async def test_area_performance_passes_spawns_and_rounded_rate(
@@ -260,7 +359,7 @@ class TestGenerateImageFromAccountStats:
 
     async def test_template_is_loaded_once_and_reused(self, ig, mocker, tmp_path):
         ig.TEMPLATE_HTML_DIR = str(tmp_path)
-        (tmp_path / "accounts.html").write_text("<html>{{ good }}-v1</html>")
+        (tmp_path / "accounts.html").write_text("<html>{{ grand_total }}-v1</html>")
         captured = []
 
         def fake_from_file(path, out, options):
@@ -271,16 +370,30 @@ class TestGenerateImageFromAccountStats:
             "modules.image_generator.imgkit.from_file", side_effect=fake_from_file
         )
 
-        await ig.generate_image_from_account_stats({"good": 1}, True)
+        await ig.generate_image_from_account_stats(_pools(level=False))
 
         # Rewrite the template on disk before the second call — if the
         # template were being reloaded per call, this render would pick up
         # "v2". It should not: the cached Template object from the first
         # call is reused.
-        (tmp_path / "accounts.html").write_text("<html>{{ good }}-v2</html>")
-        await ig.generate_image_from_account_stats({"good": 2}, True)
+        (tmp_path / "accounts.html").write_text("<html>{{ grand_total }}-v2</html>")
+        await ig.generate_image_from_account_stats(_pools(level=True))
 
-        assert captured == ["<html>1-v1</html>", "<html>2-v1</html>"]
+        assert captured == ["<html>312-v1</html>", "<html>329-v1</html>"]
+
+
+class TestRecompressPng:
+    def test_shrinks_and_keeps_pixels(self):
+        image = Image.new("RGBA", (64, 32), (12, 19, 29, 255))
+        raw = BytesIO()
+        image.save(raw, "PNG", compress_level=0)
+        out = _recompress_png(raw.getvalue())
+        assert len(out) < len(raw.getvalue())
+        with Image.open(BytesIO(out)) as again:
+            assert again.tobytes() == image.tobytes()
+
+    def test_non_png_bytes_pass_through(self):
+        assert _recompress_png(b"IMG") == b"IMG"
 
 
 class TestRenderPngLeavesNothingBehind:

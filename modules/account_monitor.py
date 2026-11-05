@@ -2,26 +2,49 @@ import io
 import time
 
 import discord
+from modules.config import Config
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
 
-DISABLED_STATUSES = [
+# Dragonite's /accounts/stats buckets. These partition `total`: every account
+# is in exactly one of them. `missing_token` is deliberately absent -- it is an
+# attribute that overlaps the buckets (an invalid account is also missing a
+# token, and so is a fresh one waiting for its first login), so summing it
+# double-counts.
+OUT_STATUSES = (
     "banned",
-    "invalid",
     "auth_banned",
     "suspended",
+    "invalid",
     "warned",
     "disabled",
-    "missing_token",
     "provider_disabled",
-    "zero_last_released",
-]
+)
+PARTITION_STATUSES = ("in_use", "good", "cooldown", "zero_last_released") + (
+    OUT_STATUSES
+)
+
+# Kept for callers/tests that import the old name: the unusable buckets only.
+DISABLED_STATUSES = list(OUT_STATUSES)
+
+# Pools shown on the card: (key, title, account endpoint, device endpoint).
+# The levelling pool is optional -- unset endpoints hide its section.
+POOLS = (
+    ("scanning", "Scanning", "account_status", "device_status"),
+    ("levelling", "Levelling", "level_account_status", "level_device_status"),
+)
 
 
 def _device_is_connected(device):
     # RotomNG exposes connectivity as `is_connected`; the legacy Node Rotom
     # used `isAlive`. Accept either so this survives the cutover + rollback.
     return bool(device.get("is_connected", device.get("isAlive", False)))
+
+
+def _device_name(device):
+    """Short device name: RotomNG `id`, else `origin` without its prefix."""
+    name = device.get("id") or device.get("origin") or device.get("deviceId") or "?"
+    return str(name).rsplit("/", 1)[-1]
 
 
 def _worker_counts(devices):
@@ -45,6 +68,35 @@ def _worker_counts(devices):
     return {"total": total, "in_use": in_use}
 
 
+def summarize_accounts(stats):
+    """Turn a Dragonite /accounts/stats payload into the card's breakdown.
+
+    in_use + ready + cooldown + out == total, where ready = good + never used
+    (`zero_last_released`: never handed out yet, so usable) and out = every
+    unusable bucket. `partition_sum` is reported next to Dragonite's own
+    `total` so a caller can notice a bucket this code does not know about.
+    """
+    stats = stats or {}
+
+    def n(key):
+        return int(stats.get(key) or 0)
+
+    out_detail = {s: n(s) for s in OUT_STATUSES if n(s)}
+    summary = {
+        "in_use": n("in_use"),
+        "good": n("good"),
+        "never_used": n("zero_last_released"),
+        "cooldown": n("cooldown"),
+        "out": sum(out_detail.values()),
+        "out_detail": out_detail,
+        "missing_token": n("missing_token"),
+        "partition_sum": sum(n(s) for s in PARTITION_STATUSES),
+    }
+    summary["ready"] = summary["good"] + summary["never_used"]
+    summary["total"] = n("total") or summary["partition_sum"]
+    return summary
+
+
 class AccountMonitor(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -53,32 +105,88 @@ class AccountMonitor(LoggingMixin):
         # message to edit. Cleared if the message turns out to be gone, so
         # the next tick rediscovers (or resends) it.
         self._accounts_message = None
+        # Last (partition_sum, total) logged per pool, so a mismatch is
+        # logged when it appears or changes, not on every 60s tick.
+        self._partition_warned = {}
 
     async def get_account_stats(self):
+        """Scanning-pool account counts for the status embeds and alerts.
+
+        `good`/`in_use`/`cooldown` are Dragonite's own buckets; `disabled` is
+        the accounts that cannot be used at all (banned, invalid, ...). The
+        fuller breakdown the card draws comes from get_pool_stats().
+        """
         account_stats = await fetch_data("account_status", log_fn=self._log)
         if not account_stats:
             return {"in_use": 0, "good": 0, "cooldown": 0, "disabled": 0}
-
-        disabled = sum(account_stats.get(s, 0) for s in DISABLED_STATUSES)
+        summary = summarize_accounts(account_stats)
         return {
-            "in_use": account_stats.get("in_use", 0),
-            "good": account_stats.get("good", 0),
-            "cooldown": account_stats.get("cooldown", 0),
-            "disabled": disabled,
+            "in_use": summary["in_use"],
+            "good": summary["good"],
+            "cooldown": summary["cooldown"],
+            "disabled": summary["out"],
+            "ready": summary["ready"],
+            "never_used": summary["never_used"],
+            "total": summary["total"],
         }
 
-    async def get_device_snapshot(self):
-        """Connectivity flag + worker counters from a single Rotom fetch.
+    def _check_partition(self, key, summary):
+        pair = (summary["partition_sum"], summary["total"])
+        if pair[0] == pair[1]:
+            self._partition_warned.pop(key, None)
+            return
+        if self._partition_warned.get(key) != pair:
+            self._partition_warned[key] = pair
+            self._log(
+                f"{key} account buckets sum to {pair[0]} but Dragonite reports "
+                f"{pair[1]} in total; the card uses Dragonite's total",
+                "WARNING",
+            )
 
-        The status card needs both on every 60s tick; fetching once here
-        keeps that one HTTP call rather than two.
-        """
-        device_status = await fetch_data("device_status", log_fn=self._log)
-        devices = (device_status or {}).get("devices") or []
+    async def _fetch_device(self, device_key):
+        """Connected flag, device names and worker counts; None if Rotom failed."""
+        device_status = await fetch_data(device_key, log_fn=self._log)
+        if device_status is None:
+            return None
+        devices = device_status.get("devices") or []
+        connected = [d for d in devices if _device_is_connected(d)]
         return {
-            "connected": any(_device_is_connected(d) for d in devices),
+            "connected": bool(connected),
+            "names": [_device_name(d) for d in connected],
             "workers": _worker_counts(devices),
         }
+
+    async def get_pool_stats(self):
+        """One entry per configured pool, in card order.
+
+        A pool whose account endpoint is not configured is left out. An
+        endpoint that is configured but fails yields `accounts: None` (or
+        `device: None`) so the card can say "unavailable" for that pool
+        without losing the other one.
+        """
+        pools = []
+        for key, title, account_key, device_key in POOLS:
+            if key != "scanning" and not Config.ENDPOINTS.get(account_key):
+                continue
+            stats = await fetch_data(account_key, log_fn=self._log)
+            accounts = None
+            if stats:
+                accounts = summarize_accounts(stats)
+                self._check_partition(key, accounts)
+            device = None
+            if key == "scanning" or Config.ENDPOINTS.get(device_key):
+                device = await self._fetch_device(device_key)
+            pools.append(
+                {"key": key, "title": title, "accounts": accounts, "device": device}
+            )
+        return pools
+
+    async def get_device_snapshot(self):
+        """Connectivity flag + worker counters from a single Rotom fetch."""
+        device = await self._fetch_device("device_status")
+        if device is None:
+            return {"connected": False, "workers": {"total": 0, "in_use": 0}}
+        return {"connected": device["connected"], "workers": device["workers"]}
 
     async def is_device_connected(self):
         return (await self.get_device_snapshot())["connected"]
@@ -93,6 +201,16 @@ class AccountMonitor(LoggingMixin):
         if device_status is None:
             return None
         return _worker_counts(device_status.get("devices") or [])["total"]
+
+    async def build_account_card(self):
+        """PNG bytes of the account card (both pools + area footer), or None."""
+        pools = await self.get_pool_stats()
+        area_performance = (
+            await self.poliswag.scanner_status.get_iv_verification_by_area()
+        )
+        return await self.poliswag.image_generator.generate_image_from_account_stats(
+            pools, area_performance
+        )
 
     @staticmethod
     def _build_status_body():
@@ -117,20 +235,7 @@ class AccountMonitor(LoggingMixin):
                         self._accounts_message = message
                         break
 
-            account_data = await self.get_account_stats()
-            device_snapshot = await self.get_device_snapshot()
-            device_status = device_snapshot["connected"]
-            area_performance = (
-                await self.poliswag.scanner_status.get_iv_verification_by_area()
-            )
-            image_bytes = (
-                await self.poliswag.image_generator.generate_image_from_account_stats(
-                    account_data,
-                    device_status,
-                    area_performance,
-                    workers=device_snapshot["workers"],
-                )
-            )
+            image_bytes = await self.build_account_card()
 
             if not image_bytes:
                 self._log("Error generating account image")

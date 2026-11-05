@@ -5,44 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Account Status</title>
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap');
+
+    /* PoGoLeiria design language (polisnatch-app/design/DESIGN.md, hub
+       tokens): surfaces are separated by light, never shadow -- no drop
+       shadows, text shadows or glows; the card's only effect is the `.lit`
+       inset top highlight. Type comes only from the hub scale
+       (10/11/13/15/17/19/22/44), figures in Bricolage Grotesque 800 with
+       tabular digits, text in Figtree. Radii only 8/12/16/20/24.
+
+       Every vertical size below is fixed and mirrors a constant in
+       modules/account_card.py, which sums them into the image height --
+       change one, change the other. The renderer is wkhtmltoimage's old
+       WebKit: no grid, no gap, so rows are fixed boxes with explicit
+       margins, and the bar segments are floats with widths from Python. */
 
     * { box-sizing: border-box; }
 
     html, body {
         margin: 0;
         padding: 0;
-        width: 800px;
-        height: 260px;
-        /* Left transparent on purpose: everything outside .card stays
-           true alpha-0 so this composites correctly on both Discord
-           light and dark chat backgrounds. Only .card paints an
-           opaque surface. */
+        /* Transparent on purpose: everything outside .card stays alpha-0 so
+           the PNG composites on both Discord light and dark backgrounds. */
         background: transparent;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    /* The page is the scaled PNG size; body lays out at the token sizes and
+       CSS `zoom` renders it at {{ scale }}x, for sharp text when Discord
+       scales the image down on phones. wkhtmltoimage's own --zoom flag is
+       ignored by this build; CSS zoom is not. Zoom only body: on html too it
+       would apply twice. */
+    html {
+        width: {{ width * scale }}px;
+        height: {{ height * scale }}px;
+    }
+    body {
+        width: {{ width }}px;
+        height: {{ height }}px;
+        zoom: {{ scale }};
+        font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #F1F5FC;
+    }
+
+    .figure {
+        font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-feature-settings: "tnum";
+        font-feature-settings: "tnum";
     }
 
     .stage {
-        width: 800px;
-        height: 260px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width: {{ width }}px;
+        height: {{ height }}px;
         padding: 16px;
     }
 
     .card {
         position: relative;
         width: 100%;
-        height: 100%;
+        height: {{ card_height }}px;
         overflow: hidden;
-        border-radius: 18px;
-        background: linear-gradient(160deg, #24262b 0%, #1b1c1f 100%);
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 20px;
+        background: #0C131D;
+        border: 1px solid #262E3B;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
     }
 
-    /* Status accent strip on the left edge — the single fastest
-       "is everything ok" signal, readable before any number is read. */
+    /* Status strip on the left edge: the "is everything ok" signal. */
     .status-bar {
         position: absolute;
         top: 0;
@@ -50,241 +79,274 @@
         bottom: 0;
         width: 6px;
     }
-    .status-ok       { background: #3ba55c; box-shadow: 0 0 10px rgba(59, 165, 92, 0.6); }
-    .status-warning  { background: #f0b232; box-shadow: 0 0 10px rgba(240, 178, 50, 0.6); }
-    .status-critical { background: #ed4245; box-shadow: 0 0 10px rgba(237, 66, 69, 0.6); }
+    .status-success     { background: #52CD86; }
+    .status-urgent      { background: #F98F2B; }
+    .status-destructive { background: #E6443A; }
 
     .card-inner {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        /* Deliberately not justify-content:center -- this renderer's old
-           WebKit engine distributes centered flex leftover space
-           unevenly. Fixed top/bottom padding plus the explicit margins
-           on each row below give predictable, even spacing instead. */
         padding: 20px 26px 18px 30px;
     }
 
-    /* ---- header row: title + device pill ---- */
+    /* ---- header: 30px ---- */
     .header-row {
-        flex: 0 0 auto;
+        height: 30px;
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
-
     .title {
-        font-weight: 700;
-        font-size: 13px;
-        letter-spacing: 1.4px;
-        text-transform: uppercase;
-        color: #96999e;
-    }
-    .title strong {
-        color: #d8dadd;
+        font-size: 15px;
         font-weight: 800;
+        color: #F1F5FC;
+    }
+    .grand-total {
+        display: flex;
+        align-items: baseline;
+    }
+    .grand-total .figure {
+        font-size: 22px;
+        line-height: 26px;
+        color: #F1F5FC;
+        margin-right: 6px;
+    }
+    .grand-total .unit {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: #A7B0BE;
     }
 
-    .device-pill {
+    /* ---- pool section ---- */
+    .pool-divider {            /* 12 + 1 + 14 = 27px */
+        height: 1px;
+        margin: 12px 0 14px;
+        background: #262E3B;
+    }
+
+    .pool-title {              /* 30px */
+        height: 30px;
         display: flex;
         align-items: center;
-        padding: 6px 12px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        justify-content: space-between;
+    }
+    .pool-name {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #A7B0BE;
+    }
+    .pool-device {
+        font-size: 11px;
+        font-weight: 700;
+        color: #778190;
+        margin-left: 10px;
     }
 
+    /* Worker chip: shared pill geometry, sunken-muted fill, hairline. */
+    .device-pill {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #161E2A;
+        border: 1px solid #262E3B;
+    }
     .device-dot {
         width: 10px;
         height: 10px;
         border-radius: 50%;
         margin-right: 8px;
-        flex: 0 0 auto;
     }
-    .device-on  { background: #3ba55c; box-shadow: 0 0 8px rgba(59, 165, 92, 0.85); }
-    .device-off { background: #ed4245; box-shadow: 0 0 8px rgba(237, 66, 69, 0.85); }
-
+    .dot-on  { background: #52CD86; }
+    .dot-off { background: transparent; border: 2px solid #778190; }
     .device-text {
+        font-size: 13px;
         font-weight: 700;
-        font-size: 15px;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
     }
-    .device-text.on  { color: #7ee2a8; }
-    .device-text.off { color: #f29a9b; }
+    .text-on  { color: #F1F5FC; }
+    .text-off { color: #A7B0BE; }
 
-    .divider {
-        flex: 0 0 auto;
-        height: 1px;
-        margin: 8px 0;
-        background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
-    }
-
-    /* ---- main stats row ----
-       Grows to absorb whatever height the fixed rows above/below don't
-       use, so the numbers stay optically centred whether or not the area
-       footer is present (it's absent before the first scanner snapshot
-       lands, or on a query failure). */
-    .stats-row {
-        flex: 1 1 auto;
+    /* Labels share one top line; figures sit on the row's bottom edge, so
+       the 44px hero and the 22px figures line up at their feet. */
+    .pool-stats {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
     }
-
+    .pool-stats.plain { height: 50px; }   /* 6 + 14 + 4 + 26 */
+    .pool-stats.hero  { height: 66px; }   /* 14 + 4 + 48 */
     .stat {
+        position: relative;
         flex: 1 1 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
+        width: 0;
+        height: 100%;
     }
-
+    .pool-stats.plain .stat-label { margin-top: 6px; }
     .stat-label {
+        height: 14px;
+        font-size: 11px;
         font-weight: 700;
-        font-size: 12px;
         letter-spacing: 1.2px;
         text-transform: uppercase;
-        color: #8b8e93;
-        margin-bottom: 6px;
+        color: #A7B0BE;
     }
-
     .stat-value {
-        font-weight: 900;
-        font-size: 58px;
-        line-height: 1;
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        font-size: 22px;
+        line-height: 26px;
+        height: 26px;
+    }
+    .stat-value.big {
+        font-size: 44px;
+        line-height: 48px;
+        height: 48px;
+    }
+    .value-in-use   { color: #D3DAE4; }
+    .value-ready    { color: #52CD86; }
+    .value-cooldown { color: #778190; }
+    .value-out      { color: #E6443A; }
+    .value-zero     { color: #434E5E; }
+
+    .bar {                     /* 12 + 10 = 22px */
+        height: 10px;
+        margin-top: 12px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #161E2A;
+    }
+    .seg {
+        float: left;
+        height: 10px;
+        margin-right: 3px;
+    }
+    /* The last segment fills what is left rather than floating with a
+       computed width: under the 2x zoom, sub-pixel rounding otherwise wraps
+       it out of the bar. */
+    .seg.last {
+        float: none;
+        overflow: hidden;
+        width: auto !important;
+        margin-right: 0;
+    }
+    .seg-in-use   { background: #D3DAE4; }
+    .seg-ready    { background: #52CD86; }
+    .seg-cooldown { background: #434E5E; }
+    .seg-out      { background: #E6443A; }
+
+    .note, .low {              /* 10 + 14 = 24px each */
+        height: 14px;
+        margin-top: 10px;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    .note { color: #A7B0BE; }
+    .low  { color: #F98F2B; }
+
+    .pool-unavailable {        /* 36px */
+        height: 36px;
+        line-height: 36px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #A7B0BE;
     }
 
-    .value-good     { color: #3ba55c; text-shadow: 0 0 18px rgba(59, 165, 92, 0.35); }
-    .value-cooldown { color: #f0b232; text-shadow: 0 0 18px rgba(240, 178, 50, 0.35); }
-    .value-banned   { color: #ed4245; text-shadow: 0 0 18px rgba(237, 66, 69, 0.35); }
-
-    .stat-sep {
-        flex: 0 0 auto;
-        width: 1px;
-        /* Sized to the label+value stack (~78px) rather than stretched to
-           the row, which now grows to absorb slack -- stretching would
-           make these run the full card height when the area footer is
-           absent. */
-        height: 72px;
-        align-self: center;
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    /* ---- footer: per-area scanner performance ---- */
+    /* ---- footer: per-area scanner performance, 18 + 1 + 16 + 26 = 61px ---- */
     .area-divider {
-        flex: 0 0 auto;
         height: 1px;
-        /* Asymmetric on purpose: the larger top margin is the visual gap
-           between the account stats and the area stats, while the bottom
-           margin is matched to card-inner's bottom padding so the area
-           text sits with equal space above and below it. */
-        margin: 20px 0 18px;
-        background: linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+        margin: 18px 0 16px;
+        background: #262E3B;
     }
-
     .area-row {
-        flex: 0 0 auto;
+        height: 26px;
         display: flex;
         align-items: baseline;
         justify-content: center;
     }
-
     .area-item {
         display: flex;
         align-items: baseline;
-        /* Tightened from 18px: at the larger footer type the two areas
-           ran past the card edge and clipped "LEIRIA"/"COVERAGE". */
-        margin: 0 12px;
+        margin: 0 14px;
     }
-
     .area-name {
-        font-size: 16px;
-        font-weight: 700;
-        color: #8b8e93;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
+        color: #A7B0BE;
         margin-right: 8px;
     }
-
     .area-value {
         font-size: 22px;
-        font-weight: 800;
-        color: #d8dadd;
+        line-height: 26px;
+        color: #F1F5FC;
         margin-right: 4px;
     }
-
-    /* Units spelled out per figure rather than a single row label:
-       "99% IV" would read as a perfect-IV pokemon -- the meaning "100%
-       IV" already carries elsewhere in the bot -- when it actually means
-       the share of spawns whose IV the scanner managed to read. */
+    /* Units spelled out per figure: "99% IV" would read as a perfect-IV
+       pokemon, when it means the share of spawns whose IV was read. */
     .area-unit {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
-        color: #6f7276;
+        color: #778190;
         text-transform: uppercase;
         letter-spacing: 0.6px;
         margin-right: 10px;
     }
-
-    .area-unit:last-child {
-        margin-right: 0;
-    }
+    .area-unit:last-child { margin-right: 0; }
 </style>
 </head>
 <body>
-    {% set total = good + cooldown + disabled %}
-    {% set total = total if total > 0 else 1 %}
-    {# Some accounts sitting in cooldown/disabled at any moment is normal
-       pool churn, not itself a problem -- only the device being down or
-       the *available* share running thin actually warrants warning/critical. #}
-    {% set status = 'critical' if (not device_status or good == 0) else ('warning' if (good / total) < 0.3 else 'ok') %}
     <div class="stage">
         <div class="card">
             <div class="status-bar status-{{ status }}"></div>
             <div class="card-inner">
                 <div class="header-row">
-                    <div class="title">Account Pool</div>
+                    <div class="title">Accounts</div>
+                    <div class="grand-total"><span class="figure">{{ grand_total }}</span><span class="unit">in total</span></div>
+                </div>
+
+                {% for pool in pools %}
+                <div class="pool-divider"></div>
+                <div class="pool-title">
+                    <div>
+                        <span class="pool-name">{{ pool.title }}</span>
+                        {%- if pool.device.names %}<span class="pool-device">{{ pool.device.names }}</span>{% endif %}
+                    </div>
                     <div class="device-pill">
-                        {% if device_status %}
-                            <div class="device-dot device-on"></div>
-                            {#- The green dot (and the card's left accent bar)
-                                already carry "online", so the pill spends its
-                                text on the worker count instead of repeating
-                                it. Falls back to the plain wording only for
-                                legacy Rotom, which reports no worker figures. -#}
-                            <div class="device-text on">
-                                {%- if workers and workers.total -%}
-                                    {{ workers.in_use }}/{{ workers.total }} Workers
-                                {%- else -%}
-                                    Device Online
-                                {%- endif -%}
-                            </div>
-                        {% else %}
-                            <div class="device-dot device-off"></div>
-                            <div class="device-text off">Device Offline</div>
-                        {% endif %}
+                        <div class="device-dot dot-{{ pool.device.state }}"></div>
+                        <div class="device-text text-{{ pool.device.state }}">{{ pool.device.text }}</div>
                     </div>
                 </div>
 
-                <div class="divider"></div>
-
-                <div class="stats-row">
+                {% if pool.accounts %}
+                <div class="pool-stats {{ 'hero' if pool.hero else 'plain' }}">
+                    {% for stat in pool.accounts.stats %}
                     <div class="stat">
-                        <div class="stat-label">Available</div>
-                        <div class="stat-value value-good">{{ good }}</div>
+                        <div class="stat-label">{{ stat.label }}</div>
+                        <div class="stat-value figure {{ 'value-' ~ stat.kind if stat.value else 'value-zero' }}{% if pool.hero and stat.kind == 'ready' %} big{% endif %}">{{ stat.value }}</div>
                     </div>
-                    <div class="stat-sep"></div>
-                    <div class="stat">
-                        <div class="stat-label">Cooldown</div>
-                        <div class="stat-value value-cooldown">{{ cooldown }}</div>
-                    </div>
-                    <div class="stat-sep"></div>
-                    <div class="stat">
-                        <div class="stat-label">Banned</div>
-                        <div class="stat-value value-banned">{{ disabled }}</div>
-                    </div>
+                    {% endfor %}
                 </div>
+                <div class="bar">
+                    {%- for seg in pool.accounts.segments -%}
+                    <div class="seg seg-{{ seg.kind }}{% if seg.last %} last{% endif %}" style="width: {{ seg.width }}px"></div>
+                    {%- endfor -%}
+                </div>
+                {% if pool.accounts.low %}
+                <div class="low">{{ pool.accounts.low }}</div>
+                {% endif %}
+                {% if pool.accounts.note %}
+                <div class="note">{{ pool.accounts.note }}</div>
+                {% endif %}
+                {% else %}
+                <div class="pool-unavailable">Account stats unavailable</div>
+                {% endif %}
+                {% endfor %}
 
                 {% if area_lines %}
                 <div class="area-divider"></div>
@@ -292,9 +354,9 @@
                     {% for line in area_lines %}
                     <div class="area-item">
                         <span class="area-name">{{ line.name }}</span>
-                        <span class="area-value">{{ line.spawns }}</span>
+                        <span class="area-value figure">{{ line.spawns }}</span>
                         <span class="area-unit">spawns/h</span>
-                        <span class="area-value">{{ line.rate }}%</span>
+                        <span class="area-value figure">{{ line.rate }}%</span>
                         <span class="area-unit">coverage</span>
                     </div>
                     {% endfor %}
