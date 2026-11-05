@@ -85,11 +85,10 @@ def database_examples(state):
     hook = load_script("scanner-db-shutdown")
     examples = []
     for label, failures in [
-        ("Bases de dados: ambas as atualizações concluídas", set()),
-        ("Bases de dados: uma atualização concluída e outra adiada", {"diadem-db"}),
+        ("Base de dados: atualização concluída", set()),
         (
-            "Bases de dados: atualizações adiadas por falha na cópia de segurança",
-            {"db", "diadem-db"},
+            "Base de dados: atualização adiada por falha na cópia de segurança",
+            {"db"},
         ),
     ]:
         with tempfile.TemporaryDirectory() as directory:
@@ -127,87 +126,6 @@ def database_examples(state):
                 hook.main()
             assert len(commands) == 1
             examples.append((label, host_payload(commands[0])))
-    return examples
-
-
-def diadem_examples():
-    source = Path("/usr/local/sbin/diadem-update").read_text()
-    # Execute ONLY message-formatting statements, never the updater itself.
-    capture = "import json,sys; print(json.dumps({'title':sys.argv[1],'description':sys.argv[2]},ensure_ascii=False))"
-    prefix = f'dm() {{ /usr/bin/python3 -c {shlex.quote(capture)} "$1" "$2"; }}\nlog() {{ :; }}\ngit() {{ echo "$PREVIEW_REV"; }}\n'
-    examples = []
-    revision = subprocess.check_output(
-        ["git", "rev-parse", "--short", "HEAD"], cwd="/opt/diadem", text=True
-    ).strip()
-    subjects = subprocess.check_output(
-        [
-            "git",
-            "log",
-            "-7",
-            "--format=• [%s](https://github.com/ccev/diadem/commit/%h)",
-            "origin/main",
-        ],
-        cwd="/opt/diadem",
-        text=True,
-    ).splitlines()
-    success = source[source.rindex('dm "✅ Mapa (Diadem) atualizado"') :]
-    plurals = re.search(r'alteracoes="alterações"\n[^\n]+', source).group()
-    extra = next(
-        line for line in source.splitlines() if line.startswith('[ "$behind" -gt 5 ]')
-    )
-    env = {
-        **os.environ,
-        "PREVIEW_REV": revision,
-        "REPO": "/opt/diadem",
-        "BRANCH": "pogoleiria",
-    }
-    for count in (1, 7):
-        result = subprocess.run(
-            ["bash", "-c", prefix + plurals + "\n" + extra + "\n" + success],
-            env={
-                **env,
-                "behind": str(count),
-                "subjects": "\n".join(subjects[: min(count, 5)]),
-            },
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        body = json.loads(result.stdout.splitlines()[-1])
-        examples.append(
-            (
-                f"Diadem: atualização com {count} "
-                + ("alteração" if count == 1 else "alterações"),
-                dm_owner.embed(body["description"], body["title"]),
-            )
-        )
-    failure = (
-        "fail() {\n"
-        + re.search(r"fail\(\) \{\n(.*?)\n\}", source, re.S).group(1)
-        + "\n}\n"
-    )
-    reasons = [
-        "pasta inexistente",
-        "ramo incorreto",
-        "alterações locais",
-        "conflito de integração",
-        "falha ao criar a imagem",
-        "reposição da versão anterior",
-    ]
-    calls = re.findall(r'\bfail ("[^\n]+")', source)
-    assert len(calls) == len(reasons)
-    for label, call in zip(reasons, calls):
-        result = subprocess.run(
-            ["bash", "-c", prefix + failure + "fail " + call],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 1
-        body = json.loads(result.stdout.splitlines()[-1])
-        examples.append(
-            ("Diadem: " + label, dm_owner.embed(body["description"], body["title"]))
-        )
     return examples
 
 
@@ -359,7 +277,6 @@ def main():
     samples = (
         update_examples(state)
         + database_examples(state)
-        + diadem_examples()
         + host_fallback_examples()
         + asyncio.run(bot_examples())
     )

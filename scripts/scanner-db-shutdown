@@ -19,7 +19,6 @@ STATE_DIR = Path("/var/lib/scanner-update")
 BACKUP_DIR = Path("/root/backups/scanner-database-updates")
 DATABASES = {
     "db": (Path("/root/unonwhash/docker-compose.yml"), "10.11"),
-    "diadem-db": (Path("/opt/diadem/docker-compose.yml"), "11.4"),
 }
 DM = "/root/Poliswag/scripts/dm_owner.py"
 
@@ -228,9 +227,9 @@ def notify(lines, errors):
                 DM,
                 "\n".join(lines),
                 (
-                    "⚠️ Não foi possível concluir a atualização das bases de dados"
+                    "⚠️ Não foi possível concluir a atualização da base de dados"
                     if errors
-                    else "✅ Bases de dados atualizadas"
+                    else "✅ Base de dados atualizada"
                 ),
             ],
             timeout=40,
@@ -306,7 +305,7 @@ def main():
             if errors:
                 lines += [
                     "",
-                    "**Não foi possível confirmar estas atualizações:**",
+                    "**Não foi possível confirmar esta atualização:**",
                     *["• " + error for error in errors],
                 ]
             notify(lines, errors)

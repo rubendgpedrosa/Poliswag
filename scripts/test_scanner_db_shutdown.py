@@ -206,8 +206,8 @@ class ShutdownTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 RuntimeError, "cópia de segurança ficou incompleta"
             ):
-                hook.backup("diadem-db")
-            self.assertEqual(list(self.state_dir.glob("diadem-db-*.sql.gz")), [])
+                hook.backup("db")
+            self.assertEqual(list(self.state_dir.glob("db-*.sql.gz")), [saved])
 
 
 if __name__ == "__main__":

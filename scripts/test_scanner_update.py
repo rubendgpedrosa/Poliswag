@@ -99,7 +99,7 @@ class StagingTests(unittest.TestCase):
         return result, operations
 
     def test_database_updates_are_downloaded_but_excluded_from_recovery(self):
-        for name in ("db", "diadem-db"):
+        for name in ("db",):
             with self.subTest(service=name):
                 result, operations = self.main_with_registry(
                     ["--notify"], service_name=name
