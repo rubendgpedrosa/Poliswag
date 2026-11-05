@@ -131,6 +131,15 @@ class Poliswag(commands.Bot):
             and not message.content.lstrip().startswith("!")
         ):
             hermes = self.get_cog("Hermes")
+            claude = self.get_cog("ClaudeChat")
+            # A follow-up without "c " while only Claude is working steers it.
+            if (
+                claude is not None
+                and claude.busy()
+                and not (hermes is not None and hermes.busy())
+                and await claude.handle(ctx, message.content, steer_only=True)
+            ):
+                return
             if hermes is not None:
                 await hermes.handle(ctx, message.content)
             return

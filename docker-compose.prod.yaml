@@ -28,6 +28,9 @@ services:
       # PoliSnatch submit key (host: `polisnatch-dist jobs-key` writes it).
       # Read per call, never put in the environment or a log line.
       - /etc/poliswag/secrets:/etc/poliswag/secrets:ro
+      # The site's own feature flags: SHINY_MAP_ENABLED there decides whether
+      # the prediction leaderboard may run at all. Read-only, small file.
+      - /root/PoGoLeiria/apps/landing:/etc/pogoleiria/landing:ro
     env_file:
       - .env
     networks:

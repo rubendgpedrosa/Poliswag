@@ -189,6 +189,36 @@ def with_spawns(alerts, spawns, name="Pikachu", seen_shiny=True):
     alerts.store.recipients.return_value = [recipient()]
 
 
+class TestAlertsSwitch:
+    async def test_off_keeps_the_watermark_moving_and_delivers_nothing(
+        self, alerts, mocker
+    ):
+        mocker.patch.object(Config, "SHINY_ALERTS_ENABLED", False)
+        mocker.patch("modules.shiny_alerts.time.time", return_value=1791628000)
+        with_spawns(alerts, [spawn()])
+        alerts.store.unannounced.return_value = [
+            {
+                "discord_id": OWNER,
+                "status": "linked",
+                "trainer_name": "Faynn",
+                "fail_reason": None,
+            }
+        ]
+        await alerts.tick()
+        # Channels and the settings conversations carry on; only delivery stops.
+        alerts.channels.tick.assert_awaited_once()
+        alerts.user.send.assert_not_awaited()
+        alerts.store.mark_announced.assert_not_awaited()
+        alerts.store.record_alert.assert_not_awaited()
+        alerts.poliswag.poracle.test_pokemon.assert_not_awaited()
+        alerts.store.set_watermark.assert_awaited_once_with(1791628000)
+
+    async def test_on_delivers_as_before(self, alerts):
+        with_spawns(alerts, [spawn()])
+        await alerts.tick()
+        alerts.user.send.assert_awaited_once()
+
+
 class TestAlertEmbed:
     def test_says_what_where_and_until_when(self):
         embed = shiny_alerts.alert_embed(spawn(), "Pikachu", seen_shiny=True)

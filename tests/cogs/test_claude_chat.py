@@ -77,3 +77,34 @@ async def test_claude_uses_its_own_bridge_and_labels(cogs):
     assert claude.client.runs_dir == "/tmp/poliswag-test/claude-runs"
     assert hermes.client.runs_dir != claude.client.runs_dir
     assert RunProgress(name=claude.NAME).embed().title == "⚙️ Claude a trabalhar"
+
+
+def _claude_running(claude):
+    from cogs.hermes import StatusMessage
+
+    status = StatusMessage(claude, context(dm=True), RunProgress(name="Claude"))
+    status.progress.run_id = "run-2"
+    status.progress.status = "running"
+    claude.live.add(status)
+    claude.client.active_run = "run-2"
+    claude.client.steer = AsyncMock(return_value=True)
+    return status
+
+
+async def test_unprefixed_follow_up_steers_a_running_claude_turn(cogs):
+    hermes, claude = cogs
+    status = _claude_running(claude)
+    await route(cogs, "afinal usa o CT 109")
+    claude.client.steer.assert_awaited_once_with("run-2", "afinal usa o CT 109")
+    assert status.progress.steered == 1
+    hermes.client.reply.assert_not_awaited()
+    claude.client.reply.assert_not_awaited()
+
+
+async def test_follow_up_goes_to_hermes_when_claude_steer_is_refused(cogs):
+    hermes, claude = cogs
+    _claude_running(claude)
+    claude.client.steer = AsyncMock(return_value=False)
+    await route(cogs, "outra coisa")
+    hermes.client.reply.assert_awaited_once()
+    claude.client.reply.assert_not_awaited()

@@ -50,7 +50,7 @@ and legacy agent jobs keep their existing boundaries.
 One FIFO active turn and at most five waiting turns serialize the owner's
 conversation. Cancellation frees queue capacity. Missing configuration,
 malformed output and transport failures get generic PT-PT replies without
-exception details or a fallback to another agent. Each message receives an immediate 👀 (progress feedback is described above); the response returns to that origin with mentions disabled,
+exception details or a fallback to another agent. Owner DM messages get no reactions (2026-11-01); the live card described below is the first reply. The response returns to that origin with mentions disabled,
 grouping related paragraphs into messages up to Discord's 2000-character limit.
 All replies stay in chat: no automatic text/code attachments. Splits preserve prose
 and keep short fenced blocks intact; oversized technical blocks are split at line
@@ -77,19 +77,28 @@ While a turn runs, `HermesClient` also reads `GET /v1/runs/<run-id>/events`
 (SSE, resumed with `Last-Event-ID`, best effort) and reports status changes from
 polling; polling stays authoritative for approvals and the result, and a broken
 stream or display error never affects the run. The cog keeps the DM typing
-indicator on and, if the turn lasts over three seconds, replies with one live
-status embed edited every four seconds: elapsed time, the last five tool calls
+indicator on and immediately replies with one live status embed (first line
+📝 = the request, credential-filtered), edited every four seconds: elapsed time, the last five tool calls
 (✓/✗ with duration), the current tool with a short preview, and Hermes' latest
 commentary. Previews and commentary pass the same credential filter as approval
-cards. On completion the embed collapses to a summary (tool count, time, errors)
-and the origin message gets ✅, ⚠️ (partial) or ❌ after 👀.
+cards. On completion the embed collapses to a summary (request, tool count, time,
+errors); the answer follows as a reply. Discord does not let a bot delete a user's
+messages in a DM, so the owner's messages stay.
+
+**Follow-ups steer (2026-11-01).** A new owner DM sent while that agent's turn is
+running is sent straight to `POST /v1/runs/<id>/steer` (`Hermes.steer_active`,
+waiting up to 15 s for a just-started turn to be admitted) and shows on the running
+card as 💬 guidance; no new card or turn. If the run refuses it (already finished),
+it becomes a normal new turn. `+ texto` forces a separate task. An unprefixed DM
+while only Claude is busy steers Claude (`main.py`, `handle(..., steer_only=True)`)
+and falls back to Hermes if Claude refuses it.
 
 The embed carries owner-only buttons (same identity/DM checks as approvals):
 **Parar** calls `POST /v1/runs/<id>/stop`; **Redirecionar** opens a modal whose
 text goes to `POST /v1/runs/<id>/steer` for the running agent. A turn queued
 behind another shows **Na fila** with **Enviar à tarefa atual**: the queued
 request leaves the local queue (only while still queued, never after admission)
-and is sent as steer guidance to the active run instead (💬 reaction); if the run
+and is sent as steer guidance to the active run instead; if the run
 refuses it, the request rejoins the queue as a normal turn. When accepted, the queued request's own card is
 deleted and the active turn's card shows the text as 💬 guidance; steers are counted once even
 when the run also emits `run.steered`.
