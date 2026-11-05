@@ -9,6 +9,7 @@ import discord
 
 from modules.config import Config
 from modules.database_connector import connect
+from modules import scan_areas
 
 PREFIX = "shiny-access:"
 BUTTON = re.compile(r"^shiny-access:(accept|reject):(\d{1,20}):(\d{20})$")
@@ -203,12 +204,16 @@ def decide_request(discord_id, stamp, accept):
                     raise ValueError(
                         "O jogador precisa de guardar um Código de amizade válido."
                     )
-                areas = [
+                active = scan_areas.active_keys()
+                chosen = {
                     area
-                    for area in ("leiria", "marinha")
-                    if area in str(player["shiny_areas"] or "").split(",")
-                ] or ["leiria"]
-                leiria, marinha = int("leiria" in areas), int("marinha" in areas)
+                    for area in str(player["shiny_areas"] or "").split(",")
+                    if area in active
+                }
+                areas = [key for key in active if key in chosen] or active[:1]
+                alert_areas = ",".join(areas)
+                flags = scan_areas.legacy_flags(areas)
+                leiria, marinha = flags["leiria"], flags["marinha"]
                 cursor.execute(
                     "UPDATE trade_player SET collecting = CASE "
                     "WHEN FIND_IN_SET('shiny', collecting) = 0 THEN "
@@ -217,30 +222,34 @@ def decide_request(discord_id, stamp, accept):
                     "shiny_relink = 0, shiny_areas = %s, "
                     "shiny_settings_revision = shiny_settings_revision + 1 "
                     "WHERE discord_id = %s",
-                    (",".join(areas), discord_id),
+                    (alert_areas, discord_id),
                 )
                 cursor.execute(
-                    f"UPDATE {links} SET alert_leiria = %s, alert_marinha = %s "
+                    f"UPDATE {links} SET alert_areas = %s, "
+                    "alert_leiria = %s, alert_marinha = %s "
                     "WHERE discord_id = %s",
-                    (leiria, marinha, discord_id),
+                    (alert_areas, leiria, marinha, discord_id),
                 )
                 if code and (
                     player["shiny_relink"] or not link or link["status"] == "failed"
                 ):
                     cursor.execute(
                         f"INSERT INTO {links} (discord_id, discord_name, friend_code, "
-                        "status, requested_at, alert_leiria, alert_marinha) "
-                        "VALUES (%s, %s, %s, 'pending', UTC_TIMESTAMP(), %s, %s) "
+                        "status, requested_at, alert_areas, alert_leiria, alert_marinha) "
+                        "VALUES (%s, %s, %s, 'pending', UTC_TIMESTAMP(), %s, %s, %s) "
                         "ON DUPLICATE KEY UPDATE discord_name = VALUES(discord_name), "
                         "friend_code = VALUES(friend_code), status = 'pending', "
                         "trainer_name = NULL, player_id = NULL, fail_reason = NULL, "
                         "attempts = 0, requested_at = UTC_TIMESTAMP(), resolved_at = NULL, "
                         "announced_at = NULL, link_processing_at = NULL, "
-                        "alert_leiria = VALUES(alert_leiria), alert_marinha = VALUES(alert_marinha)",
+                        "alert_areas = VALUES(alert_areas), "
+                        "alert_leiria = VALUES(alert_leiria), "
+                        "alert_marinha = VALUES(alert_marinha)",
                         (
                             discord_id,
                             str(player["username"])[:64],
                             code,
+                            alert_areas,
                             leiria,
                             marinha,
                         ),

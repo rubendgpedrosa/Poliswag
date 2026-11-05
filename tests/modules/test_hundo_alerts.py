@@ -303,6 +303,48 @@ def test_setting_code_is_zero_off_then_zone_bits(dms, areas, code):
     assert hundo_alerts.setting_code(dms, areas) == code
 
 
+def test_setting_code_keeps_old_values_and_adds_a_bit_per_new_area():
+    # The five registry rows, all active: bits follow sort_order exactly.
+    from modules import scan_areas
+
+    rows = [
+        {
+            "area_key": key,
+            "label": label,
+            "dragonite_area": dragonite,
+            "poracle_area": poracle,
+            "alert_role": f"Alertas{key.title()}",
+            "sort_order": order,
+            "active": 1,
+        }
+        for order, (key, label, dragonite, poracle) in enumerate(
+            [
+                ("leiria", "Leiria", "Leiria", "leiria"),
+                ("marinha", "Marinha Grande", "MarinhaGrande", "marinhagrande"),
+                ("batalha", "Batalha", "Batalha", "batalha"),
+                ("portodemos", "Porto de Mós", "PortoDeMos", "portodemos"),
+                ("moita", "Moita", "Moita", "moita"),
+            ],
+            start=1,
+        )
+    ]
+    scan_areas.install(rows, {})
+    # Stored codes 1, 2 and 3 keep their meaning.
+    assert hundo_alerts.setting_code(1, "leiria") == 1
+    assert hundo_alerts.setting_code(1, "marinha") == 2
+    assert hundo_alerts.setting_code(1, "leiria,marinha") == 3
+    assert hundo_alerts.setting_code(0, "leiria,marinha") == 0
+    # New areas get their own bits; empty still means every active area.
+    assert hundo_alerts.setting_code(1, "batalha") == 4
+    assert hundo_alerts.setting_code(1, "portodemos") == 8
+    assert hundo_alerts.setting_code(1, "moita") == 16
+    assert hundo_alerts.setting_code(1, "batalha,moita") == 20
+    assert hundo_alerts.setting_code(1, "") == 31
+    # Reading a code back keeps registry order.
+    assert hundo_alerts._code_keys(19) == ["leiria", "marinha", "moita"]
+    assert json.loads(hundo_alerts.areas_json("portodemos")) == ["portodemos"]
+
+
 def settled(**patch):
     # Confirmed Leiria at revision 1, then changed and changed back: revision 3.
     return player(
@@ -712,7 +754,7 @@ def test_cleanup_uses_its_own_transaction(monkeypatch):
     db, cursor = connection(rowcount=3)
     monkeypatch.setattr(hundo_alerts, "connect", MagicMock(return_value=db))
     assert HundoAlerts(MagicMock())._cleanup()
-    cursor.execute.assert_called_once_with(hundo_alerts._CLEANUP_SQL, (TEMPLATE,))
+    cursor.execute.assert_called_once_with(hundo_alerts._CLEANUP_SQL, (TEMPLATE, 3))
     db.commit.assert_called_once()
     db.rollback.assert_not_called()
 

@@ -72,7 +72,7 @@ async def test_recipients_are_linked_players_with_a_channel_or_on_the_list(store
         "l.channel_archived = 0" in sql
         and "l.channel_intro_message_id IS NOT NULL" in sql
     )
-    assert "alert_leiria" in sql and "alert_marinha" in sql
+    assert "alert_areas" in sql
     # Which predicted shinies each player is told about (their Pokédex settings).
     assert "p.shiny_notify_all" in sql and "p.shiny_notify_hundo" in sql
     assert "discord_name" in sql  # Poracle wants a name for its target

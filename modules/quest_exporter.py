@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from modules.config import Config
+from modules import scan_areas
 
 _LISBON = ZoneInfo("Europe/Lisbon")
 
@@ -78,6 +79,7 @@ class QuestExporter:
         content was unchanged and the write was skipped.
         """
         qs = self.poliswag.quest_search
+        await scan_areas.ensure()
 
         translations = (qs.translationfile_data or {}).get("data", {})
         masterfile = qs.masterfile_data or {}
@@ -173,7 +175,7 @@ class QuestExporter:
                         "lat": float(row["lat"]),
                         "lng": float(row["lon"]),
                     },
-                    "zone": self._get_zone(row["lon"]),
+                    "zone": self._get_zone(row["lat"], row["lon"]),
                     "done": False,
                 }
                 if row.get("url"):
@@ -307,8 +309,9 @@ class QuestExporter:
         return translated.replace("{0}", str(target or ""))
 
     @staticmethod
-    def _get_zone(lon) -> str:
-        return "marinha" if float(lon) <= Config.MARINHA_LON_MAX else "leiria"
+    def _get_zone(lat, lon) -> str | None:
+        """The registry area the stop is in; None when no active fence holds it."""
+        return scan_areas.area_for(lat, lon)
 
     @staticmethod
     def _categorize(title: str) -> str:

@@ -47,51 +47,51 @@ class TestGetStatusMessage:
         # is a display choice only: rename_voice_channels keeps this out of
         # all_red so a data outage never triggers the recovery ladder (see
         # TestRenameVoiceChannels.test_dragonite_unreachable_renders_as_cross).
-        assert scanner_status.get_status_message(None, 0, 7, 1) == "STATUS: ❌"
-        assert scanner_status.get_status_message(0, None, 7, 1) == "STATUS: ❌"
-        assert scanner_status.get_status_message(0, 0, None, 1) == "STATUS: ❌"
-        assert scanner_status.get_status_message(0, 0, 7, None) == "STATUS: ❌"
-        assert scanner_status.get_status_message(None, None, None, None) == "STATUS: ❌"
+        assert scanner_status.get_status_message(None, 8) == "STATUS: ❌"
+        assert scanner_status.get_status_message(None, 8) == "STATUS: ❌"
+        assert scanner_status.get_status_message(0, None) == "STATUS: ❌"
+        assert scanner_status.get_status_message(0, None) == "STATUS: ❌"
+        assert scanner_status.get_status_message(None, None) == "STATUS: ❌"
 
     def test_zero_down_is_green(self, scanner_status):
-        assert scanner_status.get_status_message(0, 0, 7, 1) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(0, 8) == "STATUS: 🟢"
 
     def test_partially_down_is_still_green(self, scanner_status):
         # A thinned account pool still scans the map, so it stays 🟢 — the
         # whole point of dropping the 🟡/🟠 tiers is that these swings no
         # longer rename the status channel.
-        assert scanner_status.get_status_message(1, 0, 7, 1) == "STATUS: 🟢"
-        assert scanner_status.get_status_message(3, 1, 7, 1) == "STATUS: 🟢"
-        assert scanner_status.get_status_message(6, 1, 7, 1) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(1, 8) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(4, 8) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(7, 8) == "STATUS: 🟢"
 
     def test_only_last_area_alive_is_still_green(self, scanner_status):
         # Every Leiria worker down but Marinha still scanning → 🟢.
-        assert scanner_status.get_status_message(7, 0, 7, 1) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(7, 8) == "STATUS: 🟢"
 
     def test_all_down_is_red(self, scanner_status):
         # 8/8 down — nothing is scanning anywhere → 🔴
-        assert scanner_status.get_status_message(7, 1, 7, 1) == "STATUS: 🔴"
+        assert scanner_status.get_status_message(8, 8) == "STATUS: 🔴"
 
     def test_more_than_expected_is_still_red(self, scanner_status):
         # 11/8 — the down count can overshoot expected; still red, no overflow
-        assert scanner_status.get_status_message(9, 2, 7, 1) == "STATUS: 🔴"
+        assert scanner_status.get_status_message(11, 8) == "STATUS: 🔴"
 
     def test_zero_expected_workers_is_green(self, scanner_status):
         # Nothing expected means nothing is down — never report red off a
         # 0/0 reading (that would hand StackRecovery a false red episode).
-        assert scanner_status.get_status_message(0, 0, 0, 0) == "STATUS: 🟢"
+        assert scanner_status.get_status_message(0, 0) == "STATUS: 🟢"
 
     # --- device_connected: splits the red state into 🔴 (accounts) / ❌ (device) ---
 
     def test_red_with_device_down_becomes_cross(self, scanner_status):
         assert (
-            scanner_status.get_status_message(7, 1, 7, 1, device_connected=False)
+            scanner_status.get_status_message(8, 8, device_connected=False)
             == "STATUS: ❌"
         )
 
     def test_red_with_device_up_stays_red(self, scanner_status):
         assert (
-            scanner_status.get_status_message(7, 1, 7, 1, device_connected=True)
+            scanner_status.get_status_message(8, 8, device_connected=True)
             == "STATUS: 🔴"
         )
 
@@ -100,11 +100,11 @@ class TestGetStatusMessage:
         # never turns into ❌ just because the device flag happens to read
         # False (in practice rename_voice_channels doesn't even look it up).
         assert (
-            scanner_status.get_status_message(0, 0, 7, 1, device_connected=False)
+            scanner_status.get_status_message(0, 8, device_connected=False)
             == "STATUS: 🟢"
         )
         assert (
-            scanner_status.get_status_message(1, 0, 7, 1, device_connected=False)
+            scanner_status.get_status_message(1, 8, device_connected=False)
             == "STATUS: 🟢"
         )
 
@@ -115,11 +115,11 @@ class TestGetStatusMessage:
         # consulted — there's no percentage to compute, so device_connected
         # is irrelevant here (unlike the real-red case above).
         assert (
-            scanner_status.get_status_message(None, 0, 7, 1, device_connected=False)
+            scanner_status.get_status_message(None, 8, device_connected=False)
             == "STATUS: ❌"
         )
         assert (
-            scanner_status.get_status_message(None, 0, 7, 1, device_connected=True)
+            scanner_status.get_status_message(None, 8, device_connected=True)
             == "STATUS: ❌"
         )
 
@@ -175,18 +175,28 @@ def _area(name, workers, expected_workers=None):
     return {"name": name, "worker_managers": [manager]}
 
 
-_NO_WORKER_DATA = {
-    "downDevicesLeiria": None,
-    "downDevicesMarinha": None,
-    "expectedWorkersLeiria": None,
-    "expectedWorkersMarinha": None,
-}
+def _workers(leiria=(None, None), marinha=(None, None)):
+    """get_workers_with_issues()'s shape: per-area pairs plus the totals.
+
+    Totals are None when either active area is missing from Dragonite's
+    answer, so the combined indicator can refuse to guess.
+    """
+    (ld, le), (md, me) = leiria, marinha
+    return {
+        "downDevices": {"leiria": ld, "marinha": md},
+        "expectedWorkers": {"leiria": le, "marinha": me},
+        "downDevicesTotal": None if ld is None or md is None else ld + md,
+        "expectedWorkersTotal": None if le is None or me is None else le + me,
+    }
+
+
+_NO_WORKER_DATA = _workers()
 
 
 class TestGetWorkersWithIssues:
-    """Parses the scanner_status HTTP payload into per-region down counters
-    and the expected_workers Dragonite reported alongside them (the live
-    source of truth rename_voice_channels uses instead of a hardcoded total).
+    """Parses the scanner_status HTTP payload into per-area down counters and
+    the expected_workers Dragonite reported alongside them. Only the
+    registry's active dragonite_area names count; anything else is ignored.
     """
 
     async def test_none_response_returns_none_counters(self, scanner_status, mocker):
@@ -207,21 +217,12 @@ class TestGetWorkersWithIssues:
         now = time.time()
         _make_fetch_mock(
             mocker,
-            {
-                "areas": [
-                    _area(
-                        "LeiriaBigger",
-                        [_worker(now) for _ in range(7)],
-                    )
-                ]
-            },
+            {"areas": [_area("Leiria", [_worker(now) for _ in range(7)])]},
         )
         result = await scanner_status.get_workers_with_issues()
-        # 7 expected (fallback default, no override in payload), 7 up → 0 down
-        assert result["downDevicesLeiria"] == 0
-        assert result["expectedWorkersLeiria"] == 7
-        assert result["downDevicesMarinha"] is None
-        assert result["expectedWorkersMarinha"] is None
+        # 7 expected (the response omits the field, so the listed workers are
+        # the expectation), 7 up → 0 down; Marinha is missing → totals None.
+        assert result == _workers(leiria=(0, 7))
 
     async def test_all_leiria_workers_stale_counts_all_down(
         self, scanner_status, mocker
@@ -229,18 +230,11 @@ class TestGetWorkersWithIssues:
         stale = time.time() - 10_000  # way past the 600s freshness window
         _make_fetch_mock(
             mocker,
-            {
-                "areas": [
-                    _area(
-                        "LeiriaBigger",
-                        [_worker(stale) for _ in range(7)],
-                    )
-                ]
-            },
+            {"areas": [_area("Leiria", [_worker(stale) for _ in range(7)])]},
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result["downDevicesLeiria"] == 7
-        assert result["expectedWorkersLeiria"] == 7
+        assert result["downDevices"]["leiria"] == 7
+        assert result["expectedWorkers"]["leiria"] == 7
 
     async def test_leiria_partial_down_count(self, scanner_status, mocker):
         now = time.time()
@@ -250,7 +244,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(5)]
                         + [_worker(stale) for _ in range(2)],
                     )
@@ -259,8 +253,8 @@ class TestGetWorkersWithIssues:
         )
         result = await scanner_status.get_workers_with_issues()
         # 7 expected, 5 up → 2 down
-        assert result["downDevicesLeiria"] == 2
-        assert result["expectedWorkersLeiria"] == 7
+        assert result["downDevices"]["leiria"] == 2
+        assert result["expectedWorkers"]["leiria"] == 7
 
     async def test_worker_with_wrong_connection_status_counted_as_down(
         self, scanner_status, mocker
@@ -271,7 +265,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now, connection_status="Idle")]
                         + [
                             _worker(now, connection_status="Executing Worker")
@@ -282,8 +276,8 @@ class TestGetWorkersWithIssues:
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        # 6 executing + 1 idle → 1 down
-        assert result["downDevicesLeiria"] == 1
+        # 7 listed workers, 6 executing + 1 idle → 1 down
+        assert result["downDevices"]["leiria"] == 1
 
     async def test_worker_with_no_last_data_counted_as_down(
         self, scanner_status, mocker
@@ -294,24 +288,23 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(None)] + [_worker(now) for _ in range(6)],
                     )
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result["downDevicesLeiria"] == 1
+        assert result["downDevices"]["leiria"] == 1
 
     async def test_expected_workers_override_from_payload(self, scanner_status, mocker):
         now = time.time()
-        # Override says 6 expected even though the fallback default is 7
         _make_fetch_mock(
             mocker,
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(4)],
                         expected_workers=6,
                     )
@@ -320,68 +313,18 @@ class TestGetWorkersWithIssues:
         )
         result = await scanner_status.get_workers_with_issues()
         # 6 expected, 4 up → 2 down
-        assert result["downDevicesLeiria"] == 2
-        assert result["expectedWorkersLeiria"] == 6
+        assert result["downDevices"]["leiria"] == 2
+        assert result["expectedWorkers"]["leiria"] == 6
 
     async def test_down_counter_never_negative(self, scanner_status, mocker):
         now = time.time()
         # More up workers than the area expects — down should clamp to 0
         _make_fetch_mock(
             mocker,
-            {
-                "areas": [
-                    _area(
-                        "LeiriaBigger",
-                        [_worker(now) for _ in range(10)],
-                    )
-                ]
-            },
+            {"areas": [_area("Leiria", [_worker(now) for _ in range(10)])]},
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result["downDevicesLeiria"] == 0
-
-    async def test_every_non_marinha_area_counts_as_leiria(
-        self, scanner_status, mocker
-    ):
-        # Regression: on 2026-09-28 Dragonite's Leiria area was named "Leiria"
-        # (14 workers) next to an empty "LeiriaBigger" (expected 0). Only
-        # LeiriaBigger was read, so Marinha's 2 workers dropping looked like a
-        # fully red map while Leiria was scanning, and recovery restarted it.
-        now = time.time()
-        stale = now - 10_000
-        _make_fetch_mock(
-            mocker,
-            {
-                "areas": [
-                    _area("Leiria", [_worker(now) for _ in range(14)], 14),
-                    _area("LeiriaBigger", [], 0),
-                    _area("MarinhaGrande", [_worker(stale), _worker(stale)], 2),
-                ]
-            },
-        )
-        result = await scanner_status.get_workers_with_issues()
-        assert result == {
-            "downDevicesLeiria": 0,
-            "downDevicesMarinha": 2,
-            "expectedWorkersLeiria": 14,
-            "expectedWorkersMarinha": 2,
-        }
-
-    async def test_marinha_workers_parsed_separately(self, scanner_status, mocker):
-        now = time.time()
-        _make_fetch_mock(
-            mocker,
-            {
-                "areas": [
-                    _area("MarinhaGrande", [_worker(now)]),
-                ]
-            },
-        )
-        result = await scanner_status.get_workers_with_issues()
-        assert result["downDevicesMarinha"] == 0
-        assert result["expectedWorkersMarinha"] == 1
-        assert result["downDevicesLeiria"] is None
-        assert result["expectedWorkersLeiria"] is None
+        assert result["downDevices"]["leiria"] == 0
 
     async def test_both_areas_populated(self, scanner_status, mocker):
         now = time.time()
@@ -391,7 +334,7 @@ class TestGetWorkersWithIssues:
             {
                 "areas": [
                     _area(
-                        "LeiriaBigger",
+                        "Leiria",
                         [_worker(now) for _ in range(5)]
                         + [_worker(stale) for _ in range(2)],
                     ),
@@ -400,16 +343,29 @@ class TestGetWorkersWithIssues:
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        assert result == {
-            "downDevicesLeiria": 2,
-            "downDevicesMarinha": 1,
-            "expectedWorkersLeiria": 7,
-            "expectedWorkersMarinha": 1,
-        }
+        assert result == _workers(leiria=(2, 7), marinha=(1, 1))
+
+    async def test_area_missing_from_response_makes_totals_unknown(
+        self, scanner_status, mocker
+    ):
+        now = time.time()
+        _make_fetch_mock(
+            mocker,
+            {"areas": [_area("MarinhaGrande", [_worker(now)])]},
+        )
+        result = await scanner_status.get_workers_with_issues()
+        assert result == _workers(marinha=(0, 1))
+
+    async def test_area_name_match_is_case_insensitive(self, scanner_status, mocker):
+        now = time.time()
+        _make_fetch_mock(
+            mocker,
+            {"areas": [_area("leiria", [_worker(now)])]},
+        )
+        result = await scanner_status.get_workers_with_issues()
+        assert result["downDevices"]["leiria"] == 0
 
     async def test_unknown_area_with_workers_is_skipped(self, scanner_status, mocker):
-        # Regression: previously crashed with TypeError because expectedWorkers
-        # was None for unknown area names. Now the area is skipped entirely.
         now = time.time()
         _make_fetch_mock(
             mocker,
@@ -419,45 +375,14 @@ class TestGetWorkersWithIssues:
                         "name": "UnknownArea",
                         "worker_managers": [{"workers": [_worker(now)]}],
                     },
-                    _area("LeiriaBigger", [_worker(now) for _ in range(7)]),
+                    _area("Leiria", [_worker(now) for _ in range(7)]),
                 ]
             },
         )
         result = await scanner_status.get_workers_with_issues()
-        # Unknown area contributes nothing; Leiria is parsed normally.
-        assert result == {
-            "downDevicesLeiria": 0,
-            "downDevicesMarinha": None,
-            "expectedWorkersLeiria": 7,
-            "expectedWorkersMarinha": None,
-        }
-
-    async def test_renamed_area_with_expected_workers_counts_as_leiria(
-        self, scanner_status, mocker
-    ):
-        # An area Poliswag has never heard of is still scanned by the same
-        # phone, so it counts. Ignoring it is what hid Leiria (renamed from
-        # LeiriaBigger) and turned a Marinha-only outage into "fully red".
-        now = time.time()
-        _make_fetch_mock(
-            mocker,
-            {
-                "areas": [
-                    _area(
-                        "UnknownArea",
-                        [_worker(now)],
-                        expected_workers=3,
-                    )
-                ]
-            },
-        )
-        result = await scanner_status.get_workers_with_issues()
-        assert result == {
-            "downDevicesLeiria": 2,
-            "downDevicesMarinha": None,
-            "expectedWorkersLeiria": 3,
-            "expectedWorkersMarinha": None,
-        }
+        # The registry is the source of truth: an area it does not name is
+        # never summed into another area's counters.
+        assert result == _workers(leiria=(0, 7))
 
 
 class TestGetFullStatusDevices:
@@ -784,7 +709,7 @@ class TestGetIvVerificationStats:
         call_args = (
             scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
         )
-        assert call_args.kwargs["params"] == (30 * 60,)
+        assert call_args.kwargs["params"] == (30 * 60, "Leiria", "MarinhaGrande")
 
     async def test_queries_correct_table_and_areas(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
@@ -795,8 +720,7 @@ class TestGetIvVerificationStats:
             0
         ]
         assert "pokemon_area_stats" in sql
-        assert "Leiria" in sql
-        assert "MarinhaGrande" in sql
+        assert "area IN (%s, %s)" in sql
 
 
 class TestGetIvVerificationByArea:
@@ -836,7 +760,7 @@ class TestGetIvVerificationByArea:
         call_args = (
             scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
         )
-        assert call_args.kwargs["params"] == (30 * 60,)
+        assert call_args.kwargs["params"] == (30 * 60, "Leiria", "MarinhaGrande")
 
     async def test_defaults_to_one_hour_window(self, scanner_status):
         # The account card labels this figure "spawns/h" -- the default
@@ -846,7 +770,7 @@ class TestGetIvVerificationByArea:
         call_args = (
             scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
         )
-        assert call_args.kwargs["params"] == (60 * 60,)
+        assert call_args.kwargs["params"] == (60 * 60, "Leiria", "MarinhaGrande")
 
     async def test_queries_correct_table_and_groups_by_area(self, scanner_status):
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
@@ -856,8 +780,7 @@ class TestGetIvVerificationByArea:
         ]
         assert "pokemon_area_stats" in sql
         assert "GROUP BY area" in sql
-        assert "Leiria" in sql
-        assert "MarinhaGrande" in sql
+        assert "area IN (%s, %s)" in sql
 
 
 class TestTriggerAllDownAction:
@@ -987,12 +910,10 @@ class TestMapRestored:
 
 def _ws(leiria_down, marinha_down, leiria_expected=7, marinha_expected=1):
     """Build a get_workers_with_issues()-shaped dict for rename_voice_channels."""
-    return {
-        "downDevicesLeiria": leiria_down,
-        "downDevicesMarinha": marinha_down,
-        "expectedWorkersLeiria": leiria_expected,
-        "expectedWorkersMarinha": marinha_expected,
-    }
+    return _workers(
+        leiria=(leiria_down, leiria_expected),
+        marinha=(marinha_down, marinha_expected),
+    )
 
 
 class TestRenameVoiceChannels:
@@ -1263,7 +1184,7 @@ def _poliswag_db_handler(*, scanning_ongoing=False, expected=(371, 109)):
     def _handler(sql, *args, **kwargs):
         if "scanned = 1" in sql:
             return [{"scanned": 1}] if scanning_ongoing else []
-        if "quest_expected" in sql:
+        if "FROM poliswag" in sql:
             return [
                 {
                     "quest_expected_leiria": expected[0],
@@ -1381,11 +1302,12 @@ class TestIsQuestScanningComplete:
         )
 
     async def _tick(self, scanner_status, leiria, marinha):
-        """One minute-check with the given per-area live quest counts."""
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
-            [{"scanned": leiria}],
-            [{"scanned": marinha}],
-        ]
+        """One minute-check with the given per-area live quest counts.
+
+        The geometry itself is covered by test_scan_areas; here the counts
+        are injected straight into the plateau detector.
+        """
+        scanner_status._count_valid_quests = AsyncMock(side_effect=[leiria, marinha])
         return await scanner_status.is_quest_scanning_complete()
 
     async def _tick_until_plateau(self, scanner_status, leiria, marinha):
@@ -1399,7 +1321,7 @@ class TestIsQuestScanningComplete:
         return before, after
 
     def _complete(self, result):
-        return bool(result and result["leiriaCompleted"] and result["marinhaCompleted"])
+        return bool(result and result["completed"])
 
     # --- early-exit guards -------------------------------------------------
 
@@ -1439,13 +1361,10 @@ class TestIsQuestScanningComplete:
     async def test_returns_none_when_count_valid_quests_yields_no_row(
         self, scanner_status, mocker
     ):
-        # An empty result set from the SUM query means _count_valid_quests
-        # returns None, which short-circuits the whole check.
+        # An area without a usable fence makes _count_valid_quests return
+        # None, which short-circuits the whole check.
         self._prime(scanner_status, mocker)
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = [
-            [],
-            [{"scanned": 109}],
-        ]
+        scanner_status._count_valid_quests = AsyncMock(return_value=None)
         assert await scanner_status.is_quest_scanning_complete() is None
 
     # --- plateau behaviour -------------------------------------------------
@@ -1457,8 +1376,8 @@ class TestIsQuestScanningComplete:
         before, after = await self._tick_until_plateau(scanner_status, 100, 50)
         assert self._complete(before) is False  # still inside the window
         assert self._complete(after) is True
-        assert after["leiriaPercentage"] == 100
-        assert after["marinhaScanned"] == 50
+        assert after["areas"]["leiria"]["percentage"] == 100
+        assert after["areas"]["marinha"]["scanned"] == 50
 
     async def test_never_completes_while_count_is_zero(self, scanner_status, mocker):
         self._prime(scanner_status, mocker, expected=(100, 50))
@@ -1470,7 +1389,7 @@ class TestIsQuestScanningComplete:
         self._prime(scanner_status, mocker, expected=(100, 50))
         _, after = await self._tick_until_plateau(scanner_status, 80, 48)
         assert self._complete(after) is False
-        assert after["leiriaCompleted"] is False
+        assert after["areas"]["leiria"]["completed"] is False
 
     async def test_not_complete_until_both_areas_plateau(self, scanner_status, mocker):
         self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
@@ -1517,8 +1436,8 @@ class TestIsQuestScanningComplete:
     async def test_new_stops_cap_percentage_at_100(self, scanner_status, mocker):
         self._prime(scanner_status, mocker, expected=(100, 50))
         result = await self._tick(scanner_status, 110, 55)
-        assert result["leiriaPercentage"] == 100
-        assert result["marinhaPercentage"] == 100
+        assert result["areas"]["leiria"]["percentage"] == 100
+        assert result["areas"]["marinha"]["percentage"] == 100
 
     # --- scanner-health gate ----------------------------------------------
 
@@ -1579,16 +1498,17 @@ class TestQuestPlateauHelpers:
         assert await scanner_status._is_scanner_alive() is False
 
     async def test_count_valid_quests_coerces_decimal_to_int(self, scanner_status):
-        # MariaDB SUM(CASE ...) returns a decimal.Decimal; if it leaks through,
-        # _coverage_pct yields a Decimal that crashes _build_progress_embed's
-        # Decimal + float math. Counts must come back as plain ints.
+        # MariaDB returns the live flag as a decimal.Decimal; if it leaks
+        # through, _coverage_pct yields a Decimal that crashes
+        # _build_progress_embed's Decimal + float math. Counts must be ints.
         from decimal import Decimal
 
         scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
-            {"scanned": Decimal("330")}
+            {"lat": 39.7, "lon": -8.8, "scanned": Decimal("1")} for _ in range(330)
         ]
+        area = {"area_key": "leiria"}
         count = await scanner_status._count_valid_quests(
-            scanner_status.poliswag.quest_search.db, leiria=True
+            scanner_status.poliswag.quest_search.db, area
         )
         assert count == 330
         assert type(count) is int
@@ -1601,24 +1521,31 @@ class TestQuestPlateauHelpers:
         assert scanner_status._coverage_pct(10, 0) == 0
         assert scanner_status._coverage_pct(10, -1) == 0
 
-    async def test_expected_totals_fall_back_to_defaults(self, scanner_status):
+    async def test_expected_totals_fall_back_to_zero_without_a_row(
+        self, scanner_status
+    ):
         scanner_status.poliswag.db.get_data_from_database.return_value = []
-        assert await scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 0,
+            "marinha": 0,
+        }
 
     async def test_expected_totals_read_from_db(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = [
             {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
         ]
-        assert await scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 400,
+            "marinha": 120,
+        }
 
     async def test_record_completion_persists_and_resets(self, scanner_status):
         scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
-        await scanner_status.record_quest_scan_completion(371, 109)
-        scanner_status.poliswag.db.execute_query_to_database.assert_called_once()
-        params = scanner_status.poliswag.db.execute_query_to_database.call_args.kwargs[
-            "params"
-        ]
-        assert params == (371, 109)
+        await scanner_status.record_quest_scan_completion(
+            {"leiria": 371, "marinha": 109}
+        )
+        calls = scanner_status.poliswag.db.execute_query_to_database.call_args_list
+        assert [call.kwargs["params"] for call in calls] == [(371,), (109,)]
         assert scanner_status._quest_plateau["leiria"] == {
             "prev_count": -1,
             "flat_streak": 0,
@@ -1631,23 +1558,40 @@ class TestQuestPlateauHelpers:
             {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
         ]
 
-        assert await scanner_status._get_expected_totals() == (400, 120)
-        assert await scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 400,
+            "marinha": 120,
+        }
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 400,
+            "marinha": 120,
+        }
 
         scanner_status.poliswag.db.get_data_from_database.assert_called_once()
 
     async def test_empty_rows_are_not_cached(self, scanner_status):
         scanner_status.poliswag.db.get_data_from_database.return_value = []
 
-        assert await scanner_status._get_expected_totals() == (371, 109)
-        assert await scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 0,
+            "marinha": 0,
+        }
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 0,
+            "marinha": 0,
+        }
 
         assert scanner_status.poliswag.db.get_data_from_database.call_count == 2
 
     async def test_record_completion_updates_cache_without_a_read(self, scanner_status):
-        await scanner_status.record_quest_scan_completion(400, 120)
+        await scanner_status.record_quest_scan_completion(
+            {"leiria": 400, "marinha": 120}
+        )
 
-        assert await scanner_status._get_expected_totals() == (400, 120)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 400,
+            "marinha": 120,
+        }
         scanner_status.poliswag.db.get_data_from_database.assert_not_called()
 
     async def test_expected_totals_db_error_is_logged_and_falls_back(
@@ -1656,7 +1600,10 @@ class TestQuestPlateauHelpers:
         scanner_status.poliswag.db.get_data_from_database.side_effect = RuntimeError(
             "db down"
         )
-        assert await scanner_status._get_expected_totals() == (371, 109)
+        assert await scanner_status._get_expected_totals() == {
+            "leiria": 0,
+            "marinha": 0,
+        }
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_record_completion_db_error_is_logged_but_still_resets(
@@ -1666,8 +1613,10 @@ class TestQuestPlateauHelpers:
         scanner_status.poliswag.db.execute_query_to_database.side_effect = RuntimeError(
             "db down"
         )
-        await scanner_status.record_quest_scan_completion(371, 109)
-        scanner_status.poliswag.utility.log_to_file.assert_called_once()
+        await scanner_status.record_quest_scan_completion(
+            {"leiria": 371, "marinha": 109}
+        )
+        assert scanner_status.poliswag.utility.log_to_file.call_count == 2
         assert scanner_status._quest_plateau["leiria"] == {
             "prev_count": -1,
             "flat_streak": 0,

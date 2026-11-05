@@ -19,6 +19,7 @@ import discord
 from modules.config import Config
 from modules.database_connector import connect
 from modules.hundo_confirmation import send_once
+from modules import scan_areas
 
 TEMPLATE = "pokedex-100iv"
 
@@ -59,40 +60,43 @@ _RULE_DEFAULTS = {
 # Where the switch lives on the site, named as the site names it.
 SETTINGS_WHERE = "pogoleiria.pt/pokedex → Perfil e outras opções"
 
-# Site key, Poracle geofence, and display name, in display order.
-_AREAS = (
-    ("leiria", "leiria", "Leiria"),
-    ("marinha", "marinhagrande", "Marinha Grande"),
-)
+
+# Site key, Poracle geofence, and display name, in display order, from the
+# registry: an inactive area is ignored here, exactly as everywhere else.
+def _areas():
+    return [
+        (row["area_key"], row["poracle_area"], row["label"])
+        for row in scan_areas.active_areas()
+    ]
 
 
 def _area_keys(hundo_areas):
-    """Return known areas in display order; an empty selection means both."""
+    """Return active areas in display order; an empty selection means all."""
     chosen = set((hundo_areas or "").split(","))
-    keys = [key for key, _geofence, _label in _AREAS if key in chosen]
-    return keys or [key for key, _geofence, _label in _AREAS]
+    areas = _areas()
+    keys = [key for key, _geofence, _label in areas if key in chosen]
+    return keys or [key for key, _geofence, _label in areas]
 
 
 def areas_json(hundo_areas):
     """Translate the site's area selection into Poracle's JSON-array string."""
-    names = {key: geofence for key, geofence, _label in _AREAS}
-    return json.dumps([names[key] for key in _area_keys(hundo_areas)])
-
-
-# One number for a whole setting, as hundo_confirmed_setting stores it: the
-# zones' bits (the hundo_areas SET's own order), 0 when switched off.
-_AREA_BITS = {"leiria": 1, "marinha": 2}
+    names = {key: geofence for key, geofence, _label in _areas()}
+    return json.dumps([names[key] for key in _area_keys(hundo_areas) if key in names])
 
 
 def setting_code(hundo_dms, hundo_areas):
-    """0 off, 1 Leiria, 2 Marinha Grande, 3 both."""
+    """The one number hundo_confirmed_setting stores: 0 off, else area bits."""
     if int(hundo_dms) != 1:
         return 0
-    return sum(_AREA_BITS[key] for key in _area_keys(hundo_areas))
+    return scan_areas.setting_code(_area_keys(hundo_areas))
 
 
 def _code_keys(code):
-    return [key for key, _geofence, _label in _AREAS if code & _AREA_BITS[key]]
+    return [
+        key
+        for key, _geofence, _label in _areas()
+        if int(code or 0) & scan_areas.bit_for(key)
+    ]
 
 
 def _thousands(n):
@@ -101,7 +105,9 @@ def _thousands(n):
 
 
 def _zones_line(keys):
-    names = [f"**{label}**" for key, _geofence, label in _AREAS if key in keys]
+    names = [f"**{label}**" for key, _geofence, label in _areas() if key in keys]
+    if not names:
+        return "Sem zonas ativas."
     return (
         f"Zonas ativas: {' e '.join(names)}."
         if len(names) > 1
@@ -111,7 +117,7 @@ def _zones_line(keys):
 
 def _joined(keys):
     # Plain: it goes inside an already bold headline (nested ** breaks).
-    return " e ".join(label for key, _geofence, label in _AREAS if key in keys)
+    return " e ".join(label for key, _geofence, label in _areas() if key in keys)
 
 
 def confirmation_message(row, missing_count=None):
@@ -326,6 +332,8 @@ WHERE pn.pokemon_id > 0 AND ce.discord_id IS NULL
 # Pending revisions lose their old rules until their new confirmation succeeds.
 # The CAST takes the connection's collation (general_ci from pymysql) while
 # monsters.id is unicode_ci: without the COLLATE, MariaDB refuses the join.
+# The second parameter is the bit mask of every active area, which is what an
+# empty hundo_areas (meaning "all active") confirms to.
 _CLEANUP_SQL = """
 DELETE m FROM monsters m
 LEFT JOIN pogoleiria.trade_player p
@@ -340,7 +348,7 @@ WHERE m.template = %s AND (
         -- settled_back: the confirmed settings again, nothing refused since
         OR (p.hundo_confirmed_revision > 0
             AND p.hundo_confirmed_setting <=> IF(p.hundo_dms = 1,
-                IF(p.hundo_areas + 0 = 0, 3, p.hundo_areas + 0), 0)
+                IF(p.hundo_areas + 0 = 0, %s, p.hundo_areas + 0), 0)
             AND p.hundo_dm_refused_revision < p.hundo_confirmed_revision)
     )
     OR p.hundo_dm_refused_revision >= p.hundo_settings_revision
@@ -411,6 +419,12 @@ class HundoAlerts:
         players = []
         self._health = {}
         try:
+            await scan_areas.ensure()
+            if not scan_areas.active_areas():
+                # Never rebuild every rule against an empty area list: Poracle
+                # would read the empty override as "everywhere".
+                self._log("no active scan areas; skipping this tick")
+                return
             await self._cleanup_rules()
             # Publish removals before potentially slow Discord sends/rebuilds.
             await self._reload_if_pending()
@@ -638,10 +652,11 @@ class HundoAlerts:
                 return cursor.fetchone()
 
     def _cleanup(self):
+        mask = scan_areas.setting_code(scan_areas.active_keys())
         with closing(connect("poracle", autocommit=False)) as db:
             try:
                 with db.cursor() as cursor:
-                    cursor.execute(_CLEANUP_SQL, (TEMPLATE,))
+                    cursor.execute(_CLEANUP_SQL, (TEMPLATE, mask))
                     changed = cursor.rowcount > 0
                 db.commit()
                 return changed
