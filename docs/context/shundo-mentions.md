@@ -19,7 +19,7 @@ The fallback embed adds the same content with explicit
 replied_user=False)` on the same message. Fallback DMs never include it.
 
 Activation requires installing both new entries in
-`/root/poracleng/config/dts.json` and calling `POST /api/dts/reload`, then
+`/root/unonwhash/poracleng/config/dts.json` and calling `POST /api/dts/reload`, then
 restarting Poliswag to load the selector. Poracle's Discord delivery must
 preserve top-level `content` from the rendered DTS message and send
 regular bot channel messages with Discord's default mention handling. Its test API destination selects the template and channel; content

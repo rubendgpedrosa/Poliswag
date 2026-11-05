@@ -72,7 +72,7 @@ the standard body. The side bar follows the map's pins: gold (`F2CD5C`) for
 `shiny` and `shiny-background`, sky blue (`5AA9E6`) for `background`
 (`SHINY_COLOR` / `BACKGROUND_COLOR` for the fallback embed). `poracle_template(spawn)` in
 `modules/shiny_alerts.py` picks one. They live in
-`/root/poracleng/config/dts.json` (not in git; copies in `templates/poracle/`,
+`/root/unonwhash/poracleng/config/dts.json` (not in git; copies in `templates/poracle/`,
 which a test holds to the shiny template plus those three differences; after
 editing, `POST /api/dts/reload`). If Poracle refuses, the bot's own embed goes
 out with the same emoji and colour. The event's label is only in that

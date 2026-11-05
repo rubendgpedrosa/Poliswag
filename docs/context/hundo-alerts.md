@@ -8,7 +8,7 @@ Spec/plan: `/root/docs-archive/Poliswag/superpowers/{specs,plans}/2026-09-24-pok
 | Settings | `pogoleiria.trade_player`: `hundo_dms`, `hundo_areas` SET(leiria,marinha), `hundo_settings_revision`/`_at` (site writes), `hundo_confirmed_revision`/`_at`, `hundo_dm_refused_revision`/`_at` (Poliswag writes). Migration 014 = site `db/008`. |
 | Site switch | Pokédex → Perfil e outras opções (`apps/pokedex/components/hundo-settings.tsx`), only for ids in the site's `HUNDO_DM_TESTERS` until release. |
 | Rules | `poracle.monsters` rows with `template = 'pokedex-100iv'`, 100/100 IV, one per missing tile, `override_areas` from the setting, in the human's `current_profile_no`. Nothing else in Poracle is touched. |
-| DM look | DTS entry `pokedex-100iv` in `/root/poracleng/config/dts.json` (backups `dts.json.bak-100iv-*`). Footer points at pogoleiria.pt/pokedex. |
+| DM look | DTS entry `pokedex-100iv` in `/root/unonwhash/poracleng/config/dts.json`. Footer points at pogoleiria.pt/pokedex. |
 
 - **Revision contract.** Every site change bumps `hundo_settings_revision` in the same UPDATE (identical save = no row). Poliswag DMs one confirmation per revision and records delivered/refused only for that exact revision (`_record`'s conditional UPDATE). State is read from revision numbers, never timestamps.
 - **Active** = switch on, `collects_hundo` (member + collecting hundo), current revision confirmed. `may_confirm`: an "off" confirms for any member, an "on" only for a collector (the site refuses the rest).
