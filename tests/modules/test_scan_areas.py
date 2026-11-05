@@ -188,6 +188,9 @@ def test_area_labels_and_alert_roles_come_from_the_registry():
     )
     assert scan_areas.label("leiria") == "Leiria"
     assert scan_areas.label("nope") == "nope"
+    assert scan_areas.short_label("leiria") == "Leiria"
+    assert scan_areas.short_label("marinha") == "Marinha"
+    assert scan_areas.short_label("nope") == "nope"
     assert scan_areas.labels() == "Leiria"
     assert scan_areas.alert_roles() == ["AlertasLeiria"]
     assert scan_areas.bit_for("leiria") == 1

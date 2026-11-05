@@ -51,7 +51,7 @@ def hundo_line(hundo):
     """Players with 100IV DMs on, and whatever stands between the rest and
     their alerts; the extras only when there is something to say."""
     per_area = " · ".join(
-        f"{scan_areas.label(key)} {count}"
+        f"{scan_areas.short_label(key)} {count}"
         for key, count in (hundo.get("areas") or {}).items()
     )
     line = f"**100IV por DM:** {hundo['active']} ativos"
