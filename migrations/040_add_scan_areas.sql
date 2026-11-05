@@ -46,3 +46,9 @@ WHERE alert_areas = 'leiria'
 ALTER TABLE pogoleiria.trade_player
   MODIFY COLUMN hundo_areas SET('leiria','marinha','batalha','portodemos','moita')
     NOT NULL DEFAULT 'leiria,marinha';
+
+-- The site's own copy of where a player hunts shinies (migration 022) takes
+-- the same five keys, so saving a newly activated area is not truncated.
+ALTER TABLE pogoleiria.trade_player
+  MODIFY COLUMN shiny_areas SET('leiria','marinha','batalha','portodemos','moita')
+    NOT NULL DEFAULT 'leiria';
