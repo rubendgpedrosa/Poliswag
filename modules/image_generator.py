@@ -1,25 +1,39 @@
 import asyncio
 import contextlib
 from collections import OrderedDict
+import io
 import os
 import tempfile
 
 import aiohttp
 import imgkit
+from PIL import Image
 from jinja2 import Environment, FileSystemLoader
 
+from modules.account_card import build_card_view
 from modules.config import Config
 from modules.http_client import get_session
 from modules.quest_map import draw_quest_map, fit_quest_map
 
-# Display order + short label for the account card's area-performance
-# footer -- fixed order so Leiria always renders before Marinha
-# regardless of dict/query row order.
-_AREA_LABELS = (("Leiria", "Leiria"), ("MarinhaGrande", "Marinha"))
-
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
 _CHARSET_META = '<meta charset="UTF-8">'
+
+
+def _recompress_png(data):
+    """Losslessly re-encode a wkhtmltoimage PNG; the original bytes on failure.
+
+    wkhtmltoimage writes barely compressed PNGs: the 2x account card comes out
+    at ~5.8 MB and is re-uploaded every minute. Pillow's optimizer brings the
+    same pixels to ~90 KB.
+    """
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            out = io.BytesIO()
+            image.save(out, "PNG", optimize=True)
+        return out.getvalue()
+    except Exception:
+        return data
 
 
 class ImageGenerator:
@@ -63,45 +77,34 @@ class ImageGenerator:
             with contextlib.suppress(OSError):
                 os.unlink(path)
 
-    async def generate_image_from_account_stats(
-        self, account_data, device_status, area_performance=None, workers=None
-    ):
+    async def generate_image_from_account_stats(self, pools, area_performance=None):
+        """Render the account card for `pools` (AccountMonitor.get_pool_stats)."""
         if self._accounts_template is None:
             self._accounts_template = self._get_env().get_template(
                 self.ACCOUNTS_TEMPLATE_HTML_FILE
             )
-        area_lines = []
-        for db_area, label in _AREA_LABELS:
-            stats = (area_performance or {}).get(db_area)
-            if not stats or not stats.get("total"):
-                continue
-            rate = round(stats.get("iv", 0) / stats["total"] * 100)
-            area_lines.append({"name": label, "rate": rate, "spawns": stats["total"]})
-        html_content = self._accounts_template.render(
-            good=account_data.get("good", 0),
-            cooldown=account_data.get("cooldown", 0),
-            disabled=account_data.get("disabled", 0),
-            device_status=device_status,
-            area_lines=area_lines,
-            # Falsy/zero totals render nothing at all in the template --
-            # only RotomNG reports worker figures, so a legacy Rotom
-            # payload hides the chip instead of claiming "0 workers".
-            workers=workers or {},
-        )
+        view = build_card_view(pools, area_performance)
+        html_content = self._accounts_template.render(**view)
         options = {
             "format": "png",
             "encoding": "UTF-8",
-            "width": "800",
-            # Taller than the original 220 to fit the per-area footer
-            # without shrinking the headline numbers. Must stay in sync
-            # with the html/body/.stage height in accounts.html.
-            "height": "260",
+            # CSS is laid out at view["width"] x view["height"] and scaled by
+            # the template's CSS `zoom` (this wkhtmltoimage build ignores its
+            # --zoom flag), so the PNG is scale x larger and text stays sharp
+            # when Discord scales it down on phones. The height follows the
+            # layout -- build_card_view sums the same pixel constants the
+            # template's CSS uses.
+            "width": str(view["width"] * view["scale"]),
+            "height": str(view["height"] * view["scale"]),
             "quality": "100",
             "transparent": "",
             "javascript-delay": "1000",
             "quiet": "",
         }
-        return await self._render_png(html_content, options, "account image")
+        png = await self._render_png(html_content, options, "account image")
+        if not png:
+            return png
+        return await asyncio.to_thread(_recompress_png, png)
 
     async def _load_quest_marker_icon(self, slug):
         if slug in self._quest_marker_icons:

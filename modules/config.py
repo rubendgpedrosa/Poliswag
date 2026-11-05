@@ -155,6 +155,12 @@ class Config:
         "scanner_status": os.environ.get("SCANNER_STATUS_ENDPOINT"),
         "device_status": os.environ.get("DEVICE_STATUS_ENDPOINT"),
         "account_status": os.environ.get("SCANNER_ACCOUNTS_STATUS_ENDPOINT"),
+        # Levelling pool (dragonite-level / rotom-ng-level). Optional: unset
+        # hides the levelling section of the account card.
+        "level_account_status": os.environ.get(
+            "SCANNER_LEVEL_ACCOUNTS_STATUS_ENDPOINT"
+        ),
+        "level_device_status": os.environ.get("LEVEL_DEVICE_STATUS_ENDPOINT"),
         "all_down": os.environ.get("ALL_DOWN_ENDPOINT"),
         # Home Assistant webhook: owner alerts become phone notifications.
         "owner_alert": os.environ.get("OWNER_ALERT_ENDPOINT"),
