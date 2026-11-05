@@ -176,7 +176,13 @@ def area_lines(area_performance):
         if not stats or not stats.get("total"):
             continue
         rate = round(stats.get("iv", 0) / stats["total"] * 100)
-        lines.append({"name": row["label"], "rate": rate, "spawns": stats["total"]})
+        lines.append(
+            {
+                "name": scan_areas.short_label(row["area_key"]),
+                "rate": rate,
+                "spawns": stats["total"],
+            }
+        )
     return lines
 
 
