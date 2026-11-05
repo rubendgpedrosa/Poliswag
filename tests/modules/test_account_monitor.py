@@ -6,8 +6,11 @@ import pytest
 from modules.account_monitor import (
     DISABLED_STATUSES,
     AccountMonitor,
+    _device_name,
     _worker_counts,
+    summarize_accounts,
 )
+from modules.config import Config
 
 
 @pytest.fixture
@@ -21,6 +24,11 @@ def account_monitor():
     poliswag = MagicMock()
     poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(return_value={})
     return AccountMonitor(poliswag=poliswag)
+
+
+def _core(result):
+    """The four keys every caller of get_account_stats relies on."""
+    return {k: result[k] for k in ("in_use", "good", "cooldown", "disabled")}
 
 
 def _mock_fetch(mocker, return_value):
@@ -52,13 +60,13 @@ class TestGetAccountStats:
             {"in_use": 12, "good": 45, "cooldown": 7},
         )
         result = await account_monitor.get_account_stats()
-        assert result == {"in_use": 12, "good": 45, "cooldown": 7, "disabled": 0}
+        assert _core(result) == {"in_use": 12, "good": 45, "cooldown": 7, "disabled": 0}
 
     async def test_missing_keys_default_to_zero(self, account_monitor, mocker):
         # Only `good` present — the other three should fall back to 0.
         _mock_fetch(mocker, {"good": 10})
         result = await account_monitor.get_account_stats()
-        assert result == {"in_use": 0, "good": 10, "cooldown": 0, "disabled": 0}
+        assert _core(result) == {"in_use": 0, "good": 10, "cooldown": 0, "disabled": 0}
 
     async def test_disabled_statuses_are_summed(self, account_monitor, mocker):
         # Three distinct disabled statuses, each with a count, should be summed.
@@ -74,7 +82,7 @@ class TestGetAccountStats:
             },
         )
         result = await account_monitor.get_account_stats()
-        assert result == {
+        assert _core(result) == {
             "in_use": 1,
             "good": 2,
             "cooldown": 3,
@@ -297,7 +305,7 @@ class TestUpdateChannelAccountsStats:
         call_args = (
             account_monitor.poliswag.image_generator.generate_image_from_account_stats.call_args
         )
-        assert call_args.args[2] == area_data
+        assert call_args.args[1] == area_data
 
     async def test_edits_existing_message_when_present(self, account_monitor, mocker):
         existing = MagicMock()
@@ -574,4 +582,214 @@ class TestStatusBodyIsPublished:
     ):
         await self._run(account_monitor, mocker)
         gen = account_monitor.poliswag.image_generator.generate_image_from_account_stats
-        assert gen.call_args.kwargs["workers"] == {"total": 16, "in_use": 14}
+        pools = gen.call_args.args[0]
+        assert [p["key"] for p in pools] == ["scanning"]
+        assert pools[0]["device"]["workers"] == {"total": 16, "in_use": 14}
+
+
+# Live prod numbers from 2026-11-05: the buckets that partition `total`, plus
+# `missing_token`, which overlaps them and must never be summed.
+PROD_STATS = {
+    "total": 312,
+    "banned": 5,
+    "invalid": 0,
+    "auth_banned": 0,
+    "suspended": 0,
+    "warned": 0,
+    "disabled": 0,
+    "missing_token": 0,
+    "cooldown": 57,
+    "good": 199,
+    "in_use": 45,
+    "provider_disabled": 0,
+    "zero_last_released": 6,
+}
+
+
+class TestSummarizeAccounts:
+    def test_prod_numbers_partition_the_total(self):
+        s = summarize_accounts(PROD_STATS)
+        assert (s["in_use"], s["ready"], s["cooldown"], s["out"]) == (45, 205, 57, 5)
+        assert s["in_use"] + s["ready"] + s["cooldown"] + s["out"] == s["total"] == 312
+        assert s["partition_sum"] == 312
+
+    def test_never_used_counts_as_ready_not_out(self):
+        s = summarize_accounts({"total": 6, "zero_last_released": 6})
+        assert s["ready"] == 6 and s["never_used"] == 6 and s["out"] == 0
+
+    def test_missing_token_is_not_summed(self):
+        # The levelling pool on 2026-11-05: 9 invalid accounts were also
+        # missing a token; counting both made 139 out of 125.
+        stats = {
+            "total": 125,
+            "invalid": 9,
+            "missing_token": 14,
+            "cooldown": 48,
+            "good": 66,
+            "in_use": 2,
+        }
+        s = summarize_accounts(stats)
+        assert s["out"] == 9 and s["out_detail"] == {"invalid": 9}
+        assert s["in_use"] + s["ready"] + s["cooldown"] + s["out"] == 125
+        assert s["missing_token"] == 14
+
+    def test_out_detail_lists_only_nonzero_buckets(self):
+        s = summarize_accounts({"banned": 2, "invalid": 0, "warned": 1})
+        assert s["out_detail"] == {"banned": 2, "warned": 1}
+
+    def test_total_falls_back_to_partition_sum(self):
+        s = summarize_accounts({"good": 3, "in_use": 2})
+        assert s["total"] == 5
+
+    def test_none_payload_is_all_zero(self):
+        s = summarize_accounts(None)
+        assert s["total"] == 0 and s["out_detail"] == {}
+
+
+class TestGetAccountStatsBreakdown:
+    async def test_disabled_excludes_never_used_and_missing_token(
+        self, account_monitor, mocker
+    ):
+        _mock_fetch(mocker, PROD_STATS | {"missing_token": 9})
+        result = await account_monitor.get_account_stats()
+        assert result["disabled"] == 5
+        assert result["ready"] == 205 and result["never_used"] == 6
+        assert result["total"] == 312
+
+
+def _device_payload(name, connected=True, total=16, in_use=14):
+    return {
+        "devices": [
+            {
+                "id": name,
+                "origin": f"PoliSnatch/{name}",
+                "is_connected": connected,
+                "worker_count": total,
+                "worker_in_use_count": in_use,
+            }
+        ]
+    }
+
+
+def _route_fetch(mocker, responses):
+    """fetch_data stand-in answering per endpoint key (missing key -> None)."""
+
+    async def fake(key, log_fn=None, **kwargs):
+        value = responses.get(key)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    mock = AsyncMock(side_effect=fake)
+    mocker.patch("modules.account_monitor.fetch_data", new=mock)
+    return mock
+
+
+class TestGetPoolStats:
+    async def test_level_pool_hidden_when_not_configured(self, account_monitor, mocker):
+        mocker.patch.dict(
+            Config.ENDPOINTS,
+            {"level_account_status": None, "level_device_status": None},
+        )
+        fetch = _route_fetch(
+            mocker,
+            {
+                "account_status": PROD_STATS,
+                "device_status": _device_payload("PocoF2Pro"),
+            },
+        )
+        pools = await account_monitor.get_pool_stats()
+        assert [p["key"] for p in pools] == ["scanning"]
+        assert {c.args[0] for c in fetch.call_args_list} == {
+            "account_status",
+            "device_status",
+        }
+        assert pools[0]["accounts"]["ready"] == 205
+        assert pools[0]["device"]["names"] == ["PocoF2Pro"]
+
+    async def test_both_pools_when_configured(self, account_monitor, mocker):
+        mocker.patch.dict(
+            Config.ENDPOINTS,
+            {"level_account_status": "http://l/a", "level_device_status": "http://l/d"},
+        )
+        _route_fetch(
+            mocker,
+            {
+                "account_status": PROD_STATS,
+                "device_status": _device_payload("PocoF2Pro", total=50, in_use=45),
+                "level_account_status": {"total": 17, "in_use": 16, "cooldown": 1},
+                "level_device_status": _device_payload(
+                    "RedmiNote4", total=16, in_use=16
+                ),
+            },
+        )
+        pools = await account_monitor.get_pool_stats()
+        assert [p["key"] for p in pools] == ["scanning", "levelling"]
+        level = pools[1]
+        assert level["accounts"]["in_use"] == 16 and level["accounts"]["total"] == 17
+        assert level["device"]["workers"] == {"total": 16, "in_use": 16}
+
+    async def test_failing_level_endpoint_keeps_scanning_pool(
+        self, account_monitor, mocker
+    ):
+        mocker.patch.dict(
+            Config.ENDPOINTS,
+            {"level_account_status": "http://l/a", "level_device_status": "http://l/d"},
+        )
+        _route_fetch(
+            mocker,
+            {
+                "account_status": PROD_STATS,
+                "device_status": _device_payload("PocoF2Pro"),
+            },
+        )
+        pools = await account_monitor.get_pool_stats()
+        assert pools[0]["accounts"]["total"] == 312
+        assert pools[1]["accounts"] is None and pools[1]["device"] is None
+
+    async def test_partition_mismatch_logged_once_per_change(
+        self, account_monitor, mocker
+    ):
+        mocker.patch.dict(Config.ENDPOINTS, {"level_account_status": None})
+        stats = {"total": 10, "good": 8}
+        _route_fetch(
+            mocker, {"account_status": stats, "device_status": {"devices": []}}
+        )
+        log = account_monitor.poliswag.utility.log_to_file
+        await account_monitor.get_pool_stats()
+        await account_monitor.get_pool_stats()
+        warnings = [c for c in log.call_args_list if "buckets sum to" in c.args[0]]
+        assert len(warnings) == 1
+        stats["good"] = 7
+        await account_monitor.get_pool_stats()
+        warnings = [c for c in log.call_args_list if "buckets sum to" in c.args[0]]
+        assert len(warnings) == 2
+
+
+class TestDeviceName:
+    def test_prefers_id(self):
+        assert (
+            _device_name({"id": "PocoF2Pro", "origin": "PoliSnatch/X"}) == "PocoF2Pro"
+        )
+
+    def test_strips_origin_prefix(self):
+        assert _device_name({"origin": "PoliSnatch/RedmiNote4"}) == "RedmiNote4"
+
+    def test_legacy_device_id(self):
+        assert _device_name({"deviceId": "PoGoLeiria"}) == "PoGoLeiria"
+
+
+class TestBuildAccountCard:
+    async def test_passes_pools_and_area_performance(self, account_monitor, mocker):
+        pools = [{"key": "scanning"}]
+        mocker.patch.object(
+            account_monitor, "get_pool_stats", AsyncMock(return_value=pools)
+        )
+        area = {"Leiria": {"total": 10, "iv": 9}}
+        account_monitor.poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(
+            return_value=area
+        )
+        gen = AsyncMock(return_value=b"PNG")
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = gen
+        assert await account_monitor.build_account_card() == b"PNG"
+        gen.assert_awaited_once_with(pools, area)
