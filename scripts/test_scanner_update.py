@@ -42,6 +42,7 @@ class StagingTests(unittest.TestCase):
         policy=None,
         failing_notification=False,
         service_name="golbat",
+        listings=None,
     ):
         registry = Mock(prefix="ghcr.io/unownhash/golbat", tag="main")
         digest = remote_digest or self.candidate_digest
@@ -50,6 +51,8 @@ class StagingTests(unittest.TestCase):
 
         def run(command, **kwargs):
             operations.append(command)
+            if command[:3] == ["docker", "image", "ls"]:
+                return "\n".join((listings or {}).get(command[-1], []))
             if failing_pull and command[:2] == ["docker", "pull"]:
                 raise RuntimeError("Download failed")
             if failing_notification and command[0] == "/usr/bin/python3":
@@ -129,29 +132,71 @@ class StagingTests(unittest.TestCase):
                 )
 
     def test_stage_downloads_immutable_digest_and_writes_separate_override(self):
-        result, operations = self.main_with_registry([])
+        staged = "scanner-staged/golbat:" + "b" * 12
+        rollback = "scanner-previous/golbat:" + "a" * 12
+        stale_staged = "scanner-staged/golbat:" + "1" * 12
+        stale_rollback = "scanner-previous/golbat:" + "2" * 12
+        result, operations = self.main_with_registry(
+            [],
+            listings={
+                "scanner-staged/golbat": [staged, stale_staged],
+                "scanner-previous/golbat": [rollback, stale_rollback],
+            },
+        )
         self.assertEqual(result, 0)
         reference = "ghcr.io/unownhash/golbat:main@" + self.candidate_digest
         self.assertIn(["docker", "pull", reference], operations)
-        self.assertTrue(
-            all(
-                cmd[:3] in (["docker", "image", "tag"], ["docker", "pull", reference])
-                for cmd in operations
-            )
-        )
+
+        def scoped(tag):
+            return tag.startswith(("scanner-staged/", "scanner-previous/"))
+
+        def is_allowed(command):
+            if command[:2] == ["docker", "pull"]:
+                return command == ["docker", "pull", reference]
+            if command[:3] == ["docker", "image", "tag"]:
+                return (
+                    len(command) == 5
+                    and command[3] in (reference, self.before["Image"])
+                    and scoped(command[4])
+                )
+            if command[:3] == ["docker", "image", "ls"]:
+                return (
+                    len(command) == 6
+                    and command[3:5] == ["--format", "{{.Repository}}:{{.Tag}}"]
+                    and scoped(command[5])
+                )
+            if command[:3] == ["docker", "image", "rm"]:
+                return len(command) == 4 and scoped(command[3])
+            return False
+
+        # Only pull, staging tags, a read-only listing and scoped tag removal;
+        # never a write to the live tag or a Compose deploy.
+        self.assertTrue(all(is_allowed(cmd) for cmd in operations))
         # Every tag operation uses a new staging/previous tag, never the live tag.
-        self.assertTrue(
-            all(
-                cmd[-1].startswith(("scanner-staged/", "scanner-previous/"))
-                for cmd in operations
-                if cmd[:3] == ["docker", "image", "tag"]
-            )
+        self.assertEqual(
+            {cmd[-1] for cmd in operations if cmd[:3] == ["docker", "image", "tag"]},
+            {staged, rollback},
+        )
+        # Pruning removes the superseded tags and keeps the current ones.
+        self.assertEqual(
+            {cmd[3] for cmd in operations if cmd[:3] == ["docker", "image", "rm"]},
+            {stale_staged, stale_rollback},
         )
         override = json.loads((self.state_dir / "unonwhash.staged.json").read_text())
         self.assertEqual(override, {"services": {"golbat": {"image": reference}}})
 
     def test_check_does_not_write_pull_tag_or_notify(self):
         result, operations = self.main_with_registry(["--check"])
+        self.assertEqual(result, 0)
+        self.assertEqual(operations, [])
+        self.assertEqual(list(self.state_dir.iterdir()), [])
+
+    def test_check_never_prunes_tags(self):
+        listings = {
+            "scanner-staged/golbat": ["scanner-staged/golbat:" + "1" * 12],
+            "scanner-previous/golbat": ["scanner-previous/golbat:" + "2" * 12],
+        }
+        result, operations = self.main_with_registry(["--check"], listings=listings)
         self.assertEqual(result, 0)
         self.assertEqual(operations, [])
         self.assertEqual(list(self.state_dir.iterdir()), [])
@@ -208,7 +253,8 @@ class StagingTests(unittest.TestCase):
         ]
         result, operations = self.main_with_registry([])
         self.assertEqual(result, 0)
-        self.assertEqual(operations, [])
+        # Pruning may only list tags; it must not pull, tag or rewrite Compose.
+        self.assertTrue(all(cmd[:3] == ["docker", "image", "ls"] for cmd in operations))
         self.assertEqual(
             json.loads((self.state_dir / "unonwhash.staged.json").read_text()), previous
         )
@@ -221,10 +267,44 @@ class StagingTests(unittest.TestCase):
     def test_current_image_does_not_pull_or_stage(self):
         result, operations = self.main_with_registry([], self.before["Image"])
         self.assertEqual(result, 0)
-        self.assertEqual(operations, [])
+        # The only expected operation is the read-only tag listing for pruning.
+        self.assertTrue(all(cmd[:3] == ["docker", "image", "ls"] for cmd in operations))
         self.assertEqual(
             json.loads((self.state_dir / "unonwhash.staged.json").read_text()),
             {"services": {}},
+        )
+
+    def test_rollback_is_replaced_image_and_survives_run_without_download(self):
+        def records():
+            state = json.loads((self.state_dir / "state.json").read_text())
+            return state["services"]
+
+        result, _ = self.main_with_registry([])
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            records()["golbat"]["rollback"], "scanner-previous/golbat:" + "a" * 12
+        )
+        # The next download replaces the running candidate and records it.
+        self.before["Image"] = self.candidate_digest
+        self.local_image["Id"] = self.candidate_digest
+        self.local_image["RepoDigests"] = [
+            "ghcr.io/unownhash/golbat@" + self.candidate_digest
+        ]
+        successor = "sha256:" + "c" * 64
+        result, _ = self.main_with_registry([], remote_digest=successor)
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            records()["golbat"]["rollback"], "scanner-previous/golbat:" + "b" * 12
+        )
+        # A later run that only finds the running image keeps that rollback.
+        self.before["Image"] = successor
+        self.local_image["Id"] = successor
+        self.local_image["RepoDigests"] = ["ghcr.io/unownhash/golbat@" + successor]
+        result, operations = self.main_with_registry([], remote_digest=successor)
+        self.assertEqual(result, 0)
+        self.assertFalse(any(cmd[:2] == ["docker", "pull"] for cmd in operations))
+        self.assertEqual(
+            records()["golbat"]["rollback"], "scanner-previous/golbat:" + "b" * 12
         )
 
     def test_failed_download_is_not_marked_ready(self):
@@ -258,6 +338,62 @@ class StagingTests(unittest.TestCase):
         ):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 updater.run(command)
+
+    def test_image_removal_guard_is_limited_to_its_own_tags(self):
+        for command in (
+            ["docker", "image", "rm", "golbat:main"],
+            ["docker", "image", "rm", "ghcr.io/unownhash/golbat:main"],
+            ["docker", "image", "rm"],
+            ["docker", "image", "rm", "scanner-staged/golbat:abc", "--force"],
+            ["docker", "image", "rm", "scanner-staged/golbat:abc", "extra"],
+            ["docker", "image", "rm", "--force", "scanner-staged/golbat:abc"],
+        ):
+            with self.subTest(command=command), self.assertRaises(ValueError):
+                updater.run(command)
+        completed = Mock(returncode=0, stdout="")
+        with patch.object(updater.subprocess, "run", return_value=completed) as execute:
+            for command in (
+                ["docker", "image", "rm", "scanner-staged/golbat:abc"],
+                ["docker", "image", "rm", "scanner-previous/golbat:abc"],
+                [
+                    "docker",
+                    "image",
+                    "ls",
+                    "--format",
+                    "{{.Repository}}:{{.Tag}}",
+                    "scanner-staged/golbat",
+                ],
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual(updater.run(command), "")
+        self.assertEqual(execute.call_count, 3)
+
+    def test_prune_tags_keeps_requested_tags_and_continues_after_failure(self):
+        keep = "scanner-staged/golbat:" + "b" * 12
+        stale = "scanner-staged/golbat:" + "1" * 12
+        busy = "scanner-staged/golbat:" + "2" * 12
+        removed = []
+        messages = []
+
+        def run(command, **kwargs):
+            if command[:3] == ["docker", "image", "ls"]:
+                self.assertEqual(command[-1], "scanner-staged/golbat")
+                return "\n".join((keep, stale, busy))
+            self.assertEqual(command[:3], ["docker", "image", "rm"])
+            if command[3] == busy:
+                raise RuntimeError("image is being used by a container")
+            removed.append(command[3])
+            return ""
+
+        with patch.object(updater, "run", side_effect=run), patch.object(
+            updater, "log", side_effect=messages.append
+        ):
+            updater.prune_tags("scanner-staged/golbat", {keep})
+        self.assertEqual(removed, [stale])
+        self.assertTrue(
+            any(message.startswith("removed " + stale) for message in messages)
+        )
+        self.assertTrue(any(message.startswith("kept " + busy) for message in messages))
 
     def test_testing_version_uses_numeric_order_and_never_downgrades(self):
         registry = object.__new__(updater.Registry)
