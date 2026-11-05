@@ -1,6 +1,7 @@
 import importlib.machinery
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -43,7 +44,14 @@ class StagingTests(unittest.TestCase):
         failing_notification=False,
         service_name="golbat",
         listings=None,
+        listing_errors=None,
+        removal_errors=None,
+        state=None,
+        created=None,
+        inspect_errors=None,
+        service_names=None,
     ):
+        names = service_names or (service_name,)
         registry = Mock(prefix="ghcr.io/unownhash/golbat", tag="main")
         digest = remote_digest or self.candidate_digest
         registry.candidate.return_value = (digest, {digest})
@@ -52,53 +60,71 @@ class StagingTests(unittest.TestCase):
         def run(command, **kwargs):
             operations.append(command)
             if command[:3] == ["docker", "image", "ls"]:
+                if listing_errors and command[-1] in listing_errors:
+                    raise listing_errors[command[-1]]
                 return "\n".join((listings or {}).get(command[-1], []))
+            if command[:3] == ["docker", "image", "rm"]:
+                if removal_errors and command[3] in removal_errors:
+                    raise removal_errors[command[3]]
+                return ""
             if failing_pull and command[:2] == ["docker", "pull"]:
                 raise RuntimeError("Download failed")
             if failing_notification and command[0] == "/usr/bin/python3":
                 raise RuntimeError("Notification failed")
             return ""
 
-        compose_path, compose_service, configured_policy = updater.SERVICES[
-            service_name
-        ]
+        def inspect(reference):
+            if inspect_errors and reference in inspect_errors:
+                raise inspect_errors[reference]
+            if created and reference in created:
+                return {"Created": created[reference]}
+            return self.local_image
+
+        entries = {
+            name: (
+                updater.SERVICES[name][0],
+                updater.SERVICES[name][1],
+                policy or updater.SERVICES[name][2],
+            )
+            for name in names
+        }
+        configured = {
+            updater.SERVICES[name][1]: {"image": self.before["Config"]["Image"]}
+            for name in names
+        }
+        inspections = []
+        for _ in names:
+            inspections.extend([self.before, after or self.before])
+        if state is not None:
+            (self.state_dir / "state.json").write_text(json.dumps(state))
         with patch.object(updater, "STATE_DIR", self.state_dir), patch.object(
             updater, "RECOVERY_OVERRIDE", self.state_dir / "recovery.staged.json"
         ), patch.dict(
             updater.SERVICES,
-            {
-                service_name: (
-                    compose_path,
-                    compose_service,
-                    policy or configured_policy,
-                )
-            },
+            entries,
         ), patch.object(
             updater, "Registry", return_value=registry
         ), patch.object(
             updater,
             "inspect_container",
-            side_effect=[self.before, after or self.before],
+            side_effect=inspections,
         ), patch.object(
-            updater, "inspect_image", return_value=self.local_image
+            updater, "inspect_image", side_effect=inspect
         ), patch.object(
             updater,
             "compose",
-            return_value=json.dumps(
-                {
-                    "services": {
-                        compose_service: {"image": self.before["Config"]["Image"]}
-                    }
-                }
-            ),
+            return_value=json.dumps({"services": configured}),
         ), patch.object(
             updater, "run", side_effect=run
         ), patch.object(
             updater.shutil, "disk_usage", return_value=Mock(free=10 * 1024**3)
         ), patch.object(
-            updater.sys, "argv", ["scanner-update", "--services", service_name, *args]
+            updater.sys, "argv", ["scanner-update", "--services", *names, *args]
         ):
-            result = updater.main()
+            try:
+                result = updater.main()
+            except Exception as error:
+                result = error
         return result, operations
 
     def test_database_updates_are_downloaded_but_excluded_from_recovery(self):
@@ -307,6 +333,51 @@ class StagingTests(unittest.TestCase):
             records()["golbat"]["rollback"], "scanner-previous/golbat:" + "b" * 12
         )
 
+    def test_legacy_record_adopts_newest_previous_tag(self):
+        older = "scanner-previous/golbat:" + "1" * 12
+        newer = "scanner-previous/golbat:" + "2" * 12
+        state = {"services": {"golbat": {"candidate": "legacy-candidate"}}}
+        result, operations = self.main_with_registry(
+            [],
+            remote_digest=self.before["Image"],
+            state=state,
+            listings={"scanner-previous/golbat": [older, newer]},
+            created={
+                older: "2026-10-01T00:00:00.000000000Z",
+                newer: "2026-10-02T00:00:00.000000000Z",
+            },
+        )
+        self.assertEqual(result, 0)
+        record = json.loads((self.state_dir / "state.json").read_text())["services"][
+            "golbat"
+        ]
+        self.assertEqual(record["rollback"], newer)
+        removed = {
+            command[3]
+            for command in operations
+            if command[:3] == ["docker", "image", "rm"]
+        }
+        self.assertEqual(removed, {older})
+
+    def test_legacy_rollback_that_cannot_be_inspected_prunes_nothing(self):
+        older = "scanner-previous/golbat:" + "1" * 12
+        newer = "scanner-previous/golbat:" + "2" * 12
+        result, operations = self.main_with_registry(
+            [],
+            remote_digest=self.before["Image"],
+            state={"services": {"golbat": {"candidate": "legacy-candidate"}}},
+            listings={"scanner-previous/golbat": [older, newer]},
+            inspect_errors={older: RuntimeError("inspect failed")},
+        )
+        self.assertEqual(result, 0)
+        record = json.loads((self.state_dir / "state.json").read_text())["services"][
+            "golbat"
+        ]
+        self.assertNotIn("rollback", record)
+        self.assertFalse(
+            any(command[:3] == ["docker", "image", "rm"] for command in operations)
+        )
+
     def test_failed_download_is_not_marked_ready(self):
         result, operations = self.main_with_registry([], failing_pull=True)
         self.assertEqual(result, 1)
@@ -324,6 +395,40 @@ class StagingTests(unittest.TestCase):
             json.loads((self.state_dir / "unonwhash.staged.json").read_text()),
             {"services": {}},
         )
+
+    def test_fingerprint_change_skips_pruning_and_saved_record(self):
+        stale = "scanner-staged/golbat:" + "1" * 12
+        original = {"golbat": {"candidate": "previous-candidate"}}
+        after = dict(self.before, State={"StartedAt": "2026-10-02T01:00:00Z"})
+        result, operations = self.main_with_registry(
+            [],
+            after=after,
+            listings={"scanner-staged/golbat": [stale]},
+            state={"services": original},
+        )
+        self.assertEqual(result, 1)
+        self.assertFalse(
+            any(command[:3] == ["docker", "image", "rm"] for command in operations)
+        )
+        state = json.loads((self.state_dir / "state.json").read_text())
+        self.assertEqual(state["services"], original)
+
+    def test_state_or_override_write_failure_skips_all_pruning(self):
+        stale = "scanner-staged/golbat:" + "1" * 12
+        for target in ("save_overrides", "atomic_json"):
+            with self.subTest(target=target), patch.object(
+                updater, target, side_effect=RuntimeError("write failed")
+            ):
+                result, operations = self.main_with_registry(
+                    [], listings={"scanner-staged/golbat": [stale]}
+                )
+                self.assertIsInstance(result, RuntimeError)
+                self.assertFalse(
+                    any(
+                        command[:3] == ["docker", "image", "rm"]
+                        for command in operations
+                    )
+                )
 
     def test_docker_mutation_guard_rejects_restart_and_deploy(self):
         for operation in ("up", "down", "restart", "stop", "start"):
@@ -394,6 +499,90 @@ class StagingTests(unittest.TestCase):
             any(message.startswith("removed " + stale) for message in messages)
         )
         self.assertTrue(any(message.startswith("kept " + busy) for message in messages))
+
+    def test_prune_tags_logs_timeout_and_value_error_and_continues(self):
+        keep = "scanner-staged/golbat:" + "b" * 12
+        stale = "scanner-staged/golbat:" + "1" * 12
+        for operation, error in (
+            ("ls", subprocess.TimeoutExpired(["docker", "image", "ls"], 60)),
+            ("ls", ValueError("command outside staging policy")),
+            ("rm", subprocess.TimeoutExpired(["docker", "image", "rm"], 60)),
+            ("rm", ValueError("command outside staging policy")),
+        ):
+            with self.subTest(operation=operation, error=type(error).__name__):
+                removed = []
+                messages = []
+
+                def run(command, **kwargs):
+                    if command[:3] == ["docker", "image", "ls"]:
+                        if operation == "ls":
+                            raise error
+                        return stale
+                    self.assertEqual(command[:3], ["docker", "image", "rm"])
+                    if operation == "rm":
+                        raise error
+                    removed.append(command[3])
+                    return ""
+
+                with patch.object(updater, "run", side_effect=run), patch.object(
+                    updater, "log", side_effect=messages.append
+                ):
+                    updater.prune_tags("scanner-staged/golbat", {keep})
+                self.assertEqual(removed, [])
+                if operation == "ls":
+                    self.assertTrue(
+                        any(
+                            message.startswith("could not list scanner-staged/golbat")
+                            for message in messages
+                        )
+                    )
+                else:
+                    self.assertTrue(
+                        any(message.startswith("kept " + stale) for message in messages)
+                    )
+
+    def test_prune_failures_do_not_abort_other_services(self):
+        stale = "scanner-staged/golbat:" + "1" * 12
+        rollback = "scanner-previous/golbat:" + "9" * 12
+        messages = []
+        with patch.object(updater, "log", side_effect=messages.append):
+            result, operations = self.main_with_registry(
+                [],
+                remote_digest=self.before["Image"],
+                service_names=("golbat", "admin"),
+                state={"services": {"golbat": {"rollback": rollback}}},
+                listings={"scanner-staged/golbat": [stale]},
+                listing_errors={
+                    "scanner-previous/golbat": ValueError("guard rejected")
+                },
+                removal_errors={
+                    stale: subprocess.TimeoutExpired(["docker", "image", "rm"], 60)
+                },
+            )
+        self.assertEqual(result, 0)
+        state = json.loads((self.state_dir / "state.json").read_text())
+        self.assertEqual(set(state["services"]), {"golbat", "admin"})
+        self.assertEqual(state["errors"], [])
+        self.assertTrue(
+            any(message.startswith("kept " + stale) for message in messages)
+        )
+        self.assertTrue(
+            any(
+                message.startswith("could not list scanner-previous/golbat")
+                for message in messages
+            )
+        )
+        self.assertIn(
+            [
+                "docker",
+                "image",
+                "ls",
+                "--format",
+                "{{.Repository}}:{{.Tag}}",
+                "scanner-staged/admin",
+            ],
+            operations,
+        )
 
     def test_testing_version_uses_numeric_order_and_never_downgrades(self):
         registry = object.__new__(updater.Registry)
