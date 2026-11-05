@@ -19,6 +19,7 @@ CREATE TABLE `trade_player` (
   `lists_confirmed_at` datetime DEFAULT NULL,
   `collecting` set('hundo','lucky','shiny','xxl','xxs','normal') NOT NULL DEFAULT '',
   `show_costumes` tinyint(1) NOT NULL DEFAULT 1,
+  `shiny_areas` set('leiria','marinha') NOT NULL DEFAULT 'leiria',
   `trade_dms` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`discord_id`),
   UNIQUE KEY `code_hash` (`code_hash`)

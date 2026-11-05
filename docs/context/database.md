@@ -13,7 +13,7 @@
 
 **`scan_area`** — the scanned-area registry (migration `040`): `area_key VARCHAR(32)` PK, `label`, `dragonite_area` (the Dragonite area whose geofence is the fence), `poracle_area` (geofence name), `alert_role` (Discord role), `sort_order`, `active` (`0` = not scanned yet, ignored by every reader). Seed: `leiria`, `marinha`, `batalha`, `portodemos`, `moita` (only the first two active). Adding an area is one row plus its Dragonite area. Readers never name an area: they go through `modules/scan_areas.py`.
 
-**`shiny_link.alert_areas`** — `SET('leiria','marinha','batalha','portodemos','moita')`, migration `040`, backfilled from `alert_leiria`/`alert_marinha`; readers use this column, writers (the hub) keep the two old flags in step until a later migration drops them.
+**`shiny_link.alert_areas`** — `SET('leiria','marinha','batalha','portodemos','moita')`, migration `040`, backfilled from `alert_leiria`/`alert_marinha`; readers use this column, writers (the hub) keep the two old flags in step until a later migration drops them. **`pogoleiria.trade_player.shiny_areas`** (the site's own selection, migration `022`) is widened to the same five keys by `040`, so saving a newly activated area is not truncated; it is not a bot reader.
 
 **`account_lure`** — `username VARCHAR(50)` PK, `nb_lures INT DEFAULT 12`. Per-account lure budget for `!lures`/`!uselure` (managed by `lure_manager.py`). Migration `004`.
 
