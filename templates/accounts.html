@@ -71,18 +71,6 @@
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
     }
 
-    /* Status strip on the left edge: the "is everything ok" signal. */
-    .status-bar {
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 6px;
-    }
-    .status-success     { background: #52CD86; }
-    .status-urgent      { background: #F98F2B; }
-    .status-destructive { background: #E6443A; }
-
     .card-inner {
         padding: 20px 26px 18px 30px;
     }
@@ -94,11 +82,38 @@
         align-items: center;
         justify-content: space-between;
     }
+    .title-group {
+        display: flex;
+        align-items: center;
+    }
     .title {
         font-size: 15px;
         font-weight: 800;
         color: #F1F5FC;
     }
+    /* Status in words right after the title; no coloured strip or edge
+       accent anywhere on the card (owner, 2026-11-05). */
+    .status {
+        display: flex;
+        align-items: center;
+        margin-left: 14px;
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .status-text {
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .status-success     .status-dot  { background: #52CD86; }
+    .status-success     .status-text { color: #A7B0BE; }
+    .status-urgent      .status-dot  { background: #F98F2B; }
+    .status-urgent      .status-text { color: #F98F2B; }
+    .status-destructive .status-dot  { background: #E6443A; }
+    .status-destructive .status-text { color: #E6443A; }
     .grand-total {
         display: flex;
         align-items: baseline;
@@ -169,20 +184,28 @@
     .text-on  { color: #F1F5FC; }
     .text-off { color: #A7B0BE; }
 
-    /* Labels share one top line; figures sit on the row's bottom edge, so
-       the 44px hero and the 22px figures line up at their feet. */
-    .pool-stats {
-        display: flex;
-    }
+    /* Two lines per pool: the labels share one top line, and the figures
+       share one baseline (flex baseline alignment), so the 44px hero and
+       the 22px figures stand on the same line rather than the same box
+       bottom. */
     .pool-stats.plain { height: 50px; }   /* 6 + 14 + 4 + 26 */
     .pool-stats.hero  { height: 66px; }   /* 14 + 4 + 48 */
-    .stat {
-        position: relative;
+    .stat-labels {
+        display: flex;
+        height: 14px;
+        margin-bottom: 4px;
+    }
+    .pool-stats.plain .stat-labels { margin-top: 6px; }
+    .stat-values {
+        display: flex;
+        align-items: baseline;
+    }
+    .pool-stats.plain .stat-values { height: 26px; }
+    .pool-stats.hero  .stat-values { height: 48px; }
+    .stat-label, .stat-value {
         flex: 1 1 0;
         width: 0;
-        height: 100%;
     }
-    .pool-stats.plain .stat-label { margin-top: 6px; }
     .stat-label {
         height: 14px;
         font-size: 11px;
@@ -192,17 +215,12 @@
         color: #A7B0BE;
     }
     .stat-value {
-        position: absolute;
-        left: 0;
-        bottom: 0;
         font-size: 22px;
         line-height: 26px;
-        height: 26px;
     }
     .stat-value.big {
         font-size: 44px;
         line-height: 48px;
-        height: 48px;
     }
     .value-in-use   { color: #D3DAE4; }
     .value-ready    { color: #52CD86; }
@@ -303,10 +321,12 @@
 <body>
     <div class="stage">
         <div class="card">
-            <div class="status-bar status-{{ status }}"></div>
             <div class="card-inner">
                 <div class="header-row">
-                    <div class="title">Accounts</div>
+                    <div class="title-group">
+                        <div class="title">Accounts</div>
+                        <div class="status status-{{ status }}"><div class="status-dot"></div><div class="status-text">{{ status_label }}</div></div>
+                    </div>
                     <div class="grand-total"><span class="figure">{{ grand_total }}</span><span class="unit">in total</span></div>
                 </div>
 
@@ -325,12 +345,16 @@
 
                 {% if pool.accounts %}
                 <div class="pool-stats {{ 'hero' if pool.hero else 'plain' }}">
-                    {% for stat in pool.accounts.stats %}
-                    <div class="stat">
+                    <div class="stat-labels">
+                        {%- for stat in pool.accounts.stats %}
                         <div class="stat-label">{{ stat.label }}</div>
-                        <div class="stat-value figure {{ 'value-' ~ stat.kind if stat.value else 'value-zero' }}{% if pool.hero and stat.kind == 'ready' %} big{% endif %}">{{ stat.value }}</div>
+                        {%- endfor %}
                     </div>
-                    {% endfor %}
+                    <div class="stat-values">
+                        {%- for stat in pool.accounts.stats %}
+                        <div class="stat-value figure {{ 'value-' ~ stat.kind if stat.value else 'value-zero' }}{% if pool.hero and stat.kind == 'ready' %} big{% endif %}">{{ stat.value }}</div>
+                        {%- endfor %}
+                    </div>
                 </div>
                 <div class="bar">
                     {%- for seg in pool.accounts.segments -%}
