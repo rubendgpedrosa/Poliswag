@@ -31,7 +31,6 @@ SERVICES = {
         "lork",
         "koji",
         "fletchling",
-        "grafana",
     )
 }
 SERVICES.update(
@@ -63,10 +62,17 @@ def log(message):
 
 def run(args, cwd=None, timeout=60):
     # Hard guard: the only Docker writes this program can perform are pulling
-    # immutable references and tagging copies. No deploy/restart entry point.
+    # immutable references, tagging copies and removing its own scanner-* tags.
+    # No deploy/restart entry point.
     allowed = (
         args[:2] in (["docker", "inspect"], ["docker", "pull"])
-        or args[:3] in (["docker", "image", "inspect"], ["docker", "image", "tag"])
+        or args[:3]
+        in (["docker", "image", "inspect"], ["docker", "image", "tag"], ["docker", "image", "ls"])
+        or (
+            args[:3] == ["docker", "image", "rm"]
+            and len(args) == 4
+            and args[3].startswith(("scanner-staged/", "scanner-previous/"))
+        )
         or (
             args[:3] == ["docker", "compose", "-f"]
             and "config" in args
@@ -251,6 +257,19 @@ def save_overrides(records):
     atomic_json(RECOVERY_OVERRIDE, {"services": recovery})
 
 
+def prune_tags(repository, keep):
+    # Untag only; an image still used by a container refuses and is kept.
+    listed = run(["docker", "image", "ls", "--format", "{{.Repository}}:{{.Tag}}", repository])
+    for tag in listed.split():
+        if tag in keep:
+            continue
+        try:
+            run(["docker", "image", "rm", tag])
+            log(f"removed {tag}")
+        except RuntimeError as error:
+            log(f"kept {tag}: {error}")
+
+
 def fingerprint(container):
     return (
         container["Id"],
@@ -349,6 +368,9 @@ def check_and_stage(args, resources):
                 "downloaded": False,
             }
             previous = records.get(name, {})
+            # One rollback image per service: the one replaced by the last update.
+            if previous.get("rollback"):
+                record["rollback"] = previous["rollback"]
             # Retain applied pins: removing the override after recovery would
             # make the next recovery fall back to the old live Compose version.
             if policy == "stage" and (
@@ -382,6 +404,13 @@ def check_and_stage(args, resources):
                     ]
                 )
                 record["downloaded"] = True
+                record["rollback"] = f'scanner-previous/{name}:{before["Image"][7:19]}'
+            if policy == "stage" and not args.check:
+                # Superseded candidates and rollbacks used to pile up (GBs each).
+                staged = f"scanner-staged/{name}:{digest[7:19]}"
+                prune_tags(f"scanner-staged/{name}", {staged} if record["downloaded"] else set())
+                if record.get("rollback"):
+                    prune_tags(f"scanner-previous/{name}", {record["rollback"]})
             after = inspect_container(name)
             if fingerprint(before) != fingerprint(after):
                 raise RuntimeError(
