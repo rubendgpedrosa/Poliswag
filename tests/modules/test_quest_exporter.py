@@ -516,6 +516,14 @@ class TestExport:
         zones = {s["zone"] for s in standard_quest["pokestops"]}
         assert zones == {"leiria", "marinha"}
 
+        # Each stop carries the registry area key in the new area_key field,
+        # with the legacy zone field kept in step for one release.
+        for quest in quests:
+            for stop in quest["pokestops"]:
+                assert stop["area_key"] == stop["zone"]
+                assert stop["area_key"] in {"leiria", "marinha"}
+        assert set(payload) == {"quests", "generatedAt"}
+
         # Image URLs are passed through when present, absent otherwise.
         stop_with_image = next(
             s for s in standard_quest["pokestops"] if s["name"] == "Fonte Luminosa"
