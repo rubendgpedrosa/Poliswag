@@ -5,7 +5,7 @@ Things that run on the host, outside the container, because they must work when 
 | Piece | What |
 |---|---|
 | `scripts/notify_owner.py [--discord] "msg" ["title"]` | Pokémon GO callers use `--discord` for private owner DMs. The generic backup caller retains Home Assistant with Discord fallback. Stdlib only; needs no running bot. |
-| `scripts/dm_owner.py "msg" ["title"]` | DMs `MY_ID` an embed (msg = description, `EMBED_COLOR`) via Discord REST with the bot token from `.env`. The fallback for `notify_owner.py`; also used by `/usr/local/sbin/diadem-update`. |
+| `scripts/dm_owner.py "msg" ["title"]` | DMs `MY_ID` an embed (msg = description, `EMBED_COLOR`) via Discord REST with the bot token from `.env`. The fallback for `notify_owner.py`. |
 | `scripts/watchdog.sh` | Run every minute by `/etc/systemd/system/poliswag-watchdog.{timer,service}`. If the container is running, has been up ≥10 min, and `logs/heartbeat` is ≥10 min old, it `docker restart`s Poliswag and alerts the owner (`notify_owner.py`). A stopped container is left alone (stopped on purpose). Log: `journalctl -t poliswag-watchdog`. |
 | `logs/heartbeat` | Written at the end of every scheduler tick (`cogs/scheduled.py` `_write_heartbeat`, path `Config.HEARTBEAT_FILE`). Tests redirect it to a tmp path. |
 | `/root/db-backup.sh` | Nightly 04:30 dump (not in this repo). On failure it alerts the owner through `notify_owner.py` as well as logging to `/root/backups/db-backup.log`. |
