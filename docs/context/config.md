@@ -8,6 +8,8 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 |---------|-----------------|---------|
 | Dragonite admin | `SCANNER_STATUS_ENDPOINT` | Worker health + account stats |
 | Rotom | `DEVICE_STATUS_ENDPOINT` | Device liveness |
+| Dragonite levelling (optional) | `SCANNER_LEVEL_ACCOUNTS_STATUS_ENDPOINT` | Levelling-pool account stats for the account card (`http://dragonite-level:7272/accounts/stats`); unset hides the section |
+| Rotom levelling (optional) | `LEVEL_DEVICE_STATUS_ENDPOINT` | Levelling phone and workers (`http://rotom-ng-level:7072/api/status`) |
 | Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |
 | Home Assistant | `OWNER_ALERT_ENDPOINT` | Generic backup phone notifications (`scripts/notify_owner.py`); Pokémon GO operational alerts use private Discord DMs (`modules/owner_alert.py`, host helper `--discord`). (Whether pogoleiria.pt, the Pokédex, the quest export and the map answer is watched by the home monitoring's probes since 2026-10-04, not by the bot.) Falls back to a DM. The daily error digest stays a DM. |
 | Poracle-NG | `PORACLE_API_URL` + `PORACLE_API_SECRET` | Pokémon alert rule CRUD |
