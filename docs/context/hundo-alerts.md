@@ -5,11 +5,12 @@ Spec/plan: `/root/docs-archive/Poliswag/superpowers/{specs,plans}/2026-09-24-pok
 
 | Piece | Where |
 |---|---|
-| Settings | `pogoleiria.trade_player`: `hundo_dms`, `hundo_areas` SET(leiria,marinha), `hundo_settings_revision`/`_at` (site writes), `hundo_confirmed_revision`/`_at`, `hundo_dm_refused_revision`/`_at` (Poliswag writes). Migration 014 = site `db/008`. |
+| Settings | `pogoleiria.trade_player`: `hundo_dms`, `hundo_areas` SET(leiria,marinha,batalha,portodemos,moita), `hundo_settings_revision`/`_at` (site writes), `hundo_confirmed_revision`/`_at`, `hundo_dm_refused_revision`/`_at` (Poliswag writes). Migration 014 = site `db/008`. |
 | Site switch | Pokédex → Perfil e outras opções (`apps/pokedex/components/hundo-settings.tsx`), only for ids in the site's `HUNDO_DM_TESTERS` until release. |
 | Rules | `poracle.monsters` rows with `template = 'pokedex-100iv'`, 100/100 IV, one per missing tile, `override_areas` from the setting, in the human's `current_profile_no`. Nothing else in Poracle is touched. |
 | DM look | DTS entry `pokedex-100iv` in `/root/unonwhash/poracleng/config/dts.json`. Footer points at pogoleiria.pt/pokedex. |
 
+- **Area bits.** The five keys follow the registry `sort_order`: `leiria` 1, `marinha` 2, `batalha` 4, `portodemos` 8, `moita` 16 (so stored codes 1/2/3 keep their meaning); `0` is off, and an empty selection means every active area. `hundo_confirmed_setting` stores that one number; `_CLEANUP_SQL` takes the all-active mask as a parameter.
 - **Revision contract.** Every site change bumps `hundo_settings_revision` in the same UPDATE (identical save = no row). Poliswag DMs one confirmation per revision and records delivered/refused only for that exact revision (`_record`'s conditional UPDATE). State is read from revision numbers, never timestamps.
 - **Active** = switch on, `collects_hundo` (member + collecting hundo), current revision confirmed. `may_confirm`: an "off" confirms for any member, an "on" only for a collector (the site refuses the rest).
 - **Tick** (every minute, `cogs/scheduled.py`): cleanup (one DELETE of managed rows of anyone not active, stopped, or missing a human) → confirmations → re-read → per active player: create the Poracle `discord:user` if missing (never restart a stopped one), rebuild rules in one transaction when any managed field differs → cleanup again → an immediate `/api/reload` after cleanup and a final reload after rebuilding if needed, retried until it succeeds (Poracle also reloads every 60s).
