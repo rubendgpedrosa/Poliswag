@@ -546,6 +546,71 @@ class TestCheckQuestScanProgress:
         cog.poliswag.quest_exporter.export.assert_awaited_once()
         cog.poliswag.scanner_manager.update_quest_scanning_state.assert_called_once()
 
+    async def test_done_embed_has_one_line_per_active_registry_area(self, cog):
+        from modules import scan_areas
+
+        scan_areas.install(
+            [
+                {
+                    "area_key": key,
+                    "label": label,
+                    "dragonite_area": dragonite,
+                    "poracle_area": poracle,
+                    "alert_role": "",
+                    "sort_order": order,
+                    "active": 1,
+                }
+                for order, (key, label, dragonite, poracle) in enumerate(
+                    [
+                        ("leiria", "Leiria", "Leiria", "leiria"),
+                        ("marinha", "Marinha Grande", "MarinhaGrande", "marinhagrande"),
+                        ("moita", "Moita", "Moita", "moita"),
+                    ],
+                    start=1,
+                )
+            ],
+            {},
+        )
+        cog.poliswag.scanner_manager.is_day_change.return_value = False
+        cog.poliswag.quest_scanning_message = MagicMock()
+        cog.poliswag.quest_scanning_message.edit = AsyncMock()
+        cog.poliswag.scanner_status.is_quest_scanning_complete = AsyncMock(
+            return_value={
+                "areas": {
+                    "leiria": {
+                        "completed": True,
+                        "scanned": 10,
+                        "total": 10,
+                        "percentage": 100.0,
+                    },
+                    "marinha": {
+                        "completed": True,
+                        "scanned": 8,
+                        "total": 8,
+                        "percentage": 100.0,
+                    },
+                    "moita": {
+                        "completed": True,
+                        "scanned": 3,
+                        "total": 3,
+                        "percentage": 100.0,
+                    },
+                },
+                "completed": True,
+            }
+        )
+        await cog._check_quest_scan_progress()
+        embed = cog.poliswag.quest_scanning_message.edit.call_args.kwargs["embed"]
+        assert "**Leiria:** 10/10 Quests" in embed.description
+        assert "**Marinha Grande:** 8/8 Quests" in embed.description
+        assert "**Moita:** 3/3 Quests" in embed.description
+        assert "`!questleiria <QUEST/ITEM>`" in embed.description
+        assert "`!questmarinha <QUEST/ITEM>`" in embed.description
+        assert "`!quest moita <QUEST/ITEM>`" in embed.description
+        cog.poliswag.scanner_status.record_quest_scan_completion.assert_awaited_once_with(
+            {"leiria": 10, "marinha": 8, "moita": 3}
+        )
+
     async def test_in_progress_builds_progress_embed(self, cog):
         cog.poliswag.scanner_manager.is_day_change.return_value = False
         cog.poliswag.quest_scanning_message = MagicMock()

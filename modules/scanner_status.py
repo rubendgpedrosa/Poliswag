@@ -659,11 +659,15 @@ class ScannerStatus(LoggingMixin):
             return False
         reached_floor = (
             state["flat_streak"] >= self.PLATEAU_TICKS
+            and expected > 0
             and count >= expected * self.COMPLETION_FLOOR
         )
         # Self-heal: a much longer flat plateau below the floor is the real
         # (shrunk) ceiling, not an early stall — accept it so the expected total
-        # can re-baseline. See STUCK_TICKS.
+        # can re-baseline. See STUCK_TICKS. This also covers a newly activated
+        # area with no stored expected total (0): the fast path cannot fire
+        # without a ceiling, so its first scan needs the long window and then
+        # record_quest_scan_completion supplies one.
         stuck_below_floor = state["flat_streak"] >= self.STUCK_TICKS
         return reached_floor or stuck_below_floor
 
