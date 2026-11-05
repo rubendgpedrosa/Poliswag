@@ -9,7 +9,7 @@ shiny when the first draw, as a fraction, is under 1/odds (`shiny_draw`,
 `is_shiny_at`), so a base-rate shiny is shiny at any better odds too.
 
 Confirmed on 2026-10-10 against three scanner accounts (3 of 3 recorded
-shinies roll 0, 0 of 201 non-shinies do): /root/unonwhash/CLAUDE-HANDOVER.md.
+shinies roll 0, 0 of 201 non-shinies do): /root/unonwhash/research/CLAUDE-HANDOVER.md.
 
 Standard library only, so it can be imported outside the bot's venv.
 """
