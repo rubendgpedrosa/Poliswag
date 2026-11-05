@@ -1,0 +1,15 @@
+{
+  "total": 20,
+  "in_use": 14,
+  "good": 3,
+  "cooldown": 1,
+  "banned": 0,
+  "invalid": 2,
+  "auth_banned": 0,
+  "suspended": 0,
+  "warned": 0,
+  "disabled": 0,
+  "missing_token": 4,
+  "provider_disabled": 0,
+  "zero_last_released": 0
+}

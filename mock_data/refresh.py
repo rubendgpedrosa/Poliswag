@@ -87,6 +87,24 @@ def refresh_device_status() -> None:
     write("device_status.json", data)
 
 
+def refresh_level_device_status() -> None:
+    # The levelling pool's Rotom (rotom-ng-level) in RotomNG's shape, so dev
+    # mode renders the card's second section.
+    data = {
+        "devices": [
+            {
+                "id": "RedmiNote4",
+                "origin": "PoliSnatch/RedmiNote4",
+                "is_connected": True,
+                "last_seen_at_ms": NOW_MS,
+                "worker_count": 16,
+                "worker_in_use_count": 14,
+            }
+        ]
+    }
+    write("level_device_status.json", data)
+
+
 def refresh_account_status() -> None:
     # account_status has no live timestamps that affect bot logic — leave as-is.
     path = ROOT / "account_status.json"
@@ -101,5 +119,6 @@ if __name__ == "__main__":
     print("Refreshing mock_data/ timestamps...")
     refresh_scanner_status()
     refresh_device_status()
+    refresh_level_device_status()
     refresh_account_status()
     print("Done.")

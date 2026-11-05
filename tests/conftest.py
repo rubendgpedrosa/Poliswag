@@ -51,6 +51,9 @@ _TEST_ENV_DEFAULTS = {
     "MEGA_JSON_OUTPUT": "/tmp/poliswag-test/megas.json",
     "MEGA_SPRITES_DIR": "/tmp/poliswag-test/sprites/mega",
     "OWNER_ALERT_ENDPOINT": "",
+    # Levelling pool off by default; tests that draw it patch Config.ENDPOINTS.
+    "SCANNER_LEVEL_ACCOUNTS_STATUS_ENDPOINT": "",
+    "LEVEL_DEVICE_STATUS_ENDPOINT": "",
 }
 for _key, _value in _TEST_ENV_DEFAULTS.items():
     os.environ[_key] = _value

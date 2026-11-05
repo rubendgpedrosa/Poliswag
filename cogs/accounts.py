@@ -27,17 +27,8 @@ class Accounts(commands.Cog):
             if ctx.guild is not None:
                 await ctx.message.delete()
 
-            account_data = await self.poliswag.account_monitor.get_account_stats()
-            device_status = await self.poliswag.account_monitor.is_device_connected()
-            area_performance = (
-                await self.poliswag.scanner_status.get_iv_verification_by_area()
-            )
-
-            image_bytes = (
-                await self.poliswag.image_generator.generate_image_from_account_stats(
-                    account_data, device_status, area_performance
-                )
-            )
+            # Same card as the accounts channel: both pools + area footer.
+            image_bytes = await self.poliswag.account_monitor.build_account_card()
             if image_bytes:
                 try:
                     discord_file = discord.File(

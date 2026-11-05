@@ -1,7 +1,6 @@
 """Tests for cogs.accounts.Accounts.
 
-The cog is a thin delegator over poliswag.account_monitor and
-poliswag.image_generator. We invoke command callbacks directly via
+The cog is a thin delegator over poliswag.account_monitor.build_account_card. We invoke command callbacks directly via
 ``Accounts.account_report_cmd.callback(cog, ctx)`` to bypass discord's
 dispatcher and test the error-handling branches in isolation.
 """
@@ -16,12 +15,7 @@ from cogs.accounts import Accounts, setup
 @pytest.fixture
 def cog():
     poliswag = MagicMock()
-    poliswag.account_monitor.get_account_stats = AsyncMock(return_value={"ok": 1})
-    poliswag.account_monitor.is_device_connected = AsyncMock(return_value=True)
-    poliswag.scanner_status.get_iv_verification_by_area = AsyncMock(return_value={})
-    poliswag.image_generator.generate_image_from_account_stats = AsyncMock(
-        return_value=b"PNGBYTES"
-    )
+    poliswag.account_monitor.build_account_card = AsyncMock(return_value=b"PNGBYTES")
     return Accounts(poliswag)
 
 
@@ -50,9 +44,7 @@ class TestAccountReportCmd:
         ctx.send.assert_awaited_once()
 
     async def test_no_image_bytes_sends_error_text(self, cog):
-        cog.poliswag.image_generator.generate_image_from_account_stats = AsyncMock(
-            return_value=None
-        )
+        cog.poliswag.account_monitor.build_account_card = AsyncMock(return_value=None)
         ctx = make_ctx(guild=False)
         await Accounts.account_report_cmd.callback(cog, ctx)
         ctx.send.assert_awaited_once()
@@ -68,7 +60,7 @@ class TestAccountReportCmd:
         assert ctx.send.await_count == 2
 
     async def test_outer_exception_logs_and_sends_generic_error(self, cog):
-        cog.poliswag.account_monitor.get_account_stats = AsyncMock(
+        cog.poliswag.account_monitor.build_account_card = AsyncMock(
             side_effect=RuntimeError("db down")
         )
         ctx = make_ctx(guild=False)
