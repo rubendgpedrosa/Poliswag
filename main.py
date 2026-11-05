@@ -8,6 +8,7 @@ from discord.ext import commands
 from modules.role_manager import RoleManager
 from cogs.event_panel import EventPanelView
 from cogs.mentions import directed_mention
+from modules import scan_areas
 from modules.scanner_status import ScannerStatus
 from modules.scanner_manager import ScannerManager
 from modules.utility import Utility
@@ -178,6 +179,9 @@ class Poliswag(commands.Bot):
             )
         # Before any cog: several read their state columns in cog_load.
         await apply_migrations(self.db, self.utility.log_to_file)
+        # Areas come from the registry plus Dragonite's fences; load them
+        # before cogs so the first tick already classifies points correctly.
+        await scan_areas.refresh(self.utility.log_to_file)
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")
         await self.load_extension("cogs.tracker")

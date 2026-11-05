@@ -4,7 +4,7 @@ Full command table. The core `docs/context.md` keeps only the auth summary.
 
 | Cog | Commands | Auth |
 |-----|----------|------|
-| `quests.py` | `!questleiria [area] [search]` / `!questmarinha`, `!scan`, `!exportquests` | `!scan`+`!exportquests` admin-only |
+| `quests.py` | `!quest <area> <search>` (active registry areas), legacy `!questleiria` / `!questmarinha`, `!scan`, `!exportquests` | `!scan`+`!exportquests` admin-only |
 | `tracker.py` | `!track`, `!untrack`, `!tracklist`, `!untrackall`, `!tracked` | admin-only (`cog_check`) |
 | `event.py` | `!eventtypes`, `!exclude`, `!include`, `!excludedlist`, `!excludeclear` | admin-only |
 | `notifications.py` | `!notify channels\|list\|add\|remove\|enable\|disable\|register\|test` | admin-only |

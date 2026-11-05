@@ -83,9 +83,8 @@ class Config:
     # cogs/event_panel.py, which is edited per event anyway.
     EVENT_PANEL_CHANNEL_ID = int(os.environ.get("EVENT_PANEL_CHANNEL_ID", "0"))
     EVENTS_ROLE_ID = int(os.environ.get("EVENTS_ROLE_ID", "0"))
-    # Combined Leiria+Marinha map status channel — reuses the old Leiria-only
-    # env var name since Leiria's Discord channel is the one that survived
-    # the merge (Marinha's separate channel was deleted).
+    # The combined map status channel. The env var name kept the first area's
+    # name from before the areas were merged into one channel.
     VOICE_CHANNEL_ID = int(os.environ.get("VOICE_CHANNEL_LEIRIA_ID", "0"))
 
     # Database
@@ -184,13 +183,16 @@ class Config:
     PORACLE_API_URL = os.environ.get("PORACLE_API_URL", "http://poracle:3030")
     PORACLE_API_SECRET = os.environ.get("PORACLE_API_SECRET", "")
 
+    # Dragonite's HTTP API, read by modules/scan_areas.py for the scan-area
+    # fences. Areas themselves come from the scan_area table, never from code.
+    DRAGONITE_API_URL = os.environ.get("DRAGONITE_API_URL", "http://192.168.1.253:7272")
+    # Last good fence copy on disk, so a Dragonite restart never empties the
+    # areas. Under the bot's data directory (git-ignored, bind-mounted).
+    SCAN_AREA_CACHE = os.environ.get("SCAN_AREA_CACHE", "data/scan_areas.json")
+
     # UI
     EMBED_COLOR = 0x4169E1
 
-    # Pokestops at or west of this longitude are Marinha Grande, the rest
-    # Leiria. Quest search, the quest export and the scan-progress counts
-    # all split on it, so moving it here keeps them in agreement.
-    MARINHA_LON_MAX = -8.9
     MOCK_DATA_DIR = "mock_data"
 
     @classmethod

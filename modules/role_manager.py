@@ -1,15 +1,17 @@
 import discord
 
+from modules import scan_areas
+
 _TEAM_ROLES = ["Instinct", "Mystic", "Valor"]
 
 # Roles auto-granted to first-time users (len(roles) == 1 means only @everyone).
-_NOTIF_ROLES = [
-    "AlertasLeiria",
-    "AlertasMarinha",
-    "AlertasRaids",
-    "AlertasPvP",
-    "Remote",
-]
+# The per-area alert roles come from the registry, so activating an area
+# lights its role up everywhere; these are the ones that are not areas.
+_EXTRA_NOTIF_ROLES = ["AlertasRaids", "AlertasPvP", "Remote"]
+
+
+def notif_roles():
+    return scan_areas.alert_roles() + _EXTRA_NOTIF_ROLES
 
 
 class RoleManager:
@@ -36,7 +38,7 @@ class RoleManager:
 
     async def _add_default_notif_roles(self, user):
         """Grant all notification roles to a brand-new member (only @everyone so far)."""
-        for name in _NOTIF_ROLES:
+        for name in notif_roles():
             role_obj = discord.utils.get(user.guild.roles, name=name)
             if role_obj is None:
                 continue

@@ -47,6 +47,7 @@ _MIGRATIONS = [
         "014_add_hundo_dms.sql",
         "015_add_hundo_confirmed_settings.sql",
         "016_hundo_delivery_recovery.sql",
+        "040_add_scan_areas.sql",
     )
 ]
 _REFUSE = {"golbat", "dragonite", "reactmap", "koji", "stats", "fletchling"}
@@ -99,7 +100,10 @@ def _run(sql, params=None, database=None):
 def _migrate():
     for migration in _MIGRATIONS:
         for statement in split_statements(migration.read_text()):
-            _run(statement)
+            # 040 also creates scan_area and widens shiny_link, both in
+            # poliswag; qualified statements (pogoleiria.trade_player) are
+            # unaffected by the default schema.
+            _run(statement, database="poliswag")
 
 
 @pytest.fixture(autouse=True)
@@ -234,7 +238,11 @@ def test_migrations_replay_and_add_off_by_default_columns():
     )
     assert {c["name"]: (c["type"], c["dflt"], c["nullable"]) for c in columns} == {
         "hundo_dms": ("tinyint(1)", "0", "NO"),
-        "hundo_areas": ("set('leiria','marinha')", "'leiria,marinha'", "NO"),
+        "hundo_areas": (
+            "set('leiria','marinha','batalha','portodemos','moita')",
+            "'leiria,marinha'",
+            "NO",
+        ),
         "hundo_settings_revision": ("bigint(20) unsigned", "0", "NO"),
         "hundo_settings_at": ("datetime(6)", "NULL", "YES"),
         "hundo_confirmed_revision": ("bigint(20) unsigned", "0", "NO"),
@@ -246,6 +254,17 @@ def test_migrations_replay_and_add_off_by_default_columns():
         "hundo_health_state": ("varchar(24)", "NULL", "YES"),
         "hundo_health_at": ("datetime(6)", "NULL", "YES"),
     }
+    _, shiny_columns = _run(
+        "SELECT COLUMN_TYPE AS type, COLUMN_DEFAULT AS dflt"
+        " FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'pogoleiria'"
+        " AND TABLE_NAME = 'trade_player' AND COLUMN_NAME = 'shiny_areas'"
+    )
+    assert shiny_columns == [
+        {
+            "type": "set('leiria','marinha','batalha','portodemos','moita')",
+            "dflt": "'leiria'",
+        }
+    ]
 
 
 def test_only_changes_and_explicit_retry_increment_the_revision():

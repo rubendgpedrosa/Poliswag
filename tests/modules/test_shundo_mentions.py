@@ -38,8 +38,7 @@ def recipient(channel_id=101, discord_id=1):
         "discord_id": discord_id,
         "channel_id": channel_id,
         "player_id": str(discord_id),
-        "alert_leiria": True,
-        "alert_marinha": True,
+        "alert_areas": "leiria,marinha",
         "shiny_notify_background": True,
         "shiny_notify_all": True,
     }

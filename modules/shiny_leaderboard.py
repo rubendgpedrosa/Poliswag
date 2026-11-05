@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from modules.config import Config
 from modules.http_client import get_session
 from modules import spawn_history
+from modules import scan_areas
 
 LISBON = ZoneInfo("Europe/Lisbon")
 SITE_ENV = Path("/etc/pogoleiria/landing/.env.local")
@@ -188,9 +189,9 @@ def render_report(data, avatars=None, mode="shiny"):
         margin,
         190,
         (
-            "Shiny 100% IV · Leiria · Marinha Grande"
+            f"Shiny 100% IV · {scan_areas.labels(' · ')}"
             if mode == "shundo"
-            else "Leiria · Marinha Grande"
+            else scan_areas.labels(" · ")
         ),
         30,
         MUTED,
@@ -434,6 +435,7 @@ class ShinyLeaderboard:
         return dict(await asyncio.gather(*(fetch(row) for row in rows)))
 
     async def send(self, data=None):
+        await scan_areas.ensure()
         if data is None:
             data = await asyncio.to_thread(spawn_history.leaderboard, 24)
         if not data["metadata"].get("available"):
@@ -464,6 +466,7 @@ class ShinyLeaderboard:
 
     async def send_shundo(self, data=None, hours=24):
         """The shiny + 100% IV board, drawn with the same layout."""
+        await scan_areas.ensure()
         if data is None:
             data = await asyncio.to_thread(spawn_history.shundo_leaderboard, hours)
         if not data["metadata"].get("available"):

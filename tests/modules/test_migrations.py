@@ -64,12 +64,38 @@ def is_guarded_set_update(statement):
     return match is not None
 
 
-def is_rerunnable(statement):
+def is_area_backfill(statement):
+    """The alert_areas backfill only rewrites rows still on the column's
+    default, so once a row has an explicit selection a replay leaves it
+    alone."""
+    return bool(
+        re.fullmatch(
+            r"UPDATE shiny_link\s+SET alert_areas = CONCAT_WS\(.*\)\s+"
+            r"WHERE alert_areas = 'leiria'\s+"
+            r"AND NOT \(alert_leiria = 1 AND alert_marinha = 0\)",
+            statement,
+            re.I | re.S,
+        )
+    )
+
+
+def is_known_modify(clause, known_columns):
+    """MODIFY COLUMN is re-runnable only when an earlier migration already
+    created that column; modifying an unknown column errors on replay."""
+    match = re.match(r"MODIFY COLUMN\s+`?(\w+)`?\b", clause, re.I)
+    return bool(match and match.group(1) in known_columns)
+
+
+def is_rerunnable(statement, known_columns=frozenset()):
     if re.match(r"^CREATE OR REPLACE VIEW\b", statement, re.I):
         return True
     if re.match(r"^CREATE TABLE IF NOT EXISTS\b", statement, re.I):
         return True
-    if is_guarded_set_update(statement):
+    if re.match(r"^INSERT IGNORE INTO\b", statement, re.I):
+        # A seed: the primary key makes a replay a no-op, and it must not
+        # overwrite a row the owner has since activated or edited.
+        return True
+    if is_guarded_set_update(statement) or is_area_backfill(statement):
         return True
     match = re.fullmatch(r"ALTER TABLE \S+\s+(.+)", statement, re.I | re.S)
     if not match:
@@ -105,16 +131,32 @@ def is_rerunnable(statement):
         return False
     clauses.append(text[start:].strip())
     return all(
-        re.match(r"ADD COLUMN IF NOT EXISTS\b", clause, re.I) for clause in clauses
+        re.match(r"ADD COLUMN IF NOT EXISTS\b", clause, re.I)
+        or is_known_modify(clause, known_columns)
+        for clause in clauses
     )
+
+
+def known_columns_before(name):
+    """Columns that AN ORDERED replay has already created before file `name`."""
+    known = set()
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if path.name >= name:
+            break
+        for statement in split_statements(path.read_text()):
+            known.update(
+                re.findall(r"ADD COLUMN IF NOT EXISTS\s+`?(\w+)`?", statement, re.I)
+            )
+    return frozenset(known)
 
 
 @pytest.mark.parametrize(
     "path", sorted(MIGRATIONS_DIR.glob("*.sql")), ids=lambda p: p.name
 )
 def test_every_migration_is_rerunnable(path):
+    known = known_columns_before(path.name)
     for statement in split_statements(path.read_text()):
-        assert is_rerunnable(statement), (
+        assert is_rerunnable(statement, known), (
             f"{path.name} has a statement that is not safe to replay on every "
             f"start:\n{statement}"
         )

@@ -167,8 +167,9 @@ def recipient(
         "discord_name": "faynn",
         "channel_id": channel_id,
         "player_id": PLAYER,
-        "alert_leiria": leiria,
-        "alert_marinha": marinha,
+        "alert_areas": ",".join(
+            key for key, wanted in (("leiria", leiria), ("marinha", marinha)) if wanted
+        ),
         "shiny_notify_all": notify_all,
         "shiny_notify_hundo": notify_hundo,
     }
@@ -776,3 +777,10 @@ def test_webhook_and_fallback_art_follow_prediction(shiny):
     assert shiny_alerts.poracle_webhook(data)["shiny"] is shiny
     embed = shiny_alerts.alert_embed(data, "Pikachu", True)
     assert embed.thumbnail.url.endswith("/25_g2_s.png" if shiny else "/25_g2.png")
+
+
+def test_a_spawn_outside_every_active_fence_reaches_nobody():
+    # Points are classified by the real fences, never by guessing the nearest
+    # area: following every area still does not deliver a spawn none covers.
+    both = recipient(leiria=1, marinha=1)
+    assert shiny_alerts.plays_there(both, {"lat": 38.0, "lon": -9.5}) is False

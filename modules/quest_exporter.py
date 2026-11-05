@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from modules.config import Config
+from modules import scan_areas
 
 _LISBON = ZoneInfo("Europe/Lisbon")
 
@@ -78,6 +79,7 @@ class QuestExporter:
         content was unchanged and the write was skipped.
         """
         qs = self.poliswag.quest_search
+        await scan_areas.ensure()
 
         translations = (qs.translationfile_data or {}).get("data", {})
         masterfile = qs.masterfile_data or {}
@@ -167,13 +169,18 @@ class QuestExporter:
                 if stop_key in seen_stops[key]:
                     continue
                 seen_stops[key].add(stop_key)
+                # The registry area key, in both the new `area_key` field and
+                # the legacy `zone` field it replaces; kept in step for one
+                # release so existing readers keep working.
+                area_key = self._get_zone(row["lat"], row["lon"])
                 stop: dict = {
                     "name": row["name"] or "Unknown",
                     "location": {
                         "lat": float(row["lat"]),
                         "lng": float(row["lon"]),
                     },
-                    "zone": self._get_zone(row["lon"]),
+                    "area_key": area_key,
+                    "zone": area_key,
                     "done": False,
                 }
                 if row.get("url"):
@@ -307,8 +314,9 @@ class QuestExporter:
         return translated.replace("{0}", str(target or ""))
 
     @staticmethod
-    def _get_zone(lon) -> str:
-        return "marinha" if float(lon) <= Config.MARINHA_LON_MAX else "leiria"
+    def _get_zone(lat, lon) -> str | None:
+        """The registry area the stop is in; None when no active fence holds it."""
+        return scan_areas.area_for(lat, lon)
 
     @staticmethod
     def _categorize(title: str) -> str:

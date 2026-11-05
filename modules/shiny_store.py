@@ -128,16 +128,16 @@ class ShinyStore:
         )
 
     async def recipients(self, user_ids):
-        """[{discord_id, discord_name, player_id, alert_leiria, alert_marinha,
-        channel_id, shiny_notify_discord, shiny_notify_all, shiny_notify_hundo}] for the linked
-        players who get alerts: anyone with a channel of their own
+        """[{discord_id, discord_name, player_id, alert_areas, channel_id,
+        shiny_notify_discord, shiny_notify_all, shiny_notify_hundo}] for the
+        linked players who get alerts: anyone with a channel of their own
         (`!shiny canal`), and the listed users, by DM."""
         who = "(l.channel_id IS NOT NULL AND l.channel_archived = 0 AND l.channel_intro_message_id IS NOT NULL)"
         if user_ids:
             placeholders = ",".join(["%s"] * len(user_ids))
             who = f"({who} OR (l.channel_id IS NULL AND l.discord_id IN ({placeholders})))"
         return await self.db.get_data_from_database(
-            "SELECT l.discord_id, l.discord_name, l.player_id, l.alert_leiria, l.alert_marinha, "
+            "SELECT l.discord_id, l.discord_name, l.player_id, l.alert_areas, "
             "l.channel_id, p.shiny_notify_discord, p.shiny_notify_all, p.shiny_notify_hundo, p.shiny_notify_background FROM shiny_link l "
             f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id = l.discord_id "
             f"WHERE l.status = 'linked' AND p.left_at IS NULL AND p.shiny_access = 1 "
@@ -324,7 +324,7 @@ class ShinyStore:
             return []
         placeholders = ",".join(["%s"] * len(user_ids))
         return await self.db.get_data_from_database(
-            "SELECT discord_id, player_id, alert_leiria, alert_marinha, event_pokemon_ids "
+            "SELECT discord_id, player_id, alert_areas, event_pokemon_ids "
             "FROM shiny_link WHERE status = 'linked' AND event_alerts_enabled = 1 "
             f"AND discord_id IN ({placeholders}) "
             "AND (event_digest_at IS NULL OR event_digest_at <= UTC_TIMESTAMP() - INTERVAL 5 MINUTE)",
