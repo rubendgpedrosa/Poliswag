@@ -20,6 +20,9 @@ _REQUIRED_ENV_VARS = (
 
 class Config:
     SHINY_LEADERBOARD_ENABLED = os.environ.get("SHINY_LEADERBOARD_ENABLED", "0") == "1"
+    SHUNDO_LEADERBOARD_ENABLED = (
+        os.environ.get("SHUNDO_LEADERBOARD_ENABLED", "0") == "1"
+    )
     # Discord
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
@@ -49,6 +52,15 @@ class Config:
         for part in os.environ.get("SHINY_ALERT_USER_IDS", "").split(",")
         if part.strip()
     ] or [MY_ID]
+    # Shiny spawn alerts and link-result DMs (modules/shiny_alerts.py). Off
+    # stops delivery only: private channels, !shiny and the odds/availability
+    # ticks keep running. The watermark keeps advancing, so switching it back
+    # on does not replay the spawns of the days it was off.
+    SHINY_ALERTS_ENABLED = os.environ.get("SHINY_ALERTS_ENABLED", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     # Event summaries also require each recipient to opt in. The existing
     # pilot recipient list remains the delivery boundary.
     SHINY_EVENT_DIGESTS_ENABLED = os.environ.get(

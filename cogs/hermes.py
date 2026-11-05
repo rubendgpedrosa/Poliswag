@@ -9,7 +9,6 @@ import discord
 from discord.ext import commands
 
 from modules.config import Config
-from modules.embeds import react_to_request
 from modules.hermes_client import HermesBusy, HermesClient
 from modules.permissions import is_owner
 
@@ -21,6 +20,8 @@ _UNAVAILABLE = (
 
 class Hermes(commands.Cog):
     NAME = "Hermes"
+    # A follow-up waits this long for the running turn to be admitted.
+    ADMIT_WAIT = 15
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -40,7 +41,36 @@ class Hermes(commands.Cog):
                 return status
         return None
 
-    async def handle(self, ctx, text):
+    def busy(self):
+        """Whether an owner turn of this agent is still open."""
+        return any(status.progress.active for status in self.live)
+
+    def _steerable(self):
+        active = self.status_for(self.client.active_run)
+        if active is not None:
+            return active
+        running = [
+            status
+            for status in self.live
+            if status.progress.active and status.progress.status != "queued"
+        ]
+        return min(running, key=lambda s: s.progress.started) if running else None
+
+    async def steer_active(self, text):
+        """A message sent while a turn runs is guidance for it, not a new task."""
+        deadline = time.monotonic() + self.ADMIT_WAIT
+        while (status := self._steerable()) is not None:
+            if status.progress.run_id is not None:
+                if not await status.steer(text):
+                    return False
+                status.kick()
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            await asyncio.sleep(0.5)
+        return False
+
+    async def handle(self, ctx, text, steer_only=False):
         # This entry point is also called outside command dispatch; repeat auth.
         author = ctx.author
         if (
@@ -55,11 +85,22 @@ class Hermes(commands.Cog):
             return False
         if not isinstance(text, str) or not text.strip():
             return False
-        await react_to_request(ctx.message)
+        text = text.strip()
         if len(text) > 12000:
             await self.respond(ctx, "O pedido pode ter no máximo 12000 caracteres.")
             return True
-        progress = RunProgress(ahead=self.client.waiting, name=self.NAME)
+        # "+ texto" asks for a separate task even while another one runs.
+        if text.startswith("+"):
+            if steer_only:
+                return False
+            text = text[1:].strip()
+            if not text:
+                return False
+        elif await self.steer_active(text):
+            return True
+        elif steer_only:
+            return False
+        progress = RunProgress(ahead=self.client.waiting, name=self.NAME, request=text)
         status = StatusMessage(self, ctx, progress)
         status.start()
         run_id = None
@@ -68,7 +109,7 @@ class Hermes(commands.Cog):
             while True:
                 status.turn = asyncio.ensure_future(
                     self.client.reply(
-                        text.strip(),
+                        text,
                         message_id=ctx.message.id,
                         channel_id=ctx.channel.id,
                         approval_callback=lambda approval: self.request_approval(
@@ -86,7 +127,6 @@ class Hermes(commands.Cog):
                     if await status.redirect:
                         # The queued text went to the active run as guidance.
                         await status.finish("redirected")
-                        await react(ctx.message, "💬")
                         return True
                     # The active run refused it: back to the queue as a turn.
                     status.redirect = None
@@ -103,7 +143,6 @@ class Hermes(commands.Cog):
             {"✅": "completed", "⚠️": "partial"}.get(outcome, "unavailable")
         )
         delivered = await self.respond(ctx, reply)
-        await react(ctx.message, outcome)
         if run_id is not None and delivered:
             self.client.forget(run_id)
         return True
@@ -165,13 +204,6 @@ class Hermes(commands.Cog):
         return await send_segments(ctx.channel.send, text, first_reply=ctx.reply)
 
 
-async def react(message, emoji):
-    try:
-        await message.add_reaction(emoji)
-    except discord.HTTPException:
-        pass
-
-
 def _clip(text, limit):
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
@@ -206,8 +238,10 @@ class RunProgress:
 
     HISTORY = 5
 
-    def __init__(self, ahead=0, name="Hermes"):
+    def __init__(self, ahead=0, name="Hermes", request=""):
         self.name = name
+        # What the owner asked, shown first so the card says what will happen.
+        self.request = _safe(request, 180)
         self.started = time.monotonic()
         self.run_started = None
         self.status = "queued" if ahead else "admitting"
@@ -320,6 +354,8 @@ class RunProgress:
                 description += f" · {self.approvals} aprovaç" + (
                     "ão" if self.approvals == 1 else "ões"
                 )
+            if self.request and outcome != "redirected":
+                description = f"📝 {self.request}\n{description}"
             return discord.Embed(
                 title=title, description=description, color=Config.EMBED_COLOR
             )
@@ -328,7 +364,8 @@ class RunProgress:
             return discord.Embed(
                 title="⏳ Na fila",
                 description=(
-                    f"{ahead} pedido{'s' if ahead > 1 else ''} à frente. "
+                    (f"📝 {self.request}\n" if self.request else "")
+                    + f"{ahead} pedido{'s' if ahead > 1 else ''} à frente. "
                     "Usa **Enviar à tarefa atual** para o entregar já como instrução."
                 ),
                 color=Config.EMBED_COLOR,
@@ -339,7 +376,7 @@ class RunProgress:
             title = "⏹️ A parar…"
         else:
             title = f"⚙️ {self.name} a trabalhar"
-        lines = []
+        lines = [f"📝 {self.request}"] if self.request else []
         for icon, name, duration in self.steps:
             took = (
                 f" · {_elapsed(duration)}" if isinstance(duration, (int, float)) else ""
@@ -370,8 +407,9 @@ class RunProgress:
 class StatusMessage:
     """One live, edited embed per owner turn, plus a typing indicator."""
 
-    # Quick answers need no status card; edits stay well under rate limits.
-    FIRST_DELAY = 3
+    # The card is the first reply: it says what will be done, then tracks it.
+    # Edits stay well under rate limits.
+    FIRST_DELAY = 0
     REFRESH = 4
 
     def __init__(self, cog, ctx, progress):
@@ -384,6 +422,7 @@ class StatusMessage:
         # While queued, a future resolving to whether the active run took it.
         self.redirect = None
         self._task = None
+        self._wake = asyncio.Event()
 
     def start(self):
         self.cog.live.add(self)
@@ -392,16 +431,28 @@ class StatusMessage:
     async def _run(self):
         try:
             async with self.ctx.channel.typing():
-                await asyncio.sleep(self.FIRST_DELAY)
+                await self._pause(self.FIRST_DELAY)
                 while True:
                     if self.progress.dirty or self.progress.current:
                         await self._render()
-                    await asyncio.sleep(self.REFRESH)
+                    await self._pause(self.REFRESH)
         except asyncio.CancelledError:
             raise
         except Exception:
             # Feedback is best effort; the turn itself continues regardless.
             pass
+
+    async def _pause(self, seconds):
+        try:
+            await asyncio.wait_for(self._wake.wait(), seconds)
+        except asyncio.TimeoutError:
+            pass
+        self._wake.clear()
+
+    def kick(self):
+        """Show a change (such as new guidance) now rather than at the next tick."""
+        self.progress.dirty = True
+        self._wake.set()
 
     async def _render(self):
         self.progress.dirty = False

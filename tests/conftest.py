@@ -27,6 +27,7 @@ from dotenv import dotenv_values
 _TEST_ENV_DEFAULTS = {
     "SHINY_LEADERBOARD_ENABLED": "0",
     "SHINY_ALERT_USER_IDS": "",
+    "SHINY_ALERTS_ENABLED": "1",
     "SHINY_EVENT_DIGESTS_ENABLED": "false",
     "TRADES_CHANNEL_ID": "0",
     "TRAP_CHANNEL_ID": "0",

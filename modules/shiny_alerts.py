@@ -269,8 +269,13 @@ class ShinyAlerts:
         pending = await self.store.pending_settings()
         await self._confirm_notification_changes()
         await self.channels.tick()
-        await self._announce_links()
-        await self._alert_spawns()
+        if Config.SHINY_ALERTS_ENABLED:
+            await self._announce_links()
+            await self._alert_spawns()
+        else:
+            # Switched off: deliver nothing, but keep the watermark on now so
+            # a later switch-on doesn't walk the spawns of the days it missed.
+            await self.store.set_watermark(int(time.time()))
         # The site says "A aguardar pelo Poliswag…" until this lands. A step
         # that raised above confirms nothing, and neither does a stopped bot.
         for row in pending:
@@ -279,7 +284,7 @@ class ShinyAlerts:
             )
         # Lazy construction avoids changing baseline reads when summaries are
         # disabled. This path never calls the game or the linker.
-        if Config.SHINY_EVENT_DIGESTS_ENABLED:
+        if Config.SHINY_ALERTS_ENABLED and Config.SHINY_EVENT_DIGESTS_ENABLED:
             from modules.shiny_events import ShinyEventDigests
 
             await ShinyEventDigests(self.poliswag).tick()

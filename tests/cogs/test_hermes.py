@@ -45,7 +45,7 @@ async def test_owner_dm_has_only_owner_text_no_history_or_attachments(cog):
     assert cog.client.reply.call_args.kwargs["channel_id"] == 456
     assert callable(cog.client.reply.call_args.kwargs["approval_callback"])
     cog.client.forget.assert_called_once_with("run-1")
-    assert ctx.message.add_reaction.await_args_list[0].args == ("👀",)
+    ctx.message.add_reaction.assert_not_awaited()
     ctx.channel.history.assert_not_called()
     assert ctx.reply.call_args.args == ("Olá!",)
     assert not ctx.reply.call_args.kwargs["allowed_mentions"].everyone
@@ -73,7 +73,7 @@ async def test_acknowledges_before_model_and_segments_full_long_reply(cog):
     text = "á" * 2500
 
     async def reply(*args, **kwargs):
-        ctx.message.add_reaction.assert_awaited_once_with("👀")
+        ctx.message.add_reaction.assert_not_awaited()
         return ("run-2", text)
 
     cog.client.reply.side_effect = reply
@@ -385,18 +385,18 @@ def test_long_code_lines_are_kept_in_chat_without_truncation(marker):
     assert "".join(bodies) == body
 
 
-async def test_outcome_reaction_follows_reply(cog):
+async def test_owner_messages_get_no_reactions(cog):
     ctx = context(dm=True)
     await cog.handle(ctx, "hello")
-    reactions = [call.args[0] for call in ctx.message.add_reaction.await_args_list]
-    assert reactions == ["👀", "✅"]
+    ctx.message.add_reaction.assert_not_awaited()
 
 
-async def test_failure_reacts_with_cross(cog):
+async def test_failure_is_reported_without_reactions(cog):
     cog.client.reply.side_effect = RuntimeError("x")
     ctx = context(dm=True)
     await cog.handle(ctx, "hello")
-    assert ctx.message.add_reaction.await_args_list[-1].args == ("❌",)
+    ctx.message.add_reaction.assert_not_awaited()
+    assert "Não consegui confirmar" in ctx.reply.await_args_list[-1].args[0]
 
 
 async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
@@ -439,10 +439,18 @@ async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
     assert replies[-1] == {"mention_author": False, "allowed_mentions": ANY}
 
 
-async def test_quick_answer_posts_no_status_card(cog):
+async def test_first_reply_is_a_card_saying_what_was_asked(cog):
     ctx = context(dm=True)
-    await cog.handle(ctx, "hello")
-    assert all("embed" not in call.kwargs for call in ctx.reply.await_args_list)
+
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return ("run-1", "Feito")
+
+    cog.client.reply = AsyncMock(side_effect=slow)
+    await cog.handle(ctx, "reinicia o grafana")
+    first = ctx.reply.await_args_list[0].kwargs["embed"]
+    assert first.title == "⚙️ Hermes a trabalhar"
+    assert first.description.startswith("📝 reinicia o grafana")
 
 
 async def test_queued_request_can_be_redirected_into_active_run(cog):
@@ -478,7 +486,6 @@ async def test_queued_request_can_be_redirected_into_active_run(cog):
     finally:
         StatusMessage.__init__ = original
     cog.client.steer.assert_awaited_once_with("run-1", ctx.message.content)
-    assert ctx.message.add_reaction.await_args_list[-1].args == ("💬",)
     assert all(
         call.args[:1] != ("não devia correr",) for call in ctx.reply.await_args_list
     )
@@ -636,3 +643,57 @@ async def test_redirect_deletes_queued_card_and_updates_active_card(cog):
     queued.message.edit.assert_not_awaited()
     assert active.progress.steered == 1
     assert "usa a porta 8080" in active.progress.embed().description
+
+
+def _running_status(cog, run_id="run-1"):
+    from cogs.hermes import RunProgress, StatusMessage
+
+    status = StatusMessage(cog, context(dm=True), RunProgress(request="tarefa"))
+    status.progress.run_id = run_id
+    status.progress.status = "running"
+    cog.live.add(status)
+    return status
+
+
+async def test_follow_up_message_steers_the_running_turn(cog):
+    active = _running_status(cog)
+    cog.client.active_run = "run-1"
+    cog.client.steer = AsyncMock(return_value=True)
+    ctx = context(dm=True)
+    assert await cog.handle(ctx, "  usa a porta 8080 ")
+    cog.client.steer.assert_awaited_once_with("run-1", "usa a porta 8080")
+    cog.client.reply.assert_not_awaited()
+    assert active.progress.steered == 1
+    assert "usa a porta 8080" in active.progress.embed().description
+    ctx.reply.assert_not_awaited()
+
+
+async def test_plus_prefix_starts_a_separate_task(cog):
+    _running_status(cog)
+    cog.client.active_run = "run-1"
+    cog.client.steer = AsyncMock(return_value=True)
+    await cog.handle(context(dm=True), "+ outra coisa")
+    cog.client.steer.assert_not_awaited()
+    assert cog.client.reply.call_args.args == ("outra coisa",)
+
+
+async def test_refused_steer_becomes_a_new_turn(cog):
+    _running_status(cog)
+    cog.client.active_run = "run-1"
+    cog.client.steer = AsyncMock(return_value=False)
+    await cog.handle(context(dm=True), "e agora isto")
+    assert cog.client.reply.call_args.args == ("e agora isto",)
+
+
+async def test_steer_only_never_starts_a_turn(cog):
+    assert not await cog.handle(context(dm=True), "olá", steer_only=True)
+    cog.client.reply.assert_not_awaited()
+    _running_status(cog)
+    assert not await cog.handle(context(dm=True), "+ nova", steer_only=True)
+    cog.client.reply.assert_not_awaited()
+
+
+async def test_busy_reflects_open_turns(cog):
+    assert not cog.busy()
+    _running_status(cog)
+    assert cog.busy()

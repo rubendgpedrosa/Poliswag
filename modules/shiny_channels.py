@@ -23,6 +23,14 @@ STARTUP_TEXT = "Estamos a iniciar os teus alertas de shinies."
 READY_TEXT = "Os teus alertas de shinies estão ativos."
 PROCESSING_TEXT = "Já estamos a associar o teu treinador para preparar os teus alertas."
 FAILED_TEXT = "Não foi possível iniciar os teus alertas. Confirma o teu Código de amizade no Pokédex e tenta associar novamente."
+# The feature is off (Config.SHINY_ALERTS_ENABLED): what the pinned note says
+# once, and the intro state that makes a future switch-on rewrite it.
+SHUTDOWN_TEXT = (
+    "Os alertas de shinies previstos estão desligados: o jogo foi alterado e já "
+    "não é possível prever os shinies. O canal fica em arquivo; se voltar a ser "
+    "possível, avisamos aqui."
+)
+OFF_STATE = "off"
 INTRO_TITLE = "✨ Notificações Pokémon Shiny"
 INTRO_TEXT = (
     "Aqui irás receber as notificações dos Pokémon que a fórmula determina "
@@ -181,6 +189,16 @@ class ShinyChannels:
             row = rows[0]
             member = guild.get_member(int(discord_id))
             channel = await self._channel(guild, row, member)
+            if not Config.SHINY_ALERTS_ENABLED:
+                # The prediction is gone: hide the channel and leave the pinned
+                # note saying why, once per channel.
+                if channel is not None and (
+                    not row.get("channel_archived")
+                    or row.get("channel_intro_state") != OFF_STATE
+                ):
+                    await self._archive(guild, row, member, channel)
+                    await self._shutdown_intro(channel, row)
+                return None
             if not enabled(row) or member is None:
                 if channel is not None:
                     await self._archive(guild, row, member, channel)
@@ -229,6 +247,26 @@ class ShinyChannels:
         overwrites = self._overwrites(guild, member, False)
         if channel.category != category or channel.overwrites != overwrites:
             await channel.edit(category=category, overwrites=overwrites)
+
+    async def _shutdown_intro(self, channel, row):
+        """Replace the pinned intro with the shutdown note, once."""
+        message_id = row.get("channel_intro_message_id")
+        message = None
+        if message_id:
+            try:
+                message = await channel.fetch_message(int(message_id))
+            except discord.NotFound:
+                pass
+        if message is not None:
+            await message.edit(
+                content=SHUTDOWN_TEXT,
+                embed=None,
+                view=None,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        # `off` never matches a setup phase, so switching the feature back on
+        # rewrites the note through the ordinary intro path.
+        await self.store.set_channel_intro_state(row["discord_id"], OFF_STATE)
 
     async def _intro(self, guild, row, channel):
         message_id = row.get("channel_intro_message_id")
