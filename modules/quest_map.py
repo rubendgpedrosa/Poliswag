@@ -174,13 +174,12 @@ def _reward_sprite(image_bytes):
     return shadow
 
 
-def draw_quest_map(image_bytes, quest_map, is_leiria=True, icons=None):
+def draw_quest_map(image_bytes, quest_map, color="#3498DB", icons=None):
     with Image.open(BytesIO(image_bytes), formats=["PNG", "WEBP"]) as source:
         if source.size != (WIDTH * SCALE, HEIGHT * SCALE):
             raise ValueError("Tile server returned an unexpected map size")
         image = source.convert("RGBA")
     draw = ImageDraw.Draw(image)
-    color = "#3498DB" if is_leiria else "#2ECC71"
     font = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
     sprites = {slug: _reward_sprite(data) for slug, data in (icons or {}).items()}
     placements = place_labels(quest_map.points)

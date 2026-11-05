@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 
 from modules.logging_mixin import LoggingMixin
+from modules import scan_areas
 
 
 @dataclass(frozen=True)
@@ -56,8 +57,6 @@ _ALSO_AT_5_STAR = (8,)
 # ScrapedDuck's species icons come in two namings: pokemon_icon_443_00.png
 # is Gible, pm4.fGOGGLES_2026.icon.png a Charmander in costume.
 _ICON_POKEMON_ID = re.compile(r"pokemon_icon_(\d+)_|/pm(\d+)\.")
-_STATS_AREAS = ("Leiria", "MarinhaGrande")
-_AREA_LABELS = dict(zip(_STATS_AREAS, ("Leiria", "Marinha Grande")))
 _BOSSES_SHOWN = 3
 
 # Golbat's raid levels. Tier names are game terms and stay in English.
@@ -160,13 +159,24 @@ class EventStats(LoggingMixin):
         arrow = "📈" if total >= before else "📉"
         return f"{arrow} **{ratio}×** o dia anterior ({self._number(before)})"
 
+    async def _area_names(self):
+        """Golbat's area names for the active registry rows, in display order."""
+        await scan_areas.ensure()
+        return [
+            (row["dragonite_area"], row["label"]) for row in scan_areas.active_areas()
+        ]
+
     async def _by_area(self, table, pokemon_ids, start_date, end_date):
-        placeholders = ", ".join(["%s"] * len(_STATS_AREAS))
+        areas = await self._area_names()
+        names = [name for name, _label in areas]
+        if not names:
+            return {}
+        placeholders = ", ".join(["%s"] * len(names))
         query = (
             f"SELECT area, SUM(count) AS total FROM {table} "
             f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders})"
         )
-        params = [start_date, end_date, *_STATS_AREAS]
+        params = [start_date, end_date, *names]
         if pokemon_ids is not None:
             query += f" AND pokemon_id IN ({', '.join(['%s'] * len(pokemon_ids))})"
             params.extend(pokemon_ids)
@@ -177,13 +187,16 @@ class EventStats(LoggingMixin):
         return {row["area"]: int(row["total"]) for row in rows}
 
     async def _raids(self, start_date, end_date):
-        """[(area, level, pokemon_id, total)] for the stats areas."""
-        placeholders = ", ".join(["%s"] * len(_STATS_AREAS))
+        """[(area, level, pokemon_id, total)] for the active stats areas."""
+        names = [name for name, _label in await self._area_names()]
+        if not names:
+            return []
+        placeholders = ", ".join(["%s"] * len(names))
         rows = await self.poliswag.quest_search.db.get_data_from_database(
             "SELECT area, level, pokemon_id, SUM(count) AS total FROM raid_stats "
             f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders}) "
             "GROUP BY area, level, pokemon_id",
-            params=(start_date, end_date, *_STATS_AREAS),
+            params=(start_date, end_date, *names),
         )
         return [
             (row["area"], int(row["level"]), int(row["pokemon_id"]), int(row["total"]))
@@ -230,12 +243,19 @@ class EventStats(LoggingMixin):
         versus = self._versus(by_level[level], before_by_level.get(level, 0))
         if versus:
             lines.append(versus)
-        columns = []
-        for area in _STATS_AREAS:
-            value = (
-                f"{self._number(areas[area])} raids" if area in areas else "sem dados"
+        columns = [
+            (
+                label,
+                [
+                    (
+                        f"{self._number(areas[name])} raids"
+                        if name in areas
+                        else "sem dados"
+                    )
+                ],
             )
-            columns.append((_AREA_LABELS[area], [value]))
+            for name, label in await self._area_names()
+        ]
         return self._layout(lines, columns, start_date, end_date)
 
     @staticmethod
@@ -265,13 +285,16 @@ class EventStats(LoggingMixin):
             return None
         named = match.group("bosses").lower()
 
-        placeholders = ", ".join(["%s"] * len(_STATS_AREAS))
+        names = [name for name, _label in await self._area_names()]
+        if not names:
+            return None
+        placeholders = ", ".join(["%s"] * len(names))
         level_marks = ", ".join(["%s"] * len(levels))
         rows = await self.poliswag.quest_search.db.get_data_from_database(
             "SELECT area, level, pokemon_id, date, SUM(count) AS total FROM raid_stats "
             f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders}) "
             f"AND level IN ({level_marks}) GROUP BY area, level, pokemon_id, date",
-            params=(start_date, end_date, *_STATS_AREAS, *levels),
+            params=(start_date, end_date, *names, *levels),
         )
         rows = [
             row
@@ -300,16 +323,16 @@ class EventStats(LoggingMixin):
             lines.append(f"📅 ~{self._number(round(total / len(days)))} por dia")
         columns = [
             (
-                _AREA_LABELS[area],
+                label,
                 [
                     (
-                        f"{self._number(areas[area])} raids"
-                        if area in areas
+                        f"{self._number(areas[name])} raids"
+                        if name in areas
                         else "sem dados"
                     )
                 ],
             )
-            for area in _STATS_AREAS
+            for name, label in await self._area_names()
         ]
         return self._layout(lines, columns, days[0], days[-1], whole_days=True)
 
@@ -341,18 +364,17 @@ class EventStats(LoggingMixin):
         if versus:
             lines.append(versus)
         columns = []
-        for area in _STATS_AREAS:
-            label = _AREA_LABELS[area]
-            if area not in spawns:
+        for name, label in await self._area_names():
+            if name not in spawns:
                 columns.append((label, ["sem dados"]))
                 continue
             columns.append(
                 (
                     label,
                     [
-                        f"{self._number(spawns[area])} spawns",
-                        f"💯 {self._number(hundos.get(area, 0))} 100IV",
-                        f"0️⃣ {self._number(nundos.get(area, 0))} 0IV",
+                        f"{self._number(spawns[name])} spawns",
+                        f"💯 {self._number(hundos.get(name, 0))} 100IV",
+                        f"0️⃣ {self._number(nundos.get(name, 0))} 0IV",
                     ],
                 )
             )

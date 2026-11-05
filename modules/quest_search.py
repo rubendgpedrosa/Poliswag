@@ -6,6 +6,7 @@ import time
 from zoneinfo import ZoneInfo
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
+from modules import scan_areas
 from modules.embeds import status_embed
 import logging
 
@@ -283,26 +284,27 @@ class QuestSearch:
         }
         return self.alternative_quest_data
 
-    async def find_quest_by_search_keyword(self, search, is_leiria):
-        """Find quests by a search keyword."""
+    async def find_quest_by_search_keyword(self, search, area):
+        """Find quests by a search keyword inside one registry area."""
         search = search.lower()
+        await scan_areas.ensure()
         quest_data = (await self.get_quest_data())["data"]
         alternative_quest_data = (await self.get_alternative_quest_data())["data"]
 
         found_quests = self.find_and_process_quest_by_search_keyword(
-            search, is_leiria, quest_data + alternative_quest_data
+            search, area, quest_data + alternative_quest_data
         )
 
         return found_quests if found_quests else None
 
-    def find_and_process_quest_by_search_keyword(self, search, is_leiria, quest_data):
+    def find_and_process_quest_by_search_keyword(self, search, area, quest_data):
         found_quests = []
         mapped_pokemon_ids = self.get_pokemon_id_by_pokemon_name_map(search)
         mapped_item_ids = self.get_item_id_by_item_name_map(search)
 
         for quest in quest_data:
             if self.is_quest_relevant(
-                quest, search, mapped_pokemon_ids, mapped_item_ids, is_leiria
+                quest, search, mapped_pokemon_ids, mapped_item_ids, area
             ):
                 quest["quest_slug"] = self.generate_quest_slug_for_image(quest)
                 self.add_quest_to_found_quests(found_quests, quest)
@@ -310,7 +312,7 @@ class QuestSearch:
         return found_quests
 
     def is_quest_relevant(
-        self, quest, search, mapped_pokemon_ids, mapped_item_ids, is_leiria
+        self, quest, search, mapped_pokemon_ids, mapped_item_ids, area
     ):
         if not _row_is_live(quest, time.time()):
             return False
@@ -323,7 +325,7 @@ class QuestSearch:
 
         quest_title_translated = self._translate_quest_title(quest_title, quest_target)
 
-        if self.is_location_relevant(quest, is_leiria):
+        if self.is_location_relevant(quest, area):
             return (
                 search in quest_title_translated.lower()
                 or quest_pokemon_id in mapped_pokemon_ids
@@ -355,13 +357,14 @@ class QuestSearch:
             return quest_title
         return translated.replace("{0}", str(quest_target or ""))
 
-    def is_location_relevant(self, quest, is_leiria):
+    def is_location_relevant(self, quest, area):
+        """Whether the stop is inside the given registry area's fence."""
         try:
+            lat = float(quest["lat"])
             lon = float(quest["lon"])
-        except (TypeError, ValueError):
+        except (KeyError, TypeError, ValueError):
             return False
-        in_marinha = lon <= Config.MARINHA_LON_MAX
-        return not in_marinha if is_leiria else in_marinha
+        return scan_areas.area_for(lat, lon) == area
 
     def add_quest_to_found_quests(self, found_quests, quest):
         fields = _quest_fields(quest)
@@ -484,10 +487,10 @@ class QuestSearch:
         return chunks
 
     def create_quest_embed(
-        self, quest_title, pokestops, is_leiria, page=1, total_pages=1, total_stops=None
+        self, quest_title, pokestops, area, page=1, total_pages=1, total_stops=None
     ):
-        location_name = "Leiria" if is_leiria else "Marinha Grande"
-        color = discord.Color.blue() if is_leiria else discord.Color.green()
+        location_name = scan_areas.label(area)
+        color = discord.Color.from_str(scan_areas.color_for(area))
         stop_count = total_stops if total_stops is not None else len(pokestops)
         # One line per stop in the description (rather than a field per stop)
         # so the listing stays compact and doesn't reflow awkwardly on mobile,
@@ -603,49 +606,33 @@ class QuestSearch:
             )
             return
 
-        all_found_quests_leiria = []
-        all_found_quests_marinha = []
+        await scan_areas.ensure()
+        areas = scan_areas.active_areas()
+        found_by_area = {row["area_key"]: [] for row in areas}
 
         await channel.send(embed=status_embed("Resultados do scan de quests de hoje"))
         for tracked_quest_data in tracked_quests:
             search_keyword = tracked_quest_data["target"]
-
-            found_quests_leiria = (
-                await self.poliswag.quest_search.find_quest_by_search_keyword(
-                    search_keyword, True
+            for row in areas:
+                found_quests = (
+                    await self.poliswag.quest_search.find_quest_by_search_keyword(
+                        search_keyword, row["area_key"]
+                    )
                 )
-            )
-            if found_quests_leiria:
-                all_found_quests_leiria.extend(found_quests_leiria)
+                if found_quests:
+                    found_by_area[row["area_key"]].extend(found_quests)
 
-            found_quests_marinha = (
-                await self.poliswag.quest_search.find_quest_by_search_keyword(
-                    search_keyword, False
-                )
-            )
-            if found_quests_marinha:
-                all_found_quests_marinha.extend(found_quests_marinha)
-
-        if not all_found_quests_leiria and not all_found_quests_marinha:
+        if not any(found_by_area.values()):
             self.poliswag.utility.log_to_file("Nenhuma quest seguida encontrada.")
             return
 
         from modules.embeds import build_tracked_summary_embeds
 
-        if all_found_quests_leiria:
-            reward_groups_leiria = self.poliswag.quest_search.group_pokestops_by_reward(
-                all_found_quests_leiria
-            )
+        for row in areas:
+            found = found_by_area[row["area_key"]]
+            if not found:
+                continue
+            reward_groups = self.poliswag.quest_search.group_pokestops_by_reward(found)
             await build_tracked_summary_embeds(
-                channel, reward_groups_leiria, "Leiria", Config.UI_ICONS_URL
-            )
-
-        if all_found_quests_marinha:
-            reward_groups_marinha = (
-                self.poliswag.quest_search.group_pokestops_by_reward(
-                    all_found_quests_marinha
-                )
-            )
-            await build_tracked_summary_embeds(
-                channel, reward_groups_marinha, "Marinha Grande", Config.UI_ICONS_URL
+                channel, reward_groups, row["label"], Config.UI_ICONS_URL
             )

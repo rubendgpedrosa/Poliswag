@@ -39,20 +39,20 @@ class TestTranslateTitle:
 
 class TestGetZone:
     def test_marinha_zone_at_or_west_of_threshold(self):
-        assert QuestExporter._get_zone("-8.9123") == "marinha"
+        assert QuestExporter._get_zone(39.74, "-8.9123") == "marinha"
 
     def test_leiria_zone_east_of_threshold(self):
-        assert QuestExporter._get_zone("-8.8456") == "leiria"
+        assert QuestExporter._get_zone(39.74, "-8.8456") == "leiria"
 
     def test_accepts_float_input(self):
-        assert QuestExporter._get_zone(-8.9321) == "marinha"
-        assert QuestExporter._get_zone(-8.8) == "leiria"
+        assert QuestExporter._get_zone(39.74, -8.9321) == "marinha"
+        assert QuestExporter._get_zone(39.74, -8.8) == "leiria"
 
-    def test_far_west_longitude_is_marinha(self):
-        # Regression: a substring check on "-8.9" used to misclassify
-        # anything at or past -9.0 as leiria.
-        assert QuestExporter._get_zone(-9.0) == "marinha"
-        assert QuestExporter._get_zone("-9.5") == "marinha"
+    def test_outside_every_fence_has_no_area(self):
+        # Points are never guessed into the nearest area: a stop outside the
+        # active fences has no zone at all.
+        assert QuestExporter._get_zone(39.74, -9.5) is None
+        assert QuestExporter._get_zone(40.5, -8.8) is None
 
 
 class TestCategorize:
@@ -515,6 +515,14 @@ class TestExport:
         # Zone tagging applied per pokestop.
         zones = {s["zone"] for s in standard_quest["pokestops"]}
         assert zones == {"leiria", "marinha"}
+
+        # Each stop carries the registry area key in the new area_key field,
+        # with the legacy zone field kept in step for one release.
+        for quest in quests:
+            for stop in quest["pokestops"]:
+                assert stop["area_key"] == stop["zone"]
+                assert stop["area_key"] in {"leiria", "marinha"}
+        assert set(payload) == {"quests", "generatedAt"}
 
         # Image URLs are passed through when present, absent otherwise.
         stop_with_image = next(

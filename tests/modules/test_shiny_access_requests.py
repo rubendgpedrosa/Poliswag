@@ -91,7 +91,7 @@ def test_approval_mirrors_site_queue_rules(database, link, relink, queues):
             for call in cursor.execute.call_args_list
             if "INSERT INTO" in call.args[0]
         )
-        assert queue.args[1] == ("123", "trainer", "123456789012", 0, 1)
+        assert queue.args[1] == ("123", "trainer", "123456789012", "marinha", 0, 1)
         assert "link_processing_at = NULL" in queue.args[0]
     connection.commit.assert_called_once()
     connection.rollback.assert_not_called()

@@ -8,6 +8,7 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 |---------|-----------------|---------|
 | Dragonite admin | `SCANNER_STATUS_ENDPOINT` | Worker health + account stats |
 | Rotom | `DEVICE_STATUS_ENDPOINT` | Device liveness |
+| Dragonite fences | `DRAGONITE_API_URL` (default `http://192.168.1.253:7272`; `SCAN_AREA_CACHE`, default `data/scan_areas.json`) | Area geofences for `modules/scan_areas.py`; the last good copy is cached on disk |
 | Dragonite levelling (optional) | `SCANNER_LEVEL_ACCOUNTS_STATUS_ENDPOINT` | Levelling-pool account stats for the account card (`http://dragonite-level:7272/accounts/stats`); unset hides the section |
 | Rotom levelling (optional) | `LEVEL_DEVICE_STATUS_ENDPOINT` | Levelling phone and workers (`http://rotom-ng-level:7072/api/status`) |
 | Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |

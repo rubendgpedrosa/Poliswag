@@ -304,7 +304,6 @@ class TestLeaderboard:
         monkeypatch.setattr(
             spawn_history, "connect", MagicMock(return_value=connection)
         )
-        monkeypatch.setattr(spawn_history.Config, "MARINHA_LON_MAX", 0.0)
         return spawn_history.leaderboard(1)
 
     def test_without_an_archive_there_are_no_trainers(self, monkeypatch):
@@ -328,7 +327,8 @@ class TestLeaderboard:
             {
                 "encounter_id": 101,
                 "pokemon_id": 25,
-                "lon": 1.0,
+                "lat": 39.74,
+                "lon": -8.8,
                 "atk_iv": 15,
                 "def_iv": 15,
                 "sta_iv": 15,
@@ -337,7 +337,8 @@ class TestLeaderboard:
             {
                 "encounter_id": 102,
                 "pokemon_id": 129,
-                "lon": -1.0,
+                "lat": 39.74,
+                "lon": -8.93,
                 "atk_iv": 10,
                 "def_iv": 12,
                 "sta_iv": 14,
@@ -357,7 +358,7 @@ class TestLeaderboard:
         assert (first["trainer"], second["trainer"]) == ("a trainer", "b trainer")
         assert first["hundo_shinies"] == 1
         assert first["unique_species"] == 2
-        assert (first["leiria"], first["marinha"]) == (1, 1)
+        assert first["areas"] == {"leiria": 1, "marinha": 1}
         assert first["shinies_per_hour"] == round(2 / 1, 3)
         base = sum(
             is_shiny_at(shiny_draw(spawn["encounter_id"], PLAYER_B), 512)
@@ -374,7 +375,8 @@ class TestLeaderboard:
                 {
                     "encounter_id": 103,
                     "pokemon_id": 25,
-                    "lon": 1.0,
+                    "lat": 39.74,
+                    "lon": -8.8,
                     "atk_iv": 15,
                     "def_iv": 15,
                     "sta_iv": 15,
