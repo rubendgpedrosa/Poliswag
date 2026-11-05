@@ -9,7 +9,7 @@
 | Scanner MariaDB | Download immutable patch images; automatically apply during the next orderly host shutdown/reboot |
 | Tileserver | Report only; preserve the configured pin |
 
-Dragonite selects the highest numeric `dragonite-vX.Y.Z-testing` tag and never changes release channels or downgrades. The script pulls by digest and keeps one staged candidate and one rollback tag per service, pruning older `scanner-staged/*` and `scanner-previous/*` tags; a tag still used by a container is kept. It preserves live `main`/`latest` tags and all live Compose files. A minimum 3 GiB free-space check precedes downloads. Overlapping runs are excluded with a file lock.
+Dragonite selects the highest numeric `dragonite-vX.Y.Z-testing` tag and never changes release channels or downgrades. The script pulls by digest and keeps one staged candidate and one rollback tag per service, pruning older `scanner-staged/*` and `scanner-previous/*` tags only after the state and overrides are saved; removal is refused only when the tag is the image's last reference and a container still uses it. A record that predates pruning adopts its newest `scanner-previous/*` image as rollback, and nothing in that repository is pruned when this cannot be determined. It preserves live `main`/`latest` tags and all live Compose files. A minimum 3 GiB free-space check precedes downloads. Overlapping runs are excluded with a file lock.
 
 Commands: `scanner-update --check` queries registries without writing, downloading, or messaging; `scanner-update` stages updates; `scanner-update --notify` also sends changed results to the owner; `scanner-update --status` prints saved state; `--services dragonite admin golbat rotom-ng` restricts the run.
 
