@@ -7,8 +7,12 @@ from modules.config import Config
 from modules.database_connector import DatabaseConnector
 from modules.embeds import status_embed
 from modules.poracle_client import PoracleError
+from modules import scan_areas
 
-_PAIRED_PREFIXES = ("leiria-", "marinha-")
+
+def paired_prefixes():
+    """Channel-name prefixes whose pair fans out together: one per area."""
+    return tuple(f"{key}-" for key in scan_areas.active_keys())
 
 
 class Notifications(commands.Cog):
@@ -62,8 +66,8 @@ class Notifications(commands.Cog):
         Accepts:
           - A `<#id>` mention or raw numeric id → exact match on id
           - An exact channel name (e.g. ``alertas-level5``)
-          - A category suffix (``raros``, ``100iv``, ``0iv``, ``uteis``) → both
-            ``leiria-<suffix>`` and ``marinha-<suffix>`` when they exist
+          - A category suffix (``raros``, ``100iv``, ``0iv``, ``uteis``) → every
+            ``<area_key>-<suffix>`` channel that exists
         """
         ref = ref.strip()
         if ref.startswith("<#") and ref.endswith(">"):
@@ -177,14 +181,17 @@ class Notifications(commands.Cog):
         ),
     )
     async def notify(self, ctx):
+        keys = scan_areas.active_keys()
+        example = f"#{keys[0]}-100iv" if keys else "#canal"
+        fan_out = " + ".join(keys) if keys else "todas as áreas"
         embed = status_embed(
             "!notify — alertas Poracle",
             "Gere os alertas de pokémon do Poracle por canal.\n\n"
             "**`<ref>` aceita:**\n"
-            "• `#leiria-100iv` — mention\n"
+            f"• `{example}` — mention\n"
             "• `868051002782277652` — id numérico\n"
             "• `alertas-level5` — nome exacto do canal\n"
-            "• `raros` / `100iv` / `0iv` / `uteis` — categoria (aplica aos dois canais leiria + marinha)\n",
+            f"• `raros` / `100iv` / `0iv` / `uteis` — categoria (aplica aos canais {fan_out})\n",
         )
         embed.add_field(
             name="Ver",
@@ -301,18 +308,19 @@ class Notifications(commands.Cog):
     def _group_targets_by_suffix(
         self, targets: list[dict]
     ) -> list[tuple[str, list[dict]]]:
-        """Group leiria/marinha channel pairs by their shared suffix.
+        """Group paired area channels by their shared suffix.
 
-        Channels whose names start with a paired prefix (leiria- or marinha-)
-        are merged under the bare suffix key. Unprefixed channels are returned
+        Channels whose names start with an area prefix (``<area_key>-``) are
+        merged under the bare suffix key. Unprefixed channels are returned
         individually. Result is sorted by label so the output is stable.
         """
         by_suffix: dict[str, list[dict]] = {}
         singletons: list[dict] = []
+        prefixes = paired_prefixes()
         for target in targets:
             name = target["name"]
             matched = False
-            for prefix in _PAIRED_PREFIXES:
+            for prefix in prefixes:
                 if name.startswith(prefix):
                     suffix = name[len(prefix) :]
                     by_suffix.setdefault(suffix, []).append(target)
@@ -352,7 +360,7 @@ class Notifications(commands.Cog):
                     + "\n".join(self._render_rule(r) for r in sorted_rules)
                 )
             else:
-                # Merged group: e.g. leiria-raros + marinha-raros → "raros"
+                # Merged group: e.g. <area>-raros across every area → "raros"
                 mentions = " · ".join(f"<#{t['id']}>" for t in group_targets)
                 header = f"**{label}** ({mentions})"
                 seen_keys: set[tuple] = set()
@@ -710,7 +718,7 @@ class Notifications(commands.Cog):
             "Simula um spawn 100% IV do pokémon indicado e envia para o alvo.\n"
             "Alvo pode ser um canal (mention/nome/categoria) ou `dm` para a tua DM.\n"
             "Exemplos:\n"
-            "  `!notify test leiria-raros tyranitar`\n"
+            "  `!notify test <area>-raros tyranitar`\n"
             "  `!notify test dm mewtwo`"
         ),
     )

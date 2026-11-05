@@ -1,10 +1,12 @@
 import asyncio
 import collections
 import datetime
+import re
 import time
 import discord
 from modules.http_client import fetch_data
 from modules.config import Config
+from modules import scan_areas
 from modules.logging_mixin import LoggingMixin
 from modules.owner_alert import notify_owner
 
@@ -32,14 +34,6 @@ class ScannerStatus(LoggingMixin):
         self.RENAME_WINDOW = 600
         self.RENAME_TIMEOUT = 15
         self._rename_attempts: collections.deque[float] = collections.deque()
-
-        # Fallback only: get_workers_with_issues() prefers the live
-        # expected_workers Dragonite reports per area on every call, so this
-        # is just what's used on the rare response that omits the field.
-        self.defaultExpectedWorkers = {
-            "LeiriaBigger": 7,
-            "MarinhaGrande": 1,
-        }
 
         self.last_all_down_request_time = 0
         # Keep recovery pending until the owner has received the recovery DM.
@@ -72,19 +66,17 @@ class ScannerStatus(LoggingMixin):
         # Ignore plateau signals for this long after any reset so a flat, stale
         # leftover count from yesterday can never be mistaken for today's scan.
         self.PLATEAU_RESET_QUIET_PERIOD = 120  # seconds
-        self.DEFAULT_EXPECTED_TOTALS = {"leiria": 371, "marinha": 109}
-        self._quest_plateau = {
-            "leiria": {"prev_count": -1, "flat_streak": 0},
-            "marinha": {"prev_count": -1, "flat_streak": 0},
-        }
+        # Per-area plateau state, keyed by the registry's area_key (created on
+        # first use, so activating an area needs no restart).
+        self._quest_plateau: dict[str, dict] = {}
         # Also starts the quiet period on bot startup — a restart shortly after
         # midnight must not trust a plateau signal any sooner than a live reset.
         self._plateau_reset_at = time.time()
-        # Cached adaptive totals — refetched only on a cache miss, updated on
-        # every successful write (record_quest_scan_completion), so it never
-        # goes stale but avoids a DB round trip on every scheduler tick while
-        # a scan is in progress.
-        self._expected_totals: tuple[int, int] | None = None
+        # Cached adaptive totals (area_key -> int) — refetched only on a cache
+        # miss, updated on every successful write (record_quest_scan_completion),
+        # so it never goes stale but avoids a DB round trip on every scheduler
+        # tick while a scan is in progress.
+        self._expected_totals: dict[str, int] | None = None
 
     async def get_voice_channel(self):
         try:
@@ -105,10 +97,8 @@ class ScannerStatus(LoggingMixin):
             return None
 
     async def rename_voice_channels(self, workers_status):
-        leiriaDownCounter = workers_status.get("downDevicesLeiria")
-        marinhaDownCounter = workers_status.get("downDevicesMarinha")
-        leiriaExpected = workers_status.get("expectedWorkersLeiria")
-        marinhaExpected = workers_status.get("expectedWorkersMarinha")
+        down_total = workers_status.get("downDevicesTotal")
+        expected_total = workers_status.get("expectedWorkersTotal")
 
         # Webhook fires only when pokemon data has gone stale — worker count
         # alone is not a reliable signal (workers can appear "running" but stuck).
@@ -122,17 +112,15 @@ class ScannerStatus(LoggingMixin):
         elif self.map_down_alerted and seconds_since_pokemon is not None:
             await self.trigger_map_restored_action(seconds_since_pokemon)
 
-        # Leiria and Marinha share one device and one stack, so a single
-        # combined indicator (down workers / total expected workers across
-        # both areas, both read live from Dragonite rather than a hardcoded
-        # guess) is more honest than two independently-labeled channels that
-        # would always move in lockstep anyway. Only 🟢 (scanning) and 🔴
-        # (every worker down) come out of it. Any of the four inputs being
-        # None (Dragonite unreachable, or an area missing from its response)
-        # makes this None too — see _get_combined_status_indicator.
-        indicator = self._get_combined_status_indicator(
-            leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
-        )
+        # Every active area shares one device and one stack, so a single
+        # combined indicator (down workers / total expected workers across all
+        # active areas, both read live from Dragonite rather than a hardcoded
+        # guess) is more honest than several labels that would always move in
+        # lockstep anyway. Only 🟢 (scanning) and 🔴 (every worker down) come
+        # out of it. Either input being None (Dragonite unreachable, or an
+        # active area missing from its response) makes this None too — see
+        # _get_combined_status_indicator.
+        indicator = self._get_combined_status_indicator(down_total, expected_total)
 
         # The red state alone is ambiguous: every worker can be down because
         # the MITM device dropped off Rotom, or because the device is fine but
@@ -150,13 +138,7 @@ class ScannerStatus(LoggingMixin):
         workers = await self.poliswag.account_monitor.connected_worker_count()
         await self.poliswag.stack_recovery.observe(all_red, workers)
 
-        status = self.get_status_message(
-            leiriaDownCounter,
-            marinhaDownCounter,
-            leiriaExpected,
-            marinhaExpected,
-            device_connected,
-        )
+        status = self.get_status_message(down_total, expected_total, device_connected)
         if self.should_update_channel(status) and self._rename_budget_available():
             channel = await self.get_voice_channel()
             if channel:
@@ -202,29 +184,45 @@ class ScannerStatus(LoggingMixin):
         return new_status != self.channelStatusName
 
     async def get_workers_with_issues(self):
+        """Down/expected worker counts per active registry area.
+
+        Dragonite is the source: each area in its /status response is matched
+        to the registry row whose dragonite_area has that name. A registry
+        area missing from the answer (or Dragonite unreachable) stays None, so
+        the combined indicator refuses to guess. The totals are None too when
+        any active area's counts are unknown.
+        """
+        await scan_areas.ensure()
         workerStatus = await fetch_data("scanner_status", log_fn=self._log)
-        downDevicesLeiria = None
-        downDevicesMarinha = None
-        expectedWorkersLeiria = None
-        expectedWorkersMarinha = None
+        rows = scan_areas.active_areas()
+        down_by_area = {row["area_key"]: None for row in rows}
+        expected_by_area = {row["area_key"]: None for row in rows}
 
         if workerStatus and "areas" in workerStatus:
+            by_name = {
+                row["dragonite_area"].strip().casefold(): row["area_key"]
+                for row in rows
+            }
             for area in workerStatus["areas"]:
-                areaName = area.get("name")
-                expectedWorkers = self.defaultExpectedWorkers.get(areaName)
-
-                if "worker_managers" in area and area["worker_managers"]:
-                    expectedWorkersFromResponse = area["worker_managers"][0].get(
-                        "expected_workers"
-                    )
-                    if expectedWorkersFromResponse is not None:
-                        expectedWorkers = expectedWorkersFromResponse
-
-                if expectedWorkers is None:
+                area_name = str(area.get("name") or "").strip().casefold()
+                key = by_name.get(area_name)
+                if key is None:
                     continue
 
+                managers = area.get("worker_managers") or []
+                expectedWorkers = None
+                if managers:
+                    expectedWorkers = managers[0].get("expected_workers")
+                if expectedWorkers is None:
+                    # A response without expected_workers: assume every worker
+                    # it lists was expected, so a missing field cannot look
+                    # like a healthy pool.
+                    expectedWorkers = sum(
+                        len(manager.get("workers") or []) for manager in managers
+                    )
+
                 downDevices = expectedWorkers
-                for workerManager in area.get("worker_managers", []):
+                for workerManager in managers:
                     for worker in workerManager.get("workers", []):
                         lastData = worker.get("last_data")
                         connectionStatus = worker.get("connection_status")
@@ -241,27 +239,25 @@ class ScannerStatus(LoggingMixin):
                         if isWorkerUp:
                             downDevices -= 1
 
-                # Summed, not matched by exact name: Dragonite's Leiria area
-                # has been renamed before (LeiriaBigger -> Leiria, the old one
-                # kept at expected 0), and reading only one name made a
-                # Marinha-only outage look like the whole map was down.
-                downDevices = max(downDevices, 0)
-                if areaName.startswith("Marinha"):
-                    downDevicesMarinha = (downDevicesMarinha or 0) + downDevices
-                    expectedWorkersMarinha = (
-                        expectedWorkersMarinha or 0
-                    ) + expectedWorkers
-                else:
-                    downDevicesLeiria = (downDevicesLeiria or 0) + downDevices
-                    expectedWorkersLeiria = (
-                        expectedWorkersLeiria or 0
-                    ) + expectedWorkers
+                # Sum, don't replace: Dragonite has kept a renamed predecessor
+                # area around before, and reading one name made a partial
+                # outage look like the whole map was down.
+                down = max(downDevices, 0)
+                down_by_area[key] = (down_by_area[key] or 0) + down
+                expected_by_area[key] = (expected_by_area[key] or 0) + expectedWorkers
+
+        if not rows or any(value is None for value in down_by_area.values()):
+            down_total = None
+            expected_total = None
+        else:
+            down_total = sum(down_by_area.values())
+            expected_total = sum(expected_by_area.values())
 
         return {
-            "downDevicesLeiria": downDevicesLeiria,
-            "downDevicesMarinha": downDevicesMarinha,
-            "expectedWorkersLeiria": expectedWorkersLeiria,
-            "expectedWorkersMarinha": expectedWorkersMarinha,
+            "downDevices": down_by_area,
+            "expectedWorkers": expected_by_area,
+            "downDevicesTotal": down_total,
+            "expectedWorkersTotal": expected_total,
         }
 
     async def _get_seconds_since_last_pokemon(self) -> int | None:
@@ -278,9 +274,13 @@ class ScannerStatus(LoggingMixin):
 
     async def _get_iv_verification_stats(self, minutes: int = 10) -> dict | None:
         """Scanner throughput/IV-verification over the last `minutes`,
-        Leiria+MarinhaGrande combined, from golbat's per-minute
+        across every active area, from golbat's per-minute
         pokemon_area_stats snapshots. None on a query failure or no rows
         (e.g. right after a fresh restart before any snapshot has landed)."""
+        names = await self._stats_area_names()
+        if not names:
+            return None
+        placeholders = ", ".join(["%s"] * len(names))
         try:
             rows = await self.poliswag.quest_search.db.get_data_from_database(
                 "SELECT COALESCE(SUM(totMon), 0) AS total, "
@@ -288,8 +288,8 @@ class ScannerStatus(LoggingMixin):
                 "COALESCE(SUM(unverifiedEnc), 0) AS unverified "
                 "FROM pokemon_area_stats "
                 "WHERE datetime >= UNIX_TIMESTAMP() - %s "
-                "AND area IN ('Leiria', 'MarinhaGrande')",
-                params=(minutes * 60,),
+                f"AND area IN ({placeholders})",
+                params=(minutes * 60, *names),
             )
             if rows and int(rows[0]["total"]) > 0:
                 return {
@@ -301,26 +301,35 @@ class ScannerStatus(LoggingMixin):
             self._log(f"Error querying IV verification stats: {e}")
         return None
 
+    async def _stats_area_names(self) -> list[str]:
+        """Golbat's area names for the active registry areas, in display order."""
+        await scan_areas.ensure()
+        return scan_areas.dragonite_area_names()
+
     async def get_iv_verification_by_area(self, minutes: int = 60) -> dict:
-        """Per-area (Leiria/MarinhaGrande) scanner IV-verification over the
-        last `minutes`, from the same pokemon_area_stats snapshots as
-        _get_iv_verification_stats. Areas with no activity in the window
-        are omitted; empty dict on a query failure.
+        """Per-area scanner IV-verification over the last `minutes`, from the
+        same pokemon_area_stats snapshots as _get_iv_verification_stats,
+        keyed by the area name golbat reports. Areas with no activity in the
+        window are omitted; empty dict on a query failure.
 
         Defaults to an hour rather than the 10 minutes _get_iv_verification_
         stats uses: this feeds the account card, which labels the figure
         "spawns/h" -- a 10-minute sample was both noisier and easy to
         misread as a running total. Keep this in sync with that label.
         """
+        names = await self._stats_area_names()
+        if not names:
+            return {}
+        placeholders = ", ".join(["%s"] * len(names))
         try:
             rows = await self.poliswag.quest_search.db.get_data_from_database(
                 "SELECT area, COALESCE(SUM(totMon), 0) AS total, "
                 "COALESCE(SUM(ivMon), 0) AS iv "
                 "FROM pokemon_area_stats "
                 "WHERE datetime >= UNIX_TIMESTAMP() - %s "
-                "AND area IN ('Leiria', 'MarinhaGrande') "
+                f"AND area IN ({placeholders}) "
                 "GROUP BY area",
-                params=(minutes * 60,),
+                params=(minutes * 60, *names),
             )
             return {
                 row["area"]: {"total": int(row["total"]), "iv": int(row["iv"])}
@@ -425,24 +434,14 @@ class ScannerStatus(LoggingMixin):
             self._map_down_discord_sent = False
         self.map_down_alerted = False
 
-    def _get_combined_status_indicator(
-        self, leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
-    ):
-        # Any missing input — Dragonite unreachable, or an area absent from
-        # its response — means we can't compute a percentage at all. Return
-        # None (rather than guessing) so the caller can render it as down
-        # without treating it as a confirmed red reading — see
+    def _get_combined_status_indicator(self, down_total, expected_total):
+        # Any missing input — Dragonite unreachable, or an active area absent
+        # from its response — means we can't compute a percentage at all.
+        # Return None (rather than guessing) so the caller can render it as
+        # down without treating it as a confirmed red reading — see
         # get_status_message and rename_voice_channels.
-        if None in (
-            leiriaDownCounter,
-            marinhaDownCounter,
-            leiriaExpected,
-            marinhaExpected,
-        ):
+        if down_total is None or expected_total is None:
             return None
-
-        expected_total = leiriaExpected + marinhaExpected
-        down_total = leiriaDownCounter + marinhaDownCounter
 
         # Only two computed states: the map is either scanning or it is not.
         # A partially-down worker pool still produces a scanned map, so
@@ -456,14 +455,12 @@ class ScannerStatus(LoggingMixin):
 
     def get_status_message(
         self,
-        leiriaDownCounter,
-        marinhaDownCounter,
-        leiriaExpected,
-        marinhaExpected,
+        down_total,
+        expected_total,
         device_connected=True,
     ):
         status_indicator = self._get_combined_status_indicator(
-            leiriaDownCounter, marinhaDownCounter, leiriaExpected, marinhaExpected
+            down_total, expected_total
         )
         # Three states only — 🟢 scanning, 🔴 every account/worker down with
         # the device still connected, ❌ device offline (or no data at all).
@@ -552,71 +549,84 @@ class ScannerStatus(LoggingMixin):
             return None
 
         try:
+            await scan_areas.ensure()
+            areas = scan_areas.active_areas()
+            if not areas:
+                return None
             db = self.poliswag.quest_search.db
-            leiria_scanned = await self._count_valid_quests(db, leiria=True)
-            marinha_scanned = await self._count_valid_quests(db, leiria=False)
-            if leiria_scanned is None or marinha_scanned is None:
+            scanned = {
+                row["area_key"]: await self._count_valid_quests(db, row)
+                for row in areas
+            }
+            if any(count is None for count in scanned.values()):
                 return None
 
-            expected_leiria, expected_marinha = await self._get_expected_totals()
+            expected = await self._get_expected_totals()
+            plateaued = {
+                key: self._update_plateau(key, count, expected.get(key, 0))
+                for key, count in scanned.items()
+            }
 
-            leiria_plateaued = self._update_plateau(
-                "leiria", leiria_scanned, expected_leiria
-            )
-            marinha_plateaued = self._update_plateau(
-                "marinha", marinha_scanned, expected_marinha
-            )
-
-            # The scanner-alive gate only matters once both areas have plateaued;
-            # checking it lazily avoids a worker-status fetch on every tick.
+            # The scanner-alive gate only matters once every area has
+            # plateaued; checking it lazily avoids a worker-status fetch on
+            # every tick.
             scanner_alive = (
-                await self._is_scanner_alive()
-                if (leiria_plateaued and marinha_plateaued)
-                else False
+                await self._is_scanner_alive() if all(plateaued.values()) else False
             )
 
             return {
-                "leiriaCompleted": leiria_plateaued and scanner_alive,
-                "marinhaCompleted": marinha_plateaued and scanner_alive,
-                "leiriaTotal": expected_leiria,
-                "leiriaScanned": leiria_scanned,
-                "marinhaTotal": expected_marinha,
-                "marinhaScanned": marinha_scanned,
-                "leiriaPercentage": self._coverage_pct(leiria_scanned, expected_leiria),
-                "marinhaPercentage": self._coverage_pct(
-                    marinha_scanned, expected_marinha
-                ),
+                "areas": {
+                    row["area_key"]: {
+                        "completed": plateaued[row["area_key"]] and scanner_alive,
+                        "total": expected.get(row["area_key"], 0),
+                        "scanned": scanned[row["area_key"]],
+                        "percentage": self._coverage_pct(
+                            scanned[row["area_key"]],
+                            expected.get(row["area_key"], 0),
+                        ),
+                    }
+                    for row in areas
+                },
+                "completed": all(plateaued.values()) and scanner_alive,
             }
 
         except Exception as e:
             self._log(f"Error in quest scanning check: {e}")
             return None
 
-    async def _count_valid_quests(self, db, *, leiria):
+    async def _count_valid_quests(self, db, area):
         """Count pokestops in an area whose quest (AR or standard) is still valid.
 
-        The area split is by longitude (Marinha Grande is at or west of
-        ``Config.MARINHA_LON_MAX``). Unlike the old logic this does NOT restrict the
-        universe to stops that already carry quest data — it just counts the
-        live quests, which climbs from 0 toward the area's natural ceiling as the
-        scan progresses. Returns ``None`` if the query yields no row.
+        The area is its registry fence: the query is pre-filtered by the
+        fence's bounding box, then each row is classified by point-in-polygon,
+        so a stop in a neighbouring area is never counted here. Unlike the old
+        logic this does NOT restrict the universe to stops that already carry
+        quest data — it just counts the live quests, which climbs from 0
+        toward the area's natural ceiling as the scan progresses. Returns
+        ``None`` when the area has no usable fence or the query fails.
         """
-        op = ">" if leiria else "<="
-        rows = await db.get_data_from_database(
-            f"""
-            SELECT COALESCE(SUM(CASE WHEN quest_expiry > UNIX_TIMESTAMP()
-                                       OR alternative_quest_expiry > UNIX_TIMESTAMP()
-                                     THEN 1 ELSE 0 END), 0) AS scanned
-            FROM pokestop WHERE deleted = 0 AND lon {op} %s
-            """,
-            params=(Config.MARINHA_LON_MAX,),
-        )
-        if not rows:
+        box = scan_areas.area_bbox(area["area_key"])
+        if box is None:
             return None
-        # SUM(CASE ...) comes back as decimal.Decimal; coerce to int so derived
-        # percentages stay plain floats (a Decimal here crashes the progress
-        # embed's Decimal + float arithmetic).
-        return int(rows[0]["scanned"] or 0)
+        rows = await db.get_data_from_database(
+            """
+            SELECT lat, lon,
+                   CASE WHEN quest_expiry > UNIX_TIMESTAMP()
+                          OR alternative_quest_expiry > UNIX_TIMESTAMP()
+                        THEN 1 ELSE 0 END AS scanned
+            FROM pokestop
+            WHERE deleted = 0 AND lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s
+            """,
+            params=(box[0], box[2], box[1], box[3]),
+        )
+        if rows is None:
+            return None
+        return sum(
+            1
+            for row in rows
+            if int(row.get("scanned") or 0)
+            and scan_areas.area_for(row["lat"], row["lon"]) == area["area_key"]
+        )
 
     def _coverage_pct(self, count, expected):
         """Percentage of the expected total covered, capped at 100%."""
@@ -632,7 +642,9 @@ class ScannerStatus(LoggingMixin):
         least ``COMPLETION_FLOOR`` of the expected total (the floor blocks a
         false "done" from an early stall below the natural ceiling).
         """
-        state = self._quest_plateau[area]
+        state = self._quest_plateau.setdefault(
+            area, {"prev_count": -1, "flat_streak": 0}
+        )
         if count > state["prev_count"]:
             state["prev_count"] = count
             state["flat_streak"] = 0
@@ -647,11 +659,15 @@ class ScannerStatus(LoggingMixin):
             return False
         reached_floor = (
             state["flat_streak"] >= self.PLATEAU_TICKS
+            and expected > 0
             and count >= expected * self.COMPLETION_FLOOR
         )
         # Self-heal: a much longer flat plateau below the floor is the real
         # (shrunk) ceiling, not an early stall — accept it so the expected total
-        # can re-baseline. See STUCK_TICKS.
+        # can re-baseline. See STUCK_TICKS. This also covers a newly activated
+        # area with no stored expected total (0): the fast path cannot fire
+        # without a ceiling, so its first scan needs the long window and then
+        # record_quest_scan_completion supplies one.
         stuck_below_floor = state["flat_streak"] >= self.STUCK_TICKS
         return reached_floor or stuck_below_floor
 
@@ -663,64 +679,68 @@ class ScannerStatus(LoggingMixin):
         not-alive, so a plateau caused by a crash never fires as "done".
         """
         workers = await self.get_workers_with_issues()
-        down_leiria = workers["downDevicesLeiria"]
-        down_marinha = workers["downDevicesMarinha"]
-        expected_leiria = workers["expectedWorkersLeiria"]
-        expected_marinha = workers["expectedWorkersMarinha"]
-        leiria_alive = (
-            down_leiria is not None
-            and expected_leiria is not None
-            and down_leiria < expected_leiria
+        down_total = workers["downDevicesTotal"]
+        expected_total = workers["expectedWorkersTotal"]
+        return (
+            down_total is not None
+            and expected_total is not None
+            and down_total < expected_total
         )
-        marinha_alive = (
-            down_marinha is not None
-            and expected_marinha is not None
-            and down_marinha < expected_marinha
-        )
-        return leiria_alive or marinha_alive
 
     async def _get_expected_totals(self):
         """Read the adaptive per-area expected totals from the poliswag table.
 
-        Falls back to the seeded defaults if the columns are missing/NULL or the
-        query fails, so completion detection keeps working pre-migration.
+        Each area keeps its total in a ``quest_expected_<area_key>`` column
+        (migration 003 seeded the first two). An area whose column is absent
+        or NULL starts at 0: the plateau check then only requires a non-zero
+        flat count, and the first completed scan records its real ceiling.
         Cached after a successful read; the cache is refreshed whenever
-        record_quest_scan_completion persists a new pair, so it never goes
-        stale but avoids a DB round trip on every tick during a scan.
+        record_quest_scan_completion persists a count, so it never goes stale
+        but avoids a DB round trip on every tick during a scan. `SELECT *`
+        keeps this working when a later migration adds another area column.
         """
-        if self._expected_totals is not None:
+        keys = [row["area_key"] for row in scan_areas.active_areas()]
+        if self._expected_totals is not None and set(self._expected_totals) == set(
+            keys
+        ):
             return self._expected_totals
         try:
             rows = await self.poliswag.db.get_data_from_database(
-                "SELECT quest_expected_leiria, quest_expected_marinha FROM poliswag"
+                "SELECT * FROM poliswag"
             )
             if rows:
-                self._expected_totals = (
-                    rows[0].get("quest_expected_leiria")
-                    or self.DEFAULT_EXPECTED_TOTALS["leiria"],
-                    rows[0].get("quest_expected_marinha")
-                    or self.DEFAULT_EXPECTED_TOTALS["marinha"],
-                )
+                row = rows[0]
+                self._expected_totals = {
+                    key: int(row.get(f"quest_expected_{key}") or 0) for key in keys
+                }
                 return self._expected_totals
         except Exception as e:
             self._log(f"Error reading expected quest totals: {e}")
-        return (
-            self.DEFAULT_EXPECTED_TOTALS["leiria"],
-            self.DEFAULT_EXPECTED_TOTALS["marinha"],
-        )
+        # Not cached: a missing/config row is retried next tick rather than
+        # freezing every area at zero for the process lifetime.
+        return {key: 0 for key in keys}
 
-    async def record_quest_scan_completion(self, leiria_count, marinha_count):
+    async def record_quest_scan_completion(self, counts):
         """Persist the observed finish counts as the new expected totals and
-        reset the in-memory plateau trackers. Called once a scan completes so the
-        floor adapts as pokestops are added or removed over time."""
-        try:
-            await self.poliswag.db.execute_query_to_database(
-                "UPDATE poliswag SET quest_expected_leiria = %s, quest_expected_marinha = %s",
-                params=(leiria_count, marinha_count),
-            )
-            self._expected_totals = (leiria_count, marinha_count)
-        except Exception as e:
-            self._log(f"Error updating expected quest totals: {e}")
+        reset the in-memory plateau trackers. Called once a scan completes so
+        the floor adapts as pokestops are added or removed over time. `counts`
+        maps area_key -> scanned count."""
+        if self._expected_totals is None:
+            self._expected_totals = {key: 0 for key in scan_areas.active_keys()}
+        for key, count in (counts or {}).items():
+            if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", str(key)):
+                continue
+            try:
+                await self.poliswag.db.execute_query_to_database(
+                    f"UPDATE poliswag SET quest_expected_{key} = %s",
+                    params=(int(count),),
+                )
+            except Exception as e:
+                # A newly activated area has no column yet; its in-memory
+                # expected total still adapts from this scan.
+                self._log(f"Error updating expected total for {key}: {e}")
+            if self._expected_totals is not None:
+                self._expected_totals[key] = int(count)
         self.reset_quest_plateau()
 
     def reset_quest_plateau(self):

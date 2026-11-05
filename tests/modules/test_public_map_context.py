@@ -3,7 +3,15 @@ from decimal import Decimal
 
 import pytest
 
-from modules.public_map_context import BBOX, PublicMapContext, _integer
+from modules import scan_areas
+from modules.public_map_context import PublicMapContext, _integer
+
+
+def sql_box():
+    """The autouse snapshot's union box in SQL parameter order."""
+    box = scan_areas.bbox()
+    return box[0], box[2], box[1], box[3]
+
 
 NAMES = {"149": "Dragonite", "42": "Golbat", "1": "Bulbasaur"}
 
@@ -70,7 +78,7 @@ async def test_recognized_species_uses_parameterized_ids_and_fixed_bounds():
     assert "expire_timestamp > UNIX_TIMESTAMP()" in query
     assert "lat BETWEEN %s AND %s" in query and "lon BETWEEN %s AND %s" in query
     assert "pokemon_id IN (%s)" in query and "LIMIT 21" in query
-    assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3], 149)
+    assert params == (*sql_box(), 149)
     assert "Dragonite" not in query
     section = snapshot["sections"][0]
     assert section["recognized"] is True
@@ -95,7 +103,7 @@ async def test_unrecognized_spawn_question_returns_bounded_species_groups():
     query, params = db.queries[0]
     assert "COUNT(*) AS count" in query and "GROUP BY pokemon_id" in query
     assert "SELECT *" not in query and "LIMIT 20" in query
-    assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3])
+    assert params == sql_box()
     section = snapshot["sections"][0]
     assert section["recognized"] is False
     assert section["groups"] == [{"species": "Dragonite", "count": 4}]
@@ -143,7 +151,7 @@ async def test_raids_distinguish_eggs_from_active_bosses():
     assert "raid_level > 0" in query
     assert "raid_end_timestamp > UNIX_TIMESTAMP()" in query
     assert "SELECT *" not in query and "LIMIT 20" in query
-    assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3])
+    assert params == sql_box()
     items = snapshot["sections"][0]["items"]
     assert [item["status"] for item in items] == ["active", "egg"]
     assert items[0]["species"] == "Dragonite" and items[0]["level"] == 5
@@ -188,7 +196,7 @@ async def test_lures_are_future_only_and_bounded():
     assert "FROM pokestop" in query and "deleted = 0" in query
     assert "lure_expire_timestamp > UNIX_TIMESTAMP()" in query
     assert "SELECT *" not in query and "LIMIT 20" in query
-    assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3])
+    assert params == sql_box()
     items = snapshot["sections"][0]["items"]
     assert [item["name"] for item in items] == ["Praça"]
 
@@ -236,7 +244,7 @@ async def test_quests_use_fixed_columns_and_alternative_counterparts():
         assert "lat BETWEEN %s AND %s" in query and "lon BETWEEN %s AND %s" in query
         assert "_pokemon_id IN (%s)" in query
         assert "SELECT *" not in query and "LIMIT 20" in query
-        assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3], 149)
+        assert params == (*sql_box(), 149)
         assert "quest_rewards" not in query
     items = snapshot["sections"][0]["items"]
     assert len(items) == 2
@@ -267,7 +275,7 @@ async def test_quest_reward_filters_are_fixed_and_parameterized(question, reward
     assert len(db.queries) == 2
     for query, params in db.queries:
         assert "_reward_type IN (%s)" in query
-        assert params == (BBOX[0], BBOX[2], BBOX[1], BBOX[3], reward_type)
+        assert params == (*sql_box(), reward_type)
 
 
 async def test_unknown_quest_reward_label_preserves_uncertainty():

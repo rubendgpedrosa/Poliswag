@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 from modules.account_card import build_card_view
 from modules.config import Config
 from modules.http_client import get_session
+from modules import scan_areas
 from modules.quest_map import draw_quest_map, fit_quest_map
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
@@ -129,7 +130,7 @@ class ImageGenerator:
             )
             return None
 
-    async def generate_static_map_for_group_of_quests(self, pokestops, is_leiria=True):
+    async def generate_static_map_for_group_of_quests(self, pokestops, area=None):
         quest_map = fit_quest_map(pokestops, self.QUEST_MAP_STYLE)
         if quest_map is None:
             return None
@@ -147,7 +148,11 @@ class ImageGenerator:
             )
             icons = {slug: icon for slug, icon in zip(slugs, data) if icon}
             return await asyncio.to_thread(
-                draw_quest_map, image_bytes, quest_map, is_leiria, icons
+                draw_quest_map,
+                image_bytes,
+                quest_map,
+                scan_areas.color_for(area),
+                icons,
             )
         except Exception as error:
             self.poliswag.utility.log_to_file(

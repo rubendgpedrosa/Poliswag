@@ -19,6 +19,7 @@ CREATE TABLE `trade_player` (
   `lists_confirmed_at` datetime DEFAULT NULL,
   `collecting` set('hundo','lucky','shiny','xxl','xxs','normal') NOT NULL DEFAULT '',
   `show_costumes` tinyint(1) NOT NULL DEFAULT 1,
+  `shiny_areas` set('leiria','marinha') NOT NULL DEFAULT 'leiria',
   `trade_dms` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`discord_id`),
   UNIQUE KEY `code_hash` (`code_hash`)
@@ -44,6 +45,15 @@ CREATE TABLE `pokemon_name` (
   `family_id` smallint(5) unsigned DEFAULT NULL,
   `is_costume` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`pokemon_id`,`form_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- shiny_link lives here in production (migration 018); migration 040 widens
+-- its alert_areas column, so the suite needs a minimal stand-in.
+CREATE TABLE `shiny_link` (
+  `discord_id` bigint(20) unsigned NOT NULL,
+  `alert_leiria` tinyint(1) NOT NULL DEFAULT 1,
+  `alert_marinha` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`discord_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE DATABASE poracle;

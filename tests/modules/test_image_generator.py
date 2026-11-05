@@ -85,7 +85,7 @@ class TestGenerateStaticMapForGroupOfQuests:
         Image.new("RGB", (1200, 600), "white").save(data, format="PNG")
         session, response = self.response(mocker, data.getvalue())
         result = await ig.generate_static_map_for_group_of_quests(
-            [{"lat": "39.7", "lon": "-8.8"}], is_leiria=False
+            [{"lat": "39.7", "lon": "-8.8"}], area="marinha"
         )
         response.raise_for_status.assert_called_once()
         args, kwargs = session.post.call_args

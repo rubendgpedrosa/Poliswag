@@ -50,6 +50,10 @@ _TEST_ENV_DEFAULTS = {
     "POLISWAG_PRIVATE_NAMES": "zephyr,quill",
     "QUEST_MAP_URL": "http://tiles.test.invalid",
     "QUEST_MAP_STYLE": "osm-bright",
+    # Dragonite's fence API is never reached in tests: every test runs with
+    # the deterministic snapshot installed by _install_scan_areas below.
+    "DRAGONITE_API_URL": "http://dragonite.test.invalid",
+    "SCAN_AREA_CACHE": "/tmp/poliswag-test/scan_areas.json",
     "MEGA_JSON_OUTPUT": "/tmp/poliswag-test/megas.json",
     "MEGA_SPRITES_DIR": "/tmp/poliswag-test/sprites/mega",
     "OWNER_ALERT_ENDPOINT": "",
@@ -108,6 +112,95 @@ def _prevent_real_db_connections():
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
     with patch("pymysql.connect", return_value=mock_conn):
         yield
+
+
+# The five seed rows of migrations/040_add_scan_areas.sql, and fences for the
+# two active ones that reproduce the old longitude split (east of -8.9 is
+# Leiria, at or west of it is Marinha Grande) for tests that predate the
+# registry. Tests about fences themselves reset and install their own.
+_SEED_AREAS = (
+    {
+        "area_key": "leiria",
+        "label": "Leiria",
+        "dragonite_area": "Leiria",
+        "poracle_area": "leiria",
+        "alert_role": "AlertasLeiria",
+        "sort_order": 1,
+        "active": 1,
+    },
+    {
+        "area_key": "marinha",
+        "label": "Marinha Grande",
+        "dragonite_area": "MarinhaGrande",
+        "poracle_area": "marinhagrande",
+        "alert_role": "AlertasMarinha",
+        "sort_order": 2,
+        "active": 1,
+    },
+    {
+        "area_key": "batalha",
+        "label": "Batalha",
+        "dragonite_area": "Batalha",
+        "poracle_area": "batalha",
+        "alert_role": "AlertasBatalha",
+        "sort_order": 3,
+        "active": 0,
+    },
+    {
+        "area_key": "portodemos",
+        "label": "Porto de Mós",
+        "dragonite_area": "PortoDeMos",
+        "poracle_area": "portodemos",
+        "alert_role": "AlertasPortoMos",
+        "sort_order": 4,
+        "active": 0,
+    },
+    {
+        "area_key": "moita",
+        "label": "Moita",
+        "dragonite_area": "Moita",
+        "poracle_area": "moita",
+        "alert_role": "AlertasMoita",
+        "sort_order": 5,
+        "active": 0,
+    },
+)
+
+
+def _square(lat_min, lon_min, lat_max, lon_max):
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [lon_min, lat_min],
+                [lon_max, lat_min],
+                [lon_max, lat_max],
+                [lon_min, lat_max],
+                [lon_min, lat_min],
+            ]
+        ],
+    }
+
+
+_SEED_FENCES = {
+    # The old public map box, split at -8.9: east of it (and up to -8.65) is
+    # Leiria, at or west of it (down to -9.1) is Marinha Grande. The union is
+    # what the public snapshot reports as its bbox.
+    "leiria": _square(39.6, -8.899, 39.9, -8.65),
+    "marinha": _square(39.6, -9.1, 39.9, -8.9),
+}
+
+
+@pytest.fixture(autouse=True)
+def _install_scan_areas():
+    """Deterministic registry/fence snapshot; no test reads the live values."""
+    from modules import scan_areas
+
+    scan_areas.install(_SEED_AREAS, _SEED_FENCES)
+    try:
+        yield
+    finally:
+        scan_areas.reset()
 
 
 @pytest.fixture

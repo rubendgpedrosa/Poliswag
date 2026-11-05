@@ -14,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from modules.agent_jobs import AgentJobs, TERMINAL
+from modules import scan_areas
 
 TOPICS = {
     "greeting": (
@@ -79,7 +80,7 @@ INSTRUCTIONS = (
     "incluis um link quando o membro pergunta pelo mapa, Quests ou Pokédex da "
     "comunidade ou quando é mesmo a melhor resposta; nunca como despedida nem "
     "sugestão por defeito. "
-    "Factos públicos verificados do site: o mapa de Leiria/Marinha Grande "
+    "Factos públicos verificados do site: o mapa da comunidade "
     "mostra dados de Pokémon, Gym e Pokéstop; /quests permite pesquisar por "
     "Quest/reward, escolher área e ver lista/mapa; /pokedex é um registo de "
     "coleção e trades da comunidade. Não inventes outras funcionalidades nem "
@@ -97,7 +98,9 @@ INSTRUCTIONS = (
 MAX_QUESTION = 2000
 MAX_CONTEXT_BYTES = 24000
 _SECTION_KINDS = {"spawns", "raids", "quests", "lures"}
-_BBOX = (39.6, -9.1, 39.9, -8.65)
+# Any finite point is accepted here; the bot's own snapshot carries the
+# active fences' bounding box, which then narrows the per-row validation.
+_EARTH = (-90.0, -180.0, 90.0, 180.0)
 
 
 def _clean_text(value, limit):
@@ -163,7 +166,7 @@ def _integer(value, low, high):
     return number
 
 
-def _coordinate(lat, lon):
+def _coordinate(lat, lon, bounds=_EARTH):
     if isinstance(lat, bool) or isinstance(lon, bool):
         return None
     try:
@@ -172,7 +175,7 @@ def _coordinate(lat, lon):
         return None
     if not math.isfinite(lat) or not math.isfinite(lon):
         return None
-    if not _BBOX[0] <= lat <= _BBOX[2] or not _BBOX[1] <= lon <= _BBOX[3]:
+    if not bounds[0] <= lat <= bounds[2] or not bounds[1] <= lon <= bounds[3]:
         return None
     return round(lat, 5), round(lon, 5)
 
@@ -188,7 +191,7 @@ def _clock(value):
     return value
 
 
-def _section(value):
+def _section(value, bounds=_EARTH):
     if not isinstance(value, dict) or value.get("kind") not in _SECTION_KINDS:
         return None
     kind = value["kind"]
@@ -206,7 +209,7 @@ def _section(value):
             section["sample_count"] = _integer(value.get("sample_count"), 0, 20) or 0
             locations = []
             for item in _iter_dicts(value.get("locations")):
-                point = _coordinate(item.get("lat"), item.get("lon"))
+                point = _coordinate(item.get("lat"), item.get("lon"), bounds)
                 species = _clean_text(item.get("species"), 80)
                 expires = _clock(item.get("expires_at"))
                 if point and species and expires:
@@ -234,7 +237,7 @@ def _section(value):
         return section
     items = []
     for item in _iter_dicts(value.get("items")):
-        point = _coordinate(item.get("lat"), item.get("lon"))
+        point = _coordinate(item.get("lat"), item.get("lon"), bounds)
         if not point:
             continue
         if kind == "raids":
@@ -302,17 +305,24 @@ def validate_snapshot(value):
     if not isinstance(value, dict):
         return None
     out = {
-        "area": _clean_text(value.get("area"), 80) or "Leiria / Marinha Grande",
+        "area": _clean_text(value.get("area"), 80)
+        or scan_areas.labels(" / ")
+        or "mapa público",
     }
     for key, limit in (("generated_at", 40), ("note", 160)):
         cleaned = _clean_text(value.get(key), limit)
         if cleaned:
             out[key] = cleaned
+    bounds = _EARTH
     bbox = value.get("bbox")
     if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
-        numbers = [_coordinate(bbox[0], bbox[1]), _coordinate(bbox[2], bbox[3])]
+        numbers = [
+            _coordinate(bbox[0], bbox[1]),
+            _coordinate(bbox[2], bbox[3]),
+        ]
         if all(numbers):
             out["bbox"] = [numbers[0][0], numbers[0][1], numbers[1][0], numbers[1][1]]
+            bounds = tuple(out["bbox"])
     status = value.get("status")
     if status == "unavailable":
         out["status"] = "unavailable"
@@ -324,7 +334,7 @@ def validate_snapshot(value):
     clean_sections = []
     seen = set()
     for item in sections[:4]:
-        clean = _section(item)
+        clean = _section(item, bounds)
         if clean is None or clean["kind"] in seen:
             continue
         seen.add(clean["kind"])

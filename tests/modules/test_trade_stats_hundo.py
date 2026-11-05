@@ -29,7 +29,11 @@ def test_counts_active_players_per_area():
     out = summarize_hundo(
         [_row(), _row(hundo_areas="leiria", hundo_confirmed_setting=1)]
     )
-    assert (out["active"], out["leiria"], out["marinha"]) == (2, 2, 1)
+    assert (out["active"], out["areas"]["leiria"], out["areas"]["marinha"]) == (
+        2,
+        2,
+        1,
+    )
 
 
 def test_unconfirmed_is_waiting_and_a_refused_dm_is_dms_closed():

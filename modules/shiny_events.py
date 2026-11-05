@@ -9,6 +9,7 @@ from modules.config import Config
 from modules.embeds import build_embed
 from modules.shiny_roll import is_shiny_at, shiny_draw
 from modules.shiny_store import ShinyStore
+from modules import scan_areas
 
 MAX_DIGEST_SPAWNS = 10
 MIN_SECONDS_LEFT = 120
@@ -59,8 +60,13 @@ def event_predictions(rows, recipient, now):
         seen_ids.add(spawn["id"])
         if wanted is not None and spawn["pokemon_id"] not in wanted:
             continue
-        in_marinha = float(spawn["lon"]) <= Config.MARINHA_LON_MAX
-        if not recipient["alert_marinha" if in_marinha else "alert_leiria"]:
+        key = scan_areas.area_for(spawn["lat"], spawn["lon"])
+        if not key:
+            continue
+        followed = {
+            area for area in (recipient.get("alert_areas") or "").split(",") if area
+        }
+        if key not in followed:
             continue
         if spawn["seen_type"] not in ("wild", "encounter", "nearby_stop"):
             continue
@@ -113,6 +119,7 @@ class ShinyEventDigests:
     async def tick(self):
         if not Config.SHINY_EVENT_DIGESTS_ENABLED:
             return
+        await scan_areas.ensure()
         now = int(time.time())
         for recipient in await self.store.event_recipients(Config.SHINY_ALERT_USER_IDS):
             rows = await self.poliswag.db.get_data_from_database(

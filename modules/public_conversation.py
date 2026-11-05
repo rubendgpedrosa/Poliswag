@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 import discord
 
 from modules.config import Config
+from modules import scan_areas
 
 # Only requests for private/operational material or code are rejected. Normal
 # game words (shiny, Dragonite, Golbat, quest, raid, map) are allowed.
@@ -69,7 +70,6 @@ _CAPABILITY = re.compile(
     r")",
     re.I,
 )
-_AREAS = {"Leiria": "Leiria", "MarinhaGrande": "Marinha Grande"}
 _PRIVATE_REPLY = (
     "Poli-poli! 💧 Isso não vem na minha Pokédex. Posso ajudar com Pokémon GO "
     "e a comunidade PoGoLeiria: mapa, spawns, Raids, Quests, Eggs, Lures, "
@@ -96,7 +96,7 @@ _MODEL_UNAVAILABLE = (
 _GREETING = (
     "Poli-poli! 💧 Sou o Poliswag, o Poliwag com mais estilo da comunidade "
     "PoGoLeiria. Pergunta-me sobre Pokémon GO, spawns, Raids, Quests, eventos "
-    "ou o mapa de Leiria e Marinha Grande!"
+    "ou o mapa da comunidade!"
 )
 
 # Public output screening: game terms, numbers, accents and line breaks pass;
@@ -467,28 +467,35 @@ class PublicConversation:
 
     async def statistics(self):
         day = (datetime.now(ZoneInfo("Europe/Lisbon")) - timedelta(days=1)).date()
+        await scan_areas.ensure()
+        rows = scan_areas.active_areas()
+        names = [row["dragonite_area"] for row in rows]
+        if not names:
+            return "Ainda não tenho estatísticas para mostrar."
+        labels = {row["dragonite_area"]: row["label"] for row in rows}
+        placeholders = ", ".join(["%s"] * len(names))
         pokemon = await self.game_stats_db.get_data_from_database(
             "SELECT area, SUM(count) AS total FROM pokemon_stats "
-            "WHERE date = %s AND area IN (%s, %s) GROUP BY area",
-            params=(day, *_AREAS),
+            f"WHERE date = %s AND area IN ({placeholders}) GROUP BY area",
+            params=(day, *names),
         )
         raids = await self.game_stats_db.get_data_from_database(
             "SELECT area, SUM(count) AS total FROM raid_stats "
-            "WHERE date = %s AND area IN (%s, %s) GROUP BY area",
-            params=(day, *_AREAS),
+            f"WHERE date = %s AND area IN ({placeholders}) GROUP BY area",
+            params=(day, *names),
         )
 
         def counts(rows):
             out = {}
             for row in rows:
                 area, number = row.get("area"), public_number(row.get("total"))
-                if area in _AREAS and number is not None:
+                if area in labels and number is not None:
                     out[area] = number
             return out
 
         pokemon, raids = counts(pokemon), counts(raids)
         lines = []
-        for area, label in _AREAS.items():
+        for area, label in labels.items():
             if area not in pokemon and area not in raids:
                 continue
             p = (
