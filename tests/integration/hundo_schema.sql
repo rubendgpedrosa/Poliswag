@@ -46,6 +46,15 @@ CREATE TABLE `pokemon_name` (
   PRIMARY KEY (`pokemon_id`,`form_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- shiny_link lives here in production (migration 018); migration 040 widens
+-- its alert_areas column, so the suite needs a minimal stand-in.
+CREATE TABLE `shiny_link` (
+  `discord_id` bigint(20) unsigned NOT NULL,
+  `alert_leiria` tinyint(1) NOT NULL DEFAULT 1,
+  `alert_marinha` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`discord_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE DATABASE poracle;
 USE poracle;
 CREATE TABLE `humans` (
