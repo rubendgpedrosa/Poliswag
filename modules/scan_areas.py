@@ -33,8 +33,6 @@ REFRESH_SECONDS = 600
 # After a failed refresh, wait this long before hammering Dragonite again.
 RETRY_SECONDS = 60
 HTTP_TIMEOUT = 20
-POINT_KEYS = ("lat", "lon")
-
 # Display colours by sort_order: the map markers and quest embeds follow the
 # same order as the registry, so a new area gets one without touching code.
 AREA_COLORS = ("#3498DB", "#2ECC71", "#E67E22", "#9B59B6", "#1ABC9C", "#E74C3C")
@@ -236,6 +234,16 @@ def row_for(key) -> dict | None:
 def label(key) -> str:
     row = row_for(key)
     return row["label"] if row else str(key)
+
+
+def short_label(key) -> str:
+    """Compact form for narrow footers: the first word of a multi-word label.
+
+    "Marinha Grande" -> "Marinha" (the account card's original wording), while
+    a one-word area keeps its whole name.
+    """
+    words = label(key).split()
+    return words[0] if words else str(key)
 
 
 def labels(separator=" · ") -> str:
