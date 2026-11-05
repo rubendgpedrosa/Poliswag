@@ -149,21 +149,26 @@ def _pool_view(pool):
 
 
 def _status(pools):
+    """(tone, words) for the header's status: success, urgent or destructive.
+
+    Only the scanning pool decides it. The card says it in words next to the
+    title -- no coloured strip or edge accent (owner, 2026-11-05).
+    """
     scanning = next((p for p in pools if p["key"] == "scanning"), None)
     if scanning is None:
-        return "urgent"
+        return "urgent", "Stats unavailable"
     device = scanning.get("device")
     accounts = scanning.get("accounts")
     if device is not None and not device.get("connected"):
-        return "destructive"
+        return "destructive", "Scanner offline"
     if accounts is None or device is None:
-        return "urgent"
+        return "urgent", "Stats unavailable"
     if accounts["ready"] == 0:
-        return "destructive"
+        return "destructive", "No accounts ready"
     workers_total = (device.get("workers") or {}).get("total") or 0
     if accounts["ready"] < workers_total:
-        return "urgent"
-    return "success"
+        return "urgent", "Running low"
+    return "success", "Healthy"
 
 
 def area_lines(area_performance):
@@ -180,6 +185,7 @@ def area_lines(area_performance):
 def build_card_view(pools, area_performance=None):
     """Everything accounts.html needs, including the exact card height."""
     pool_views = [_pool_view(p) for p in pools]
+    status_tone, status_label = _status(pools)
     footer = area_lines(area_performance)
     grand_total = sum(
         p["accounts"]["total"] for p in pools if p.get("accounts") is not None
@@ -195,7 +201,8 @@ def build_card_view(pools, area_performance=None):
         "pools": pool_views,
         "area_lines": footer,
         "grand_total": grand_total,
-        "status": _status(pools),
+        "status": status_tone,
+        "status_label": status_label,
         "card_height": card_h,
         "height": card_h + 2 * STAGE_PAD,
         "width": CARD_WIDTH,

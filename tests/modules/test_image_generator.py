@@ -254,7 +254,8 @@ class TestGenerateImageFromAccountStats:
             '<span class="figure">329</span><span class="unit">in total</span>' in html
         )
         assert "ready includes 6 never used" in html and "out: 5 banned" in html
-        assert "status-success" in html
+        assert 'class="status status-success"' in html and "Healthy" in html
+        assert "status-bar" not in html
         assert "spawns/h" in html
 
     async def test_renders_at_twice_the_css_size(self, ig, mocker, tmp_path):
