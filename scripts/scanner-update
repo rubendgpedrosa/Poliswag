@@ -37,7 +37,6 @@ SERVICES = {
 SERVICES.update(
     {
         "db": (STACK, "db", "stage"),
-        "diadem-db": (Path("/opt/diadem/docker-compose.yml"), "diadem-db", "stage"),
         "tileserver-cache": (
             Path("/root/unonwhash/tileserver/docker-compose.yml"),
             "rampardos",
@@ -431,7 +430,7 @@ def check_and_stage(args, resources):
             status = (
                 (
                     "pronta a instalar quando o servidor for desligado ou reiniciado"
-                    if name in ("db", "diadem-db")
+                    if name == "db"
                     else "descarregada; aguarda instalação"
                 )
                 if record["downloaded"]
