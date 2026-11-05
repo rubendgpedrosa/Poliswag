@@ -19,7 +19,7 @@ VALUES
   ('leiria',     'Leiria',        'Leiria',     'leiria',       'AlertasLeiria',   1, 1),
   ('marinha',    'Marinha Grande', 'MarinhaGrande', 'marinhagrande', 'AlertasMarinha', 2, 1),
   ('batalha',    'Batalha',       'Batalha',    'batalha',      'AlertasBatalha',  3, 0),
-  ('portodemos', 'Porto de Mós',  'PortoDeMos', 'portodemos',   'AlertasPortoMos', 4, 0),
+  ('portodemos', 'Porto de Mós',  'PortoDeMos', 'portodemos',   'AlertasPortoDeMos', 4, 0),
   ('moita',      'Moita',         'Moita',      'moita',        'AlertasMoita',    5, 0);
 
 -- Per-player alert areas for shiny predictions, replacing the two flags it
