@@ -31,6 +31,7 @@ from modules.shiny_roll import is_background_at, personal_draws
 from modules.background_prediction import background_rule_for
 from modules.shiny_store import ShinyStore
 from modules.shiny_channels import ShinyChannels
+from modules import scan_areas
 
 _LISBON = ZoneInfo("Europe/Lisbon")
 # A spawn with less than this left is not worth a DM.
@@ -80,11 +81,19 @@ def link_message(row):
     )
 
 
+def alert_areas(recipient):
+    """The area keys a player follows (shiny_link.alert_areas)."""
+    return {key for key in (recipient.get("alert_areas") or "").split(",") if key}
+
+
 def plays_there(recipient, spawn):
-    """Does this player want spawns where this one is? Marinha Grande is west
-    of Config.MARINHA_LON_MAX, Leiria east, the same line the quests use."""
-    in_marinha = float(spawn["lon"]) <= Config.MARINHA_LON_MAX
-    return bool(recipient["alert_marinha"] if in_marinha else recipient["alert_leiria"])
+    """Does this player want spawns where this one is?
+
+    The spawn is classified by the registry fence it falls in; a spawn outside
+    every active area belongs to no one.
+    """
+    key = scan_areas.area_for(spawn["lat"], spawn["lon"])
+    return bool(key and key in alert_areas(recipient))
 
 
 def is_hundo(spawn):
@@ -266,6 +275,7 @@ class ShinyAlerts:
     async def tick(self):
         # Read first: only a change saved before this tick began is confirmed
         # by it. The steps below read every setting fresh.
+        await scan_areas.ensure()
         pending = await self.store.pending_settings()
         await self._confirm_notification_changes()
         await self.channels.tick()

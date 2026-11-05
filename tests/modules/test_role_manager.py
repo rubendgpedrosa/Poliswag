@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.role_manager import RoleManager, _NOTIF_ROLES
+from modules import scan_areas
+from modules.role_manager import RoleManager, notif_roles
 
 
 @pytest.fixture
@@ -129,7 +130,7 @@ class TestToggleRole:
 
 class TestAddDefaultNotifRoles:
     async def test_grants_all_notif_roles_skipping_missing(self, rm, mocker):
-        roles_by_name = {name: _make_role(name) for name in _NOTIF_ROLES}
+        roles_by_name = {name: _make_role(name) for name in notif_roles()}
         # Simulate one role missing from the guild.
         del roles_by_name["Remote"]
         mocker.patch(
@@ -141,7 +142,7 @@ class TestAddDefaultNotifRoles:
 
         await rm._add_default_notif_roles(user)
 
-        assert user.add_roles.await_count == len(_NOTIF_ROLES) - 1
+        assert user.add_roles.await_count == len(notif_roles()) - 1
         granted = [c.args[0] for c in user.add_roles.call_args_list]
         assert roles_by_name["AlertasLeiria"] in granted
         assert roles_by_name["AlertasMarinha"] in granted
@@ -150,12 +151,12 @@ class TestAddDefaultNotifRoles:
 class TestFirstTimeUserFlow:
     async def test_new_user_gets_all_notif_roles_then_requested_role(self, rm, mocker):
         instinct = _make_role("Instinct")
-        notif_roles = {name: _make_role(name) for name in _NOTIF_ROLES}
+        all_notif_roles = {name: _make_role(name) for name in notif_roles()}
         everyone = MagicMock()
 
         mocker.patch(
             "modules.role_manager.discord.utils.get",
-            side_effect=_guild_get({"Instinct": instinct, **notif_roles}),
+            side_effect=_guild_get({"Instinct": instinct, **all_notif_roles}),
         )
         user = MagicMock()
         user.roles = [everyone]  # only @everyone → first-time user
@@ -165,7 +166,7 @@ class TestFirstTimeUserFlow:
         await rm.toggle_role("Instinct", user)
 
         # 5 notif roles + 1 team role = 6 add_roles calls
-        assert user.add_roles.await_count == len(_NOTIF_ROLES) + 1
+        assert user.add_roles.await_count == len(notif_roles()) + 1
 
     async def test_existing_user_does_not_get_notif_roles_again(self, rm, mocker):
         instinct = _make_role("Instinct")
@@ -214,3 +215,46 @@ class TestResponseUserRoleSelection:
         await rm.response_user_role_selection(interaction)
 
         assert order == ["defer", "toggle"]
+
+
+def test_notif_roles_follow_the_active_registry_rows(monkeypatch):
+    monkeypatch.setattr(
+        scan_areas,
+        "_rows",
+        [
+            {
+                "area_key": "leiria",
+                "label": "Leiria",
+                "dragonite_area": "Leiria",
+                "poracle_area": "leiria",
+                "alert_role": "AlertasLeiria",
+                "sort_order": 1,
+                "active": 1,
+            },
+            {
+                "area_key": "batalha",
+                "label": "Batalha",
+                "dragonite_area": "Batalha",
+                "poracle_area": "batalha",
+                "alert_role": "AlertasBatalha",
+                "sort_order": 3,
+                "active": 1,
+            },
+            {
+                "area_key": "moita",
+                "label": "Moita",
+                "dragonite_area": "Moita",
+                "poracle_area": "moita",
+                "alert_role": "AlertasMoita",
+                "sort_order": 5,
+                "active": 0,
+            },
+        ],
+    )
+    assert notif_roles() == [
+        "AlertasLeiria",
+        "AlertasBatalha",
+        "AlertasRaids",
+        "AlertasPvP",
+        "Remote",
+    ]

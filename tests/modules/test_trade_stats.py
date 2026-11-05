@@ -66,8 +66,7 @@ class TestCollectHundo:
         with patch("modules.trade_stats.connect", return_value=db):
             assert await TradeStats().collect_hundo() == {
                 "active": 0,
-                "leiria": 0,
-                "marinha": 0,
+                "areas": {"leiria": 0, "marinha": 0},
                 "waiting": 0,
                 "dms_closed": 0,
                 "unhealthy": 0,
@@ -96,8 +95,7 @@ class TestCollectHundoActiveRow:
         with patch("modules.trade_stats.connect", return_value=db):
             assert await TradeStats().collect_hundo() == {
                 "active": 1,
-                "leiria": 1,
-                "marinha": 0,
+                "areas": {"leiria": 1, "marinha": 0},
                 "waiting": 0,
                 "dms_closed": 0,
                 "unhealthy": 0,

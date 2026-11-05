@@ -12,6 +12,7 @@ from modules.locale_pt import PT_DAYS_SHORT
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules import tracking_health
+from modules import scan_areas
 from modules.event_images import usable_image
 from modules.hundo_alerts import HundoAlerts
 from modules.shiny_alerts import ShinyAlerts
@@ -257,9 +258,14 @@ class Scheduled(commands.Cog):
                     "ERROR",
                 )
 
+    async def _refresh_scan_areas(self):
+        """Keep the registry and Dragonite fences fresh (every ~10 min)."""
+        await scan_areas.ensure(self.poliswag.utility.log_to_file)
+
     @tasks.loop(seconds=60)
     async def scheduled_tasks(self):
         for step in (
+            self._refresh_scan_areas,
             self._refresh_masterfile_data,
             self.poliswag.event_manager.fetch_events,
             self._check_version_update,
@@ -308,6 +314,7 @@ class Scheduled(commands.Cog):
             )
 
     async def _check_quest_scan_progress(self):
+        await scan_areas.ensure()
         day_changed = await self.poliswag.scanner_manager.is_day_change()
         if day_changed:
             self.poliswag.scanner_status.reset_quest_plateau()
@@ -315,7 +322,7 @@ class Scheduled(commands.Cog):
                 await self.poliswag.QUEST_CHANNEL.send(
                     embed=build_embed(
                         "SCAN DE QUESTS INICIADO!",
-                        "A recolher quests em Leiria e Marinha Grande...",
+                        f"A recolher quests em {scan_areas.labels(' e ')}...",
                     )
                 )
             )
@@ -334,19 +341,28 @@ class Scheduled(commands.Cog):
         if quest_completed is None:
             return
 
-        is_complete = (
-            quest_completed["leiriaCompleted"] and quest_completed["marinhaCompleted"]
-        )
+        progress = quest_completed["areas"]
+        is_complete = quest_completed["completed"]
         if is_complete:
+            area_lines = "\n".join(
+                f"**{scan_areas.label(key)}:** {data['scanned']}/{data['total']} Quests"
+                for key, data in progress.items()
+            )
+            commands = []
+            for key in progress:
+                legacy = scan_areas.LEGACY_QUEST_COMMANDS.get(key)
+                commands.append(
+                    f"`!{legacy} <QUEST/ITEM>`"
+                    if legacy
+                    else f"`!quest {key} <QUEST/ITEM>`"
+                )
             embed = build_embed(
                 "✅ SCAN DE QUESTS CONCLUÍDO!",
                 (
-                    "**Concluída a verificação de todas as PokéStops nas áreas de Leiria e Marinha Grande. Lista de quests finalizada!**\n\n"
-                    f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests\n"
-                    f"**Marinha Grande:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests\n\n"
-                    "📋 **Como consultar:**\n"
-                    "`!questleiria <QUEST/ITEM>`\n"
-                    "`!questmarinha <QUEST/ITEM>`\n"
+                    "**Concluída a verificação de todas as PokéStops nas áreas de "
+                    f"{scan_areas.labels(' e ')}. Lista de quests finalizada!**\n\n"
+                    f"{area_lines}\n\n"
+                    "📋 **Como consultar:**\n" + "\n".join(commands) + "\n"
                 ),
                 footer=f"{datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}",
             )
@@ -357,14 +373,11 @@ class Scheduled(commands.Cog):
             self._last_quest_export = datetime.datetime.now()
             await self.poliswag.scanner_manager.update_quest_scanning_state()
             await self.poliswag.scanner_status.record_quest_scan_completion(
-                quest_completed["leiriaScanned"], quest_completed["marinhaScanned"]
+                {key: data["scanned"] for key, data in progress.items()}
             )
             self._last_progress_embed_state = None
         else:
-            state = (
-                quest_completed["leiriaScanned"],
-                quest_completed["marinhaScanned"],
-            )
+            state = tuple(data["scanned"] for data in progress.values())
             if (
                 self._last_progress_embed_state == state
                 and self.poliswag.quest_scanning_message is not None
@@ -403,14 +416,18 @@ class Scheduled(commands.Cog):
 
     def _build_progress_embed(self, quest_completed):
         bar_length = 20
-        leiria_filled = int((quest_completed["leiriaPercentage"] / 100) * bar_length)
-        marinha_filled = int((quest_completed["marinhaPercentage"] / 100) * bar_length)
-        leiria_bar = "█" * leiria_filled + "░" * (bar_length - leiria_filled)
-        marinha_bar = "█" * marinha_filled + "░" * (bar_length - marinha_filled)
-
-        total_percentage = (
-            quest_completed["leiriaPercentage"] + quest_completed["marinhaPercentage"]
-        ) / 2
+        progress = quest_completed["areas"]
+        blocks = []
+        for key, data in progress.items():
+            filled = int((data["percentage"] / 100) * bar_length)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            blocks.append(
+                f"**{scan_areas.label(key)}:** {data['scanned']}/{data['total']} "
+                f"Quests ({data['percentage']:.1f}%)\n{bar}"
+            )
+        total_percentage = sum(data["percentage"] for data in progress.values()) / max(
+            len(progress), 1
+        )
         if total_percentage < 25:
             status_emoji = "🔍"
         elif total_percentage < 50:
@@ -422,10 +439,7 @@ class Scheduled(commands.Cog):
 
         return build_embed(
             f"{status_emoji} SCAN DE QUESTS EM PROGRESSO...",
-            f"**Leiria:** {quest_completed['leiriaScanned']}/{quest_completed['leiriaTotal']} Quests ({quest_completed['leiriaPercentage']:.1f}%)\n"
-            + f"{leiria_bar}\n\n"
-            + f"**Marinha:** {quest_completed['marinhaScanned']}/{quest_completed['marinhaTotal']} Quests ({quest_completed['marinhaPercentage']:.1f}%)\n"
-            + f"{marinha_bar}",
+            "\n\n".join(blocks),
             footer=f"Última atualização: {datetime.datetime.now().strftime('%H:%M')}",
         )
 

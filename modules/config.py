@@ -193,10 +193,6 @@ class Config:
     # UI
     EMBED_COLOR = 0x4169E1
 
-    # Pokestops at or west of this longitude are Marinha Grande, the rest
-    # Leiria. Quest search, the quest export and the scan-progress counts
-    # all split on it, so moving it here keeps them in agreement.
-    MARINHA_LON_MAX = -8.9
     MOCK_DATA_DIR = "mock_data"
 
     @classmethod

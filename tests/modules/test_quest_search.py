@@ -118,32 +118,32 @@ class TestGetItemIdByItemNameMap:
 
 class TestIsLocationRelevant:
     def test_leiria_excludes_marinha_lon(self, qs):
-        quest = {"lon": "-8.9123"}
-        assert qs.is_location_relevant(quest, is_leiria=True) is False
+        quest = {"lat": 39.74, "lon": "-8.9123"}
+        assert qs.is_location_relevant(quest, area="leiria") is False
 
     def test_leiria_includes_non_marinha_lon(self, qs):
-        quest = {"lon": "-8.8"}
-        assert qs.is_location_relevant(quest, is_leiria=True) is True
+        quest = {"lat": 39.74, "lon": "-8.8"}
+        assert qs.is_location_relevant(quest, area="leiria") is True
 
     def test_marinha_includes_marinha_lon(self, qs):
-        quest = {"lon": "-8.9456"}
-        assert qs.is_location_relevant(quest, is_leiria=False) is True
+        quest = {"lat": 39.74, "lon": "-8.9456"}
+        assert qs.is_location_relevant(quest, area="marinha") is True
 
     def test_marinha_excludes_non_marinha_lon(self, qs):
-        quest = {"lon": "-8.8"}
-        assert qs.is_location_relevant(quest, is_leiria=False) is False
+        quest = {"lat": 39.74, "lon": "-8.8"}
+        assert qs.is_location_relevant(quest, area="marinha") is False
 
     def test_float_lon_is_stringified(self, qs):
-        quest = {"lon": -8.9123}
-        assert qs.is_location_relevant(quest, is_leiria=False) is True
+        quest = {"lat": 39.74, "lon": -8.9123}
+        assert qs.is_location_relevant(quest, area="marinha") is True
 
     def test_non_numeric_lon_returns_false(self, qs):
-        quest = {"lon": "not-a-number"}
-        assert qs.is_location_relevant(quest, is_leiria=True) is False
+        quest = {"lat": 39.74, "lon": "not-a-number"}
+        assert qs.is_location_relevant(quest, area="leiria") is False
 
     def test_none_lon_returns_false(self, qs):
-        quest = {"lon": None}
-        assert qs.is_location_relevant(quest, is_leiria=True) is False
+        quest = {"lat": 39.74, "lon": None}
+        assert qs.is_location_relevant(quest, area="leiria") is False
 
 
 class TestGenerateQuestSlugForImage:
@@ -205,6 +205,7 @@ class TestGenerateQuestSlugForImage:
 class TestIsQuestRelevant:
     def _leiria_quest(self, **overrides):
         base = {
+            "lat": 39.74,
             "lon": "-8.8",
             "quest_title": "quest_catch_pokemon",
             "quest_pokemon_id": 25,
@@ -218,39 +219,37 @@ class TestIsQuestRelevant:
 
     def test_matches_by_translated_title_keyword(self, qs):
         quest = self._leiria_quest()
-        assert qs.is_quest_relevant(quest, "catch", [], [], is_leiria=True) is True
+        assert qs.is_quest_relevant(quest, "catch", [], [], area="leiria") is True
 
     def test_matches_by_pokemon_id(self, qs):
         quest = self._leiria_quest()
-        assert qs.is_quest_relevant(quest, "xxx", ["25"], [], is_leiria=True) is True
+        assert qs.is_quest_relevant(quest, "xxx", ["25"], [], area="leiria") is True
 
     def test_matches_by_item_id(self, qs):
         quest = self._leiria_quest()
-        assert qs.is_quest_relevant(quest, "xxx", [], ["1"], is_leiria=True) is True
+        assert qs.is_quest_relevant(quest, "xxx", [], ["1"], area="leiria") is True
 
     def test_mega_energy_special_case(self, qs):
         quest = self._leiria_quest(quest_reward_type=12)
-        assert (
-            qs.is_quest_relevant(quest, "mega energy", [], [], is_leiria=True) is True
-        )
+        assert qs.is_quest_relevant(quest, "mega energy", [], [], area="leiria") is True
 
     def test_experience_special_case(self, qs):
         quest = self._leiria_quest(quest_reward_type=1)
-        assert qs.is_quest_relevant(quest, "experience", [], [], is_leiria=True) is True
+        assert qs.is_quest_relevant(quest, "experience", [], [], area="leiria") is True
 
     def test_location_irrelevant_returns_false(self, qs):
         quest = self._leiria_quest(lon="-8.9")  # marinha
-        assert qs.is_quest_relevant(quest, "catch", [], [], is_leiria=True) is False
+        assert qs.is_quest_relevant(quest, "catch", [], [], area="leiria") is False
 
     def test_no_match_returns_false(self, qs):
         quest = self._leiria_quest()
-        assert qs.is_quest_relevant(quest, "zzz", [], [], is_leiria=True) is False
+        assert qs.is_quest_relevant(quest, "zzz", [], [], area="leiria") is False
 
     def test_missing_translation_data_falls_back_to_raw_title(self, qs):
         qs.translationfile_data = None
         quest = self._leiria_quest(quest_title="quest_catch_pokemon")
         # Raw title contains "catch".
-        assert qs.is_quest_relevant(quest, "catch", [], [], is_leiria=True) is True
+        assert qs.is_quest_relevant(quest, "catch", [], [], area="leiria") is True
 
 
 class TestAddQuestToFoundQuests:
@@ -858,7 +857,7 @@ class TestFindQuestBySearchKeyword:
         mocker.patch.object(
             qs, "generate_quest_slug_for_image", return_value="slug.png"
         )
-        result = await qs.find_quest_by_search_keyword("catch", is_leiria=True)
+        result = await qs.find_quest_by_search_keyword("catch", area="leiria")
         assert result is not None
         assert result[0]["quest_title"] == "Catch 5 Pokémon"
 
@@ -867,7 +866,7 @@ class TestFindQuestBySearchKeyword:
         qs.item_name_map = {"1": "poké ball"}
         qs.quest_data = {"data": [], "date": datetime.now().isoformat()}
         qs.alternative_quest_data = {"data": [], "date": datetime.now().isoformat()}
-        assert await qs.find_quest_by_search_keyword("nothing", is_leiria=True) is None
+        assert await qs.find_quest_by_search_keyword("nothing", area="leiria") is None
 
     async def test_identical_quest_from_both_field_sets_has_one_stop(self, qs):
         qs.pokemon_name_map = {"25": "pikachu"}
@@ -889,7 +888,7 @@ class TestFindQuestBySearchKeyword:
         qs.get_quest_data = AsyncMock(return_value={"data": [quest]})
         qs.get_alternative_quest_data = AsyncMock(return_value={"data": [alternative]})
 
-        result = await qs.find_quest_by_search_keyword("catch", True)
+        result = await qs.find_quest_by_search_keyword("catch", "leiria")
         assert len(result) == 1
         assert result[0]["quest_title"] == "Catch 5 Pokémon"
         assert len(result[0]["quests"]) == 1
@@ -908,7 +907,7 @@ class TestCreateQuestEmbed:
                 "quest_slug": "reward/item/1.png",
             }
         ]
-        embed = qs.create_quest_embed("Catch 5 Pokémon", stops, is_leiria=True)
+        embed = qs.create_quest_embed("Catch 5 Pokémon", stops, area="leiria")
         assert embed.title == "Catch 5 Pokémon"
         assert "Leiria" in embed.description
         assert embed.color == discord.Color.blue()
@@ -919,7 +918,7 @@ class TestCreateQuestEmbed:
 
     def test_marinha_embed_is_green(self, qs):
         embed = qs.create_quest_embed(
-            "T", [{"lat": 39.7, "lon": -8.9, "name": "S"}], is_leiria=False
+            "T", [{"lat": 39.7, "lon": -8.9, "name": "S"}], area="marinha"
         )
         assert "Marinha" in embed.description
         assert embed.color == discord.Color.green()
@@ -929,24 +928,24 @@ class TestCreateQuestEmbed:
             {"lat": 39.7, "lon": -8.8, "name": f"Stop {c}", "quest_slug": "x.png"}
             for c in "XYZ"
         ]
-        embed = qs.create_quest_embed("T", stops, is_leiria=True)
+        embed = qs.create_quest_embed("T", stops, area="leiria")
         idx_a = embed.description.index("**A**")
         idx_b = embed.description.index("**B**")
         idx_c = embed.description.index("**C**")
         assert idx_a < idx_b < idx_c
 
     def test_pagination_footer(self, qs):
-        embed = qs.create_quest_embed("T", [], is_leiria=True, page=2, total_pages=5)
+        embed = qs.create_quest_embed("T", [], area="leiria", page=2, total_pages=5)
         assert "Página 2/5" in embed.footer.text
 
     def test_description_shows_stop_count(self, qs):
         stops = [{"lat": 39.7, "lon": -8.8, "name": f"S{i}"} for i in range(3)]
-        embed = qs.create_quest_embed("T", stops, is_leiria=True)
+        embed = qs.create_quest_embed("T", stops, area="leiria")
         assert "3 pokestop" in embed.description
 
     def test_no_thumbnail_when_stops_lack_slug(self, qs):
         embed = qs.create_quest_embed(
-            "T", [{"lat": 0, "lon": 0, "name": "X"}], is_leiria=True
+            "T", [{"lat": 0, "lon": 0, "name": "X"}], area="leiria"
         )
         assert embed.thumbnail.url is None
 
@@ -1139,8 +1138,8 @@ class TestQuestExpiryFiltering:
         qs.item_name_map = {}
         future = self._row(now + 3600)
         expired = self._row(now - 3600)
-        assert qs.is_quest_relevant(future, "catch", [], [], is_leiria=True) is True
-        assert qs.is_quest_relevant(expired, "catch", [], [], is_leiria=True) is False
+        assert qs.is_quest_relevant(future, "catch", [], [], area="leiria") is True
+        assert qs.is_quest_relevant(expired, "catch", [], [], area="leiria") is False
 
     def test_is_quest_relevant_missing_expiry_never_matches(self, qs):
         quest = {
@@ -1149,7 +1148,7 @@ class TestQuestExpiryFiltering:
             "quest_target": "5",
             "quest_reward_type": 7,
         }
-        assert qs.is_quest_relevant(quest, "catch", [], [], is_leiria=True) is False
+        assert qs.is_quest_relevant(quest, "catch", [], [], area="leiria") is False
 
 
 class TestLisbonDayRollover:

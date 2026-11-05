@@ -8,6 +8,7 @@ import discord
 from discord.ext import commands, tasks
 
 from modules import spawn_history
+from modules import scan_areas
 from modules.shiny_leaderboard import ShinyLeaderboard
 from modules.permissions import is_owner, owner_only
 
@@ -92,6 +93,7 @@ class SpawnHistory(commands.Cog):
     @history.command(name="leaderboard", brief="Recalcula a leaderboard sem filtros")
     @owner_only()
     async def report(self, ctx, hours: int = 24):
+        await scan_areas.ensure()
         data = await asyncio.to_thread(spawn_history.leaderboard, hours)
         await ctx.send(
             data["metadata"].get("note", "A recolha ainda não começou."),

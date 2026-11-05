@@ -101,10 +101,10 @@ class TestRescanCmd:
 # --- questcmd -----------------------------------------------------------------
 
 
-class TestQuestCmd:
+class TestLegacyQuestCmd:
     async def test_empty_search_prompts_user(self, cog):
         ctx = make_ctx()
-        await Quests.questcmd.callback(cog, ctx, search="   ")
+        await Quests.legacy_questcmd.callback(cog, ctx, search="   ")
         ctx.send.assert_awaited_once()
         title = ctx.send.call_args.kwargs["embed"].title
         assert "necessário" in title
@@ -112,7 +112,7 @@ class TestQuestCmd:
     async def test_no_results_leiria(self, cog):
         ctx = make_ctx(invoked_with="questleiria")
         cog.poliswag.quest_search.find_quest_by_search_keyword.return_value = []
-        await Quests.questcmd.callback(cog, ctx, search="pikachu")
+        await Quests.legacy_questcmd.callback(cog, ctx, search="pikachu")
         ctx.send.assert_awaited_once()
         title = ctx.send.call_args.kwargs["embed"].title
         assert "em Leiria" in title
@@ -120,9 +120,9 @@ class TestQuestCmd:
     async def test_no_results_marinha(self, cog):
         ctx = make_ctx(invoked_with="questmarinha")
         cog.poliswag.quest_search.find_quest_by_search_keyword.return_value = []
-        await Quests.questcmd.callback(cog, ctx, search="pikachu")
+        await Quests.legacy_questcmd.callback(cog, ctx, search="pikachu")
         title = ctx.send.call_args.kwargs["embed"].title
-        assert "na Marinha" in title
+        assert "em Marinha Grande" in title
 
     async def test_happy_path_sends_embeds_and_deletes_processing(self, cog):
         ctx = make_ctx(invoked_with="questleiria")
@@ -152,7 +152,7 @@ class TestQuestCmd:
             b"PNG"
         )
 
-        await Quests.questcmd.callback(cog, ctx, search="bulbasaur")
+        await Quests.legacy_questcmd.callback(cog, ctx, search="bulbasaur")
 
         # Initial processing send + two embed sends = 3 sends total.
         assert ctx.send.await_count == 3
@@ -186,15 +186,48 @@ class TestQuestCmd:
             None
         )
 
-        await Quests.questcmd.callback(cog, ctx, search="thing")
+        await Quests.legacy_questcmd.callback(cog, ctx, search="thing")
 
         embed.set_image.assert_not_called()
         assert ctx.send.await_count == 2
         assert ctx.send.await_args_list[1].kwargs == {"embed": embed}
         cog.poliswag.image_generator.generate_static_map_for_group_of_quests.assert_awaited_once_with(
-            [{}], is_leiria=False
+            [{}], area="marinha"
         )
         processing.delete.assert_awaited_once()
+
+
+class TestGenericQuestCmd:
+    async def test_missing_area_lists_the_active_ones(self, cog):
+        ctx = make_ctx()
+        await Quests.questcmd.callback(cog, ctx, area="", search="pikachu")
+        title = ctx.send.call_args.kwargs["embed"].title
+        assert "indica a área" in title
+        assert "leiria" in title and "marinha" in title
+        cog.poliswag.quest_search.find_quest_by_search_keyword.assert_not_called()
+
+    async def test_unknown_area_is_rejected(self, cog):
+        ctx = make_ctx()
+        await Quests.questcmd.callback(cog, ctx, area="narnia", search="pikachu")
+        title = ctx.send.call_args.kwargs["embed"].title
+        assert "não conheço a área" in title
+        cog.poliswag.quest_search.find_quest_by_search_keyword.assert_not_called()
+
+    async def test_area_label_resolves_to_its_key(self, cog):
+        ctx = make_ctx()
+        cog.poliswag.quest_search.find_quest_by_search_keyword.return_value = []
+        await Quests.questcmd.callback(
+            cog, ctx, area="Marinha Grande", search="pikachu"
+        )
+        cog.poliswag.quest_search.find_quest_by_search_keyword.assert_awaited_once_with(
+            "pikachu", "marinha"
+        )
+
+    async def test_inactive_area_is_rejected(self, cog):
+        ctx = make_ctx()
+        await Quests.questcmd.callback(cog, ctx, area="batalha", search="pikachu")
+        # "batalha" is a known but inactive registry row: no quest search runs.
+        cog.poliswag.quest_search.find_quest_by_search_keyword.assert_not_called()
 
 
 class TestLifecycle:

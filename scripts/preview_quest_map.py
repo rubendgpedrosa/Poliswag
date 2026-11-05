@@ -28,11 +28,23 @@ from modules.quest_search import QuestSearch
 
 async def preview(args):
     data = json.loads(Path(Config.QUEST_JSON_OUTPUT).read_text())
-    is_leiria = args.area == "leiria"
+    zones = []
+    for quest in data["quests"]:
+        for stop in quest["pokestops"]:
+            zone = stop.get("zone")
+            if zone and zone not in zones:
+                zones.append(zone)
+    area = args.area or (zones[0] if zones else None)
+    if area is None:
+        raise RuntimeError("The quest export carries no area zones")
+    if args.area and args.area not in zones:
+        raise RuntimeError(
+            f"No quests in {args.area}; the export has: {', '.join(zones)}"
+        )
     quests = [q for q in data["quests"] if q["reward"]["type"].startswith("encounter_")]
     quest = max(
         quests,
-        key=lambda q: sum(s["zone"] == args.area for s in q["pokestops"]),
+        key=lambda q: sum(s["zone"] == area for s in q["pokestops"]),
     )
     pokemon_id = quest["reward"]["type"].split("_")[1]
     stops = [
@@ -43,10 +55,10 @@ async def preview(args):
             "quest_slug": f"pokemon/{pokemon_id}.png",
         }
         for stop in quest["pokestops"]
-        if stop["zone"] == args.area
+        if stop["zone"] == area
     ]
     if not stops:
-        raise RuntimeError(f"No encounter quests in {args.area}")
+        raise RuntimeError(f"No encounter quests in {area}")
     # Only pure grouping/embed methods are needed; avoid DB/translation loading.
     search = QuestSearch.__new__(QuestSearch)
     search.UI_ICONS_URL = Config.UI_ICONS_URL
@@ -55,7 +67,7 @@ async def preview(args):
     embed = search.create_quest_embed(
         f"{quest['title']} — {reward_name}",
         pages[0],
-        is_leiria,
+        area,
         1,
         len(pages),
         total_stops=len(stops),
@@ -67,7 +79,7 @@ async def preview(args):
     )
     try:
         image = await ImageGenerator(bot).generate_static_map_for_group_of_quests(
-            pages[0], is_leiria=is_leiria
+            pages[0], area=area
         )
     finally:
         await close_session()
@@ -104,7 +116,11 @@ async def preview(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--area", choices=["leiria", "marinha"], default="leiria")
+    parser.add_argument(
+        "--area",
+        default=None,
+        help="area key from the export's zone field (default: the first one)",
+    )
     parser.add_argument("--output", type=Path, default=Path("/tmp/quest-preview"))
     parser.add_argument("--send-owner", action="store_true")
     asyncio.run(preview(parser.parse_args()))
