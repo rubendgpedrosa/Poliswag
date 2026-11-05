@@ -169,13 +169,18 @@ class QuestExporter:
                 if stop_key in seen_stops[key]:
                     continue
                 seen_stops[key].add(stop_key)
+                # The registry area key, in both the new `area_key` field and
+                # the legacy `zone` field it replaces; kept in step for one
+                # release so existing readers keep working.
+                area_key = self._get_zone(row["lat"], row["lon"])
                 stop: dict = {
                     "name": row["name"] or "Unknown",
                     "location": {
                         "lat": float(row["lat"]),
                         "lng": float(row["lon"]),
                     },
-                    "zone": self._get_zone(row["lat"], row["lon"]),
+                    "area_key": area_key,
+                    "zone": area_key,
                     "done": False,
                 }
                 if row.get("url"):

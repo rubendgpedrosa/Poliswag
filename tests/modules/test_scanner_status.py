@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from modules import scan_areas
 from modules.scanner_status import ScannerStatus
 
 
@@ -1438,6 +1439,54 @@ class TestIsQuestScanningComplete:
         result = await self._tick(scanner_status, 110, 55)
         assert result["areas"]["leiria"]["percentage"] == 100
         assert result["areas"]["marinha"]["percentage"] == 100
+
+    async def test_progress_is_per_active_registry_area(self, scanner_status, mocker):
+        scan_areas.install(
+            [
+                {
+                    "area_key": key,
+                    "label": label,
+                    "dragonite_area": dragonite,
+                    "poracle_area": poracle,
+                    "alert_role": "",
+                    "sort_order": order,
+                    "active": 1,
+                }
+                for order, (key, label, dragonite, poracle) in enumerate(
+                    [
+                        ("leiria", "Leiria", "Leiria", "leiria"),
+                        ("marinha", "Marinha Grande", "MarinhaGrande", "marinhagrande"),
+                        ("moita", "Moita", "Moita", "moita"),
+                    ],
+                    start=1,
+                )
+            ],
+            {},
+        )
+        self._prime(scanner_status, mocker)
+        scanner_status._get_expected_totals = AsyncMock(
+            return_value={"leiria": 10, "marinha": 5, "moita": 2}
+        )
+        scanner_status._count_valid_quests = AsyncMock(side_effect=[10, 5, 2])
+        scanner_status._is_scanner_alive = AsyncMock(return_value=True)
+        result = await scanner_status.is_quest_scanning_complete()
+        assert list(result["areas"]) == ["leiria", "marinha", "moita"]
+        assert [data["scanned"] for data in result["areas"].values()] == [10, 5, 2]
+        assert [data["total"] for data in result["areas"].values()] == [10, 5, 2]
+
+    async def test_a_new_area_without_an_expected_total_needs_the_long_window(
+        self, scanner_status, mocker
+    ):
+        # The seeded columns only cover the two original areas; a newly
+        # activated one starts at 0. Ten flat ticks are not a finished scan
+        # yet; the 30-tick self-heal window is.
+        self._prime(scanner_status, mocker, expected=(100, 0), alive=True)
+        _, after = await self._tick_until_plateau(scanner_status, 100, 50)
+        assert after["areas"]["marinha"]["completed"] is False
+        result = None
+        for _ in range(scanner_status.STUCK_TICKS):
+            result = await self._tick(scanner_status, 100, 50)
+        assert self._complete(result) is True
 
     # --- scanner-health gate ----------------------------------------------
 
