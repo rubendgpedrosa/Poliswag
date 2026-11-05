@@ -58,23 +58,29 @@ class TestBarSegments:
 class TestStatus:
     def test_ok_when_ready_covers_workers(self):
         view = ac.build_card_view([_scan(_acc(45, 205, 6, 57), _dev())])
-        assert view["status"] == "success"
+        assert (view["status"], view["status_label"]) == ("success", "Healthy")
 
     def test_critical_when_scanning_device_offline(self):
         view = ac.build_card_view([_scan(_acc(0, 205), _dev(connected=False))])
-        assert view["status"] == "destructive"
+        assert (view["status"], view["status_label"]) == (
+            "destructive",
+            "Scanner offline",
+        )
 
     def test_critical_when_nothing_ready(self):
         view = ac.build_card_view([_scan(_acc(45, 0, 0, 57), _dev())])
-        assert view["status"] == "destructive"
+        assert (view["status"], view["status_label"]) == (
+            "destructive",
+            "No accounts ready",
+        )
 
     def test_warning_when_ready_below_worker_count(self):
         view = ac.build_card_view([_scan(_acc(45, 10, 0, 57), _dev(total=50))])
-        assert view["status"] == "urgent"
+        assert (view["status"], view["status_label"]) == ("urgent", "Running low")
 
     def test_warning_when_stats_unavailable(self):
         view = ac.build_card_view([_scan(None, _dev())])
-        assert view["status"] == "urgent"
+        assert (view["status"], view["status_label"]) == ("urgent", "Stats unavailable")
 
     def test_levelling_pool_does_not_drive_status(self):
         level = {
@@ -84,7 +90,7 @@ class TestStatus:
             "device": _dev(connected=False),
         }
         view = ac.build_card_view([_scan(_acc(45, 205), _dev()), level])
-        assert view["status"] == "success"
+        assert (view["status"], view["status_label"]) == ("success", "Healthy")
 
 
 class TestPoolView:
@@ -198,3 +204,17 @@ class TestDesignTokens:
     def test_no_reward_gold_or_touch_ember(self):
         lowered = self.css.lower()
         assert "#f4cc64" not in lowered
+
+
+class TestNoEdgeAccent:
+    """Owner, 2026-11-05: no coloured strip, border or edge accent on the card."""
+
+    css = Path("templates/accounts.html").read_text(encoding="utf-8")
+
+    def test_no_status_strip(self):
+        assert "status-bar" not in self.css
+
+    def test_only_neutral_borders(self):
+        borders = set(re.findall(r"border[a-z-]*:\s*([^;]+);", self.css))
+        colours = {c for b in borders for c in re.findall(r"#[0-9A-Fa-f]{6}", b)}
+        assert colours <= {"#262E3B", "#778190"}  # hairline; hollow offline dot
