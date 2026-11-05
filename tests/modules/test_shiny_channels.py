@@ -15,6 +15,8 @@ from modules.shiny_channels import (
     PROCESSING_TEXT,
     READY_TEXT,
     FAILED_TEXT,
+    SHUTDOWN_TEXT,
+    OFF_STATE,
     map_url,
 )
 
@@ -129,6 +131,34 @@ async def test_approval_creates_read_only_channel_and_pins_named_map(setup):
     await manager.tick()
     guild.create_text_channel.assert_awaited_once()
     channel.send.assert_awaited_once()
+
+
+async def test_the_switch_archives_the_channel_and_leaves_a_shutdown_note(
+    setup, monkeypatch
+):
+    manager, store, guild, row, member, owner, message = setup
+    await manager.tick()
+    channel = guild.text_channels[0]
+    monkeypatch.setattr(Config, "SHINY_ALERTS_ENABLED", False)
+    await manager.tick()
+    assert row["channel_archived"] == 1
+    assert channel.category.name == ARCHIVE_CATEGORY
+    send = message.edit.call_args.kwargs
+    assert send["content"] == SHUTDOWN_TEXT
+    assert send["embed"] is None and send["view"] is None
+    assert row["channel_intro_state"] == OFF_STATE
+    # Once archived and rewritten it is left alone, so the tick stays quiet.
+    guild.text_channels[0].edit.reset_mock()
+    message.edit.reset_mock()
+    await manager.tick()
+    message.edit.assert_not_awaited()
+
+    # Back on: the ordinary intro path restores the active note and the map button.
+    monkeypatch.setattr(Config, "SHINY_ALERTS_ENABLED", True)
+    await manager.tick()
+    assert row["channel_archived"] == 0
+    assert message.edit.call_args.kwargs["content"] == READY_TEXT
+    assert message.edit.call_args.kwargs["view"].children[0].url == map_url(row)
 
 
 @pytest.mark.parametrize(

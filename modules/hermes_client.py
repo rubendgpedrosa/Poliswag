@@ -30,6 +30,8 @@ _INSTRUCTIONS = (
     "necessária para ações destrutivas ou disruptivas fora do âmbito autorizado. "
     "Nunca reinicies o host Proxmox. Não reveles credenciais. Só recebes a mensagem "
     "do dono, sem anexos, histórico do Discord ou contexto de outros utilizadores. "
+    "Mensagens que o dono envie enquanto trabalhas chegam a meio da tarefa como "
+    "instruções adicionais para esta mesma tarefa: tem-nas em conta. "
     "A resposta será enviada na DM de origem."
 )
 

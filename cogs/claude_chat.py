@@ -24,11 +24,11 @@ class ClaudeChat(Hermes):
         )
         self.live = set()
 
-    async def handle(self, ctx, text):
+    async def handle(self, ctx, text, steer_only=False):
         if isinstance(text, str) and not text.strip() and ctx.guild is None:
             await self.respond(ctx, "Escreve o pedido para o Claude depois de `c `.")
             return True
-        return await super().handle(ctx, text)
+        return await super().handle(ctx, text, steer_only=steer_only)
 
 
 async def setup(poliswag):
