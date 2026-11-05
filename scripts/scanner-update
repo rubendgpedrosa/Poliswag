@@ -39,7 +39,7 @@ SERVICES.update(
         "db": (STACK, "db", "stage"),
         "diadem-db": (Path("/opt/diadem/docker-compose.yml"), "diadem-db", "stage"),
         "tileserver-cache": (
-            Path("/root/tileserver/docker-compose.yml"),
+            Path("/root/unonwhash/tileserver/docker-compose.yml"),
             "rampardos",
             "report",
         ),

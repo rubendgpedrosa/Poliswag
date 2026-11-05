@@ -19,7 +19,7 @@ CDN = "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_O
 MIRROR = Path("/root/uicons-mirror")
 TARGETS = (
     Path("/root/Poliswag/templates/poracle/shiny-sprites.json"),
-    Path("/root/poracleng/config/customMaps/shiny-sprites.json"),
+    Path("/root/unonwhash/poracleng/config/customMaps/shiny-sprites.json"),
 )
 
 
