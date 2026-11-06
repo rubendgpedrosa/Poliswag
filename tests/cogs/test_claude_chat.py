@@ -5,7 +5,7 @@ import pytest
 from cogs.claude_chat import ClaudeChat
 from cogs.hermes import Hermes, RunProgress
 from modules.config import Config
-from tests.cogs.test_hermes import context
+from tests.cogs.test_hermes import context, texto
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ async def test_bare_prefix_explains_usage(cogs):
     _, claude = cogs
     ctx = await route(cogs, "!c")
     claude.client.reply.assert_not_awaited()
-    assert "depois de `c `" in ctx.reply.await_args.args[0]
+    assert "depois de `c `" in texto(ctx.reply.await_args)
 
 
 async def test_claude_uses_its_own_bridge_and_labels(cogs):

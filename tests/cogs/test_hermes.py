@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import ANY, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -26,6 +26,14 @@ def context(*, owner=True, dm=False):
     return ctx
 
 
+def texto(chamada):
+    """O texto enviado numa chamada: em embed (respostas) ou em content."""
+    embed = chamada.kwargs.get("embed")
+    if embed is not None:
+        return embed.description or ""
+    return chamada.args[0] if chamada.args else ""
+
+
 @pytest.fixture
 def cog(monkeypatch):
     monkeypatch.setattr(Config, "MY_ID", 123)
@@ -47,7 +55,7 @@ async def test_owner_dm_has_only_owner_text_no_history_or_attachments(cog):
     cog.client.forget.assert_called_once_with("run-1")
     ctx.message.add_reaction.assert_not_awaited()
     ctx.channel.history.assert_not_called()
-    assert ctx.reply.call_args.args == ("Olá!",)
+    assert texto(ctx.reply.call_args) == "Olá!"
     assert not ctx.reply.call_args.kwargs["allowed_mentions"].everyone
     assert not ctx.reply.call_args.kwargs["mention_author"]
 
@@ -70,7 +78,7 @@ async def test_unauthorized_entry_never_calls_hermes(cog, kind):
 
 async def test_acknowledges_before_model_and_segments_full_long_reply(cog):
     ctx = context(dm=True)
-    text = "á" * 2500
+    text = "á" * 9000
 
     async def reply(*args, **kwargs):
         ctx.message.add_reaction.assert_not_awaited()
@@ -79,12 +87,12 @@ async def test_acknowledges_before_model_and_segments_full_long_reply(cog):
     cog.client.reply.side_effect = reply
     await cog.handle(ctx, "hello")
     chunks = [
-        call.args[0]
+        texto(call)
         for call in ctx.reply.await_args_list + ctx.channel.send.await_args_list
     ]
     assert len(chunks) > 1
     assert "".join(chunks) == text
-    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(len(chunk) <= 4096 for chunk in chunks)
     assert all("file" not in call.kwargs for call in ctx.reply.await_args_list)
 
 
@@ -92,7 +100,7 @@ async def test_error_never_exposes_exception_or_falls_back(cog):
     cog.client.reply.side_effect = RuntimeError("SECRET token")
     ctx = context(dm=True)
     await cog.handle(ctx, "hello")
-    assert "SECRET" not in ctx.reply.call_args.args[0]
+    assert "SECRET" not in texto(ctx.reply.call_args)
     cog.poliswag.get_cog.assert_not_called()
     cog.poliswag.utility.log_to_file.assert_not_called()
 
@@ -241,13 +249,13 @@ async def test_short_paragraphs_stay_in_one_reply(cog):
     text = "Resolvido.\n\nConfirmei o resultado."
     assert await cog.respond(ctx, text)
     ctx.reply.assert_awaited_once()
-    assert ctx.reply.await_args.args == (text,)
+    assert texto(ctx.reply.await_args) == text
     ctx.channel.send.assert_not_awaited()
 
 
 async def test_only_continuations_are_silent_normal_messages(cog):
     ctx = context(dm=True)
-    text = "x" * 4500
+    text = "x" * 9000
     assert await cog.respond(ctx, text)
     ctx.reply.assert_awaited_once()
     assert not ctx.reply.await_args.kwargs.get("silent", False)
@@ -258,27 +266,27 @@ async def test_only_continuations_are_silent_normal_messages(cog):
         assert "reference" not in c.kwargs
         assert "mention_author" not in c.kwargs
         assert not c.kwargs["allowed_mentions"].everyone
-    assert "".join(c.args[0] for c in [ctx.reply.await_args, *calls]) == text
+    assert "".join(texto(c) for c in [ctx.reply.await_args, *calls]) == text
 
 
 async def test_recovered_reply_uses_same_segmentation(cog):
     channel = MagicMock()
     channel.send = AsyncMock()
     cog.poliswag.get_channel.return_value = channel
-    text = "x" * 2500
+    text = "x" * 9000
     assert await cog._deliver_recovered(456, text)
     calls = channel.send.await_args_list
     assert (
-        "".join(c.args[0] for c in calls)
+        "".join(texto(c) for c in calls)
         == "Resultado recuperado após reinício do Poliswag.\n\n" + text
     )
-    assert all(len(c.args[0]) <= 2000 for c in calls)
+    assert all(len(texto(c)) <= 4096 for c in calls)
     assert all(not c.kwargs["allowed_mentions"].everyone for c in calls)
 
 
 async def test_partial_delivery_failure_keeps_pending_run(cog):
     ctx = context(dm=True)
-    cog.client.reply.return_value = ("run-1", "x" * 2500)
+    cog.client.reply.return_value = ("run-1", "x" * 9000)
     cog.client.forget = MagicMock()
     error = discord.HTTPException(MagicMock(status=500, reason="error"), "error")
     ctx.channel.send.side_effect = error
@@ -294,9 +302,9 @@ async def test_short_code_block_stays_intact_across_segments(cog):
     text = "Introdução. " * 140 + "\n" + code + "\n\nFim."
     assert await cog.respond(ctx, text)
     calls = [ctx.reply.await_args, *ctx.channel.send.await_args_list]
-    assert "".join(c.args[0] for c in calls) == text
-    assert any(code in c.args[0] for c in calls)
-    assert all(len(c.args[0]) <= 2000 for c in calls)
+    assert "".join(texto(c) for c in calls) == text
+    assert any(code in texto(c) for c in calls)
+    assert all(len(texto(c)) <= 4096 for c in calls)
 
 
 async def test_large_technical_block_stays_in_chat_without_losing_prose(cog):
@@ -309,16 +317,16 @@ async def test_large_technical_block_stays_in_chat_without_losing_prose(cog):
         ctx, "Resolvido.\n\n" + code + "\n\nFalta validar no dispositivo."
     )
     calls = [ctx.reply.await_args, *ctx.channel.send.await_args_list]
-    content = "".join(c.args[0] for c in calls)
+    content = "".join(texto(c) for c in calls)
     assert "Resolvido." in content and "Falta validar no dispositivo." in content
     assert all("file" not in c.kwargs and "files" not in c.kwargs for c in calls)
     bodies = [
         m.group(1)
         for c in calls
-        for m in re.finditer(r"```log\n(.*?)```", c.args[0], re.S)
+        for m in re.finditer(r"```log\n(.*?)```", texto(c), re.S)
     ]
     assert "".join(bodies) == body
-    assert all(len(c.args[0]) <= 2000 for c in calls)
+    assert all(len(texto(c)) <= 4096 for c in calls)
 
 
 async def test_large_plain_answer_is_not_replaced_with_attachment(cog):
@@ -326,7 +334,7 @@ async def test_large_plain_answer_is_not_replaced_with_attachment(cog):
     text = "Uma explicação em português. " * 220
     assert await cog.respond(ctx, text)
     calls = [ctx.reply.await_args, *ctx.channel.send.await_args_list]
-    assert "".join(c.args[0] for c in calls) == text
+    assert "".join(texto(c) for c in calls) == text
     assert all("file" not in c.kwargs for c in calls)
 
 
@@ -339,7 +347,7 @@ def test_code_with_blank_lines_is_not_split(marker):
     chunks = split_reply(text)
     assert "".join(chunks) == text
     assert any(block in c for c in chunks)
-    assert all(len(c) <= 2000 for c in chunks)
+    assert all(len(c) <= 4096 for c in chunks)
 
 
 async def test_failed_technical_message_keeps_run_pending(cog):
@@ -357,10 +365,10 @@ def test_unclosed_oversized_code_stays_in_chat_with_balanced_fences():
     import re
     from cogs.hermes import prepare_reply
 
-    body = "line\n" * 600
+    body = "line\n" * 2000
     chunks = prepare_reply("Resumo.\n\n```log\n" + body)
     assert "Resumo." in "".join(chunks)
-    assert all(len(c) <= 2000 for c in chunks)
+    assert all(len(c) <= 4096 for c in chunks)
     bodies = [
         m.group(1) for c in chunks for m in re.finditer(r"```log\n(.*?)```", c, re.S)
     ]
@@ -374,7 +382,7 @@ def test_long_code_lines_are_kept_in_chat_without_truncation(marker):
 
     body = "x" * 6500
     chunks = prepare_reply(marker + "text\n" + body + "\n" + marker)
-    assert all(len(c) <= 2000 for c in chunks)
+    assert all(len(c) <= 4096 for c in chunks)
     bodies = []
     for c in chunks:
         match = re.search(
@@ -396,7 +404,7 @@ async def test_failure_is_reported_without_reactions(cog):
     ctx = context(dm=True)
     await cog.handle(ctx, "hello")
     ctx.message.add_reaction.assert_not_awaited()
-    assert "Não consegui confirmar" in ctx.reply.await_args_list[-1].args[0]
+    assert "Não consegui confirmar" in texto(ctx.reply.await_args_list[-1])
 
 
 async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
@@ -436,7 +444,10 @@ async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
     final = card.edit.await_args_list[-1].kwargs
     assert final["embed"].title == "✅ Concluído"
     assert final["view"] is None
-    assert replies[-1] == {"mention_author": False, "allowed_mentions": ANY}
+    final_reply = replies[-1]
+    assert final_reply["mention_author"] is False
+    assert "allowed_mentions" in final_reply
+    assert final_reply["embed"].description
 
 
 async def test_first_reply_is_a_card_saying_what_was_asked(cog):
@@ -524,7 +535,7 @@ async def test_refused_redirect_returns_request_to_queue(cog):
     finally:
         StatusMessage.__init__ = original
     assert len(calls) == 2
-    assert ctx.reply.await_args_list[-1].args == ("Feito",)
+    assert texto(ctx.reply.await_args_list[-1]) == "Feito"
 
 
 def test_progress_card_hides_credentials_and_shows_queue():
