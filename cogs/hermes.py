@@ -624,7 +624,11 @@ def fenced_blocks(text):
         position = end
 
 
-def split_reply(text, limit=2000):
+REPLY_LIMIT = 4000
+REPLY_COLOUR = discord.Colour(0x2B2D31)
+
+
+def split_reply(text, limit=REPLY_LIMIT):
     """Aggregate paragraphs and never split a fenced block that fits a message."""
     chunks = []
     while len(text) > limit:
@@ -651,7 +655,7 @@ def split_reply(text, limit=2000):
 def prepare_reply(text):
     """Keep all output in chat, closing and reopening oversized code fences."""
     for start, end in reversed(list(fenced_blocks(text))):
-        if end - start <= 2000:
+        if end - start <= REPLY_LIMIT:
             continue
         block = text[start:end]
         opening = re.match(r" {0,3}(`{3,}|~{3,})[^\n]*\n", block)
@@ -668,7 +672,7 @@ def prepare_reply(text):
         body_end = opening.end() + closing.start() if closing else len(block)
         body = block[opening.end() : body_end]
         # Malformed, overlong fence labels are plain text rather than attachments.
-        capacity = 2000 - len(header) - len(marker) - 1
+        capacity = REPLY_LIMIT - len(header) - len(marker) - 1
         if capacity < 1:
             text = text[:start] + block.replace(marker, "") + text[end:]
             continue
@@ -685,14 +689,23 @@ def prepare_reply(text):
     return split_reply(text)
 
 
-async def send_segments(send, text, *, first_reply=None):
+async def send_segments(send, text, *, first_reply=None, colour=REPLY_COLOUR):
+    """Todas as respostas vão em embed, não em texto corrido.
+
+    O embed dá margem a 4096 caracteres por mensagem (daí o limite próprio) e
+    mantém o bloco de código a render como código dentro da descrição.
+    """
     try:
         for index, chunk in enumerate(prepare_reply(text)):
-            kwargs = {"allowed_mentions": discord.AllowedMentions.none()}
+            embed = discord.Embed(description=chunk, colour=colour)
+            kwargs = {
+                "allowed_mentions": discord.AllowedMentions.none(),
+                "embed": embed,
+            }
             if index == 0 and first_reply is not None:
-                await first_reply(chunk, mention_author=False, **kwargs)
+                await first_reply(mention_author=False, **kwargs)
             else:
-                await send(chunk, silent=index > 0, **kwargs)
+                await send(silent=index > 0, **kwargs)
         return True
     except discord.HTTPException:
         return False
