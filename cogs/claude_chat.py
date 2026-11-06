@@ -13,6 +13,9 @@ class ClaudeChat(Hermes):
     """
 
     NAME = "Claude"
+    # Laranja da marca, e "a responder" em vez de "a trabalhar".
+    CARD_COLOUR = 0xD97757
+    CARD_VERB = "a responder"
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
