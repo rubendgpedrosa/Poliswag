@@ -20,6 +20,9 @@ _UNAVAILABLE = (
 
 class Hermes(commands.Cog):
     NAME = "Hermes"
+    # Cartão de progresso: cinzento escuro, igual às respostas.
+    CARD_COLOUR = 0x2B2D31
+    CARD_VERB = "a trabalhar"
     # A follow-up waits this long for the running turn to be admitted.
     ADMIT_WAIT = 15
 
@@ -100,7 +103,13 @@ class Hermes(commands.Cog):
             return True
         elif steer_only:
             return False
-        progress = RunProgress(ahead=self.client.waiting, name=self.NAME, request=text)
+        progress = RunProgress(
+            ahead=self.client.waiting,
+            name=self.NAME,
+            request=text,
+            colour=self.CARD_COLOUR,
+            verb=self.CARD_VERB,
+        )
         status = StatusMessage(self, ctx, progress)
         status.start()
         run_id = None
@@ -238,8 +247,12 @@ class RunProgress:
 
     HISTORY = 5
 
-    def __init__(self, ahead=0, name="Hermes", request=""):
+    def __init__(
+        self, ahead=0, name="Hermes", request="", colour=0x2B2D31, verb="a trabalhar"
+    ):
         self.name = name
+        self.colour = colour
+        self.verb = verb
         # What the owner asked, shown first so the card says what will happen.
         self.request = _safe(request, 180)
         self.started = time.monotonic()
@@ -357,7 +370,7 @@ class RunProgress:
             if self.request and outcome != "redirected":
                 description = f"📝 {self.request}\n{description}"
             return discord.Embed(
-                title=title, description=description, color=Config.EMBED_COLOR
+                title=title, description=description, color=self.colour
             )
         if self.status == "queued":
             ahead = max(self.ahead, 1)
@@ -368,14 +381,14 @@ class RunProgress:
                     + f"{ahead} pedido{'s' if ahead > 1 else ''} à frente. "
                     "Usa **Enviar à tarefa atual** para o entregar já como instrução."
                 ),
-                color=Config.EMBED_COLOR,
+                color=self.colour,
             )
         if self.awaiting_approval or self.status == "waiting_for_approval":
             title = "🔐 À espera da tua aprovação"
         elif self.status == "stopping":
             title = "⏹️ A parar…"
         else:
-            title = f"⚙️ {self.name} a trabalhar"
+            title = f"⚙️ {self.name} {self.verb}"
         lines = [f"📝 {self.request}"] if self.request else []
         for icon, name, duration in self.steps:
             took = (
@@ -395,7 +408,7 @@ class RunProgress:
         if self.note:
             lines.append(f"\n> {self.note}")
         embed = discord.Embed(
-            title=title, description="\n".join(lines)[:3900], color=Config.EMBED_COLOR
+            title=title, description="\n".join(lines)[:3900], color=self.colour
         )
         footer = f"{elapsed} · {tools}"
         if self.steered:
