@@ -8,7 +8,6 @@ the rendered HTML reads the path it was handed.
 """
 
 import os
-from collections import OrderedDict
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock
 
@@ -26,14 +25,11 @@ class TestInit:
         mocker.patch.object(Config, "QUEST_MAP_STYLE", "osm-bright")
         mocker.patch.object(Config, "TEMPLATE_HTML_DIR", "/templates")
         mocker.patch.object(Config, "ACCOUNTS_TEMPLATE_HTML_FILE", "accounts.html")
-        mocker.patch.object(Config, "UI_ICONS_URL", "https://icons/")
 
         g = ImageGenerator(poliswag=MagicMock())
 
         assert g.QUEST_MAP_URL == "http://tiles"
         assert g.QUEST_MAP_STYLE == "osm-bright"
-        assert g.QUEST_ICON_BASE_URL == "https://icons/"
-        assert not g._quest_marker_icons
         assert g.TEMPLATE_HTML_DIR == "/templates"
         assert g.ACCOUNTS_TEMPLATE_HTML_FILE == "accounts.html"
         assert g._env is None
@@ -51,8 +47,6 @@ def ig():
     g.poliswag = MagicMock()
     g.QUEST_MAP_URL = "http://tiles"
     g.QUEST_MAP_STYLE = "osm-bright"
-    g.QUEST_ICON_BASE_URL = "https://icons/"
-    g._quest_marker_icons = OrderedDict()
     g.TEMPLATE_HTML_DIR = "/tmp"
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
     g._env = None
@@ -96,7 +90,9 @@ class TestGenerateStaticMapForGroupOfQuests:
         with Image.open(BytesIO(result)) as image:
             assert image.size == (1200, 600)
             assert image.format == "PNG"
-            assert image.getpixel((610, 312)) == (46, 204, 113)
+            # The area-coloured letter beside the stop's post (quest_map._LETTER_AT).
+            letter = image.getpixel((574, 305))
+            assert all(abs(a - b) <= 2 for a, b in zip(letter, (46, 204, 113)))
 
     async def test_http_failure_logs_and_returns_none(self, ig, mocker):
         _, response = self.response(mocker, b"")
@@ -118,33 +114,16 @@ class TestGenerateStaticMapForGroupOfQuests:
         )
         ig.poliswag.utility.log_to_file.assert_called_once()
 
-    async def test_reward_icon_is_requested_once_and_cached(self, ig, mocker):
-        session, _ = self.response(mocker, b"map")
-        icon_response = MagicMock()
-        icon_response.read = AsyncMock(return_value=b"sprite")
-        context = MagicMock()
-        context.__aenter__ = AsyncMock(return_value=icon_response)
-        context.__aexit__ = AsyncMock(return_value=False)
-        session.get.return_value = context
-
-        assert await ig._load_quest_marker_icon("pokemon/928.png") == b"sprite"
-        assert await ig._load_quest_marker_icon("pokemon/928.png") == b"sprite"
-        session.get.assert_called_once()
-        assert session.get.call_args.args == ("https://icons/pokemon/928.png",)
-
-    async def test_icon_failure_still_returns_labelled_map(self, ig, mocker):
+    async def test_map_never_downloads_reward_art(self, ig, mocker):
+        # The reward is in the embed; the map only marks where each stop is.
         data = BytesIO()
         Image.new("RGB", (1200, 600), "white").save(data, format="PNG")
         session, _ = self.response(mocker, data.getvalue())
-        session.get.side_effect = aiohttp.ClientError("icon unavailable")
-
         result = await ig.generate_static_map_for_group_of_quests(
             [{"lat": 39.7, "lon": -8.8, "quest_slug": "pokemon/928.png"}]
         )
         assert result is not None
-        with Image.open(BytesIO(result)) as image:
-            assert image.size == (1200, 600)
-        assert ig.poliswag.utility.log_to_file.call_args.args[1] == "WARNING"
+        session.get.assert_not_called()
 
 
 def _summary(in_use=0, good=0, never_used=0, cooldown=0, out_detail=None):
