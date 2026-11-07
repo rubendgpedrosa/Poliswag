@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-from collections import OrderedDict
 import io
 import os
 import tempfile
@@ -42,8 +41,6 @@ class ImageGenerator:
         self.poliswag = poliswag
         self.QUEST_MAP_URL = Config.QUEST_MAP_URL.rstrip("/")
         self.QUEST_MAP_STYLE = Config.QUEST_MAP_STYLE
-        self.QUEST_ICON_BASE_URL = Config.UI_ICONS_URL
-        self._quest_marker_icons = OrderedDict()
         self.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
         self.ACCOUNTS_TEMPLATE_HTML_FILE = Config.ACCOUNTS_TEMPLATE_HTML_FILE
         # Lazily-cached Jinja environment/templates — loaded and parsed from
@@ -107,29 +104,6 @@ class ImageGenerator:
             return png
         return await asyncio.to_thread(_recompress_png, png)
 
-    async def _load_quest_marker_icon(self, slug):
-        if slug in self._quest_marker_icons:
-            self._quest_marker_icons.move_to_end(slug)
-            return self._quest_marker_icons[slug]
-        if not self.QUEST_ICON_BASE_URL:
-            return None
-        try:
-            async with get_session().get(
-                f"{self.QUEST_ICON_BASE_URL.rstrip('/')}/{slug.lstrip('/')}",
-                timeout=aiohttp.ClientTimeout(total=5),
-            ) as response:
-                response.raise_for_status()
-                data = await response.read()
-            self._quest_marker_icons[slug] = data
-            if len(self._quest_marker_icons) > 64:
-                self._quest_marker_icons.popitem(last=False)
-            return data
-        except (aiohttp.ClientError, TimeoutError) as error:
-            self.poliswag.utility.log_to_file(
-                f"Quest marker icon unavailable ({slug}): {error}", "WARNING"
-            )
-            return None
-
     async def generate_static_map_for_group_of_quests(self, pokestops, area=None):
         quest_map = fit_quest_map(pokestops, self.QUEST_MAP_STYLE)
         if quest_map is None:
@@ -142,17 +116,11 @@ class ImageGenerator:
             ) as response:
                 response.raise_for_status()
                 image_bytes = await response.read()
-            slugs = list(dict.fromkeys(quest_map.icon_slugs.values()))
-            data = await asyncio.gather(
-                *(self._load_quest_marker_icon(slug) for slug in slugs)
-            )
-            icons = {slug: icon for slug, icon in zip(slugs, data) if icon}
             return await asyncio.to_thread(
                 draw_quest_map,
                 image_bytes,
                 quest_map,
                 scan_areas.color_for(area),
-                icons,
             )
         except Exception as error:
             self.poliswag.utility.log_to_file(
