@@ -1,12 +1,11 @@
-"""Verify map fitting and readable labels for clustered quest locations."""
+"""Verify map fitting, the site's Pokéstop on each point and readable letters."""
 
 from io import BytesIO
-import math
 
 from PIL import Image
 import pytest
 
-from modules.quest_map import draw_quest_map, fit_quest_map, place_labels
+from modules.quest_map import SCALE, draw_quest_map, fit_quest_map, place_labels
 
 
 @pytest.mark.parametrize(
@@ -18,11 +17,12 @@ from modules.quest_map import draw_quest_map, fit_quest_map, place_labels
         [{"lat": 39.7, "lon": -8.8}, {"lat": 39.7, "lon": -8.85}],
     ],
 )
-def test_fit_keeps_stops_within_padded_viewport(stops):
+def test_fit_leaves_room_above_each_stop_for_its_pin(stops):
     fitted = fit_quest_map(stops, "osm-bright")
     for _, x, y in fitted.points:
-        assert 79.9 <= x <= 1120.1
-        assert 79.9 <= y <= 520.1
+        assert 47.9 <= x <= 1152.1
+        # 32 CSS px above for the stop, 18 below for its base and the credit.
+        assert 63.9 <= y <= 564.1
     assert 1 <= fitted.payload["zoom"] <= 16
 
 
@@ -37,7 +37,7 @@ def test_invalid_coordinates_keep_original_list_letters():
         ],
         "osm-bright",
     )
-    assert fitted.points == [("E", 600, 300)]
+    assert fitted.points == [("E", 600, pytest.approx(314))]
     assert fit_quest_map([{"lat": 39.7}], "osm-bright") is None
 
 
@@ -45,35 +45,24 @@ def test_single_stop_and_duplicate_stops_use_neighborhood_zoom():
     fitted = fit_quest_map([{"lat": 39.7, "lon": -8.8}] * 10, "osm-bright")
     assert fitted.payload["zoom"] == 16
     placed = place_labels(fitted.points)
-    assert len(placed) == 10
     assert [p[0] for p in placed] == list("ABCDEFGHIJ")
-    for i, (_, x, y, anchor_x, anchor_y) in enumerate(placed):
-        assert (anchor_x, anchor_y) == (600, 300)
-        assert 15 <= x <= 1185
-        assert 15 <= y <= 555
-        for other in placed[:i]:
-            assert math.hypot(x - other[1], y - other[2]) >= 27
+    for _, x, y, anchor_x, anchor_y in placed:
+        assert (anchor_x, anchor_y) == (600, pytest.approx(314))
+        assert 13 <= x <= 1187
+        assert 13 <= y <= 557
 
 
-def test_nearby_stops_have_distinct_labels_and_exact_anchors():
-    points = [("G", 500, 450), ("H", 523, 450), ("I", 500, 475)]
+def test_letter_sits_beside_its_own_post():
+    _, x, y, ax, ay = place_labels([("A", 600, 314)])[0]
+    assert (x - ax, y - ay) == (-17, -9)
+
+
+def test_letter_avoids_a_neighbouring_stop():
+    points = [("A", 600, 314), ("B", 570, 314)]
     placed = place_labels(points)
     assert [(p[0], p[3], p[4]) for p in placed] == points
-    assert len({(p[1], p[2]) for p in placed}) == 3
-
-
-def test_diagonal_sprites_stay_at_their_locations_when_badges_fit():
-    points = [("B", 585, 110), ("C", 527, 139)]
-    placed = place_labels(points)
-    assert [(p[0], p[3], p[4]) for p in placed] == points
-    assert [(p[1] - p[3], p[2] - p[4]) for p in placed] == [(16, 14), (16, 14)]
-
-
-def test_letter_badge_cannot_cover_a_neighbor_sprite():
-    points = [("A", 500, 450), ("B", 523, 450)]
-    placed = place_labels(points)
-    assert placed[0][1:3] != (516, 464)
-    assert [(p[0], p[3], p[4]) for p in placed] == points
+    # A's default spot is on B's stop, so it moves to the other side of its post.
+    assert placed[0][1] > 600
 
 
 def test_wrong_sized_server_image_is_rejected():
@@ -84,55 +73,35 @@ def test_wrong_sized_server_image_is_rejected():
         draw_quest_map(image.getvalue(), fitted)
 
 
-def test_reward_sprite_and_letter_badge_render_together():
-    fitted = fit_quest_map(
-        [{"lat": 39.7, "lon": -8.8, "quest_slug": "pokemon/928.png"}], "osm-bright"
-    )
+def _map(colour="#F0F0F0"):
     base = BytesIO()
-    Image.new("RGB", (1200, 600), "#F0F0F0").save(base, format="PNG")
-    sprite = Image.new("RGBA", (128, 128))
-    # A synthetic sprite with transparent padding proves cropping and alpha
-    # compositing preserve the map rather than painting an opaque square.
-    sprite.paste((190, 40, 80, 255), (48, 48, 80, 80))
-    icon = BytesIO()
-    sprite.save(icon, format="PNG")
-    result = draw_quest_map(
-        base.getvalue(), fitted, icons={"pokemon/928.png": icon.getvalue()}
-    )
-    with Image.open(BytesIO(result)) as image:
-        assert image.getpixel((600, 300)) == (190, 40, 80)
-        assert image.getpixel((565, 265)) == (240, 240, 240)
-        assert image.getpixel((625, 318)) == (52, 152, 219)
+    Image.new("RGB", (1200, 600), colour).save(base, format="PNG")
+    return base.getvalue()
 
 
-def test_corrupt_reward_icon_falls_back_to_letter_marker():
-    fitted = fit_quest_map(
-        [{"lat": 39.7, "lon": -8.8, "quest_slug": "pokemon/928.png"}], "osm-bright"
-    )
-    base = BytesIO()
-    Image.new("RGB", (1200, 600), "white").save(base, format="PNG")
-    result = draw_quest_map(
-        base.getvalue(), fitted, icons={"pokemon/928.png": b"bad icon"}
-    )
-    with Image.open(BytesIO(result)) as image:
-        assert image.size == (1200, 600)
-
-
-def test_crowded_icons_stay_at_exact_locations_without_connectors():
+def test_the_stops_foot_is_on_its_point_and_its_letter_beside_it():
     fitted = fit_quest_map([{"lat": 39.7, "lon": -8.8}], "osm-bright")
-    fitted.points = [("G", 500, 450), ("H", 523, 450)]
-    fitted.icon_slugs = {"G": "pokemon/928.png", "H": "pokemon/928.png"}
-    base = BytesIO()
-    Image.new("RGB", (1200, 600), "white").save(base, format="PNG")
-    icon = BytesIO()
-    Image.new("RGBA", (32, 32), (190, 40, 80, 255)).save(icon, format="PNG")
-    result = draw_quest_map(
-        base.getvalue(), fitted, icons={"pokemon/928.png": icon.getvalue()}
-    )
+    _, ax, ay = fitted.points[0]
+    result = draw_quest_map(_map(), fitted, color="#3498DB")
     with Image.open(BytesIO(result)) as image:
-        assert image.getpixel((500, 450)) == (190, 40, 80)
-        assert image.getpixel((523, 450)) == (190, 40, 80)
-        assert image.getpixel((523, 420)) == (255, 255, 255)
+        # The round blue base is on the point; the cube's blue side above it.
+        base = image.getpixel((round(ax), round(ay)))
+        assert base[2] > base[0] + 40
+        cube = image.getpixel((round(ax) - 6, round(ay) - 22))
+        assert cube[2] > 150 and cube[0] < 120
+        # Nothing of the reward above the stop.
+        assert image.getpixel((round(ax), round(ay) - 50)) == (240, 240, 240)
+        # The letter, left of the post.
+        assert image.getpixel((round(ax) - 17 - 6, round(ay) - 9)) == (52, 152, 219)
+
+
+def test_southern_stop_is_drawn_over_the_northern_one():
+    fitted = fit_quest_map([{"lat": 39.7, "lon": -8.8}], "osm-bright")
+    fitted.points = [("A", 600, 330), ("B", 600, 310)]
+    with Image.open(BytesIO(draw_quest_map(_map(), fitted))) as image:
+        # A's cube (further south) covers B's post.
+        cube = image.getpixel((594, 330 - 22))
+        assert cube[2] > 150 and cube[0] < 120
 
 
 def test_pins_are_placed_on_the_map_servers_256_pixel_world():
@@ -140,8 +109,6 @@ def test_pins_are_placed_on_the_map_servers_256_pixel_world():
     # drew every pin at twice its real offset from the centre: measured on
     # 2026-10-10 against OpenStreetMap roundabout centres in Leiria, the pins
     # were about 500 m out on a two-stop map.
-    from modules.quest_map import SCALE
-
     fitted = fit_quest_map(
         [{"lat": 39.74, "lon": -8.81}, {"lat": 39.74, "lon": -8.80}], "style"
     )

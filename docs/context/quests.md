@@ -14,7 +14,8 @@ Source: `modules/quest_search.py`, `modules/quest_exporter.py`, `modules/quest_m
 
 ## Quest maps
 - `quest_map.fit_quest_map` projects the stops to Web Mercator, centres them, and caps zoom at 16 (min 1); `_WORLD = 256` matches the tileserver's raster-zoom convention (fixed 2026-10-10) — do not "correct" it to 512.
-- `image_generator.generate_static_map_for_group_of_quests` POSTs that payload to `QUEST_MAP_URL/staticmap` (`QUEST_MAP_STYLE`, default `osm-bright`), then `draw_quest_map` composites reward sprites and A–J letter badges (labels placed to avoid sprite/badge collisions). Reward sprites are cached (64, LRU); a failed render keeps the text list.
+- `image_generator.generate_static_map_for_group_of_quests` POSTs that payload to `QUEST_MAP_URL/staticmap` (`QUEST_MAP_STYLE`, default `osm-bright`), then `draw_quest_map` marks each stop with the site map's Pokéstop (32 × 40 px, its foot exactly on the coordinates; south drawn over north) and the A–J letter in the area colour left of its post, moved only to clear another stop. The fit leaves 32 CSS px above the stops for them. The reward is not drawn on the map (owner, 2026-11-07): the embed's title and thumbnail already name it, and per-stop reward art hid where the stops were. A failed render keeps the text list.
+- `templates/map-pins/pokestop.png` is the site's `apps/landing/public/map-pins/pokestop.svg` rasterized at 256×320 (the bot image has no SVG renderer). When the site changes that file, regenerate it from `/root/PoGoLeiria`: `node -e 'require("sharp")("apps/landing/public/map-pins/pokestop.svg",{density:288}).resize(256,320).png().toFile("/root/Poliswag/templates/map-pins/pokestop.png")'`.
 - `scripts/preview_quest_map.py` renders a sample without Discord.
 
 ## Tracked quests (`!track` family)
