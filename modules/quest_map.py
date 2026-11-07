@@ -18,7 +18,9 @@ from PIL import Image, ImageDraw, ImageFont
 WIDTH, HEIGHT, SCALE = 600, 300, 2
 # Room round the stops in CSS px: a stop stands about 19 px above its point.
 _PAD_SIDE, _PAD_TOP, _PAD_BOTTOM = 24, 32, 18
-_BADGE_RADIUS = 10
+_BADGE_RADIUS = 13
+# Letters are drawn this many times larger and scaled down, so they are smooth.
+_SUPERSAMPLE = 4
 _CREDIT = "© OpenStreetMap contributors · OpenMapTiles"
 # Pixels of the whole world at zoom 0, as the tileserver's /staticmap counts
 # zoom. This was 512 until 2026-10-10, which put every pin at twice its real
@@ -177,6 +179,27 @@ def _stop_image():
         )
 
 
+@lru_cache(maxsize=32)
+def _badge(label, color):
+    """The letter on its disc, drawn large and scaled down so its edges are smooth."""
+    k = _SUPERSAMPLE
+    across = 2 * _BADGE_RADIUS + 2
+    big = Image.new("RGBA", (across * k, across * k))
+    draw = ImageDraw.Draw(big)
+    rim = 1
+    draw.ellipse(
+        (rim * k, rim * k, (across - rim) * k - 1, (across - rim) * k - 1),
+        fill=color,
+        outline=PIN_EDGE,
+        width=2 * k,
+    )
+    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 17 * k)
+    draw.text(
+        (across * k / 2, across * k / 2), label, font=font, fill="white", anchor="mm"
+    )
+    return big.resize((across, across), Image.Resampling.LANCZOS)
+
+
 def draw_quest_map(image_bytes, quest_map, color="#3498DB"):
     with Image.open(BytesIO(image_bytes), formats=["PNG", "WEBP"]) as source:
         if source.size != (WIDTH * SCALE, HEIGHT * SCALE):
@@ -190,18 +213,14 @@ def draw_quest_map(image_bytes, quest_map, color="#3498DB"):
             (round(anchor_x - _STOP_W / 2), round(anchor_y + _STOP_GROUND - _STOP_H)),
         )
 
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 15)
     for label, badge_x, badge_y, _, _ in place_labels(quest_map.points):
-        radius = _BADGE_RADIUS
-        draw.ellipse(
-            (badge_x - radius, badge_y - radius, badge_x + radius, badge_y + radius),
-            fill=color,
-            outline=PIN_EDGE,
-            width=2,
+        badge = _badge(label, color)
+        image.alpha_composite(
+            badge,
+            (round(badge_x - badge.width / 2), round(badge_y - badge.height / 2)),
         )
-        draw.text((badge_x, badge_y), label, font=font, fill="white", anchor="mm")
 
+    draw = ImageDraw.Draw(image)
     credit_font = ImageFont.truetype("DejaVuSans.ttf", 17)
     credit_width = draw.textbbox((0, 0), _CREDIT, font=credit_font)[2]
     width, height = image.size
