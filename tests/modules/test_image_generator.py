@@ -91,7 +91,8 @@ class TestGenerateStaticMapForGroupOfQuests:
             assert image.size == (1200, 600)
             assert image.format == "PNG"
             # The area-coloured letter beside the stop's post (quest_map._LETTER_AT).
-            assert image.getpixel((577, 305)) == (46, 204, 113)
+            letter = image.getpixel((574, 305))
+            assert all(abs(a - b) <= 2 for a, b in zip(letter, (46, 204, 113)))
 
     async def test_http_failure_logs_and_returns_none(self, ig, mocker):
         _, response = self.response(mocker, b"")

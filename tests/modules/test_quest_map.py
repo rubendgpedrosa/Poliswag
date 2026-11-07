@@ -92,7 +92,9 @@ def test_the_stops_foot_is_on_its_point_and_its_letter_beside_it():
         # Nothing of the reward above the stop.
         assert image.getpixel((round(ax), round(ay) - 50)) == (240, 240, 240)
         # The letter, left of the post.
-        assert image.getpixel((round(ax) - 17 - 6, round(ay) - 9)) == (52, 152, 219)
+        letter = image.getpixel((round(ax) - 17 - 9, round(ay) - 9))
+        # Within the smoothing's rounding of the area colour.
+        assert all(abs(a - b) <= 2 for a, b in zip(letter, (52, 152, 219)))
 
 
 def test_southern_stop_is_drawn_over_the_northern_one():
