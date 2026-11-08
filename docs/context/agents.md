@@ -197,8 +197,8 @@ Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, or, with
 `POLISWAG_PUBLIC_PROVIDER=claude` in `/etc/poliswag-agent.conf`, **Claude Code,
 Sonnet 5.5, medium effort** (web search plus WebFetch limited to `PUBLIC_SOURCES`: Leek Duck, pokemongo.com, Pokémon GO Hub, Pokebattler, PvPoke, Bulbapedia; no settings sources,
 MCP, skills or session; the reply is schema-validated JSON on stdout). Codex is
-the default so an expired Claude login never silences public replies. Both use the
-existing CLI login. There is no direct Responses API call and no separate API
+the default so an expired Claude login never silences public replies. Codex uses the
+existing CLI login; Claude uses `POLISWAG_PUBLIC_ANTHROPIC_API_KEY` (+ `POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE` for a user-scoped key) from the worker's EnvironmentFile, mapped to `ANTHROPIC_API_KEY` for public runs only, so owner jobs keep their own login. There is no direct Responses API call and no separate API
 credential in the bot. `modules/conversation_model.py` submits the sanitized
 question plus a strictly validated public map snapshot to the separate
 `logs/agent-jobs/public/` queue. The queue prompt field still carries a fixed
@@ -210,13 +210,13 @@ mode, topic, question text, snapshot schema/types/sizes again before execution.
 `modules/public_map_context.py` supplies the only map data. It receives the
 scanner query interface and a copy of public species names (never the service,
 bot or Config). Queries are fixed, read-only, parameterized and limited to a
-fixed Leiria/Marinha Grande bounding box (lat 39.6–39.9, lon −9.1–−8.65):
+the union box of every active registry area's fence (`scan_areas.bbox()`: Leiria, Marinha Grande, Batalha, Porto de Mós, Moita):
 live encounter spawns (`seen_type='encounter'`, verified expiry, future
 `expire_timestamp`), current gym Raids (`deleted=0`, `raid_level>0`, future
 `raid_end_timestamp`; Eggs distinguished from active bosses and include a
 validated future `hatches_at` when available), live Lures
 (`deleted=0`, future `lure_expire_timestamp`), and current normal/alternative
-quests (`deleted=0`, appropriate future expiry). Only known public fields are
+quests (`deleted=0`, appropriate future expiry). Since 2026-11-08 also live Max Battles at Power Spots (`station`: name, coordinates, level, boss, end time; `battle_end`/`end_time` in the future) and a Pokéstop/Gym name lookup for "onde fica…" questions (`LIKE` on up to five question words, area names and question words dropped; name, coordinates and, for a Gym, its team; 10 best matches). Rule (owner, 2026-11-08): what the public pogoleiria.pt map shows may be used; never scanner accounts, devices, workers, proxies, servers, databases, code, internal tools or credentials. The public `INSTRUCTIONS` state the same. Only known public fields are
 selected and converted; no `SELECT *`, encounter identifiers, trainer data,
 accounts, raw reward JSON or arbitrary SQL. Each section is capped at 20 rows,
 uses a five-second total budget and fails independently, so a partial query

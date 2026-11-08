@@ -13,6 +13,7 @@ from scripts.agent_worker import (
     agent_environment,
     command_for,
     public_claude_command,
+    public_claude_environment,
     public_claude_reply,
     public_command,
     public_provider,
@@ -499,3 +500,17 @@ def test_public_job_runs_claude_when_selected(worker, monkeypatch):
     assert result["state"] == "completed"
     assert json.loads(result["reply"]) == {"reply": "Poli-poli!"}
     assert "SECRET" not in result["reply"]
+
+
+def test_public_key_is_used_only_for_public_claude_runs(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "owner-login")
+    monkeypatch.setenv("POLISWAG_PUBLIC_ANTHROPIC_API_KEY", "public-key")
+    monkeypatch.setenv("POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE", "wrkspc_1")
+    env = public_claude_environment()
+    assert env["ANTHROPIC_API_KEY"] == "public-key"
+    assert env["ANTHROPIC_CUSTOM_HEADERS"] == "anthropic-workspace-id: wrkspc_1"
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+    owner = agent_environment()
+    assert owner.get("CLAUDE_CODE_OAUTH_TOKEN") == "owner-login"
+    assert "public-key" not in owner.values()
+    assert not any(k.startswith("POLISWAG_PUBLIC") for k in owner)

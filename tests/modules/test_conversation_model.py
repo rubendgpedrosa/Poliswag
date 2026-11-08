@@ -453,3 +453,59 @@ def test_context_is_bounded_by_field_limits_and_section_caps():
     )
     assert clean["area"] == "Leiria / Marinha Grande"
     assert clean["sections"][0]["groups"] == []
+
+
+def test_snapshot_keeps_max_battles_and_places_with_known_fields_only():
+    from modules.conversation_model import validate_snapshot
+
+    clean = validate_snapshot(
+        {
+            "area": "Leiria",
+            "sections": [
+                {
+                    "kind": "maxbattles",
+                    "status": "ok",
+                    "items": [
+                        {
+                            "name": "Fonte",
+                            "lat": 39.7,
+                            "lon": -8.8,
+                            "level": 3,
+                            "species": "Kubfu",
+                            "ends_at": "21:30",
+                            "id": "secret",
+                        }
+                    ],
+                },
+                {
+                    "kind": "places",
+                    "status": "ok",
+                    "items": [
+                        {
+                            "type": "gym",
+                            "name": "Sé",
+                            "lat": 39.7,
+                            "lon": -8.8,
+                            "team": "Mystic",
+                            "account": "x",
+                        },
+                        {"type": "spawnpoint", "name": "x", "lat": 39.7, "lon": -8.8},
+                    ],
+                },
+            ],
+        }
+    )
+    kinds = {s["kind"]: s for s in clean["sections"]}
+    assert kinds["maxbattles"]["items"] == [
+        {
+            "name": "Fonte",
+            "lat": 39.7,
+            "lon": -8.8,
+            "level": 3,
+            "species": "Kubfu",
+            "ends_at": "21:30",
+        }
+    ]
+    assert kinds["places"]["items"] == [
+        {"type": "gym", "name": "Sé", "lat": 39.7, "lon": -8.8, "team": "Mystic"}
+    ]
