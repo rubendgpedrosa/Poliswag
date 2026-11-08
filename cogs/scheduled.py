@@ -2,6 +2,7 @@ import datetime
 import time
 import traceback
 import asyncio
+import io
 import discord
 from discord.ext import commands, tasks
 
@@ -465,7 +466,7 @@ class Scheduled(commands.Cog):
             # The same shape as "Novos eventos": the header, then a card per
             # event. Events with numbers carry their stats; the rest say when
             # they ended.
-            cards, groups, seen = [], [], []
+            cards, files, groups, seen = [], [], [], []
             for event in changed["ended"]:
                 summary = await self.poliswag.event_stats.get_summary(event)
                 if summary and summary in seen:
@@ -475,9 +476,11 @@ class Scheduled(commands.Cog):
                     continue
                 seen.append(summary)
                 groups.append([event])
-                cards.append(
-                    await self._build_event_embed(event, is_ended=True, summary=summary)
+                embed, file = await self._build_ended_card(
+                    event, summary, f"event-stats-{len(cards) + 1}.png"
                 )
+                cards.append(embed)
+                files.append(file)
             await self._send_event_batches(
                 channel,
                 "**Eventos que terminaram**",
@@ -486,6 +489,7 @@ class Scheduled(commands.Cog):
                 [],
                 is_end=True,
                 acknowledge=acknowledge,
+                files=files,
             )
         if changed["started"]:
             cards = [
@@ -511,7 +515,7 @@ class Scheduled(commands.Cog):
             )
 
     async def _send_event_batches(
-        self, channel, header, embeds, groups, plain, *, is_end, acknowledge
+        self, channel, header, embeds, groups, plain, *, is_end, acknowledge, files=None
     ):
         offset = 0
         first = True
@@ -526,21 +530,61 @@ class Scheduled(commands.Cog):
                 size += length
                 end += 1
             batch = embeds[offset:end]
+            # A stat card travels as an attachment its embed points at; at
+            # most ten embeds per message keeps it within ten files too.
+            extra = {}
+            attached = [f for f in (files or [])[offset:end] if f is not None]
+            if attached:
+                extra["files"] = attached
             if first:
                 await channel.send(
                     header,
                     embeds=batch,
                     allowed_mentions=discord.AllowedMentions.none(),
+                    **extra,
                 )
             else:
                 await channel.send(
-                    embeds=batch, allowed_mentions=discord.AllowedMentions.none()
+                    embeds=batch,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    **extra,
                 )
             if acknowledge:
                 events = [event for group in groups[offset:end] for event in group]
                 await self._ack_events((plain if first else []) + events, is_end=is_end)
             first = False
             offset = end
+
+    async def _build_ended_card(self, event, summary, filename):
+        """(embed, file) for a finished event.
+
+        With stats, the numbers are a stat card image under a title-only
+        embed: five areas as inline fields beside the event art wrapped into
+        a cramped grid. Without stats, or when the image doesn't render, the
+        text embed as before and no file.
+        """
+        card = summary.card if summary else None
+        png = None
+        if card is not None:
+            png = await self.poliswag.image_generator.generate_stat_card(card)
+        if not png:
+            return (
+                await self._build_event_embed(event, is_ended=True, summary=summary),
+                None,
+            )
+        emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
+        event_type_key = self.poliswag.event_manager.get_event_type_key(
+            event["event_type"]
+        )
+        embed = discord.Embed(
+            title=f"{emoji} {event['name']}"[:256],
+            url=self.poliswag.event_manager.get_event_link(event),
+            color=self.poliswag.event_manager.event_colors.get(
+                event_type_key, 0x3498DB
+            ),
+        )
+        embed.set_image(url=f"attachment://{filename}")
+        return embed, discord.File(io.BytesIO(png), filename=filename)
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")

@@ -20,6 +20,7 @@ import pytest
 
 from cogs.scheduled import Scheduled, setup
 from modules.event_stats import Summary
+from modules.stat_card import StatCard
 
 SUMMARY = Summary(
     headline="🐾 **5** spawns · Gible",
@@ -844,6 +845,57 @@ class TestSendEventChangeNotifications:
 
 
 # --- _build_event_embed -------------------------------------------------------
+
+
+class TestBuildEndedCard:
+    EVENT = {
+        "event_type": "raid-battles",
+        "name": "Mega Sableye in Mega Raids",
+        "end": "2026-11-08 22:00:00",
+        "image": "http://img",
+    }
+
+    async def test_stats_become_an_image_under_a_title_only_embed(self, cog):
+        card = StatCard(
+            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
+        )
+        summary = Summary(SUMMARY.headline, SUMMARY.areas, SUMMARY.note, card)
+        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=b"png")
+        embed, file = await cog._build_ended_card(
+            self.EVENT, summary, "event-stats-1.png"
+        )
+        cog.poliswag.image_generator.generate_stat_card.assert_awaited_once_with(card)
+        assert embed.image.url == "attachment://event-stats-1.png"
+        assert file.filename == "event-stats-1.png"
+        assert not embed.fields and not embed.description
+        assert "Sableye" in embed.title
+
+    async def test_a_failed_render_falls_back_to_the_text_card(self, cog):
+        card = StatCard(
+            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
+        )
+        summary = Summary(SUMMARY.headline, SUMMARY.areas, SUMMARY.note, card)
+        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=None)
+        embed, file = await cog._build_ended_card(self.EVENT, summary, "x.png")
+        assert file is None
+        assert embed.description == SUMMARY.headline
+        assert len(embed.fields) == 2
+
+    async def test_the_images_go_with_their_message(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        card = StatCard(
+            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
+        )
+        cog.poliswag.event_stats.get_summary = AsyncMock(
+            return_value=Summary("h", (), "n", card)
+        )
+        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=b"png")
+        await cog._send_event_change_notifications(
+            channel, {"ended": [self.EVENT], "started": []}
+        )
+        [call] = channel.send.await_args_list
+        assert [f.filename for f in call.kwargs["files"]] == ["event-stats-1.png"]
 
 
 class TestBuildEventEmbed:
