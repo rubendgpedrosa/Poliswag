@@ -427,3 +427,27 @@ built by Poliswag itself, no model involved: Pokéstops (name, coordinates, area
 Gyms (+ team), current Quests (reward, AR, expiry) or live Max Battles (boss,
 level, end), for one registry area or all, at most 5000 rows, fixed parameterized
 queries inside the registry box and `area_for` per row.
+
+**Channels and learning (owner, 2026-11-08).** Hermiswag keeps the channel's
+conversation only in `HERMISWAG_SESSION_CHANNELS` (convívio, chat-raids,
+suporte-tecnico); a tag anywhere else gets a one-off session
+(`hermiswag:message:<id>`) without channel history. Every 6 h
+(`Mentions.learn`) Poliswag sends Hermiswag the new messages of
+`HERMISWAG_LEARN_CHANNELS` (the Informação category plus those three; never
+moderation or alert channels) under `LEARN_INSTRUCTIONS`, in the session
+`hermiswag:learning`; Hermiswag keeps what is useful in its own memory
+(`memory_char_limit` 8000). The last message id per channel is in
+`logs/hermiswag-learning.json`; the first run reads the last 100 messages.
+
+**Its own queries.** Hermiswag has the MCP server `mapdb`
+(`/home/hermiswag/mapdb/server.py`, copy in `scripts/hermiswag_mapdb_server.py`,
+venv with PyMySQL): tools `map_schema` and `map_query` (one read-only
+statement, 10 s `max_statement_time`, 500 rows). It connects as MariaDB user
+`hermiswag`@`172.18.0.1` (password only in `/home/hermiswag/.hermes/mapdb.env`,
+mode 600) with `SELECT, SHOW VIEW` on the schema `hermiswag` only: definer
+views over golbat, poliswag and the Dragonite area fences
+(`scripts/hermiswag_db.sql`, applied as the database root; re-runnable). No
+accounts, proxies, workers, players, encounter ids, the scanner's account names
+or shiny prediction data are in any view; a query on another schema is refused
+by the server (1142). `AGENT_INSTRUCTIONS` (the public rules minus the
+no-tools line, plus how to use the tools) are what Hermiswag gets.

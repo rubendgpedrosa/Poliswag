@@ -3,7 +3,7 @@
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-from modules.conversation_model import INSTRUCTIONS, ConversationModel
+from modules.conversation_model import AGENT_INSTRUCTIONS, ConversationModel
 from modules.hermiswag_client import HermiswagClient, reply_text
 
 
@@ -37,11 +37,12 @@ async def test_model_prefers_hermiswag_with_the_same_rules_and_untrusted_data(tm
         {"author": "", "text": "x"},
     ]
     assert (
-        await model.line("greeting", text="Há Kubfu?", channel_id=7, history=history)
+        await model.line("greeting", text="Há Kubfu?", session="s7", history=history)
         == "Há Kubfu!"
     )
-    channel_id, instructions, prompt = agent.ask.await_args.args
-    assert channel_id == 7 and instructions == INSTRUCTIONS
+    session, instructions, prompt = agent.ask.await_args.args
+    assert session == "s7" and instructions == AGENT_INSTRUCTIONS
+    assert "map_query" in instructions and "não uses ferramentas" not in instructions
     assert "dados não confiáveis" in prompt and '"text": "Há Kubfu?"' in prompt
     assert '"recent_channel_messages": [{"author": "Rita"' in prompt
     assert prompt.count('"author"') == 1
@@ -56,7 +57,7 @@ async def test_model_falls_back_to_the_worker_when_hermiswag_fails(tmp_path):
     model.jobs.worker_status.return_value = {"active": None}
     model.jobs.submit.return_value = {"id": "j1"}
     model.jobs.get.return_value = {"state": "completed", "reply": '{"reply": "ok"}'}
-    assert await model.line("greeting", text="Olá?", channel_id=7) == "ok"
+    assert await model.line("greeting", text="Olá?", session="s7") == "ok"
     model.jobs.submit.assert_called_once()
 
 
@@ -74,3 +75,15 @@ def test_dump_requests_pick_a_kind_and_an_area():
     )
     assert dump_request("onde fica o gym da sé?") is None
     assert dump_request("lista de compras") is None
+
+
+def test_learning_batches_cut_by_size_and_keep_the_channel_name(tmp_path):
+    from modules.hermiswag_learning import LearningState, batches
+
+    out = batches("convívio", [("Rita", "a" * 50), ("Zé", "b" * 50)], limit=80)
+    assert len(out) == 2 and all(p.startswith("Canal: #convívio\n") for p in out)
+    assert batches("x", []) == []
+    state = LearningState(tmp_path / "s.json")
+    assert state.load() == {}
+    state.save({"1": 5})
+    assert state.load() == {"1": 5}

@@ -358,7 +358,7 @@ class PublicConversation:
         self.model = model
         self.map_context = map_context
 
-    async def reply(self, text, channel_id=None, history=None):
+    async def reply(self, text, session=None, history=None):
         if not isinstance(text, str) or len(text) > 2000 or private_topic(text):
             return _PRIVATE_REPLY
         question = clean_question(text)
@@ -412,7 +412,7 @@ class PublicConversation:
                     kind,
                     text=question,
                     context=model_context,
-                    channel_id=channel_id,
+                    session=session,
                     history=history,
                 )
                 line = safe_reply(raw)
