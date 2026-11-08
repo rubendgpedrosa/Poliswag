@@ -1,0 +1,123 @@
+    /* Shared by every board template (stat-card.html, week-board.html):
+       the PoGoLeiria tokens, type, the board frame and its wordmark
+       heading. Included with Jinja, so its width, height and scale come from the
+       including template's view. */
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: transparent; }
+    html { width: {{ width * scale }}px; height: {{ height * scale }}px; }
+    body {
+        width: {{ width }}px;
+        height: {{ height }}px;
+        zoom: {{ scale }};
+        font-family: 'Figtree', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #F1F5FC;
+    }
+    .figure {
+        font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;
+        font-weight: 800;
+        -webkit-font-feature-settings: "tnum";
+        font-feature-settings: "tnum";
+    }
+    .caps {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #A7B0BE;
+    }
+
+    /* ---- board ---- */
+    .board {
+        position: relative;
+        width: {{ width }}px;
+        height: {{ height }}px;
+        padding: 24px;
+        overflow: hidden;
+        border-radius: 24px;
+        background: #01040A;
+        border: 1px solid #262E3B;
+    }
+    /* The brand artwork behind the heading, at 18% with a soft fade toward
+       the left, as on every page of the site. */
+    .brand {
+        position: absolute;
+        top: -40px;
+        right: -10px;
+        width: 220px;
+        height: 220px;
+        opacity: 0.18;
+    }
+    .brand-fade {
+        position: absolute;
+        top: -40px;
+        right: 90px;
+        width: 140px;
+        height: 220px;
+        background: -webkit-gradient(linear, left top, right top, color-stop(0, rgba(1, 4, 10, 1)), color-stop(1, rgba(1, 4, 10, 0)));
+    }
+    .head {                         /* 40px + 20px gap */
+        position: relative;
+        height: 40px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .head-left { display: flex; align-items: center; }
+    .wordmark {
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: -0.4px;
+        text-transform: uppercase;
+        color: #F1F5FC;
+    }
+    .head-rule { width: 1px; height: 18px; background: #262E3B; margin: 0 14px; }
+    .head-date { font-size: 13px; font-weight: 700; color: #A7B0BE; }
+
+
+    /* The site's page header (packages/ui PageHeader + .page-brand), for
+       boards that are a page of their own (the weekly calendar): the title
+       row, one meta line, a hairline under them, and the brand mark large,
+       cropped and faint in the corner. 44 + 16 + 16 + 1 = 77px, 20px gap. */
+    .page-head {
+        position: relative;
+        height: 77px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #262E3B;
+    }
+    .page-title {
+        height: 44px;
+        line-height: 44px;
+        font-size: 36px;
+        font-weight: 900;
+        letter-spacing: -1px;
+        color: #F1F5FC;
+        white-space: nowrap;
+    }
+    .page-meta { height: 16px; line-height: 16px; font-size: 11px; font-weight: 700; color: #778190; }
+    .page-brand {
+        position: absolute;
+        top: -52px;
+        right: -68px;
+        width: 300px;
+        height: 300px;
+        opacity: 0.18;
+    }
+    .page-brand-fade {
+        position: absolute;
+        top: -52px;
+        right: 132px;
+        width: 140px;
+        height: 300px;
+        background: -webkit-gradient(linear, left top, right top, color-stop(0, rgba(1, 4, 10, 1)), color-stop(1, rgba(1, 4, 10, 0)));
+    }
+
+    /* The brand art is positioned, so it would paint over the cards: keep
+       every other child of the board above it. */
+    .brand, .brand-fade, .page-brand, .page-brand-fade { z-index: 0; }
+    .board > :not(.brand):not(.brand-fade):not(.page-brand):not(.page-brand-fade) {
+        position: relative;
+        z-index: 1;
+    }

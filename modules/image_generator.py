@@ -12,19 +12,22 @@ from PIL import Image
 from jinja2 import Environment, FileSystemLoader
 
 from modules.account_card import build_card_view
-from modules import stat_card
+from modules import stat_card, week_board
 from modules.config import Config
 from modules.http_client import get_session
 from modules import scan_areas
 from modules.quest_map import draw_quest_map, fit_quest_map
 
 STAT_CARD_TEMPLATE = "stat-card.html"
+WEEK_BOARD_TEMPLATE = "week-board.html"
 # The site's brand artwork (apps/landing/public/brand-header-400.webp), as PNG.
 BRAND_ART = "brand-header-400.png"
 # Banner images are scaled to twice the panel width (the 2x render).
 _BANNER_WIDTH = stat_card.PANEL_W * stat_card.RENDER_SCALE
 # The sprite area inside a tile (50px in the template), at the 2x render.
 _ICON_SIZE = 50 * stat_card.RENDER_SCALE
+# The week board's widest picture is a 272px card's; 2x for the render.
+_WEEK_IMAGE_WIDTH = week_board.ONGOING_W * stat_card.RENDER_SCALE
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
@@ -221,6 +224,35 @@ class ImageGenerator:
             "quiet": "",
         }
         png = await self._render_png(html_content, options, "stat board")
+        if not png:
+            return png
+        return await asyncio.to_thread(_recompress_png, png)
+
+    async def generate_week_board(self, events, now):
+        """PNG bytes of the weekly calendar (modules.week_board), or None,
+        also when the week has nothing to show."""
+        images = await asyncio.gather(
+            *(self._inline(e.image, _WEEK_IMAGE_WIDTH) for e in events)
+        )
+        events = [
+            dataclasses.replace(event, image=image)
+            for event, image in zip(events, images)
+        ]
+        view = week_board.build_week_view(events, now, self._brand())
+        if view is None:
+            return None
+        html_content = self._get_env().get_template(WEEK_BOARD_TEMPLATE).render(**view)
+        options = {
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": str(view["width"] * view["scale"]),
+            "height": str(view["height"] * view["scale"]),
+            "quality": "100",
+            "transparent": "",
+            "javascript-delay": "1000",
+            "quiet": "",
+        }
+        png = await self._render_png(html_content, options, "week board")
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)
