@@ -111,6 +111,8 @@ class TestBoard:
         css = (Path(__file__).parents[2] / "templates" / "stat-card.html").read_text()
         assert "height: %dpx;\n        background-color" % sc.BANNER_H in css
         assert ".row { height: %dpx" % sc.ROW_H in css
+        assert ".row-label {\n        width: %dpx;" % sc.ROW_LABEL_W in css
+        assert ".row-value { width: %dpx;" % sc.ROW_VALUE_W in css
         assert (
             "width: %dpx;\n        overflow: hidden;\n        border-radius: 20px"
             % sc.PANEL_W

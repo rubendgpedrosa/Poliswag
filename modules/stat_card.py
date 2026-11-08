@@ -43,9 +43,9 @@ NOTE_H = 30  # 16 margin + 14 line
 ENDED_H = 24
 
 # Row columns: area name, bar, figure (+ unit), then one per extra.
-ROW_LABEL_W = 140
+ROW_LABEL_W = 120
 ROW_BAR_GAP = 12
-ROW_VALUE_W = 88
+ROW_VALUE_W = 112
 ROW_EXTRA_W = 64
 BAR_MIN = 4
 
