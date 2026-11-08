@@ -195,7 +195,7 @@ configured Discord ID (`Config.MY_ID`), never a display name or username.
 
 Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, or, with
 `POLISWAG_PUBLIC_PROVIDER=claude` in `/etc/poliswag-agent.conf`, **Claude Code,
-Sonnet 5.5, medium effort** (web search plus WebFetch limited to `PUBLIC_SOURCES`: Leek Duck, pokemongo.com, Pokémon GO Hub, Pokebattler, PvPoke, Bulbapedia; no settings sources,
+Sonnet 5.5, medium effort** (web search plus WebFetch limited to `PUBLIC_SOURCES`: Leek Duck, DittoBase, pokemongo.com, Pokémon GO Hub, Pokebattler, PvPoke, Bulbapedia; no settings sources,
 MCP, skills or session; the reply is schema-validated JSON on stdout). Codex is
 the default so an expired Claude login never silences public replies. Codex uses the
 existing CLI login; Claude uses `POLISWAG_PUBLIC_ANTHROPIC_API_KEY` (+ `POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE` for a user-scoped key) from the worker's EnvironmentFile, mapped to `ANTHROPIC_API_KEY` for public runs only, so owner jobs keep their own login. There is no direct Responses API call and no separate API
