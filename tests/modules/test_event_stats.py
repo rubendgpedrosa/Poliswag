@@ -468,7 +468,7 @@ class TestStatCards:
             ("Leiria", 190),
             ("Marinha Grande", 61),
         ]
-        assert "fora do horário" in card.note
+        assert "fora do evento" in card.note
 
     async def test_rotation_card_has_no_outside_hours_caveat(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
