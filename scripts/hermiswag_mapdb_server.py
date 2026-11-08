@@ -19,6 +19,9 @@ from pathlib import Path
 import pymysql
 
 ENV = Path.home() / ".hermes" / "mapdb.env"
+# Community knowledge distilled from the server's own channels (no personal
+# data); refreshed by the owner's tooling, read-only here.
+KNOWLEDGE = Path.home() / "knowledge" / "community.md"
 MAX_ROWS = 500
 MAX_CELL = 400
 _READ = re.compile(r"^\s*(select|with|show|describe|desc|explain)\b", re.I)
@@ -116,7 +119,50 @@ def schema():
     return {"hints": HINTS, "views": tables}
 
 
+def _sections():
+    try:
+        text = KNOWLEDGE.read_text()
+    except OSError:
+        return []
+    parts = re.split(r"(?m)^## ", text)
+    return [("## " + part).strip() for part in parts if part.strip()]
+
+
+def knowledge(topic=""):
+    """Every section title with no topic; else the sections that best match
+    the topic's words (title words count double), at most three."""
+    sections = _sections()
+    if not sections:
+        return {"sections": [], "note": "Sem base de conhecimento."}
+    titles = [s.splitlines()[0][3:] for s in sections]
+    words = [w for w in re.findall(r"\w{3,}", (topic or "").lower())]
+    if not words:
+        return {"sections": titles, "note": "Indica um tema para ler as secções."}
+    scored = []
+    for title, body in zip(titles, sections):
+        low, head = body.lower(), title.lower()
+        score = sum(low.count(w) + 2 * head.count(w) for w in words)
+        if score:
+            scored.append((score, body))
+    scored.sort(key=lambda x: -x[0])
+    return {"matches": [b for _, b in scored[:3]], "all_sections": titles}
+
+
 TOOLS = [
+    {
+        "name": "community_knowledge",
+        "description": (
+            "PoGoLeiria community knowledge learned from the server's own "
+            "channels: local Pokéstops/Gyms and nicknames, meeting points, how "
+            "the server, roles, alerts and the site work, frequent technical "
+            "problems and fixes, events and habits. Give a topic to get the "
+            "best matching sections; no topic lists the sections."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"topic": {"type": "string"}},
+        },
+    },
     {
         "name": "map_schema",
         "description": "Views and columns of the PoGoLeiria public map database, with query hints. Call it first.",
@@ -156,7 +202,9 @@ def handle(message):
         name = params.get("name")
         args = params.get("arguments") or {}
         try:
-            if name == "map_schema":
+            if name == "community_knowledge":
+                result = knowledge(args.get("topic") or "")
+            elif name == "map_schema":
                 result = schema()
             elif name == "map_query":
                 result = run_query(args.get("sql"))

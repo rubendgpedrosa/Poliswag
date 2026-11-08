@@ -451,3 +451,12 @@ accounts, proxies, workers, players, encounter ids, the scanner's account names
 or shiny prediction data are in any view; a query on another schema is refused
 by the server (1142). `AGENT_INSTRUCTIONS` (the public rules minus the
 no-tools line, plus how to use the tools) are what Hermiswag gets.
+
+**Community knowledge (2026-11-08).** `/home/hermiswag/knowledge/community.md`
+(~35 KB, 12 sections) was distilled from about 9 200 recent member messages
+(convívio since 2026-06, chat-raids since 2024-11, suporte-tecnico since 2020,
+announcements) by the owner's Claude Code session on CT 109 (`claude -p`, no
+tools), with personal data, attributions and internals removed. Hermiswag reads
+it through the `community_knowledge` tool of its `mapdb` MCP server; the file is
+not in git. Refreshing it is a manual job: fetch, extract per batch, consolidate,
+replace the file.
