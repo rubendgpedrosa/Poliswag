@@ -198,7 +198,6 @@ def test_area_labels_and_alert_roles_come_from_the_registry():
     assert scan_areas.bit_for("portodemos") == 8
     assert scan_areas.bit_for("moita") == 16
     assert scan_areas.setting_code(["moita", "leiria"]) == 17
-    assert scan_areas.legacy_flags(["marinha"]) == {"leiria": 0, "marinha": 1}
     assert scan_areas.color_for("marinha") == scan_areas.AREA_COLORS[1]
 
 

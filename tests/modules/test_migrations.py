@@ -86,7 +86,14 @@ def is_known_modify(clause, known_columns):
     return bool(match and match.group(1) in known_columns)
 
 
-def is_rerunnable(statement, known_columns=frozenset()):
+def is_retired_drop(clause, added_columns):
+    """DROP COLUMN IF EXISTS is a no-op on replay, but only while no migration
+    adds that column back: otherwise every start re-adds and drops it."""
+    match = re.fullmatch(r"DROP COLUMN IF EXISTS\s+`?(\w+)`?", clause, re.I)
+    return bool(match and match.group(1) not in added_columns)
+
+
+def is_rerunnable(statement, known_columns=frozenset(), added_columns=frozenset()):
     if re.match(r"^CREATE OR REPLACE VIEW\b", statement, re.I):
         return True
     if re.match(r"^CREATE TABLE IF NOT EXISTS\b", statement, re.I):
@@ -133,15 +140,17 @@ def is_rerunnable(statement, known_columns=frozenset()):
     return all(
         re.match(r"ADD COLUMN IF NOT EXISTS\b", clause, re.I)
         or is_known_modify(clause, known_columns)
+        or is_retired_drop(clause, added_columns)
         for clause in clauses
     )
 
 
-def known_columns_before(name):
-    """Columns that AN ORDERED replay has already created before file `name`."""
+def known_columns_before(name=None):
+    """Columns that AN ORDERED replay has already created before file `name`
+    (every file when `name` is None)."""
     known = set()
     for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
-        if path.name >= name:
+        if name is not None and path.name >= name:
             break
         for statement in split_statements(path.read_text()):
             known.update(
@@ -155,8 +164,9 @@ def known_columns_before(name):
 )
 def test_every_migration_is_rerunnable(path):
     known = known_columns_before(path.name)
+    added = known_columns_before()
     for statement in split_statements(path.read_text()):
-        assert is_rerunnable(statement, known), (
+        assert is_rerunnable(statement, known, added), (
             f"{path.name} has a statement that is not safe to replay on every "
             f"start:\n{statement}"
         )
@@ -179,6 +189,14 @@ def test_rerunnable_accepts_commas_inside_column_definitions(definition):
         "ADD COLUMN IF NOT EXISTS settings_at DATETIME(6) NULL"
     )
     assert is_rerunnable(sql)
+
+
+def test_rerunnable_accepts_dropping_a_retired_column():
+    sql = "ALTER TABLE t DROP COLUMN IF EXISTS old_a, DROP COLUMN IF EXISTS `old_b`"
+    assert is_rerunnable(sql)
+    # still added by some migration: dropping it would churn on every start
+    assert not is_rerunnable(sql, added_columns=frozenset({"old_a"}))
+    assert not is_rerunnable("ALTER TABLE t DROP COLUMN old_a")
 
 
 def test_rerunnable_accepts_a_guarded_set_append():

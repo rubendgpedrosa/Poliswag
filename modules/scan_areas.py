@@ -274,17 +274,6 @@ def setting_code(keys) -> int:
     return sum(bit_for(key) for key in keys or ())
 
 
-# shiny_link still carries the two flags shiny predictions were split between.
-# Writers keep them in step with alert_areas for rollback safety until a later
-# migration drops them; no reader uses them.
-LEGACY_FLAG_KEYS = ("leiria", "marinha")
-
-
-def legacy_flags(keys) -> dict[str, int]:
-    chosen = set(keys or ())
-    return {key: int(key in chosen) for key in LEGACY_FLAG_KEYS}
-
-
 # The two per-area quest commands kept from before the generic !quest form.
 LEGACY_QUEST_COMMANDS = {"leiria": "questleiria", "marinha": "questmarinha"}
 
