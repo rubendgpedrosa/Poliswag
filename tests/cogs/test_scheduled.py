@@ -19,7 +19,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled, _duration, _event_extras, _event_heading, setup
+from cogs.scheduled import (
+    Scheduled,
+    _duration,
+    _event_extras,
+    _event_heading,
+    _type_label,
+    setup,
+)
 from modules.event_stats import Summary
 from modules.stat_card import StatCard
 
@@ -79,6 +86,7 @@ def _make_poliswag():
     poliswag.event_stats.get_summary = AsyncMock(return_value=None)
     # No renderer in tests unless one asks: ended events use the text cards.
     poliswag.image_generator.generate_stat_board = AsyncMock(return_value=None)
+    poliswag.image_generator.generate_week_board = AsyncMock(return_value=None)
     poliswag.quest_search.load_translation_data = MagicMock()
     poliswag.quest_search.load_masterfile_data = MagicMock(return_value=False)
     poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
@@ -1031,6 +1039,53 @@ class TestStartedBoard:
 
     def test_extras_without_scrapedduck_data(self):
         assert _event_extras({"extra_data": None}) == ((), ())
+
+
+class TestWeekBoard:
+    async def test_the_week_is_one_image(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        cog.poliswag.event_manager.get_weekly_events = AsyncMock(
+            return_value=[
+                {
+                    "name": "Raid Hour",
+                    "event_type": "raid-hour",
+                    "start": "2099-01-01 18:00:00",
+                    "end": "2099-01-01 19:00:00",
+                    "image": "http://rh.jpg",
+                },
+                {
+                    "name": "Great League",
+                    "event_type": "go-battle-league",
+                    "start": "2099-01-01 18:00:00",
+                    "end": "2099-01-08 19:00:00",
+                },
+            ]
+        )
+        cog.poliswag.image_generator.generate_week_board = AsyncMock(
+            return_value=b"png"
+        )
+        assert await cog._send_weekly_digest(channel=channel) is True
+        [call] = channel.send.await_args_list
+        assert call.kwargs["file"].filename == "eventos-da-semana.png"
+        events, _now = cog.poliswag.image_generator.generate_week_board.await_args.args
+        # GO Battle League stays out, as in the text calendar.
+        assert [(e.title, e.kicker, e.image) for e in events] == [
+            ("Raid Hour", "Raid Hour", "http://rh.jpg")
+        ]
+
+    @pytest.mark.parametrize(
+        "event_type,label",
+        [
+            ("raid-hour", "Raid Hour"),
+            ("pokemon-spotlight-hour", "Spotlight Hour"),
+            ("go-pass", "GO Pass"),
+            ("season", "Temporada"),
+            ("", "Evento"),
+        ],
+    )
+    def test_type_labels(self, event_type, label):
+        assert _type_label(event_type) == label
 
 
 class TestBuildEventEmbed:

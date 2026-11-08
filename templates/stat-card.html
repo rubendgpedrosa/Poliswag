@@ -20,77 +20,7 @@
        sums them into the image size. The renderer is wkhtmltoimage's old
        WebKit: no grid, no gap, prefixed gradients and background-size. */
 
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: transparent; }
-    html { width: {{ width * scale }}px; height: {{ height * scale }}px; }
-    body {
-        width: {{ width }}px;
-        height: {{ height }}px;
-        zoom: {{ scale }};
-        font-family: 'Figtree', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        color: #F1F5FC;
-    }
-    .figure {
-        font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;
-        font-weight: 800;
-        -webkit-font-feature-settings: "tnum";
-        font-feature-settings: "tnum";
-    }
-    .caps {
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 1.2px;
-        text-transform: uppercase;
-        color: #A7B0BE;
-    }
-
-    /* ---- board ---- */
-    .board {
-        position: relative;
-        width: {{ width }}px;
-        height: {{ height }}px;
-        padding: 24px;
-        overflow: hidden;
-        border-radius: 24px;
-        background: #01040A;
-        border: 1px solid #262E3B;
-    }
-    /* The brand artwork behind the heading, at 18% with a soft fade toward
-       the left, as on every page of the site. */
-    .brand {
-        position: absolute;
-        top: -40px;
-        right: -10px;
-        width: 220px;
-        height: 220px;
-        opacity: 0.18;
-    }
-    .brand-fade {
-        position: absolute;
-        top: -40px;
-        right: 90px;
-        width: 140px;
-        height: 220px;
-        background: -webkit-gradient(linear, left top, right top, color-stop(0, rgba(1, 4, 10, 1)), color-stop(1, rgba(1, 4, 10, 0)));
-    }
-    .head {                         /* 40px + 20px gap */
-        position: relative;
-        height: 40px;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .head-left { display: flex; align-items: center; }
-    .wordmark {
-        font-size: 22px;
-        font-weight: 900;
-        letter-spacing: -0.4px;
-        text-transform: uppercase;
-        color: #F1F5FC;
-    }
-    .head-rule { width: 1px; height: 18px; background: #262E3B; margin: 0 14px; }
-    .head-date { font-size: 13px; font-weight: 700; color: #A7B0BE; }
+    {% include "_board-base.css" %}
 
     .panel-row { display: flex; align-items: flex-start; }
     .panel-row.spaced { margin-bottom: 16px; }
