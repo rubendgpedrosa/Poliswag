@@ -188,6 +188,46 @@
     .chip-label { height: 14px; margin-bottom: 4px; }
     .chip-value { font-size: 22px; line-height: 28px; color: #F1F5FC; }
 
+    .chips.first { margin-top: 0; }
+
+    /* ---- Pokémon tiles: 16 + 64 + 6 + 14 = 100px ---- */
+    .mons { height: 84px; margin-top: 16px; display: flex; }
+    .mon { width: 64px; margin-right: 10px; }
+    .tile {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: #161E2A;
+        border: 1px solid #262E3B;
+        text-align: center;
+    }
+    /* The icon is cropped to its sprite in Python; fit it, centred. */
+    .tile { display: -webkit-box; -webkit-box-pack: center; -webkit-box-align: center; }
+    .tile img { width: 50px; height: 50px; }  /* a square from Python */
+    .tile.more { font-size: 19px; color: #A7B0BE; }
+    /* A shiny is a reward, so gold (DESIGN.md). */
+    .shiny { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #F4CC64; }
+    .mon-name {
+        width: 74px;
+        margin-left: -5px;
+        height: 14px;
+        margin-top: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 14px;
+        color: #A7B0BE;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    /* ---- bonuses: 14 + 24 per line ---- */
+    .bonuses { margin-top: 14px; }
+    .bonus { height: 24px; line-height: 24px; font-size: 13px; font-weight: 700; color: #D3DAE4; white-space: nowrap; overflow: hidden; }
+    .bonus .gold { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #F4CC64; margin-right: 10px; vertical-align: 2px; }
+    .bonus.muted { color: #778190; }
+
     /* ---- divider: 16 + 1 + 16 = 33px ---- */
     .divider { height: 1px; margin: 16px 0; background: #262E3B; }
 
@@ -260,15 +300,38 @@
                     </div>
                     {% if p.badge %}<div class="badge badge-{{ p.trend }}">{% if p.trend == 'up' %}<span class="arrow">&#9650;</span>{% elif p.trend == 'down' %}<span class="arrow">&#9660;</span>{% endif %}{{ p.badge }}</div>{% endif %}
                 </div>
+                {% endif %}
 
                 {% if p.chips %}
-                <div class="chips">
+                <div class="chips{% if not p.stats %} first{% endif %}">
                     {% for chip in p.chips %}
                     <div class="chip"><div class="chip-label caps">{{ chip.label }}</div><div class="chip-value figure">{{ chip.value }}</div></div>
                     {% endfor %}
                 </div>
                 {% endif %}
 
+                {% if p.pokemon %}
+                <div class="mons">
+                    {% for mon in p.pokemon %}
+                    <div class="mon">
+                        <div class="tile">{% if mon.image %}<img src="{{ mon.image }}">{% endif %}{% if mon.shiny %}<div class="shiny"></div>{% endif %}</div>
+                        <div class="mon-name">{{ mon.name }}</div>
+                    </div>
+                    {% endfor %}
+                    {% if p.pokemon_more %}
+                    <div class="mon"><div class="tile more figure">+{{ p.pokemon_more }}</div><div class="mon-name">&nbsp;</div></div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if p.bonuses %}
+                <div class="bonuses">
+                    {% for bonus in p.bonuses %}<div class="bonus"><span class="gold"></span>{{ bonus }}</div>{% endfor %}
+                    {% if p.bonuses_more %}<div class="bonus muted">+{{ p.bonuses_more }} bónus</div>{% endif %}
+                </div>
+                {% endif %}
+
+                {% if p.stats %}
                 {% if p.rows %}
                 <div class="divider"></div>
                 {% for r in p.rows %}
@@ -283,11 +346,10 @@
                 </div>
                 {% endfor %}
                 {% endif %}
-
                 {% if p.note %}<div class="note">{{ p.note }}</div>{% endif %}
-                {% else %}
-                <div class="ended">{{ p.ended }}</div>
                 {% endif %}
+
+                {% if p.ended %}<div class="ended">{{ p.ended }}</div>{% endif %}
             </div>
         </div>
         {% endfor %}
