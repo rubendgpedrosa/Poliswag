@@ -2,7 +2,11 @@ import os
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# python-dotenv >= 1.2 skips load_dotenv() while PYTHON_DOTENV_DISABLED is set
+# (the test suite sets it to block reading a real .env); older versions, like
+# the host's 1.0.1, ignore the flag. Honour it here so both behave the same.
+if not os.environ.get("PYTHON_DOTENV_DISABLED"):
+    load_dotenv()
 
 # Env vars the bot cannot run without. Everything else (channel ids, feature
 # endpoints, image-gen settings, ...) degrades gracefully -- see e.g.
@@ -36,9 +40,6 @@ class Config:
         "POLISNATCH_JOBS_URL", "https://polisnatch.pogoleiria.pt/v1/jobs"
     )
     POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
-    POLISNATCH_JOBS_KEY_FILE = os.environ.get(
-        "POLISNATCH_JOBS_KEY_FILE", "/etc/poliswag/secrets/polisnatch-jobs-key"
-    )
     MY_ID = int(os.environ.get("MY_ID", "0"))
     # Apoio por MB Way (!mbway). Free text so the owner can change the
     # wording, not just the number, without touching code; empty means the
