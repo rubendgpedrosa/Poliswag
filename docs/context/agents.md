@@ -193,7 +193,11 @@ and overviews containing owner entries are delivered only to the owner's DM in
 guilds, with no public fallback if the DM fails. Authorization remains the
 configured Discord ID (`Config.MY_ID`), never a display name or username.
 
-Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, with the
+Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, or, with
+`POLISWAG_PUBLIC_PROVIDER=claude` in `/etc/poliswag-agent.conf`, **Claude Code,
+Sonnet 5.5, medium effort** (web search as its only tool, no settings sources,
+MCP, skills or session; the reply is schema-validated JSON on stdout). Codex is
+the default so an expired Claude login never silences public replies. Both use the
 existing CLI login. There is no direct Responses API call and no separate API
 credential in the bot. `modules/conversation_model.py` submits the sanitized
 question plus a strictly validated public map snapshot to the separate

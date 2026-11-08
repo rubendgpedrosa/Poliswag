@@ -8,7 +8,15 @@ from pathlib import Path
 import pytest
 
 from modules.agent_jobs import AgentJobs, write_json
-from scripts.agent_worker import Worker, agent_environment, command_for, public_command
+from scripts.agent_worker import (
+    Worker,
+    agent_environment,
+    command_for,
+    public_claude_command,
+    public_claude_reply,
+    public_command,
+    public_provider,
+)
 
 
 @pytest.fixture
@@ -430,3 +438,60 @@ def test_malformed_agent_output_never_becomes_completion(worker):
     request = job(worker)
     worker.run_job(request)
     assert worker.jobs.get(request["id"], 123)["state"] == "failed"
+
+
+def test_public_claude_command_is_sonnet_medium_with_web_search_only(tmp_path):
+    cmd = public_claude_command("claude", tmp_path)
+    assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
+    assert cmd[cmd.index("--effort") + 1] == "medium"
+    assert cmd[cmd.index("--tools") + 1] == "WebSearch"
+    assert cmd[cmd.index("--allowedTools") + 1] == "WebSearch"
+    assert cmd[cmd.index("--setting-sources") + 1] == ""
+    assert "--strict-mcp-config" in cmd and "--no-session-persistence" in cmd
+    assert "--disable-slash-commands" in cmd
+    assert cmd[cmd.index("--system-prompt-file") + 1] == str(
+        tmp_path / "instructions.txt"
+    )
+    assert "poliswag_db" not in " ".join(cmd)
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [(None, "codex"), ("claude", "claude"), (" Claude ", "claude"), ("x", "codex")],
+)
+def test_public_provider_defaults_to_codex(monkeypatch, value, expected):
+    if value is None:
+        monkeypatch.delenv("POLISWAG_PUBLIC_PROVIDER", raising=False)
+    else:
+        monkeypatch.setenv("POLISWAG_PUBLIC_PROVIDER", value)
+    assert public_provider() == expected
+
+
+def test_public_claude_reply_keeps_only_the_reply():
+    ok = json.dumps({"is_error": False, "structured_output": {"reply": "Olá!"}})
+    assert json.loads(public_claude_reply(ok)) == {"reply": "Olá!"}
+    assert public_claude_reply(json.dumps({"is_error": True, "result": "x"})) is None
+    assert public_claude_reply(json.dumps({"structured_output": {"r": 1}})) is None
+    assert public_claude_reply("not json") is None
+
+
+def test_public_job_runs_claude_when_selected(worker, monkeypatch):
+    monkeypatch.setenv("POLISWAG_PUBLIC_PROVIDER", "claude")
+    fake = Path(worker.binaries["claude"])
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys\n"
+        "prompt = sys.stdin.read()\n"
+        "assert 'dados não confiáveis' in prompt\n"
+        "assert '--model' in sys.argv and 'claude-sonnet-5-5' in sys.argv\n"
+        "assert pathlib.Path('instructions.txt').exists()\n"
+        "print('SECRET', file=sys.stderr)\n"
+        "print(json.dumps({'is_error': False, 'result': 'SECRET',"
+        " 'structured_output': {'reply': 'Poli-poli!'}}))\n"
+    )
+    request = public_job(worker)
+    worker.run_public_job(request)
+    result = worker.public_jobs.get(request["id"], 0)
+    assert result["state"] == "completed"
+    assert json.loads(result["reply"]) == {"reply": "Poli-poli!"}
+    assert "SECRET" not in result["reply"]

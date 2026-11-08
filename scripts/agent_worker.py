@@ -194,6 +194,70 @@ def prompt_for(request):
     )
 
 
+# Which CLI answers public tags: "claude" (Sonnet 5.5, medium effort) or
+# "codex" (GPT-6 Luna, low). Set POLISWAG_PUBLIC_PROVIDER in the worker's
+# EnvironmentFile; Codex stays the default so a missing Claude login never
+# silences the public replies.
+PUBLIC_PROVIDERS = ("claude", "codex")
+PUBLIC_REPLY_SCHEMA = {
+    "type": "object",
+    "properties": {"reply": {"type": "string"}},
+    "required": ["reply"],
+    "additionalProperties": False,
+}
+
+
+def public_provider():
+    value = os.environ.get("POLISWAG_PUBLIC_PROVIDER", "codex").strip().lower()
+    return value if value in PUBLIC_PROVIDERS else "codex"
+
+
+def public_claude_command(binary, directory):
+    """Claude Code with web search as its only tool, no settings, MCP, skills
+    or session; the reply comes back as structured JSON on stdout."""
+    return [
+        binary,
+        "-p",
+        "--model",
+        "claude-sonnet-5-5",
+        "--effort",
+        "medium",
+        "--output-format",
+        "json",
+        "--json-schema",
+        json.dumps(PUBLIC_REPLY_SCHEMA),
+        "--system-prompt-file",
+        str(directory / "instructions.txt"),
+        "--tools",
+        "WebSearch",
+        "--allowedTools",
+        "WebSearch",
+        "--permission-mode",
+        "dontAsk",
+        "--strict-mcp-config",
+        "--setting-sources",
+        "",
+        "--disable-slash-commands",
+        "--no-session-persistence",
+        "--max-turns",
+        "4",
+    ]
+
+
+def public_claude_reply(stdout):
+    """The {"reply": ...} JSON text from Claude's result, or None."""
+    try:
+        result = json.loads(stdout)
+    except ValueError:
+        return None
+    if not isinstance(result, dict) or result.get("is_error"):
+        return None
+    reply = result.get("structured_output")
+    if not isinstance(reply, dict) or not isinstance(reply.get("reply"), str):
+        return None
+    return json.dumps({"reply": reply["reply"]}, ensure_ascii=False)
+
+
 def public_command(binary, directory, output):
     return [
         binary,
@@ -291,8 +355,11 @@ class Worker:
             or request.get("provider") != "codex"
             or request.get("mode") != "ask"
             or request.get("prompt") not in TOPICS
-            or not self.binaries.get("codex")
         ):
+            finish("failed")
+            return
+        provider = public_provider()
+        if not self.binaries.get(provider):
             finish("failed")
             return
         try:
@@ -315,11 +382,18 @@ class Worker:
                 workspace = Path(temporary)
                 (workspace / "instructions.txt").write_text(INSTRUCTIONS)
                 output = workspace / "answer.txt"
+                claude = provider == "claude"
+                command = (
+                    public_claude_command(self.binaries["claude"], workspace)
+                    if claude
+                    else public_command(self.binaries["codex"], workspace, output)
+                )
+                stdout = open(workspace / "stdout.json", "w") if claude else None
                 process = subprocess.Popen(
-                    public_command(self.binaries["codex"], workspace, output),
+                    command,
                     cwd=workspace,
                     stdin=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL,
+                    stdout=stdout or subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     text=True,
                     env=agent_environment(),
@@ -339,7 +413,15 @@ class Worker:
                         finish("failed")
                         return
                     time.sleep(0.1)
-                if (
+                if claude:
+                    stdout.close()
+                    raw = (workspace / "stdout.json").read_text()[:65536]
+                    reply = None if process.returncode else public_claude_reply(raw)
+                    if reply is None or len(reply.encode()) > 4096:
+                        finish("failed")
+                    else:
+                        finish("completed", reply)
+                elif (
                     process.returncode
                     or not output.exists()
                     or output.stat().st_size > 4096
