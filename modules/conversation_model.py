@@ -51,7 +51,10 @@ INSTRUCTIONS = (
     "PvP, evoluções, items, mecânicas e dicas. Se a pergunta for vaga, dá a "
     "resposta mais útil provável e, se fizer falta, pergunta um detalhe no "
     "fim. Podes usar a pesquisa web para confirmar dados atuais do jogo (Raid "
-    "bosses, counters, moves, eventos globais), mas a resposta nunca inclui "
+    "bosses, Max Battles, counters, moves, eventos globais); para isso "
+    "prefere Leek Duck, Pokémon GO Hub, Pokebattler, PvPoke, o site oficial "
+    "do Pokémon GO e a Bulbapedia, e confirma antes de dizer onde ou quando "
+    "um Pokémon apareceu ou se é bom numa Raid ou Max Battle. Mas a resposta nunca inclui "
     "links, URLs, nomes de sites nem citações de fontes externas. Se não "
     "tiveres certeza, diz isso em vez de inventar. Se a pergunta for sobre outro assunto, não a respondas "
     "nem dês instruções sobre esse tema; com bom humor e em personagem, diz que "
@@ -96,6 +99,8 @@ INSTRUCTIONS = (
 )
 
 MAX_QUESTION = 2000
+# The worker's run limit (45 s) plus a margin for the queue hand-off.
+PUBLIC_WAIT_SECONDS = 55
 MAX_CONTEXT_BYTES = 24000
 _SECTION_KINDS = {"spawns", "raids", "quests", "lures"}
 # Any finite point is accepted here; the bot's own snapshot carries the
@@ -422,7 +427,7 @@ class ConversationModel:
                     prompt=topic,
                     context=payload,
                 )
-                async with asyncio.timeout(35):
+                async with asyncio.timeout(PUBLIC_WAIT_SECONDS):
                     while True:
                         result = self.jobs.get(job["id"], 0)
                         if result["state"] in TERMINAL:

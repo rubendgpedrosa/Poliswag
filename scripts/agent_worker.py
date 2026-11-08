@@ -199,6 +199,9 @@ def prompt_for(request):
 # EnvironmentFile; Codex stays the default so a missing Claude login never
 # silences the public replies.
 PUBLIC_PROVIDERS = ("claude", "codex")
+# Room for a search and a page or two; the bot waits a little longer
+# (conversation_model.PUBLIC_WAIT_SECONDS).
+PUBLIC_RUN_SECONDS = 45
 PUBLIC_REPLY_SCHEMA = {
     "type": "object",
     "properties": {"reply": {"type": "string"}},
@@ -212,9 +215,25 @@ def public_provider():
     return value if value in PUBLIC_PROVIDERS else "codex"
 
 
+# Pages the public Claude run may open, besides web search: current raid/Max
+# Battle bosses and events (Leek Duck, the official site), counters and data
+# (Pokémon GO Hub, Pokebattler), PvP (PvPoke) and general facts (Bulbapedia).
+# Any other WebFetch is refused by the permission mode.
+PUBLIC_SOURCES = (
+    "leekduck.com",
+    "pokemongo.com",
+    "pokemongohub.net",
+    "db.pokemongohub.net",
+    "pokebattler.com",
+    "pvpoke.com",
+    "bulbapedia.bulbagarden.net",
+)
+
+
 def public_claude_command(binary, directory):
-    """Claude Code with web search as its only tool, no settings, MCP, skills
-    or session; the reply comes back as structured JSON on stdout."""
+    """Claude Code with web search and WebFetch on PUBLIC_SOURCES only, no
+    settings, MCP, skills or session; the reply comes back as structured JSON
+    on stdout."""
     return [
         binary,
         "-p",
@@ -229,9 +248,11 @@ def public_claude_command(binary, directory):
         "--system-prompt-file",
         str(directory / "instructions.txt"),
         "--tools",
-        "WebSearch",
+        "WebSearch,WebFetch",
         "--allowedTools",
-        "WebSearch",
+        ",".join(
+            ["WebSearch"] + [f"WebFetch(domain:{site})" for site in PUBLIC_SOURCES]
+        ),
         "--permission-mode",
         "dontAsk",
         "--strict-mcp-config",
@@ -240,7 +261,7 @@ def public_claude_command(binary, directory):
         "--disable-slash-commands",
         "--no-session-persistence",
         "--max-turns",
-        "4",
+        "6",
     ]
 
 
@@ -401,7 +422,7 @@ class Worker:
                 )
                 process.stdin.write(prompt)
                 process.stdin.close()
-                deadline = time.monotonic() + min(self.timeout, 30)
+                deadline = time.monotonic() + min(self.timeout, PUBLIC_RUN_SECONDS)
                 while process.poll() is None:
                     self.heartbeat(f"public:{request['id']}")
                     if STOPPING or (directory / "cancel").exists():
