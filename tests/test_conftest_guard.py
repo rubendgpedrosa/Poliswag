@@ -99,7 +99,11 @@ def _config_env_keys():
     src = (REPO_ROOT / "modules" / "config.py").read_text()
     assert "os.getenv(" not in src, "config.py must read env via os.environ.get only"
     assert "environ[" not in src, "config.py must read env via os.environ.get only"
-    return set(re.findall(r'os\.environ\.get\(\s*"([A-Z0-9_]+)"', src))
+    keys = set(re.findall(r'os\.environ\.get\(\s*"([A-Z0-9_]+)"', src))
+    # python-dotenv's own switch, not a setting; conftest pins it itself and
+    # test_every_config_env_key_has_a_deterministic_test_value asserts it.
+    keys.discard("PYTHON_DOTENV_DISABLED")
+    return keys
 
 
 def test_every_config_env_key_has_a_deterministic_test_value():

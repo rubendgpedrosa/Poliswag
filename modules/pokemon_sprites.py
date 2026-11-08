@@ -1,16 +1,12 @@
 """Checked Pokémon artwork shared by alert thumbnails and trade summaries."""
 
 import json
-import os
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
 
 from modules.art_map import reviewed_art
 
-# The set we serve ourselves: PkmnHomeIcons mirrored in full plus the artwork
-# the owner reviewed, so an embed draws the same costume the Pokédex does.
-SPRITE_BASE = os.environ.get("SPRITE_BASE_URL", "https://pogoleiria.pt/uicons/pokemon")
 # Where the filenames are checked: the upstream set the snapshot was built from.
 CDN_SPRITE_BASE = "https://raw.githubusercontent.com/nileplumb/PkmnHomeIcons/master/UICONS_OS_128/pokemon"
 # The 512px set has no reviewed twin; trade digests keep using it for the big image.

@@ -210,11 +210,6 @@ def _normalize_row(row) -> dict:
     }
 
 
-def all_areas() -> list[dict]:
-    """Every registry row, active or not, in display order."""
-    return [dict(row) for row in _rows]
-
-
 def active_areas() -> list[dict]:
     """The active registry rows, in display order."""
     return [dict(row) for row in _rows if row["active"]]
@@ -277,14 +272,6 @@ def color_for(key, fallback=AREA_COLORS[0]) -> str:
 def setting_code(keys) -> int:
     """A set of area keys as the one number hundo_confirmed_setting stores."""
     return sum(bit_for(key) for key in keys or ())
-
-
-def keys_for_code(code) -> list[str]:
-    return [
-        row["area_key"]
-        for row in _rows
-        if row["active"] and int(code or 0) & bit_for(row["area_key"])
-    ]
 
 
 # shiny_link still carries the two flags shiny predictions were split between.
