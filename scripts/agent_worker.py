@@ -217,7 +217,8 @@ def public_provider():
 
 # Pages the public Claude run may open, besides web search: current raid/Max
 # Battle bosses and events (Leek Duck, the official site), counters and data
-# (Pokémon GO Hub, Pokebattler), PvP (PvPoke) and general facts (Bulbapedia).
+# (Pokémon GO Hub, Pokebattler), top Raid/Max Battle attackers and plain
+# explanations (DittoBase), PvP (PvPoke) and general facts (Bulbapedia).
 # Any other WebFetch is refused by the permission mode.
 PUBLIC_SOURCES = (
     "leekduck.com",
@@ -225,6 +226,8 @@ PUBLIC_SOURCES = (
     "pokemongohub.net",
     "db.pokemongohub.net",
     "pokebattler.com",
+    "dittobase.com",
+    "www.dittobase.com",
     "pvpoke.com",
     "bulbapedia.bulbagarden.net",
 )
