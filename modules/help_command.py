@@ -18,6 +18,7 @@ _COG_DISPLAY_NAMES = {
     "Lures": "🌸 Lures",
     "WebStats": "📊 Estatísticas (admin)",
     "Announcements": "📢 Anúncios (admin)",
+    "Giveaways": "🎟️ Sorteios (admin)",
     "Agents": "🤖 Agentes (dono)",
     "SpawnHistory": "📈 Histórico de spawns (dono)",
     "Support": "💚 Apoio",
@@ -52,6 +53,7 @@ _MOD_TOPICS = {
     "Notifications": "Alertas",
     "Lures": "Lures",
     "Announcements": "Anúncios",
+    "Giveaways": "Anúncios",
 }
 
 

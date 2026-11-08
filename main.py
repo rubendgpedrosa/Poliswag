@@ -195,6 +195,7 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.pokedex")
         await self.load_extension("cogs.event_panel")
         await self.load_extension("cogs.announcements")
+        await self.load_extension("cogs.giveaways")
         await self.load_extension("cogs.shiny")
         await self.load_extension("cogs.shiny_access_requests")
         await self.load_extension("cogs.spawn_history")
