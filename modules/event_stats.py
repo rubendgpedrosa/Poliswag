@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from modules.logging_mixin import LoggingMixin
 from modules import scan_areas
+from modules.stat_card import StatCard, StatRow
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,9 @@ class Summary:
     headline: str
     areas: tuple  # ((field name, field value), ...)
     note: str
+    # The same numbers as a stat card image (templates/stat-card.html); the
+    # text fields above stay as the fallback when the image can't render.
+    card: StatCard | None = None
 
     @property
     def text(self):
@@ -105,11 +109,19 @@ class EventStats(LoggingMixin):
                 return await self._rotation_summary(event, start_date, end_date)
             if "community" in event_type:
                 return await self._species_summary(
-                    event, _COMMUNITY_DAY_SUFFIX, start_date, end_date
+                    event,
+                    _COMMUNITY_DAY_SUFFIX,
+                    start_date,
+                    end_date,
+                    kicker="Community Day",
                 )
             if "spotlight" in event_type:
                 return await self._species_summary(
-                    event, _SPOTLIGHT_HOUR_SUFFIX, start_date, end_date
+                    event,
+                    _SPOTLIGHT_HOUR_SUFFIX,
+                    start_date,
+                    end_date,
+                    kicker="Spotlight Hour",
                 )
         except Exception as e:
             self._log(f"[EVENTSTATS] Failed to build summary: {e}")
@@ -145,6 +157,52 @@ class EventStats(LoggingMixin):
             areas=tuple((f"📍 {label}", "\n".join(lines)) for label, lines in areas),
             note=self._period_note(start_date, end_date, whole_days),
         )
+
+    @staticmethod
+    def _card_period(start_date, end_date):
+        def short(day):
+            return f"{day[8:10]}/{day[5:7]}"
+
+        if start_date == end_date:
+            return short(start_date)
+        return f"{short(start_date)} – {short(end_date)}"
+
+    @staticmethod
+    def _card_note(whole_days=False, shiny=False):
+        note = "Totais diários do scanner"
+        if not whole_days:
+            note += " · incluem atividade fora do horário do evento"
+        if shiny:
+            note += " · shiny: scanner global"
+        return note
+
+    @staticmethod
+    def _badge(total, before):
+        """("3,3× o dia anterior", "up"), or ("", "") with nothing to compare."""
+        if not before:
+            return "", ""
+        ratio = f"{total / before:.1f}".replace(".", ",").removesuffix(",0")
+        return f"{ratio}× o dia anterior", "up" if total >= before else "down"
+
+    async def _rows(self, values, unit, extras=None):
+        """A StatRow per active area, in display order; None where no data."""
+        rows = []
+        for name, label in await self._area_names():
+            value = values.get(name)
+            rows.append(
+                StatRow(
+                    key=name,
+                    label=label,
+                    value=value,
+                    unit=unit,
+                    extras=extras(name) if extras and value is not None else (),
+                )
+            )
+        return tuple(rows)
+
+    @staticmethod
+    def _with_card(summary, card):
+        return Summary(summary.headline, summary.areas, summary.note, card)
 
     @staticmethod
     def _day_before(start_date):
@@ -256,7 +314,19 @@ class EventStats(LoggingMixin):
             )
             for name, label in await self._area_names()
         ]
-        return self._layout(lines, columns, start_date, end_date)
+        badge, trend = self._badge(by_level[level], before_by_level.get(level, 0))
+        card = StatCard(
+            kicker=f"Raids {tier}",
+            hero=by_level[level],
+            hero_unit="raids",
+            subject=names,
+            period=self._card_period(start_date, end_date),
+            badge=badge,
+            trend=trend,
+            rows=await self._rows(areas, "raids"),
+            note=self._card_note(),
+        )
+        return self._with_card(self._layout(lines, columns, start_date, end_date), card)
 
     @staticmethod
     def _rotation_tier(tier_text):
@@ -334,10 +404,26 @@ class EventStats(LoggingMixin):
             )
             for name, label in await self._area_names()
         ]
-        return self._layout(lines, columns, days[0], days[-1], whole_days=True)
+        card = StatCard(
+            kicker=f"Raids {tier}",
+            hero=total,
+            hero_unit="raids",
+            subject=names,
+            period=self._card_period(days[0], days[-1]),
+            badge=(
+                f"~{self._number(round(total / len(days)))} por dia"
+                if len(days) > 1
+                else ""
+            ),
+            rows=await self._rows(areas, "raids"),
+            note=self._card_note(whole_days=True),
+        )
+        return self._with_card(
+            self._layout(lines, columns, days[0], days[-1], whole_days=True), card
+        )
 
     async def _species_summary(
-        self, event, suffix_pattern, start_date, end_date
+        self, event, suffix_pattern, start_date, end_date, kicker=""
     ) -> Summary | None:
         featured = self._featured_species(event, suffix_pattern)
         if not featured:
@@ -385,7 +471,38 @@ class EventStats(LoggingMixin):
                 areas=summary.areas,
                 note=f"{summary.note} · Shiny: scanner global, totais diários.",
             )
-        return summary
+        chips = [
+            ("100IV", self._number(sum(hundos.values()))),
+            ("0IV", self._number(sum(nundos.values()))),
+        ]
+        if shiny:
+            chips.append(
+                (
+                    "Shiny / encontros",
+                    f"{self._number(shiny[0])} / {self._number(shiny[1])}",
+                )
+            )
+        badge, trend = self._badge(total, sum(before.values()))
+        card = StatCard(
+            kicker=kicker,
+            hero=total,
+            hero_unit="spawns",
+            subject=species,
+            period=self._card_period(start_date, end_date),
+            badge=badge,
+            trend=trend,
+            chips=tuple(chips),
+            rows=await self._rows(
+                spawns,
+                "spawns",
+                lambda name: (
+                    ("100IV", hundos.get(name, 0)),
+                    ("0IV", nundos.get(name, 0)),
+                ),
+            ),
+            note=self._card_note(shiny=bool(shiny)),
+        )
+        return self._with_card(summary, card)
 
     async def _shiny_stats(self, pokemon_ids, start_date, end_date):
         """Return scanner-wide shiny/encounter totals for complete calendar days.

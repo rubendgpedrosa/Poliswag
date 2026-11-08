@@ -11,6 +11,10 @@ Production repair converted 10 current/upcoming rows in place, preserving notifi
 
 Species-focused ended-event summaries (Community Day and Spotlight Hour) also read Golbat's `pokemon_shiny_stats` table. They show scanner-wide shiny and encounter totals for the complete calendar day(s), not an exact event-hour count: the table has daily rows and no event-window timestamps. The summary labels this provenance and keeps the existing outside-event-hours caveat; raid summaries do not claim shiny counts because no equivalent raid-period shiny aggregate is available.
 
+### Ended-event stat cards (2026-11-08)
+
+Ended events with stats post as an image: `EventStats` fills a generic `StatCard` (`modules/stat_card.py`: kicker, hero figure, badge, optional chips, a bar row per scan area, note) and `ImageGenerator.generate_stat_card` renders `templates/stat-card.html` with wkhtmltoimage, same design tokens and 2x scale as the account card. The embed keeps only title, link and colour, with the PNG as its image. If the render fails, the text embed (headline, inline area fields, footer) is sent instead. Any other stats post can reuse the card by filling a `StatCard`.
+
 ### Weekly and error digests: post-send acknowledgment
 
 `Scheduled._send_weekly_digest` / `_check_weekly_digest` (Monday 09:00 calendar) and `_check_daily_error_digest` (daily owner DM) persist their dedup markers only after Discord accepts. A quiet week (no events after filtering) or a truly unconfigured channel (id `0`), and a quiet error day or missing recipient, also advance the marker so neither retries every tick. A transport failure — including a configured `CONVIVIO_CHANNEL_ID` whose object is still missing after `fetch_channel` recovery (`Forbidden`/`NotFound`/`HTTPException` re-raised and logged) or a `fetch_user` failure — leaves the marker unset, so the next 60 s tick retries (bounded, no tight loop). `Poliswag.get_channels()` resolves each channel independently for the same reason: one failed lookup clears only that attribute to `None`, logs which channel failed, and still attempts the rest.

@@ -434,3 +434,61 @@ class TestRotationSummary:
         event = _event("raid-battles", "Raid Weekend")
         assert await event_stats.get_summary(event) is None
         event_stats.poliswag.quest_search.db.get_data_from_database.assert_not_called()
+
+
+class TestStatCards:
+    """Every summary also fills a stat card for templates/stat-card.html."""
+
+    async def test_raid_summary_card(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            side_effect=[
+                [_raid("Leiria", 5, 889, 190), _raid("MarinhaGrande", 5, 889, 61)],
+                [_raid("Leiria", 5, 888, 77)],
+            ]
+        )
+        event = _event(
+            "raid-hour",
+            "Zamazenta Raid Hour",
+            start="2026-09-16 18:00:00",
+            end="2026-09-16 19:00:00",
+        )
+        card = (await event_stats.get_summary(event)).card
+        assert (card.kicker, card.hero, card.hero_unit, card.subject) == (
+            "Raids 5★",
+            251,
+            "raids",
+            "Zamazenta",
+        )
+        assert (card.badge, card.trend, card.period) == (
+            "3,3× o dia anterior",
+            "up",
+            "16/09",
+        )
+        assert [(r.label, r.value) for r in card.rows] == [
+            ("Leiria", 190),
+            ("Marinha Grande", 61),
+        ]
+        assert "fora do horário" in card.note
+
+    async def test_rotation_card_has_no_outside_hours_caveat(self, event_stats):
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            return_value=[
+                _rot("Leiria", 6, 302, "2026-11-01", 20),
+                _rot("Leiria", 6, 302, "2026-11-02", 10),
+            ]
+        )
+        event_stats.poliswag.quest_search.pokemon_name_map["302"] = "sableye"
+        event = _event(
+            "raid-battles",
+            "Mega Sableye in Mega Raids",
+            start="2026-11-01 10:00:00",
+            end="2026-11-08 10:00:00",
+        )
+        card = (await event_stats.get_summary(event)).card
+        assert (card.kicker, card.hero, card.subject) == ("Raids Mega", 30, "Sableye")
+        assert (card.badge, card.period) == ("~15 por dia", "01/11 – 02/11")
+        assert [(r.label, r.value) for r in card.rows] == [
+            ("Leiria", 30),
+            ("Marinha Grande", None),
+        ]
+        assert card.note == "Totais diários do scanner"
