@@ -1,7 +1,6 @@
 import asyncio
 import collections
 import datetime
-import re
 import time
 import discord
 from modules.http_client import fetch_data
@@ -46,20 +45,24 @@ class ScannerStatus(LoggingMixin):
 
         # Quest-scan completion is detected by a plateau in the valid-quest count:
         # once the count stops growing for PLATEAU_TICKS consecutive minute-checks
-        # (and is past COMPLETION_FLOOR of the adaptive expected total, with the
+        # (and is past COMPLETION_FLOOR of the area's live pokestop total, with the
         # scanner alive), the scan is considered finished. See is_quest_scanning_complete.
+        # The total is counted live from the scanner database on every check, in the
+        # same query as the quests, so a changed fence or a new area is right at once.
         self.PLATEAU_TICKS = 10  # ~10 min; the scheduled loop runs every 60s
         self.COMPLETION_FLOOR = (
-            0.90  # fraction of expected total before plateau may fire
+            0.90  # fraction of the live total before plateau may fire
         )
-        # Self-heal escape hatch: the expected total only adapts (downward) once a
-        # scan completes, but a shrunk map (reduced radius / removed pokestops) can
-        # leave the live ceiling permanently below COMPLETION_FLOOR of a stale
-        # expected — deadlocking completion forever. A plateau that holds this much
-        # longer is accepted as the new ceiling regardless of the floor, which lets
-        # record_quest_scan_completion re-baseline the expected. Still gated by the
-        # scanner-alive check, so a crash-induced stall never self-completes.
-        self.STUCK_TICKS = 30  # ~30 min flat below the floor => treat as new ceiling
+        # Never-stuck guards. Some stops never get a quest (out of reach, no
+        # quest that day), so an area can top out below COMPLETION_FLOOR: a
+        # plateau that holds this much longer is accepted as that area's real
+        # ceiling. Still gated by the scanner-alive check, so a crash-induced
+        # stall never self-completes.
+        self.STUCK_TICKS = 30  # ~30 min flat below the floor => accept the ceiling
+        # An area that stays at zero quests this long, while another area
+        # already has quests, is not being quest-scanned at all (left in the
+        # registry but off in the scanner); it must not hold the others back.
+        self.ZERO_STUCK_TICKS = 120  # ~2 h at 0 while the rest of the map has quests
         # Right after a plateau reset (day-change, or a bot restart shortly after
         # midnight) yesterday's pokestop.quest_expiry rows can still read as valid
         # for a bit — the external scanner takes real time to clear/re-scan them.
@@ -72,11 +75,6 @@ class ScannerStatus(LoggingMixin):
         # Also starts the quiet period on bot startup — a restart shortly after
         # midnight must not trust a plateau signal any sooner than a live reset.
         self._plateau_reset_at = time.time()
-        # Cached adaptive totals (area_key -> int) — refetched only on a cache
-        # miss, updated on every successful write (record_quest_scan_completion),
-        # so it never goes stale but avoids a DB round trip on every scheduler
-        # tick while a scan is in progress.
-        self._expected_totals: dict[str, int] | None = None
 
     async def get_voice_channel(self):
         try:
@@ -554,16 +552,22 @@ class ScannerStatus(LoggingMixin):
             if not areas:
                 return None
             db = self.poliswag.quest_search.db
-            scanned = {
-                row["area_key"]: await self._count_valid_quests(db, row)
-                for row in areas
+            counted = {
+                row["area_key"]: await self._count_area(db, row) for row in areas
             }
-            if any(count is None for count in scanned.values()):
+            if any(pair is None for pair in counted.values()):
                 return None
+            scanned = {key: pair[0] for key, pair in counted.items()}
+            expected = {key: pair[1] for key, pair in counted.items()}
 
-            expected = await self._get_expected_totals()
+            others_have_quests = {
+                key: any(n > 0 for other, n in scanned.items() if other != key)
+                for key in scanned
+            }
             plateaued = {
-                key: self._update_plateau(key, count, expected.get(key, 0))
+                key: self._update_plateau(
+                    key, count, expected[key], others_have_quests[key]
+                )
                 for key, count in scanned.items()
             }
 
@@ -594,16 +598,16 @@ class ScannerStatus(LoggingMixin):
             self._log(f"Error in quest scanning check: {e}")
             return None
 
-    async def _count_valid_quests(self, db, area):
-        """Count pokestops in an area whose quest (AR or standard) is still valid.
+    async def _count_area(self, db, area):
+        """Return ``(stops with a valid quest, all stops)`` for an area.
 
         The area is its registry fence: the query is pre-filtered by the
         fence's bounding box, then each row is classified by point-in-polygon,
-        so a stop in a neighbouring area is never counted here. Unlike the old
-        logic this does NOT restrict the universe to stops that already carry
-        quest data — it just counts the live quests, which climbs from 0
-        toward the area's natural ceiling as the scan progresses. Returns
-        ``None`` when the area has no usable fence or the query fails.
+        so a stop in a neighbouring area is never counted here. Both numbers
+        come from the same rows, so the total is always the live one: a
+        changed fence or a newly activated area needs no stored value and no
+        recount. Returns ``None`` when the area has no usable fence or the
+        query fails.
         """
         box = scan_areas.area_bbox(area["area_key"])
         if box is None:
@@ -621,12 +625,14 @@ class ScannerStatus(LoggingMixin):
         )
         if rows is None:
             return None
-        return sum(
-            1
-            for row in rows
-            if int(row.get("scanned") or 0)
-            and scan_areas.area_for(row["lat"], row["lon"]) == area["area_key"]
-        )
+        scanned = total = 0
+        for row in rows:
+            if scan_areas.area_for(row["lat"], row["lon"]) != area["area_key"]:
+                continue
+            total += 1
+            if int(row.get("scanned") or 0):
+                scanned += 1
+        return scanned, total
 
     def _coverage_pct(self, count, expected):
         """Percentage of the expected total covered, capped at 100%."""
@@ -634,17 +640,22 @@ class ScannerStatus(LoggingMixin):
             return 0
         return min(count / expected * 100, 100)
 
-    def _update_plateau(self, area, count, expected):
+    def _update_plateau(self, area, count, expected, others_have_quests=False):
         """Advance the plateau tracker for an area and report whether it is done.
 
         An area is done when its valid-quest count has stopped growing for
         ``PLATEAU_TICKS`` consecutive checks, is non-zero, and has reached at
-        least ``COMPLETION_FLOOR`` of the expected total (the floor blocks a
-        false "done" from an early stall below the natural ceiling).
+        least ``COMPLETION_FLOOR`` of the area's live total (the floor blocks a
+        false "done" from an early stall below the natural ceiling). The
+        never-stuck guards below make sure every area eventually reports done
+        while the scanner is alive.
         """
         state = self._quest_plateau.setdefault(
             area, {"prev_count": -1, "flat_streak": 0}
         )
+        if expected <= 0:
+            # No stops inside the fence: nothing to scan, nothing to wait for.
+            return True
         if count > state["prev_count"]:
             state["prev_count"] = count
             state["flat_streak"] = 0
@@ -656,18 +667,16 @@ class ScannerStatus(LoggingMixin):
             state["flat_streak"] = 0
 
         if count <= 0:
-            return False
+            # Zero quests for hours while the rest of the map has them means
+            # this area is not being quest-scanned; do not let it block.
+            return others_have_quests and state["flat_streak"] >= self.ZERO_STUCK_TICKS
         reached_floor = (
             state["flat_streak"] >= self.PLATEAU_TICKS
             and expected > 0
             and count >= expected * self.COMPLETION_FLOOR
         )
-        # Self-heal: a much longer flat plateau below the floor is the real
-        # (shrunk) ceiling, not an early stall — accept it so the expected total
-        # can re-baseline. See STUCK_TICKS. This also covers a newly activated
-        # area with no stored expected total (0): the fast path cannot fire
-        # without a ceiling, so its first scan needs the long window and then
-        # record_quest_scan_completion supplies one.
+        # A much longer flat plateau below the floor is the area's real
+        # ceiling (stops that never get a quest), not an early stall.
         stuck_below_floor = state["flat_streak"] >= self.STUCK_TICKS
         return reached_floor or stuck_below_floor
 
@@ -687,60 +696,10 @@ class ScannerStatus(LoggingMixin):
             and down_total < expected_total
         )
 
-    async def _get_expected_totals(self):
-        """Read the adaptive per-area expected totals from the poliswag table.
-
-        Each area keeps its total in a ``quest_expected_<area_key>`` column
-        (migration 003 seeded the first two). An area whose column is absent
-        or NULL starts at 0: the plateau check then only requires a non-zero
-        flat count, and the first completed scan records its real ceiling.
-        Cached after a successful read; the cache is refreshed whenever
-        record_quest_scan_completion persists a count, so it never goes stale
-        but avoids a DB round trip on every tick during a scan. `SELECT *`
-        keeps this working when a later migration adds another area column.
-        """
-        keys = [row["area_key"] for row in scan_areas.active_areas()]
-        if self._expected_totals is not None and set(self._expected_totals) == set(
-            keys
-        ):
-            return self._expected_totals
-        try:
-            rows = await self.poliswag.db.get_data_from_database(
-                "SELECT * FROM poliswag"
-            )
-            if rows:
-                row = rows[0]
-                self._expected_totals = {
-                    key: int(row.get(f"quest_expected_{key}") or 0) for key in keys
-                }
-                return self._expected_totals
-        except Exception as e:
-            self._log(f"Error reading expected quest totals: {e}")
-        # Not cached: a missing/config row is retried next tick rather than
-        # freezing every area at zero for the process lifetime.
-        return {key: 0 for key in keys}
-
     async def record_quest_scan_completion(self, counts):
-        """Persist the observed finish counts as the new expected totals and
-        reset the in-memory plateau trackers. Called once a scan completes so
-        the floor adapts as pokestops are added or removed over time. `counts`
-        maps area_key -> scanned count."""
-        if self._expected_totals is None:
-            self._expected_totals = {key: 0 for key in scan_areas.active_keys()}
-        for key, count in (counts or {}).items():
-            if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", str(key)):
-                continue
-            try:
-                await self.poliswag.db.execute_query_to_database(
-                    f"UPDATE poliswag SET quest_expected_{key} = %s",
-                    params=(int(count),),
-                )
-            except Exception as e:
-                # A newly activated area has no column yet; its in-memory
-                # expected total still adapts from this scan.
-                self._log(f"Error updating expected total for {key}: {e}")
-            if self._expected_totals is not None:
-                self._expected_totals[key] = int(count)
+        """Reset the plateau trackers once a scan completes. `counts` (area_key
+        -> scanned count) is accepted for the caller's sake; the totals are
+        counted live on every check, so nothing is stored."""
         self.reset_quest_plateau()
 
     def reset_quest_plateau(self):
