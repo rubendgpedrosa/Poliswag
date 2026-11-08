@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 from modules import scan_areas
 
 _LISBON = ZoneInfo("Europe/Lisbon")
+_TEAMS = {0: "Neutro", 1: "Mystic", 2: "Valor", 3: "Instinct"}
 MAX_ROWS = 20
 MAX_TEXT = 2000
 QUERY_TIMEOUT = 5
@@ -28,7 +29,8 @@ _MAP = re.compile(
     r"ginasi\w*|gym\w*|ovo\w*|egg\w*|boss\w*|quest\w*|tarefa\w*|"
     r"pesquisa\w*|recompensa\w*|stardust|poeira\s+estelar|"
     r"mega\s+energy|lure\w*|isca\w*|modulo\w*|pokestop\w*|mapa|map|"
-    r"numeros?|estatistic\w*|stats?)\b"
+    r"numeros?|estatistic\w*|stats?|max\s+battle\w*|dynamax|gigantamax|"
+    r"power\s+spot\w*|onde\s+fica\w*|coordenad\w*)\b"
 )
 _SPAWN = re.compile(
     r"\b(spawn\w*|aparec\w*|encontr\w*|pokemon|shiny|mapa|map|"
@@ -40,6 +42,18 @@ _QUEST = re.compile(
     r"poeira\s+estelar|mega\s+energy)\b"
 )
 _LURE = re.compile(r"\b(lure\w*|isca\w*|modulo\w*)\b")
+_MAX = re.compile(r"\b(max\s+battle\w*|dynamax|gigantamax|d?max|power\s+spot\w*)\b")
+_PLACE = re.compile(
+    r"\b(onde\s+(?:fica|e|esta)\w*|localiza\w*|coordenad\w*|morada|"
+    r"pokestops?|gyms?|ginasios?|paragens?)\b"
+)
+# Words that never identify a Pokéstop or Gym by name.
+_PLACE_STOPWORDS = frozenset(
+    "onde fica ficam esta estao qual quais sabes sabem como chegar coordenadas "
+    "coordenada localizacao morada pokestop pokestops gym gyms ginasio ginasios "
+    "paragem paragens perto junto para pela pelo com uma umas uns sobre aqui "
+    "que dos das nos nas tem ha hoje agora".split()
+)
 
 _REWARD_FILTERS = (
     (re.compile(r"\b(stardust|poeira\s+estelar)\b"), 3),
@@ -50,6 +64,21 @@ _REWARD_FILTERS = (
     (re.compile(r"\b(xp|experiencia)\b"), 1),
     (re.compile(r"\b(items?|itens)\b"), 2),
 )
+
+
+def _place_words(topic, species):
+    """Name words for a Pokéstop/Gym lookup: at least 3 letters, not a
+    question word, an area's name (it would match half the map) or a
+    recognized species; at most five."""
+    skip = {normalized(name) for _, name in species}
+    for row in scan_areas.active_areas():
+        skip.update(normalized(row["label"]).split())
+    words = []
+    for word in re.findall(r"[a-z0-9]{3,}", topic):
+        if word in _PLACE_STOPWORDS or word in skip or word in words:
+            continue
+        words.append(word)
+    return words[:5]
 
 
 def _reward_types(topic):
@@ -236,6 +265,11 @@ class PublicMapContext:
             )
         if _LURE.search(topic):
             tasks.append(self._section("lures", self._lures()))
+        if _MAX.search(topic):
+            tasks.append(self._section("maxbattles", self._max_battles(species)))
+        words = _place_words(topic, species)
+        if _PLACE.search(topic) and words:
+            tasks.append(self._section("places", self._places(words)))
         if not tasks:
             return None
         try:
@@ -523,3 +557,105 @@ class PublicMapContext:
             }
         except Exception:
             return {"kind": "quests", "status": "unavailable"}
+
+    async def _max_battles(self, species):
+        """Live Max Battles at Power Spots (the map's station layer)."""
+        try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "maxbattles", "status": "unavailable"}
+            now = time.time()
+            params = [box[0], box[2], box[1], box[3]]
+            species_filter = ""
+            ids = [pokemon_id for pokemon_id, _ in species]
+            if ids:
+                placeholders = ", ".join(["%s"] * len(ids))
+                species_filter = f"AND battle_pokemon_id IN ({placeholders}) "
+                params.extend(ids)
+            rows = await self._rows(
+                "SELECT name, lat, lon, battle_level, battle_pokemon_id, battle_end "
+                "FROM station WHERE lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s "
+                "AND battle_pokemon_id > 0 AND battle_end > UNIX_TIMESTAMP() "
+                "AND end_time > UNIX_TIMESTAMP() "
+                f"{species_filter}"
+                "ORDER BY battle_level DESC, battle_end ASC LIMIT 21",
+                tuple(params),
+            )
+            items = []
+            for row in rows[:MAX_ROWS]:
+                if not isinstance(row, dict):
+                    continue
+                point = _coordinate(row.get("lat"), row.get("lon"))
+                ends = _timestamp(row.get("battle_end"), now)
+                level = _integer(row.get("battle_level"), 1, 10)
+                boss = self._display(row.get("battle_pokemon_id"))
+                if not point or not ends or not level or not boss:
+                    continue
+                items.append(
+                    {
+                        "name": _clean_text(row.get("name"), 80) or "Power Spot",
+                        "lat": point[0],
+                        "lon": point[1],
+                        "level": level,
+                        "species": boss,
+                        "ends_at": _clock(ends),
+                    }
+                )
+            return {
+                "kind": "maxbattles",
+                "status": "ok",
+                "truncated": len(rows) > MAX_ROWS,
+                "items": items,
+            }
+        except Exception:
+            return {"kind": "maxbattles", "status": "unavailable"}
+
+    async def _places(self, words):
+        """Pokéstops and Gyms whose name holds the question's words: the
+        name, the coordinates and, for a Gym, its team, as the map shows."""
+        try:
+            box = scan_areas.bbox()
+            if box is None:
+                return {"kind": "places", "status": "unavailable"}
+            likes = " OR ".join(["name LIKE %s"] * len(words))
+            patterns = [f"%{word}%" for word in words]
+            found = []
+            for table, extra in (("gym", ", team_id"), ("pokestop", "")):
+                rows = await self._rows(
+                    f"SELECT name, lat, lon{extra} FROM {table} WHERE deleted = 0 "
+                    "AND lat BETWEEN %s AND %s AND lon BETWEEN %s AND %s "
+                    f"AND ({likes}) LIMIT 200",
+                    (box[0], box[2], box[1], box[3], *patterns),
+                )
+                for row in rows:
+                    if isinstance(row, dict):
+                        found.append((table, row))
+            need = max(1, (len(words) + 1) // 2)
+            scored = []
+            for table, row in found:
+                name = _clean_text(row.get("name"), 80)
+                point = _coordinate(row.get("lat"), row.get("lon"))
+                if not name or not point:
+                    continue
+                score = sum(word in normalized(name) for word in words)
+                if score < need:
+                    continue
+                item = {
+                    "type": "gym" if table == "gym" else "pokestop",
+                    "name": name,
+                    "lat": point[0],
+                    "lon": point[1],
+                }
+                if table == "gym":
+                    team = _integer(row.get("team_id"), 0, 3)
+                    item["team"] = _TEAMS.get(team, "Neutro")
+                scored.append((-score, name, item))
+            scored.sort(key=lambda entry: (entry[0], entry[1]))
+            return {
+                "kind": "places",
+                "status": "ok",
+                "truncated": len(scored) > 10,
+                "items": [item for _, _, item in scored[:10]],
+            }
+        except Exception:
+            return {"kind": "places", "status": "unavailable"}

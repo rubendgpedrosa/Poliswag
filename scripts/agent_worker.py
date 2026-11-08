@@ -265,6 +265,22 @@ def public_claude_command(binary, directory):
     ]
 
 
+def public_claude_environment():
+    """The worker environment for a public Claude run. A key meant only for
+    public replies (POLISWAG_PUBLIC_ANTHROPIC_API_KEY) replaces any other
+    Claude credential, so owner jobs keep their own login and the public bot
+    bills its own key; a user-scoped key also needs its workspace id."""
+    env = agent_environment()
+    key = os.environ.get("POLISWAG_PUBLIC_ANTHROPIC_API_KEY", "").strip()
+    if key:
+        env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+        env["ANTHROPIC_API_KEY"] = key
+        workspace = os.environ.get("POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE", "").strip()
+        if workspace:
+            env["ANTHROPIC_CUSTOM_HEADERS"] = f"anthropic-workspace-id: {workspace}"
+    return env
+
+
 def public_claude_reply(stdout):
     """The {"reply": ...} JSON text from Claude's result, or None."""
     try:
@@ -417,7 +433,7 @@ class Worker:
                     stdout=stdout or subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     text=True,
-                    env=agent_environment(),
+                    env=public_claude_environment() if claude else agent_environment(),
                     start_new_session=True,
                 )
                 process.stdin.write(prompt)

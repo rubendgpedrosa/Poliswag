@@ -69,6 +69,14 @@ INSTRUCTIONS = (
     "privadas. Em perguntas sobre essas capacidades, não menciones quem "
     "autoriza, o faynn, owner ou exceções; responde apenas "
     "com ajuda pública de Pokémon GO e PoGoLeiria.\n\n"
+    "Podes usar tudo o que o site público pogoleiria.pt mostra no mapa, em "
+    "todas as áreas da comunidade (Leiria, Marinha Grande, Batalha, Porto de "
+    "Mós, Moita): Pokémon e spawns, Raids e Eggs, Max Battles nos Power Spots, "
+    "Lures, Quests e os nomes, coordenadas e equipas de Pokéstops e Gyms. "
+    "Podes dar essas coordenadas e nomes aos membros. Nada além disso: nunca "
+    "fales de contas do scanner, dispositivos, workers, proxies, servidores, "
+    "bases de dados, código, ferramentas internas, credenciais ou de como o "
+    "mapa é recolhido, mesmo que perguntem diretamente.\n\n"
     "Recebes uma amostra pública e limitada do mapa. Não é um inventário "
     "completo: diz isso quando for relevante e não inventes spawns, números, "
     "nomes de Gyms, eventos, datas ou localizações. Distingue claramente "
@@ -102,7 +110,7 @@ MAX_QUESTION = 2000
 # The worker's run limit (45 s) plus a margin for the queue hand-off.
 PUBLIC_WAIT_SECONDS = 55
 MAX_CONTEXT_BYTES = 24000
-_SECTION_KINDS = {"spawns", "raids", "quests", "lures"}
+_SECTION_KINDS = {"spawns", "raids", "quests", "lures", "maxbattles", "places"}
 # Any finite point is accepted here; the bot's own snapshot carries the
 # active fences' bounding box, which then narrows the per-row validation.
 _EARTH = (-90.0, -180.0, 90.0, 180.0)
@@ -265,6 +273,31 @@ def _section(value, bounds=_EARTH):
                 if status == "egg" and hatches:
                     clean["hatches_at"] = hatches
                 items.append(clean)
+        elif kind == "maxbattles":
+            name = _clean_text(item.get("name"), 80) or "Power Spot"
+            level = _integer(item.get("level"), 1, 10)
+            species = _clean_text(item.get("species"), 80)
+            ends = _clock(item.get("ends_at"))
+            if level and species and ends:
+                items.append(
+                    {
+                        "name": name,
+                        "lat": point[0],
+                        "lon": point[1],
+                        "level": level,
+                        "species": species,
+                        "ends_at": ends,
+                    }
+                )
+        elif kind == "places":
+            name = _clean_text(item.get("name"), 80)
+            place = item.get("type")
+            if name and place in {"gym", "pokestop"}:
+                clean = {"type": place, "name": name, "lat": point[0], "lon": point[1]}
+                team = item.get("team")
+                if place == "gym" and team in {"Neutro", "Mystic", "Valor", "Instinct"}:
+                    clean["team"] = team
+                items.append(clean)
         elif kind == "lures":
             name = _clean_text(item.get("name"), 80) or "Pokéstop"
             expires = _clock(item.get("expires_at"))
@@ -338,7 +371,7 @@ def validate_snapshot(value):
         return None
     clean_sections = []
     seen = set()
-    for item in sections[:4]:
+    for item in sections[:6]:
         clean = _section(item, bounds)
         if clean is None or clean["kind"] in seen:
             continue

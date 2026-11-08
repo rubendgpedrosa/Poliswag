@@ -409,3 +409,67 @@ async def test_invalid_question_returns_no_snapshot(text):
     context = PublicMapContext(db, NAMES)
     assert await context.snapshot(text) is None
     assert db.queries == []
+
+
+async def test_max_battles_are_live_bounded_and_filtered_by_species():
+    def handler(query, params):
+        assert "FROM station" in query and "battle_end > UNIX_TIMESTAMP()" in query
+        assert params[:4] == sql_box()
+        assert params[4:] == (149,)
+        return [
+            {
+                "name": "Fonte",
+                "lat": 39.74,
+                "lon": -8.80,
+                "battle_level": 3,
+                "battle_pokemon_id": 149,
+                "battle_end": future(),
+            },
+            {
+                "name": "Sem boss",
+                "lat": 39.74,
+                "lon": -8.80,
+                "battle_level": 1,
+                "battle_pokemon_id": 999,
+                "battle_end": future(),
+            },
+        ]
+
+    context = PublicMapContext(FakeDB(handler), NAMES)
+    snapshot = await context.snapshot("Há Dragonite nas Max Battles?")
+    section = next(s for s in snapshot["sections"] if s["kind"] == "maxbattles")
+    assert [i["species"] for i in section["items"]] == ["Dragonite"]
+    assert section["items"][0]["level"] == 3
+
+
+async def test_places_match_names_with_fixed_parameterized_queries():
+    seen = []
+
+    def handler(query, params):
+        if "raid_level" in query:
+            return []
+        if "FROM gym" in query or "FROM pokestop" in query:
+            seen.append(query)
+            assert "LIKE %s" in query and "%fonte%" in params
+            assert "fica" not in " ".join(str(p) for p in params)
+        if "FROM gym" in query:
+            return [
+                {"name": "Fonte Luminosa", "lat": 39.74, "lon": -8.80, "team_id": 2}
+            ]
+        if "FROM pokestop" in query:
+            return [{"name": "Igreja", "lat": 39.74, "lon": -8.80}]
+        return []
+
+    context = PublicMapContext(FakeDB(handler), NAMES)
+    snapshot = await context.snapshot("Onde fica o gym da fonte luminosa?")
+    section = next(s for s in snapshot["sections"] if s["kind"] == "places")
+    assert section["items"] == [
+        {
+            "type": "gym",
+            "name": "Fonte Luminosa",
+            "lat": 39.74,
+            "lon": -8.8,
+            "team": "Valor",
+        }
+    ]
+    assert len(seen) == 2
