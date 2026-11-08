@@ -212,8 +212,6 @@ def decide_request(discord_id, stamp, accept):
                 }
                 areas = [key for key in active if key in chosen] or active[:1]
                 alert_areas = ",".join(areas)
-                flags = scan_areas.legacy_flags(areas)
-                leiria, marinha = flags["leiria"], flags["marinha"]
                 cursor.execute(
                     "UPDATE trade_player SET collecting = CASE "
                     "WHEN FIND_IN_SET('shiny', collecting) = 0 THEN "
@@ -225,33 +223,27 @@ def decide_request(discord_id, stamp, accept):
                     (alert_areas, discord_id),
                 )
                 cursor.execute(
-                    f"UPDATE {links} SET alert_areas = %s, "
-                    "alert_leiria = %s, alert_marinha = %s "
-                    "WHERE discord_id = %s",
-                    (alert_areas, leiria, marinha, discord_id),
+                    f"UPDATE {links} SET alert_areas = %s WHERE discord_id = %s",
+                    (alert_areas, discord_id),
                 )
                 if code and (
                     player["shiny_relink"] or not link or link["status"] == "failed"
                 ):
                     cursor.execute(
                         f"INSERT INTO {links} (discord_id, discord_name, friend_code, "
-                        "status, requested_at, alert_areas, alert_leiria, alert_marinha) "
-                        "VALUES (%s, %s, %s, 'pending', UTC_TIMESTAMP(), %s, %s, %s) "
+                        "status, requested_at, alert_areas) "
+                        "VALUES (%s, %s, %s, 'pending', UTC_TIMESTAMP(), %s) "
                         "ON DUPLICATE KEY UPDATE discord_name = VALUES(discord_name), "
                         "friend_code = VALUES(friend_code), status = 'pending', "
                         "trainer_name = NULL, player_id = NULL, fail_reason = NULL, "
                         "attempts = 0, requested_at = UTC_TIMESTAMP(), resolved_at = NULL, "
                         "announced_at = NULL, link_processing_at = NULL, "
-                        "alert_areas = VALUES(alert_areas), "
-                        "alert_leiria = VALUES(alert_leiria), "
-                        "alert_marinha = VALUES(alert_marinha)",
+                        "alert_areas = VALUES(alert_areas)",
                         (
                             discord_id,
                             str(player["username"])[:64],
                             code,
                             alert_areas,
-                            leiria,
-                            marinha,
                         ),
                     )
             else:
