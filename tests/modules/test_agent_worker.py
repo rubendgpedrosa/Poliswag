@@ -444,8 +444,12 @@ def test_public_claude_command_is_sonnet_medium_with_web_search_only(tmp_path):
     cmd = public_claude_command("claude", tmp_path)
     assert cmd[cmd.index("--model") + 1] == "claude-sonnet-5-5"
     assert cmd[cmd.index("--effort") + 1] == "medium"
-    assert cmd[cmd.index("--tools") + 1] == "WebSearch"
-    assert cmd[cmd.index("--allowedTools") + 1] == "WebSearch"
+    assert cmd[cmd.index("--tools") + 1] == "WebSearch,WebFetch"
+    allowed = cmd[cmd.index("--allowedTools") + 1].split(",")
+    assert allowed[0] == "WebSearch"
+    assert "WebFetch(domain:leekduck.com)" in allowed
+    # WebFetch only ever with a domain: never a bare, unrestricted grant
+    assert all(a == "WebSearch" or a.startswith("WebFetch(domain:") for a in allowed)
     assert cmd[cmd.index("--setting-sources") + 1] == ""
     assert "--strict-mcp-config" in cmd and "--no-session-persistence" in cmd
     assert "--disable-slash-commands" in cmd

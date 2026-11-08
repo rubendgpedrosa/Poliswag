@@ -195,7 +195,7 @@ configured Discord ID (`Config.MY_ID`), never a display name or username.
 
 Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, or, with
 `POLISWAG_PUBLIC_PROVIDER=claude` in `/etc/poliswag-agent.conf`, **Claude Code,
-Sonnet 5.5, medium effort** (web search as its only tool, no settings sources,
+Sonnet 5.5, medium effort** (web search plus WebFetch limited to `PUBLIC_SOURCES`: Leek Duck, pokemongo.com, Pokémon GO Hub, Pokebattler, PvPoke, Bulbapedia; no settings sources,
 MCP, skills or session; the reply is schema-validated JSON on stdout). Codex is
 the default so an expired Claude login never silences public replies. Both use the
 existing CLI login. There is no direct Responses API call and no separate API
@@ -239,7 +239,7 @@ and statistics are rendered locally, passed to the model as a strict
 rewrite them and a no-data claim is replaced by the local facts. Worker errors
 and unsafe output fall back to helpful local replies, never a fake success or a
 fixed joke. Maximum two
-waiting public calls per bot, 30-second execution timeout, 35-second queue
+waiting public calls per bot, 45-second execution timeout, 55-second bot wait, 35-second queue
 wait, bounded output and 60-second error backoff. Queued requests expire after
 35 seconds; timeout/cancellation marks them cancelled. A busy worker gives an
 immediate local fallback. No raw CLI output or error details are retained for
@@ -252,7 +252,7 @@ Sensitive-topic requests get a fixed helpful deflection, not an explanation.
 
 Additional safeguards: real Discord member/owner identity checks, no webhooks
 or bots, 15-second member cooldown, five member requests per guild per 30 seconds,
-bounded cooldown memory, five-second data timeout, 42-second total reply limit,
+bounded cooldown memory, five-second data timeout, 65-second total reply limit,
 validated calendar titles and numeric values, disabled mentions, and generic
 failure replies without exception text. Missing mention handling fails closed
 before command dispatch. Neither public prompts nor exception details are

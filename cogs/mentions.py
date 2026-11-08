@@ -104,7 +104,8 @@ class Mentions(commands.Cog):
         await react_to_request(message)
         text = named_mentions(text, message)
         try:
-            reply = await asyncio.wait_for(self.public.reply(text), timeout=42)
+            # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
+            reply = await asyncio.wait_for(self.public.reply(text), timeout=65)
         except Exception:
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
