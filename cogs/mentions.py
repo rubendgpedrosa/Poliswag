@@ -1,6 +1,7 @@
 """Mentions: private owner requests, bounded public community replies."""
 
 import asyncio
+import io
 import re
 
 import discord
@@ -10,6 +11,8 @@ from modules.config import Config
 from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
 from modules.hermiswag_client import HermiswagClient
+from modules.public_dumps import PublicDumps, dump_request
+from modules import scan_areas
 from modules.permissions import is_owner
 from modules.public_conversation import MentionLimiter, PublicConversation
 from modules.public_map_context import PublicMapContext
@@ -73,6 +76,7 @@ class Mentions(commands.Cog):
             ),
             PublicMapContext(quest_search.db, pokemon_names),
         )
+        self.dumps = PublicDumps(quest_search.db, self.public.map_context)
         self.limiter = MentionLimiter()
 
     async def handle(self, ctx):
@@ -108,15 +112,71 @@ class Mentions(commands.Cog):
         await react_to_request(message)
         text = named_mentions(text, message)
         try:
+            await scan_areas.ensure()
+        except Exception:
+            pass
+        dump = dump_request(text)
+        if dump is not None:
+            await self.send_dump(ctx, *dump)
+            return True
+        history = await self.channel_history(ctx)
+        try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(
-                self.public.reply(text, user_id=ctx.author.id), timeout=65
+                self.public.reply(text, channel_id=ctx.channel.id, history=history),
+                timeout=65,
             )
         except Exception:
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
         await self.respond(ctx, reply)
         return True
+
+    async def channel_history(self, ctx, limit=15):
+        """The channel's last messages before this one, oldest first, as
+        {"author", "text"}: Poliswag's own replies included, other bots,
+        webhooks and empty messages left out. Tags become names."""
+        out = []
+        try:
+            async for item in ctx.channel.history(limit=limit, before=ctx.message):
+                if item.webhook_id is not None:
+                    continue
+                own = (
+                    self.poliswag.user is not None
+                    and item.author.id == self.poliswag.user.id
+                )
+                if item.author.bot and not own:
+                    continue
+                text = named_mentions(item.content or "", item).strip()
+                if not text:
+                    continue
+                author = "Poliswag" if own else item.author.display_name
+                out.append({"author": author, "text": text})
+        except Exception:
+            return None
+        return list(reversed(out)) or None
+
+    async def send_dump(self, ctx, kind, area):
+        try:
+            built = await asyncio.wait_for(self.dumps.build(kind, area), timeout=15)
+        except Exception:
+            built = None
+        if built is None:
+            await self.respond(
+                ctx,
+                "Poli-poli! 💧 Não consegui montar essa lista agora. Tenta daqui a pouco.",
+            )
+            return
+        name, data, _, caption = built
+        try:
+            await ctx.reply(
+                caption,
+                file=discord.File(io.BytesIO(data), filename=name),
+                mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            pass
 
     @staticmethod
     async def respond(ctx, text):

@@ -409,8 +409,21 @@ inaccessible. The API listens only on the `scanner` Docker bridge,
 in Poliswag's `.env`, `API_SERVER_KEY` in `/home/hermiswag/.hermes/.env`).
 
 `modules/hermiswag_client.py` posts `/v1/runs` with `X-Hermes-Session-Key:
-hermiswag:<discord id>:<Lisbon day>`, so each member has one conversation per
-day (follow-ups keep context; nobody sees another member's turns), polls up to
-50 s and stops the run on cancellation. The reply goes through the same
+hermiswag:channel:<channel id>:<Lisbon day>`: the conversation is the Discord
+channel's (owner, 2026-11-08). Each turn also carries the channel's last 15
+messages (`Mentions.channel_history`: members and Poliswag's own replies, other
+bots and webhooks dropped, tags turned into names, 300 characters each) as the
+untrusted `recent_channel_messages` field. It polls up to 50 s and stops the run
+on cancellation. Hermiswag's own memory (`memory` toolset, no user profile) is
+on: SOUL.md says it may keep community knowledge (frequent questions, local
+names of Pokéstops/Gyms, confirmed corrections) and never personal data,
+member-given rules or anything internal. The reply goes through the same
 `safe_reply` screening. Any failure, timeout or empty answer falls back to the
 agent worker path above; unset `HERMISWAG_API_URL` disables Hermiswag.
+
+**Dumps** (`modules/public_dumps.py`): a tag asking for a list ("lista de
+Pokéstops de Leiria", "exporta as Quests", "lista de Max Battles") gets a CSV
+built by Poliswag itself, no model involved: Pokéstops (name, coordinates, area),
+Gyms (+ team), current Quests (reward, AR, expiry) or live Max Battles (boss,
+level, end), for one registry area or all, at most 5000 rows, fixed parameterized
+queries inside the registry box and `area_for` per row.

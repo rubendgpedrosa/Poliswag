@@ -422,6 +422,23 @@ def validate_public_context(value):
     return out
 
 
+MAX_HISTORY = 15
+
+
+def clean_history(history):
+    """The channel's recent messages as [{"author", "text"}], oldest first:
+    names and text cleaned and cut, at most MAX_HISTORY, None if empty."""
+    out = []
+    for item in history or ():
+        if not isinstance(item, dict):
+            continue
+        author = _clean_text(item.get("author"), 40)
+        text = _clean_text((item.get("text") or "")[:300], 300)
+        if author and text:
+            out.append({"author": author, "text": text})
+    return out[-MAX_HISTORY:] or None
+
+
 def public_prompt(topic, payload):
     """Trusted topic, then the validated member data as untrusted JSON: the
     same reconstruction the worker does, for the Hermiswag path."""
@@ -442,7 +459,7 @@ class ConversationModel:
         self.slots = asyncio.Semaphore(2)
         self.retry_after = 0
 
-    async def line(self, topic, text="", context=None, user_id=None):
+    async def line(self, topic, text="", context=None, channel_id=None, history=None):
         if (
             topic not in TOPICS
             or self.slots.locked()
@@ -465,12 +482,16 @@ class ConversationModel:
                 return None
         except (TypeError, ValueError, AttributeError, OverflowError):
             return None
-        if self.hermiswag is not None and user_id is not None and clean_text:
+        if self.hermiswag is not None and channel_id is not None and clean_text:
             from modules.hermiswag_client import reply_text
 
+            agent_payload = dict(payload)
+            recent = clean_history(history)
+            if recent:
+                agent_payload["recent_channel_messages"] = recent
             async with self.slots:
                 raw = await self.hermiswag.ask(
-                    user_id, INSTRUCTIONS, public_prompt(topic, payload)
+                    channel_id, INSTRUCTIONS, public_prompt(topic, agent_payload)
                 )
             line = reply_text(raw)
             if line:
