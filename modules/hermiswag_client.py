@@ -3,9 +3,10 @@
 Hermiswag is its own Hermes install (user `hermiswag`, fresh state, Sonnet
 5.5 medium) with no shell, file or memory tools: Poliswag sends it the same
 trusted rules plus the member's question and the validated public map
-snapshot as untrusted data, exactly as the worker path does. Each member has
-one conversation per day (`X-Hermes-Session-Key`), so a follow-up such as
-"e ele é útil?" keeps its context without any member seeing another's.
+snapshot as untrusted data, exactly as the worker path does. The conversation
+is the Discord channel's: one Hermes session per channel per day
+(`X-Hermes-Session-Key`), and each turn also carries the channel's recent
+messages, so a follow-up such as "e ele é útil?" keeps its context.
 Nothing here retains error bodies; failures return None and the caller falls
 back to the worker path.
 """
@@ -36,19 +37,19 @@ class HermiswagClient:
         return bool(self.url and self.key)
 
     @staticmethod
-    def conversation(user_id):
-        """One conversation per member per Lisbon day."""
+    def conversation(channel_id):
+        """One conversation per Discord channel per Lisbon day."""
         day = datetime.now(_LISBON).strftime("%Y%m%d")
-        return f"hermiswag:{int(user_id)}:{day}"
+        return f"hermiswag:channel:{int(channel_id)}:{day}"
 
-    async def ask(self, user_id, instructions, prompt):
+    async def ask(self, channel_id, instructions, prompt):
         """The run's final text, or None on any failure or timeout."""
-        if not self.enabled or user_id is None:
+        if not self.enabled or channel_id is None:
             return None
         try:
             headers = {
                 "Authorization": f"Bearer {self.key}",
-                "X-Hermes-Session-Key": self.conversation(user_id),
+                "X-Hermes-Session-Key": self.conversation(channel_id),
             }
             async with asyncio.timeout(self.timeout):
                 async with aiohttp.ClientSession(
