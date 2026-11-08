@@ -10,10 +10,13 @@ from PIL import Image
 from jinja2 import Environment, FileSystemLoader
 
 from modules.account_card import build_card_view
+from modules import stat_card
 from modules.config import Config
 from modules.http_client import get_session
 from modules import scan_areas
 from modules.quest_map import draw_quest_map, fit_quest_map
+
+STAT_CARD_TEMPLATE = "stat-card.html"
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
@@ -48,6 +51,7 @@ class ImageGenerator:
         # account_stats runs every 60s tick).
         self._env = None
         self._accounts_template = None
+        self._stat_card_template = None
 
     def _get_env(self):
         if self._env is None:
@@ -100,6 +104,29 @@ class ImageGenerator:
             "quiet": "",
         }
         png = await self._render_png(html_content, options, "account image")
+        if not png:
+            return png
+        return await asyncio.to_thread(_recompress_png, png)
+
+    async def generate_stat_card(self, card):
+        """PNG bytes of a stat card (modules.stat_card.StatCard), or None."""
+        if self._stat_card_template is None:
+            self._stat_card_template = self._get_env().get_template(STAT_CARD_TEMPLATE)
+        view = stat_card.build_view(card)
+        html_content = self._stat_card_template.render(**view)
+        # Same sizing as the account card: CSS at the token sizes, CSS zoom
+        # to the scaled PNG.
+        options = {
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": str(view["width"] * view["scale"]),
+            "height": str(view["height"] * view["scale"]),
+            "quality": "100",
+            "transparent": "",
+            "javascript-delay": "1000",
+            "quiet": "",
+        }
+        png = await self._render_png(html_content, options, "stat card")
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)
