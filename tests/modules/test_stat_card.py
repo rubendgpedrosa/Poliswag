@@ -77,31 +77,24 @@ class TestPanel:
 
 
 class TestBoard:
-    @pytest.mark.parametrize(
-        "count,cols", [(1, 1), (2, 2), (3, 3), (4, 2), (5, 3), (6, 3)]
-    )
-    def test_stays_landscape(self, count, cols):
-        assert sc.columns_for(count) == cols
-
-    def test_size_follows_the_rows(self):
-        tall, short = _card(), sc.StatCard(kicker="k", hero=None, title="t")
+    def test_panels_stack_in_one_column(self):
+        tall = _card()
+        short = sc.StatCard(kicker="k", hero=None, title="t", ended="e")
         view = sc.build_board_view([tall, short, short], "h")
-        assert [len(r["panels"]) for r in view["rows"]] == [3]
-        assert view["rows"][0]["height"] == sc.panel_height(tall)
-        assert (
-            view["width"]
-            == 2 * sc.BOARD_PAD + 3 * sc.PANEL_W + 2 * sc.PANEL_GAP + 2 * sc.BORDER
-        )
+        assert [len(r["panels"]) for r in view["rows"]] == [1, 1, 1]
+        assert view["width"] == 2 * sc.BOARD_PAD + sc.PANEL_W + 2 * sc.BORDER
         assert view["height"] == (
             2 * sc.BOARD_PAD
             + 2 * sc.BORDER
             + sc.HEAD_H
             + sc.HEAD_GAP
             + sc.panel_height(tall)
+            + 2 * sc.panel_height(short)
+            + 2 * sc.PANEL_GAP
         )
 
-    def test_chunks_of_six(self):
-        assert [len(c) for c in sc.chunks(range(13))] == [6, 6, 1]
+    def test_chunks_of_four(self):
+        assert [len(c) for c in sc.chunks(range(9))] == [4, 4, 1]
 
     def test_needs_a_panel(self):
         with pytest.raises(ValueError):

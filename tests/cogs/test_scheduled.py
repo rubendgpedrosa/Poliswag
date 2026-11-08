@@ -925,7 +925,7 @@ class TestEndedBoard:
         [embed] = call.kwargs["embeds"]
         assert embed.description == SUMMARY.headline
 
-    async def test_more_than_six_events_take_two_images(self, cog):
+    async def test_more_than_four_events_take_two_images(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
         events = [{**self.EVENT, "name": f"E{i}"} for i in range(8)]
@@ -939,7 +939,7 @@ class TestEndedBoard:
             len(c.args[0])
             for c in cog.poliswag.image_generator.generate_stat_board.await_args_list
         ]
-        assert sizes == [6, 2]
+        assert sizes == [4, 4]
         assert len(channel.send.await_args_list) == 2
 
     def test_heading_comes_from_scrapedduck(self):
