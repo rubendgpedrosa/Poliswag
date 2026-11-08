@@ -191,7 +191,9 @@
     .chips.first { margin-top: 0; }
 
     /* ---- Pokémon tiles: 16 + 64 + 6 + 14 = 100px ---- */
-    .mons { height: 84px; margin-top: 16px; display: flex; }
+    /* Last in the body, after the bonuses: a gallery, not an image in the text. */
+    .mons-label { height: 14px; margin-top: 18px; font-size: 12px; color: #A7B0BE; }
+    .mons { height: 84px; margin-top: 8px; display: flex; }
     .mon { width: 64px; margin-right: 10px; }
     .tile {
         position: relative;
@@ -310,7 +312,15 @@
                 </div>
                 {% endif %}
 
+                {% if p.bonuses %}
+                <div class="bonuses">
+                    {% for bonus in p.bonuses %}<div class="bonus"><span class="gold"></span>{{ bonus }}</div>{% endfor %}
+                    {% if p.bonuses_more %}<div class="bonus muted">+{{ p.bonuses_more }} bónus</div>{% endif %}
+                </div>
+                {% endif %}
+
                 {% if p.pokemon %}
+                <div class="mons-label caps">Pokémon em destaque</div>
                 <div class="mons">
                     {% for mon in p.pokemon %}
                     <div class="mon">
@@ -321,13 +331,6 @@
                     {% if p.pokemon_more %}
                     <div class="mon"><div class="tile more figure">+{{ p.pokemon_more }}</div><div class="mon-name">&nbsp;</div></div>
                     {% endif %}
-                </div>
-                {% endif %}
-
-                {% if p.bonuses %}
-                <div class="bonuses">
-                    {% for bonus in p.bonuses %}<div class="bonus"><span class="gold"></span>{{ bonus }}</div>{% endfor %}
-                    {% if p.bonuses_more %}<div class="bonus muted">+{{ p.bonuses_more }} bónus</div>{% endif %}
                 </div>
                 {% endif %}
 
