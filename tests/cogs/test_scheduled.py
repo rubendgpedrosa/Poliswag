@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled, setup
+from cogs.scheduled import Scheduled, _event_heading, setup
 from modules.event_stats import Summary
 from modules.stat_card import StatCard
 
@@ -76,6 +76,8 @@ def _make_poliswag():
     poliswag.event_manager.event_colors = {"community-day": 0xFFCC00}
     poliswag.event_manager.get_weekly_events = AsyncMock(return_value=[])
     poliswag.event_stats.get_summary = AsyncMock(return_value=None)
+    # No renderer in tests unless one asks: ended events use the text cards.
+    poliswag.image_generator.generate_stat_board = AsyncMock(return_value=None)
     poliswag.quest_search.load_translation_data = MagicMock()
     poliswag.quest_search.load_masterfile_data = MagicMock(return_value=False)
     poliswag.quest_search.generate_pokemon_item_name_map = MagicMock()
@@ -847,55 +849,93 @@ class TestSendEventChangeNotifications:
 # --- _build_event_embed -------------------------------------------------------
 
 
-class TestBuildEndedCard:
+class TestEndedBoard:
     EVENT = {
         "event_type": "raid-battles",
         "name": "Mega Sableye in Mega Raids",
         "end": "2026-11-08 22:00:00",
         "image": "http://img",
+        "extra_data": '{"heading": "Raid Battles"}',
     }
+    CARD = StatCard(kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye")
 
-    async def test_stats_become_an_image_under_a_title_only_embed(self, cog):
-        card = StatCard(
-            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
-        )
-        summary = Summary(SUMMARY.headline, SUMMARY.areas, SUMMARY.note, card)
-        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=b"png")
-        embed, file = await cog._build_ended_card(
-            self.EVENT, summary, "event-stats-1.png"
-        )
-        cog.poliswag.image_generator.generate_stat_card.assert_awaited_once_with(card)
-        assert embed.image.url == "attachment://event-stats-1.png"
-        assert file.filename == "event-stats-1.png"
-        assert not embed.fields and not embed.description
-        assert "Sableye" in embed.title
-
-    async def test_a_failed_render_falls_back_to_the_text_card(self, cog):
-        card = StatCard(
-            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
-        )
-        summary = Summary(SUMMARY.headline, SUMMARY.areas, SUMMARY.note, card)
-        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=None)
-        embed, file = await cog._build_ended_card(self.EVENT, summary, "x.png")
-        assert file is None
-        assert embed.description == SUMMARY.headline
-        assert len(embed.fields) == 2
-
-    async def test_the_images_go_with_their_message(self, cog):
+    async def test_one_image_and_no_embed(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
-        card = StatCard(
-            kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye"
-        )
+        gbl = {**self.EVENT, "name": "Great League", "extra_data": None}
         cog.poliswag.event_stats.get_summary = AsyncMock(
-            return_value=Summary("h", (), "n", card)
+            side_effect=lambda e: (
+                Summary("h", (), "n", self.CARD) if e is self.EVENT else None
+            )
         )
-        cog.poliswag.image_generator.generate_stat_card = AsyncMock(return_value=b"png")
+        cog.poliswag.event_manager.format_end_time = MagicMock(
+            return_value="Terminou às 22:00"
+        )
+        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
+            return_value=b"png"
+        )
+        await cog._send_event_change_notifications(
+            channel, {"ended": [self.EVENT, gbl], "started": []}, acknowledge=True
+        )
+        [call] = channel.send.await_args_list
+        assert call.kwargs["file"].filename == "eventos-terminados.png"
+        assert "embeds" not in call.kwargs and "embed" not in call.kwargs
+        panels, heading, _date = (
+            cog.poliswag.image_generator.generate_stat_board.await_args.args
+        )
+        assert heading == "Eventos que terminaram"
+        stats, plain = panels
+        # The game image and name on every panel; stats where there are some.
+        assert (stats.title, stats.image, stats.hero) == (
+            self.EVENT["name"],
+            "http://img",
+            297,
+        )
+        assert (plain.title, plain.hero, plain.kicker, plain.ended) == (
+            "Great League",
+            None,
+            "Evento",
+            "Terminou às 22:00",
+        )
+        assert cog.poliswag.event_manager.mark_event_notified.await_count == 2
+
+    async def test_a_failed_render_falls_back_to_the_text_cards(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        cog.poliswag.event_stats.get_summary = AsyncMock(
+            return_value=Summary(
+                SUMMARY.headline, SUMMARY.areas, SUMMARY.note, self.CARD
+            )
+        )
+        cog.poliswag.image_generator.generate_stat_board = AsyncMock(return_value=None)
         await cog._send_event_change_notifications(
             channel, {"ended": [self.EVENT], "started": []}
         )
         [call] = channel.send.await_args_list
-        assert [f.filename for f in call.kwargs["files"]] == ["event-stats-1.png"]
+        assert call.args == ("**Eventos que terminaram**",)
+        [embed] = call.kwargs["embeds"]
+        assert embed.description == SUMMARY.headline
+
+    async def test_more_than_six_events_take_two_images(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        events = [{**self.EVENT, "name": f"E{i}"} for i in range(8)]
+        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
+            return_value=b"png"
+        )
+        await cog._send_event_change_notifications(
+            channel, {"ended": events, "started": []}
+        )
+        sizes = [
+            len(c.args[0])
+            for c in cog.poliswag.image_generator.generate_stat_board.await_args_list
+        ]
+        assert sizes == [6, 2]
+        assert len(channel.send.await_args_list) == 2
+
+    def test_heading_comes_from_scrapedduck(self):
+        assert _event_heading(self.EVENT) == "Raid Battles"
+        assert _event_heading({"extra_data": "not json"}) == "Evento"
 
 
 class TestBuildEventEmbed:
