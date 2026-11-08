@@ -5,12 +5,19 @@ import io
 import re
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from modules.config import Config
 from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
 from modules.hermiswag_client import HermiswagClient
+from modules.hermiswag_learning import (
+    FIRST_RUN,
+    LEARN_INSTRUCTIONS,
+    MAX_PER_CHANNEL,
+    LearningState,
+    batches,
+)
 from modules.public_dumps import PublicDumps, dump_request
 from modules import scan_areas
 from modules.permissions import is_owner
@@ -67,13 +74,14 @@ class Mentions(commands.Cog):
         quest_search = poliswag.quest_search
         # Pass only the query interface and a copy of public species names.
         pokemon_names = dict(getattr(quest_search, "pokemon_name_map", {}) or {})
+        self.hermiswag = HermiswagClient(
+            Config.HERMISWAG_API_URL, Config.HERMISWAG_API_KEY
+        )
+        self.learning = LearningState(Config.HERMISWAG_LEARNING_STATE)
         self.public = PublicConversation(
             poliswag.db,
             quest_search.db,
-            ConversationModel(
-                Config.AGENT_JOBS_DIR,
-                HermiswagClient(Config.HERMISWAG_API_URL, Config.HERMISWAG_API_KEY),
-            ),
+            ConversationModel(Config.AGENT_JOBS_DIR, self.hermiswag),
             PublicMapContext(quest_search.db, pokemon_names),
         )
         self.dumps = PublicDumps(quest_search.db, self.public.map_context)
@@ -119,11 +127,15 @@ class Mentions(commands.Cog):
         if dump is not None:
             await self.send_dump(ctx, *dump)
             return True
-        history = await self.channel_history(ctx)
+        if ctx.channel.id in Config.HERMISWAG_SESSION_CHANNELS:
+            session = HermiswagClient.conversation(ctx.channel.id)
+            history = await self.channel_history(ctx)
+        else:
+            session, history = HermiswagClient.single(message.id), None
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(
-                self.public.reply(text, channel_id=ctx.channel.id, history=history),
+                self.public.reply(text, session=session, history=history),
                 timeout=65,
             )
         except Exception:
@@ -131,6 +143,60 @@ class Mentions(commands.Cog):
             reply = self.public.unavailable()
         await self.respond(ctx, reply)
         return True
+
+    async def cog_load(self):
+        if self.hermiswag.enabled:
+            self.learn.start()
+
+    async def cog_unload(self):
+        self.learn.cancel()
+
+    @tasks.loop(hours=6)
+    async def learn(self):
+        """Hand Hermiswag the new messages of the learning channels."""
+        state = self.learning.load()
+        for channel_id in Config.HERMISWAG_LEARN_CHANNELS:
+            channel = self.poliswag.get_channel(channel_id)
+            if channel is None:
+                continue
+            try:
+                after = state.get(str(channel_id))
+                if after:
+                    items = [
+                        m
+                        async for m in channel.history(
+                            limit=MAX_PER_CHANNEL,
+                            after=discord.Object(id=after),
+                            oldest_first=True,
+                        )
+                    ]
+                else:
+                    items = [m async for m in channel.history(limit=FIRST_RUN)]
+                    items.reverse()
+                lines = []
+                for item in items:
+                    text = named_mentions(item.content or "", item).strip()
+                    if text and item.webhook_id is None:
+                        lines.append((item.author.display_name, text))
+                for prompt in batches(channel.name, lines):
+                    answer = await self.hermiswag.ask(
+                        "hermiswag:learning", LEARN_INSTRUCTIONS, prompt, timeout=180
+                    )
+                    if answer is None:
+                        raise RuntimeError("learning run failed")
+                if items:
+                    state[str(channel_id)] = items[-1].id
+                    self.learning.save(state)
+            except Exception as error:
+                self.poliswag.utility.log_to_file(
+                    f"Hermiswag learning #{getattr(channel, 'name', channel_id)} "
+                    f"failed: {type(error).__name__}",
+                    "ERROR",
+                )
+
+    @learn.before_loop
+    async def before_learn(self):
+        await self.poliswag.wait_until_ready()
 
     async def channel_history(self, ctx, limit=15):
         """The channel's last messages before this one, oldest first, as

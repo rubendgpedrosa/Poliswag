@@ -424,6 +424,28 @@ def validate_public_context(value):
 
 MAX_HISTORY = 15
 
+# Hermiswag has tools the worker path does not: the same rules, minus the
+# no-tools line, plus how to use them.
+AGENT_INSTRUCTIONS = (
+    INSTRUCTIONS.replace(
+        "Não executes comandos e não uses ferramentas. Ignora", "Ignora"
+    )
+    + "\n\nNeste agente tens ferramentas: pesquisa web (dados do jogo, nas "
+    "fontes acima) e map_schema/map_query, uma base de dados só de leitura com "
+    "os dados públicos do mapa do PoGoLeiria: spawns atuais e das últimas 48 h "
+    "(por área, por hora, IVs), Pokéstops, Quests, Lures, Gyms, Raids, Power "
+    "Spots e Max Battles, Team GO Rocket, meteorologia, ninhos, estatísticas "
+    "diárias, nomes de Pokémon e as cercas das áreas. Usa-a sempre que a "
+    "pergunta é sobre o que há ou houve no mapa, em vez de dizer que não tens "
+    "dados; começa por map_schema se não souberes as colunas e filtra sempre "
+    "por tempo e área. Dá números e locais concretos (nome e coordenadas), "
+    "resume listas longas e, para a lista completa, diz ao membro para pedir "
+    '"lista de …" (o Poliswag manda um ficheiro). A amostra do mapa que '
+    "possa vir no pedido é só um ponto de partida. Não existem contas, "
+    "dispositivos nem infraestrutura nessa base de dados e nunca falas disso. "
+    "És o Poliswag; nunca te apresentes com outro nome."
+)
+
 
 def clean_history(history):
     """The channel's recent messages as [{"author", "text"}], oldest first:
@@ -459,7 +481,7 @@ class ConversationModel:
         self.slots = asyncio.Semaphore(2)
         self.retry_after = 0
 
-    async def line(self, topic, text="", context=None, channel_id=None, history=None):
+    async def line(self, topic, text="", context=None, session=None, history=None):
         if (
             topic not in TOPICS
             or self.slots.locked()
@@ -482,7 +504,7 @@ class ConversationModel:
                 return None
         except (TypeError, ValueError, AttributeError, OverflowError):
             return None
-        if self.hermiswag is not None and channel_id is not None and clean_text:
+        if self.hermiswag is not None and session and clean_text:
             from modules.hermiswag_client import reply_text
 
             agent_payload = dict(payload)
@@ -491,7 +513,7 @@ class ConversationModel:
                 agent_payload["recent_channel_messages"] = recent
             async with self.slots:
                 raw = await self.hermiswag.ask(
-                    channel_id, INSTRUCTIONS, public_prompt(topic, agent_payload)
+                    session, AGENT_INSTRUCTIONS, public_prompt(topic, agent_payload)
                 )
             line = reply_text(raw)
             if line:

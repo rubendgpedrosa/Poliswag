@@ -131,6 +131,31 @@ class Config:
     # Unset = public tags use the agent worker only.
     HERMISWAG_API_URL = os.environ.get("HERMISWAG_API_URL", "")
     HERMISWAG_API_KEY = os.environ.get("HERMISWAG_API_KEY", "")
+    # Channels where Hermiswag keeps the channel's conversation (convívio,
+    # chat-raids, suporte-tecnico); a tag elsewhere gets a one-off session.
+    HERMISWAG_SESSION_CHANNELS = [
+        int(x)
+        for x in os.environ.get(
+            "HERMISWAG_SESSION_CHANNELS",
+            "329321552241754115,867882807648321567,331442170802339842",
+        ).split(",")
+        if x.strip().isdigit()
+    ]
+    # Channels Hermiswag learns from: the Informação category plus the three
+    # conversation channels. Never moderation or the alert channels.
+    HERMISWAG_LEARN_CHANNELS = [
+        int(x)
+        for x in os.environ.get(
+            "HERMISWAG_LEARN_CHANNELS",
+            "331439180288622603,378108892816867329,684179755259527253,"
+            "643508455159627776,573239192750915594,530056668894199839,"
+            "329321552241754115,867882807648321567,331442170802339842",
+        ).split(",")
+        if x.strip().isdigit()
+    ]
+    HERMISWAG_LEARNING_STATE = os.environ.get(
+        "HERMISWAG_LEARNING_STATE", "logs/hermiswag-learning.json"
+    )
     # claude-bridge in CT 109 (owner DMs prefixed `c `); empty key disables calls.
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
     CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
