@@ -87,3 +87,27 @@ def test_learning_batches_cut_by_size_and_keep_the_channel_name(tmp_path):
     assert state.load() == {}
     state.save({"1": 5})
     assert state.load() == {"1": 5}
+
+
+def test_learning_skips_its_own_replies_in_conversations_only():
+    from types import SimpleNamespace as N
+
+    from modules.hermiswag_learning import learnable
+
+    me = N(id=1)
+    own = N(webhook_id=None, author=N(id=1, bot=True))
+    member = N(webhook_id=None, author=N(id=2, bot=False))
+    other_bot = N(webhook_id=None, author=N(id=3, bot=True))
+    hook = N(webhook_id=9, author=N(id=2, bot=False))
+    assert [learnable(m, me, True) for m in (own, member, other_bot, hook)] == [
+        False,
+        True,
+        False,
+        False,
+    ]
+    assert [learnable(m, me, False) for m in (own, member, other_bot, hook)] == [
+        True,
+        True,
+        False,
+        False,
+    ]

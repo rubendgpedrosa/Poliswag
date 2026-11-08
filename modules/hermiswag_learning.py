@@ -57,3 +57,17 @@ def batches(channel_name, messages, limit=MAX_CHARS):
     if current != header:
         out.append(current)
     return out
+
+
+def learnable(message, own_user, conversation):
+    """Whether a message teaches Hermiswag anything. Webhooks never; in the
+    conversation channels only members (its own replies would teach it its
+    own mistakes, other bots are noise); in the information channels the
+    announcements Poliswag posts for the moderators count too."""
+    if getattr(message, "webhook_id", None) is not None:
+        return False
+    author = message.author
+    own = own_user is not None and author.id == own_user.id
+    if conversation:
+        return not author.bot
+    return own or not author.bot
