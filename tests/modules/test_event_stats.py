@@ -3,11 +3,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from modules.config import Config
 from modules.event_stats import EventStats
 
 
 @pytest.fixture
-def event_stats():
+def event_stats(monkeypatch):
+    # Shiny detection on unless a test turns it off (production has it off).
+    monkeypatch.setattr(Config, "SHINY_ALERTS_ENABLED", True)
     poliswag = MagicMock()
     poliswag.quest_search.db = AsyncMock()
     poliswag.quest_search.pokemon_name_map = {"1": "nickit", "889": "zamazenta"}
@@ -171,6 +174,24 @@ class TestSpeciesSummary:
             in result.headline
         )
         assert result.note.endswith("Shiny: scanner global, totais diários.")
+
+    async def test_no_shiny_numbers_while_shiny_detection_is_off(
+        self, event_stats, monkeypatch
+    ):
+        monkeypatch.setattr(Config, "SHINY_ALERTS_ENABLED", False)
+        event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(
+            side_effect=[[{"area": "Leiria", "total": 500}], [], [], []]
+        )
+        result = await event_stats.get_summary(
+            _event("community-day", "Nickit Community Day")
+        )
+        assert "shiny" not in result.text.lower()
+        assert [label for label, _value in result.card.chips] == ["100IV", "0IV"]
+        assert "shiny" not in result.card.note
+        # Spawns, 100IV, 0IV and the day before: the shiny table isn't read.
+        assert (
+            event_stats.poliswag.quest_search.db.get_data_from_database.await_count == 4
+        )
 
     async def test_spotlight_hour_summary(self, event_stats):
         event_stats.poliswag.quest_search.db.get_data_from_database = AsyncMock(

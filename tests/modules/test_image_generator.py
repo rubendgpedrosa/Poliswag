@@ -437,3 +437,35 @@ class TestRenderPngLeavesNothingBehind:
         mocker.patch("modules.image_generator.imgkit.from_file", return_value=b"PNG")
         await ig._render_png("<html>x</html>", {"format": "png"}, "test image")
         from_string.assert_not_called()
+
+
+class TestDataUri:
+    """Banners and Pokémon icons are inlined for the stat board."""
+
+    @staticmethod
+    def _decode(uri):
+        import base64
+
+        return Image.open(BytesIO(base64.b64decode(uri.split(",", 1)[1])))
+
+    def test_a_small_sprite_is_cropped_and_scaled_up_to_its_square(self):
+        from modules.image_generator import _data_uri
+
+        icon = Image.new("RGBA", (40, 40), (255, 255, 255, 0))  # coloured but clear
+        icon.paste((200, 30, 30, 255), (15, 10, 25, 30))  # a 10x20 sprite
+        out = BytesIO()
+        icon.save(out, "PNG")
+        image = self._decode(_data_uri(out.getvalue(), square=100))
+        assert image.size == (100, 100)
+        # Height-bound: 20px tall becomes 100, so 10px wide becomes 50.
+        box = image.getchannel("A").getbbox()
+        assert (box[3] - box[1], box[2] - box[0]) == (100, 50)
+
+    def test_a_banner_becomes_a_scaled_jpeg(self):
+        from modules.image_generator import _data_uri
+
+        out = BytesIO()
+        Image.new("RGB", (2000, 1000), (10, 20, 30)).save(out, "JPEG")
+        uri = _data_uri(out.getvalue(), width=1040)
+        assert uri.startswith("data:image/jpeg;base64,")
+        assert self._decode(uri).size == (1040, 520)

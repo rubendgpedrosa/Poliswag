@@ -11,9 +11,14 @@ Production repair converted 10 current/upcoming rows in place, preserving notifi
 
 Species-focused ended-event summaries (Community Day and Spotlight Hour) also read Golbat's `pokemon_shiny_stats` table. They show scanner-wide shiny and encounter totals for the complete calendar day(s), not an exact event-hour count: the table has daily rows and no event-window timestamps. The summary labels this provenance and keeps the existing outside-event-hours caveat; raid summaries do not claim shiny counts because no equivalent raid-period shiny aggregate is available.
 
-### Ended-event image (2026-11-08)
+### Event images (2026-11-08)
 
-"Eventos que terminaram" is one PNG per post (up to six events per image), with no embed. `modules/stat_card.py` builds a board: the PoGoLeiria wordmark and brand art (`templates/brand-header-400.png`, from the site's `brand-header-400.webp`), then a panel per event with its ScrapedDuck game image as the banner, its name, and either its stats (`StatCard` from `EventStats`: hero figure, badge, optional chips, an ember bar per scan area) or when it ended. Panels sit side by side (1, 2, 3, then 2x2 or 3 wide) so the image stays landscape in Discord. `ImageGenerator.generate_stat_board` inlines the banners as data URIs and renders `templates/stat-card.html` at 2x with wkhtmltoimage. Colours are the site's tokens (`packages/ui/src/tokens.css`): ember is the main colour, never blue. If any image fails to render, the whole post goes out as the old text embeds. Any other stats post can reuse the board by filling `StatCard`s.
+"Novos eventos" and "Eventos que terminaram" are each one PNG per post (up to six events per image), with no embed. `modules/stat_card.py` builds a board: the PoGoLeiria wordmark and brand art (`templates/brand-header-400.png`, from the site's `brand-header-400.webp`), then a panel per event with its ScrapedDuck game image as the banner and its name. Panels sit side by side (1, 2, 3, then 2x2 or 3 wide) so the image stays landscape in Discord.
+
+- **New events** (`Scheduled._started_panel`): when it runs (`Horário 14:00 – 17:00` for one day, `Até Ter 01/12 · 22:00` otherwise) and for how long, then from ScrapedDuck's extraData the raid bosses, Community Day spawns or Spotlight Pokémon as tiles (gold dot: can be shiny in the game) and the bonuses (five, then "+N bónus").
+- **Ended events** (`Scheduled._ended_panel`): the `StatCard` from `EventStats` (hero figure, badge, 100IV/0IV chips, an ember bar per scan area), or when it ended for types without stats. Shiny counts appear only while `SHINY_ALERTS_ENABLED` is on: with shiny detection off the scanner sees none.
+
+`ImageGenerator.generate_stat_board` inlines banners and icons as data URIs (icons cropped on alpha and scaled to a fixed square, so small sources fill their tile) and renders `templates/stat-card.html` at 2x with wkhtmltoimage. Colours are the site's tokens (`packages/ui/src/tokens.css`): ember is the main colour, never blue; gold marks rewards (bonuses, shinies). If any image of a post fails to render, the whole post goes out as the old text embeds. Any other post can reuse the board by filling `StatCard`s.
 
 ### Weekly and error digests: post-send acknowledgment
 

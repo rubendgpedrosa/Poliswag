@@ -19,9 +19,10 @@ from pathlib import Path
 import pymysql
 
 ENV = Path.home() / ".hermes" / "mapdb.env"
-# Community knowledge distilled from the server's own channels (no personal
-# data); refreshed by the owner's tooling, read-only here.
-KNOWLEDGE = Path.home() / "knowledge" / "community.md"
+# Knowledge files, read-only here: community.md (distilled from the server's
+# own channels, no personal data) and poliswag.md (the bot's commands and the
+# site, written by the owner's tooling). Every "## " heading is one section.
+KNOWLEDGE = Path.home() / "knowledge"
 MAX_ROWS = 500
 MAX_CELL = 400
 _READ = re.compile(r"^\s*(select|with|show|describe|desc|explain)\b", re.I)
@@ -120,12 +121,16 @@ def schema():
 
 
 def _sections():
-    try:
-        text = KNOWLEDGE.read_text()
-    except OSError:
-        return []
-    parts = re.split(r"(?m)^## ", text)
-    return [("## " + part).strip() for part in parts if part.strip()]
+    out = []
+    for path in sorted(KNOWLEDGE.glob("*.md")):
+        try:
+            text = path.read_text()
+        except OSError:
+            continue
+        for part in re.split(r"(?m)^## ", text):
+            if part.strip() and not part.lstrip().startswith("#"):
+                out.append(("## " + part).strip())
+    return out
 
 
 def knowledge(topic=""):

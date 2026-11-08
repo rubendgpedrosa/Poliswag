@@ -23,6 +23,8 @@ STAT_CARD_TEMPLATE = "stat-card.html"
 BRAND_ART = "brand-header-400.png"
 # Banner images are scaled to twice the panel width (the 2x render).
 _BANNER_WIDTH = stat_card.PANEL_W * stat_card.RENDER_SCALE
+# The sprite area inside a tile (50px in the template), at the 2x render.
+_ICON_SIZE = 50 * stat_card.RENDER_SCALE
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
@@ -45,15 +47,42 @@ def _recompress_png(data):
         return data
 
 
-def _banner_data_uri(data):
+def _data_uri(data, width=None, square=None):
+    """Banners become JPEG; icons keep their transparency as PNG. `square`:
+    fit the sprite, up or down, into a transparent square of that size, so
+    a small source icon fills its tile like a large one."""
     with Image.open(io.BytesIO(data)) as image:
-        image = image.convert("RGB")
-        if image.width > _BANNER_WIDTH:
-            height = round(image.height * _BANNER_WIDTH / image.width)
-            image = image.resize((_BANNER_WIDTH, height), Image.LANCZOS)
+        alpha = image.mode in ("RGBA", "LA", "P")
+        image = image.convert("RGBA" if alpha else "RGB")
+        if alpha:
+            # ScrapedDuck's icons sit small in a wide transparent margin:
+            # crop to the sprite so it fills its tile.
+            # On alpha alone (faint pixels ignored): transparent pixels
+            # often still carry colour, which getbbox() would count.
+            box = image.getchannel("A").point(lambda a: 255 if a > 16 else 0).getbbox()
+            if box:
+                image = image.crop(box)
+        if square:
+            scale = square / max(image.width, image.height)
+            size = (
+                max(1, round(image.width * scale)),
+                max(1, round(image.height * scale)),
+            )
+            sprite = image.resize(size, Image.LANCZOS)
+            image = Image.new("RGBA", (square, square), (0, 0, 0, 0))
+            image.paste(sprite, ((square - size[0]) // 2, (square - size[1]) // 2))
+            alpha = True
+        if width and image.width > width:
+            height = round(image.height * width / image.width)
+            image = image.resize((width, height), Image.LANCZOS)
         out = io.BytesIO()
-        image.save(out, "JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode()
+        if alpha:
+            image.save(out, "PNG", optimize=True)
+            kind = "png"
+        else:
+            image.save(out, "JPEG", quality=85)
+            kind = "jpeg"
+    return f"data:image/{kind};base64," + base64.b64encode(out.getvalue()).decode()
 
 
 class ImageGenerator:
@@ -126,8 +155,8 @@ class ImageGenerator:
             return png
         return await asyncio.to_thread(_recompress_png, png)
 
-    async def _banner(self, url):
-        """The event's game image as a data: URI, scaled to the banner, or "".
+    async def _inline(self, url, width=None, square=None):
+        """An image as a data: URI (scaled down to `width` if given), or "".
 
         Inlined rather than left for wkhtmltoimage to fetch: a slow CDN then
         can't leave a blank banner, and the PNG doesn't depend on its timing.
@@ -140,12 +169,25 @@ class ImageGenerator:
             ) as response:
                 response.raise_for_status()
                 data = await response.read()
-            return await asyncio.to_thread(_banner_data_uri, data)
+            return await asyncio.to_thread(_data_uri, data, width, square)
         except Exception as error:
             self.poliswag.utility.log_to_file(
-                f"Stat board banner {url} unavailable: {error}", "WARNING"
+                f"Stat board image {url} unavailable: {error}", "WARNING"
             )
             return ""
+
+    async def _inline_card(self, card):
+        """The card with its banner and Pokémon icons inlined."""
+        icons = [image for _name, image, _shiny in card.pokemon]
+        banner, *inlined = await asyncio.gather(
+            self._inline(card.image, _BANNER_WIDTH),
+            *(self._inline(icon, square=_ICON_SIZE) for icon in icons),
+        )
+        pokemon = tuple(
+            (name, icon, shiny)
+            for (name, _image, shiny), icon in zip(card.pokemon, inlined)
+        )
+        return dataclasses.replace(card, image=banner, pokemon=pokemon)
 
     def _brand(self):
         if self._brand_uri is None:
@@ -163,11 +205,7 @@ class ImageGenerator:
         """PNG bytes of one stat board (modules.stat_card), or None."""
         if self._stat_card_template is None:
             self._stat_card_template = self._get_env().get_template(STAT_CARD_TEMPLATE)
-        banners = await asyncio.gather(*(self._banner(card.image) for card in cards))
-        cards = [
-            dataclasses.replace(card, image=banner)
-            for card, banner in zip(cards, banners)
-        ]
+        cards = await asyncio.gather(*(self._inline_card(card) for card in cards))
         view = stat_card.build_board_view(cards, heading, date, self._brand())
         html_content = self._stat_card_template.render(**view)
         # Same sizing as the account card: CSS at the token sizes, CSS zoom

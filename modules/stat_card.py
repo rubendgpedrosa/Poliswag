@@ -4,8 +4,9 @@ One image holds a post's panels, side by side so it stays landscape (Discord
 shrinks a tall image until nothing in it reads). Each panel is a StatCard:
 the event's own game image as a banner with its name on it, then the figure
 it was about, an optional row of secondary totals, and a bar per scan area.
-A panel without numbers (an event with no stats source) is the banner and a
-line saying when it ended.
+A panel without numbers is the banner and a line saying when it ended; a
+new event's panel is the banner, when it runs until, its Pokémon and its
+bonuses.
 
 The renderer is wkhtmltoimage's old WebKit (no grid, no gap, unreliable
 flex-grow), so bar widths, panel heights and the image size are decided here
@@ -37,15 +38,23 @@ BODY_PAD_X = 24
 CONTENT_W = PANEL_W - 2 * BORDER - 2 * BODY_PAD_X  # 470
 HERO_H = 56
 CHIPS_H = 58  # 12 margin + 14 label + 4 + 28 value
+CHIPS_MARGIN = 12  # dropped when the chips open the body
+POKEMON_H = 100  # 16 margin + 64 tile + 6 + 14 name
+POKEMON_TILE = 64
+POKEMON_GAP = 10
+POKEMON_SHOWN = 6  # tiles that fit across; the rest are "+N"
+BONUS_MARGIN = 14
+BONUS_LINE = 24
+BONUSES_SHOWN = 5
 DIVIDER_H = 33  # 16 margin + 1 line + 16 margin
 ROW_H = 32
 NOTE_H = 30  # 16 margin + 14 line
 ENDED_H = 24
 
 # Row columns: area name, bar, figure (+ unit), then one per extra.
-ROW_LABEL_W = 140
+ROW_LABEL_W = 120
 ROW_BAR_GAP = 12
-ROW_VALUE_W = 88
+ROW_VALUE_W = 112
 ROW_EXTRA_W = 64
 BAR_MIN = 4
 
@@ -78,6 +87,8 @@ class StatCard:
     title: str = ""  # the event's name, on the banner
     image: str = ""  # the banner: a URL or data: URI; "" for a plain one
     ended: str = ""  # "Terminou às 09:00", for a panel without stats
+    pokemon: tuple = ()  # ((name, icon URL or data: URI, can be shiny), ...)
+    bonuses: tuple = ()  # ("2× Catch Candy", ...)
 
 
 def number(value):
@@ -85,18 +96,28 @@ def number(value):
     return f"{value:,}".replace(",", " ")
 
 
+def _bonus_lines(card):
+    shown = min(len(card.bonuses), BONUSES_SHOWN)
+    return shown + (1 if len(card.bonuses) > BONUSES_SHOWN else 0)
+
+
 def panel_height(card):
     body = BODY_PAD_TOP + BODY_PAD_BOTTOM
-    if card.hero is None:
-        body += ENDED_H
-    else:
+    if card.hero is not None:
         body += HERO_H
-        if card.chips:
-            body += CHIPS_H
+    if card.chips:
+        body += CHIPS_H if card.hero is not None else CHIPS_H - CHIPS_MARGIN
+    if card.pokemon:
+        body += POKEMON_H
+    if card.bonuses:
+        body += BONUS_MARGIN + BONUS_LINE * _bonus_lines(card)
+    if card.hero is not None:
         if card.rows:
             body += DIVIDER_H + ROW_H * len(card.rows)
         if card.note:
             body += NOTE_H
+    if card.ended:
+        body += ENDED_H
     return 2 * BORDER + BANNER_H + body
 
 
@@ -133,6 +154,10 @@ def _panel_view(card):
                 ],
             }
         )
+    # Six tiles fit; with more, five and a "+N" tile in the sixth place.
+    tiles = (
+        len(card.pokemon) if len(card.pokemon) <= POKEMON_SHOWN else POKEMON_SHOWN - 1
+    )
     subject = card.subject
     if subject and subject.lower() in card.title.lower():
         subject = ""  # "Sableye" under "Mega Sableye in Mega Raids"
@@ -153,6 +178,13 @@ def _panel_view(card):
         "rows": rows,
         "note": card.note,
         "ended": card.ended,
+        "pokemon": [
+            {"name": name, "image": image, "shiny": shiny}
+            for name, image, shiny in card.pokemon[:tiles]
+        ],
+        "pokemon_more": len(card.pokemon) - tiles,
+        "bonuses": list(card.bonuses[:BONUSES_SHOWN]),
+        "bonuses_more": max(0, len(card.bonuses) - BONUSES_SHOWN),
     }
 
 
