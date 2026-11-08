@@ -26,8 +26,8 @@ BRAND_ART = "brand-header-400.png"
 _BANNER_WIDTH = stat_card.PANEL_W * stat_card.RENDER_SCALE
 # The sprite area inside a tile (50px in the template), at the 2x render.
 _ICON_SIZE = 50 * stat_card.RENDER_SCALE
-# The week board's widest picture is a 272px card's; 2x for the render.
-_WEEK_IMAGE_WIDTH = week_board.ONGOING_W * stat_card.RENDER_SCALE
+# The week board's pictures are row thumbnails; 2x for the render.
+_WEEK_IMAGE_WIDTH = week_board.THUMB_W * stat_card.RENDER_SCALE
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.

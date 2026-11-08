@@ -8,21 +8,22 @@
 
     {% include "_board-base.css" %}
 
-    /* The weekly calendar, filled from modules/week_board.py, whose
-       constants mirror every height here. Cards are the event board's
-       panels made small: card surface, hairline, `.lit`, the game image. */
+    /* The weekly agenda, filled from modules/week_board.py, whose constants
+       mirror every height here. One narrow column, phone first. Rows are the
+       event board's panels made small: card surface, hairline, `.lit`, the
+       game image. */
 
     .section-label { height: 14px; margin-bottom: 12px; }
     .section-label .more { color: #778190; margin-left: 8px; }
-    .section-gap { height: 24px; }
+    .section-gap { height: 22px; }
+    .day-head { height: 14px; margin-bottom: 12px; }
+    .day-head .date { color: #778190; margin-left: 6px; }
+    .day-head.today { color: #E36654; }
 
-    /* ---- running now: 92px cards, four across ---- */
-    .ongoing-row { display: flex; }
-    .ongoing-row.spaced { margin-bottom: 12px; }
-    .oc {
-        width: 272px;
-        height: 92px;
-        margin-right: 16px;
+    /* ---- one event: 94px ---- */
+    .ev {
+        width: 432px;
+        height: 94px;
         padding: 10px;
         display: flex;
         border-radius: 16px;
@@ -30,18 +31,18 @@
         border: 1px solid #262E3B;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
     }
-    .oc.last { margin-right: 0; }
-    .oc-thumb {
-        width: 112px;
-        height: 70px;
+    .ev.spaced { margin-bottom: 8px; }
+    .thumb {
+        width: 128px;
+        height: 72px;
         border-radius: 12px;
         background-color: #161E2A;
         background-position: center center;
         -webkit-background-size: cover;
         background-size: cover;
     }
-    .thumb-plain { background-image: -webkit-gradient(linear, left top, right bottom, color-stop(0, #68120F), color-stop(1, #161E2A)); }
-    .oc-text { width: 126px; margin-left: 12px; }
+    .thumb.plain { background-image: -webkit-gradient(linear, left top, right bottom, color-stop(0, #68120F), color-stop(1, #161E2A)); }
+    .ev-text { width: 270px; margin-left: 12px; }
     .kicker {
         height: 14px;
         font-size: 10px;
@@ -53,51 +54,16 @@
         overflow: hidden;
     }
     .kicker .ember { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #E36654; margin-right: 6px; vertical-align: 1px; }
-    .oc-name {
-        height: 36px;
+    .ev-name {
+        height: 40px;
         overflow: hidden;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: 800;
-        line-height: 18px;
+        line-height: 20px;
         color: #F1F5FC;
     }
-    .oc-until { height: 18px; line-height: 18px; font-size: 11px; font-weight: 700; color: #A7B0BE; white-space: nowrap; }
-
-    /* ---- the week: seven 152px columns ---- */
-    .days { display: flex; align-items: flex-start; }
-    .day { width: 152px; margin-right: 12px; }
-    .day.last { margin-right: 0; }
-    .day-head { height: 44px; }
-    .day-name { height: 14px; }
-    .day.today .day-name { color: #E36654; }
-    .day-date { height: 22px; margin-top: 2px; font-size: 19px; line-height: 22px; color: #F1F5FC; }
-    .mini {
-        height: 174px;
-        overflow: hidden;
-        border-radius: 16px;
-        background: #0C131D;
-        border: 1px solid #262E3B;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
-    }
-    .mini.spaced { margin-bottom: 10px; }
-    .mini-banner {
-        height: 72px;
-        background-color: #161E2A;
-        background-position: center center;
-        -webkit-background-size: cover;
-        background-size: cover;
-    }
-    .mini-body { padding: 10px 12px; }
-    .mini-time { height: 18px; font-size: 15px; line-height: 18px; color: #F1F5FC; white-space: nowrap; overflow: hidden; }
-    .mini-name {
-        height: 48px;
-        overflow: hidden;
-        font-size: 13px;
-        font-weight: 700;
-        line-height: 16px;
-        color: #D3DAE4;
-    }
-    .empty { height: 24px; line-height: 24px; font-size: 13px; font-weight: 700; color: #434E5E; }
+    .ev-when { height: 18px; line-height: 18px; font-size: 13px; font-weight: 700; color: #A7B0BE; white-space: nowrap; overflow: hidden; }
+    .ev-when.time { color: #F1F5FC; }
 </style>
 </head>
 <body>
@@ -108,50 +74,28 @@
         <div class="page-meta">PoGoLeiria · {{ date }}</div>
     </div>
 
+    {% macro event_row(e, spaced, is_time) %}
+    <div class="ev{% if spaced %} spaced{% endif %}">
+        <div class="thumb{% if not e.image %} plain{% endif %}"{% if e.image %} style="background-image: url('{{ e.image }}')"{% endif %}></div>
+        <div class="ev-text">
+            <div class="kicker"><span class="ember"></span>{{ e.kicker }}</div>
+            <div class="ev-name">{{ e.title }}</div>
+            <div class="ev-when{% if is_time %} time figure{% endif %}">{{ e.when }}</div>
+        </div>
+    </div>
+    {% endmacro %}
+
     {% if ongoing %}
     <div class="section-label caps">A decorrer{% if ongoing_more %}<span class="more">+{{ ongoing_more }}</span>{% endif %}</div>
-    {% for row in ongoing_rows %}
-    <div class="ongoing-row{% if not loop.last %} spaced{% endif %}">
-        {% for i in row %}{% set e = ongoing[i] %}
-        <div class="oc{% if loop.last %} last{% endif %}">
-            <div class="oc-thumb{% if not e.image %} thumb-plain{% endif %}"{% if e.image %} style="background-image: url('{{ e.image }}')"{% endif %}></div>
-            <div class="oc-text">
-                <div class="kicker"><span class="ember"></span>{{ e.kicker }}</div>
-                <div class="oc-name">{{ e.title }}</div>
-                <div class="oc-until">{{ e.until }}</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endfor %}
+    {% for e in ongoing %}{{ event_row(e, not loop.last, false) }}{% endfor %}
     {% if days %}<div class="section-gap"></div>{% endif %}
     {% endif %}
 
-    {% if days %}
-    <div class="section-label caps">Esta semana</div>
-    <div class="days">
-        {% for day in days %}
-        <div class="day{% if day.today %} today{% endif %}{% if loop.last %} last{% endif %}">
-            <div class="day-head">
-                <div class="day-name caps">{{ day.name }}</div>
-                <div class="day-date figure">{{ day.date }}</div>
-            </div>
-            {% for e in day.events %}
-            <div class="mini{% if not loop.last %} spaced{% endif %}">
-                <div class="mini-banner{% if not e.image %} thumb-plain{% endif %}"{% if e.image %} style="background-image: url('{{ e.image }}')"{% endif %}></div>
-                <div class="mini-body">
-                    <div class="kicker"><span class="ember"></span>{{ e.kicker }}</div>
-                    <div class="mini-time figure">{{ e.hours }}</div>
-                    <div class="mini-name">{{ e.title }}</div>
-                </div>
-            </div>
-            {% else %}
-            <div class="empty">Sem eventos</div>
-            {% endfor %}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+    {% for day in days %}
+    <div class="day-head caps{% if day.today %} today{% endif %}">{{ day.name }}<span class="date">· {{ day.date }}</span></div>
+    {% for e in day.events %}{{ event_row(e, not loop.last, true) }}{% endfor %}
+    {% if not loop.last %}<div class="section-gap"></div>{% endif %}
+    {% endfor %}
 </div>
 </body>
 </html>
