@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/root/Poliswag
 Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+# .env is inaccessible below; config.py imports through scan_areas must not
+# try to read it (python-dotenv would raise PermissionError on open).
+Environment=PYTHON_DOTENV_DISABLED=1
 EnvironmentFile=/etc/poliswag-agent.conf
 ExecStart=/usr/bin/python3 /root/Poliswag/scripts/agent_worker.py --owner-id ${POLISWAG_AGENT_OWNER_ID}
 Restart=on-failure
