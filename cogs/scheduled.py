@@ -19,6 +19,7 @@ from modules import scan_areas
 from modules.event_images import usable_image
 from modules import stat_card
 from modules.stat_card import StatCard
+from modules.week_board import WeekEvent
 from modules.hundo_alerts import HundoAlerts
 from modules.shiny_alerts import ShinyAlerts
 from modules.shiny_odds import ShinyOdds
@@ -79,6 +80,25 @@ def _duration(span):
     if not hours:
         return f"{rest} min"
     return f"{hours} h {rest} min" if rest else f"{hours} h"
+
+
+# The weekly query has no ScrapedDuck heading; these read like one.
+_TYPE_LABELS = {
+    "pokemon-spotlight-hour": "Spotlight Hour",
+    "pokemon-go-tour": "Pokémon GO Tour",
+    "go-pass": "GO Pass",
+    "event": "Evento",
+    "season": "Temporada",
+    "research": "Pesquisa",
+}
+
+
+def _type_label(event_type):
+    """'raid-hour' -> 'Raid Hour'; a few read better spelled out."""
+    key = (event_type or "").lower()
+    if key in _TYPE_LABELS:
+        return _TYPE_LABELS[key]
+    return key.replace("-", " ").title().replace("Go ", "GO ") or "Evento"
 
 
 def _event_heading(event):
@@ -785,11 +805,13 @@ class Scheduled(commands.Cog):
 
         ongoing = []
         upcoming_by_day = {}
+        week_events = []
 
         for event in events:
             event_type = event["event_type"].lower()
             if "battle" in event_type or "league" in event_type:
                 continue
+            week_events.append(event)
 
             event_start = datetime.datetime.strptime(
                 str(event["start"]), "%Y-%m-%d %H:%M:%S"
@@ -858,6 +880,31 @@ class Scheduled(commands.Cog):
                 )
                 return False
 
+        board = await self.poliswag.image_generator.generate_week_board(
+            [
+                WeekEvent(
+                    title=event["name"],
+                    kicker=_type_label(event["event_type"]),
+                    image=event.get("image") or "",
+                    start=datetime.datetime.strptime(
+                        str(event["start"]), "%Y-%m-%d %H:%M:%S"
+                    ),
+                    end=datetime.datetime.strptime(
+                        str(event["end"]), "%Y-%m-%d %H:%M:%S"
+                    ),
+                )
+                for event in week_events
+            ],
+            now,
+        )
+        if board:
+            await target.send(
+                file=discord.File(io.BytesIO(board), filename="eventos-da-semana.png"),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return True
+
+        # The image didn't render: the text calendar, as before.
         title = f"Eventos da semana · {date_range}"
         footer = f"Atualizado a {now.strftime('%d/%m/%Y %H:%M')}"
         chunks = _split_weekly_description("\n\n".join(blocks))
