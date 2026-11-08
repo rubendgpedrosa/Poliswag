@@ -123,3 +123,48 @@ class TestBoard:
             % (sc.BODY_PAD_TOP, sc.BODY_PAD_X, sc.BODY_PAD_BOTTOM, sc.BODY_PAD_X)
             in css
         )
+
+
+class TestStartPanel:
+    def _start(self, **kw):
+        return sc.StatCard(
+            **{
+                "kicker": "Community Day",
+                "hero": None,
+                "title": "Pawniard Community Day",
+                "chips": (("Horário", "14:00 – 17:00"), ("Duração", "3 h")),
+                **kw,
+            }
+        )
+
+    def test_height_counts_chips_pokemon_and_bonuses(self):
+        base = sc.panel_height(self._start())
+        # Opening the body, the chips drop their top margin.
+        assert base == (
+            2 * sc.BORDER
+            + sc.BANNER_H
+            + sc.BODY_PAD_TOP
+            + sc.CHIPS_H
+            - sc.CHIPS_MARGIN
+            + sc.BODY_PAD_BOTTOM
+        )
+        mons = (("Pawniard", "", True),)
+        assert sc.panel_height(self._start(pokemon=mons)) == base + sc.POKEMON_H
+        bonuses = tuple(f"b{i}" for i in range(7))
+        # Five lines and a "+2 bónus" line.
+        assert sc.panel_height(self._start(bonuses=bonuses)) == (
+            base + sc.BONUS_MARGIN + 6 * sc.BONUS_LINE
+        )
+
+    def test_more_than_six_pokemon_show_five_and_a_count(self):
+        mons = tuple((f"P{i}", "", False) for i in range(9))
+        panel = _panel(self._start(pokemon=mons))
+        assert [mon["name"] for mon in panel["pokemon"]] == [
+            "P0",
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+        ]
+        assert panel["pokemon_more"] == 4
+        assert _panel(self._start(pokemon=mons[:6]))["pokemon_more"] == 0

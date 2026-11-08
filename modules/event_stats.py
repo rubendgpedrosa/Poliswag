@@ -3,6 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 
+from modules.config import Config
 from modules.logging_mixin import LoggingMixin
 from modules import scan_areas
 from modules.stat_card import StatCard, StatRow
@@ -434,7 +435,13 @@ class EventStats(LoggingMixin):
             return None
         hundos = await self._by_area("pokemon_hundo_stats", ids, start_date, end_date)
         nundos = await self._by_area("pokemon_nundo_stats", ids, start_date, end_date)
-        shiny = await self._shiny_stats(ids, start_date, end_date)
+        # Shiny counts only while shiny detection is on: with it off the
+        # scanner sees no shinies, and a 0 would read as bad luck.
+        shiny = (
+            await self._shiny_stats(ids, start_date, end_date)
+            if Config.SHINY_ALERTS_ENABLED
+            else None
+        )
         day_before = self._day_before(start_date)
         before = await self._by_area("pokemon_stats", ids, day_before, day_before)
 

@@ -13,12 +13,13 @@ many private helpers. The strategy:
 """
 
 import datetime as real_datetime
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled, _event_heading, setup
+from cogs.scheduled import Scheduled, _duration, _event_extras, _event_heading, setup
 from modules.event_stats import Summary
 from modules.stat_card import StatCard
 
@@ -936,6 +937,100 @@ class TestEndedBoard:
     def test_heading_comes_from_scrapedduck(self):
         assert _event_heading(self.EVENT) == "Raid Battles"
         assert _event_heading({"extra_data": "not json"}) == "Evento"
+
+
+class TestStartedBoard:
+    CD = {
+        "event_type": "community-day",
+        "name": "Pawniard Community Day",
+        "start": "2026-11-15 14:00:00",
+        "end": "2026-11-15 17:00:00",
+        "image": "http://cd.jpg",
+        "extra_data": json.dumps(
+            {
+                "heading": "Community Day",
+                "extraData": {
+                    "communityday": {
+                        "spawns": [{"name": "Pawniard", "image": "http://624.png"}],
+                        "shinies": [{"name": "Pawniard", "image": "http://624s.png"}],
+                        "bonuses": [{"text": "3-hour Incense"}, {"text": ""}],
+                    }
+                },
+            }
+        ),
+    }
+    RAIDS = {
+        "event_type": "raid-battles",
+        "name": "Mega Metagross in Mega Raids",
+        "start": "2026-11-24 10:00:00",
+        "end": "2026-12-01 22:00:00",
+        "image": None,
+        "extra_data": json.dumps(
+            {
+                "heading": "Raid Battles",
+                "extraData": {
+                    "raidbattles": {
+                        "bosses": [
+                            {
+                                "name": "Mega Metagross",
+                                "image": "http://m.png",
+                                "canBeShiny": True,
+                            }
+                        ]
+                    }
+                },
+            }
+        ),
+    }
+
+    async def test_a_one_day_event_shows_its_hours(self, cog):
+        panel = await cog._started_panel(self.CD)
+        assert panel.hero is None and panel.kicker == "Community Day"
+        assert panel.chips == (("Horário", "14:00 – 17:00"), ("Duração", "3 h"))
+        assert panel.pokemon == (("Pawniard", "http://624.png", True),)
+        assert panel.bonuses == ("3-hour Incense",)
+        assert panel.image == "http://cd.jpg"
+
+    async def test_a_longer_event_shows_until_when(self, cog):
+        panel = await cog._started_panel(self.RAIDS)
+        assert panel.chips == (("Até", "Ter 01/12 · 22:00"), ("Duração", "8 dias"))
+        assert panel.pokemon == (("Mega Metagross", "http://m.png", True),)
+        assert panel.image == ""
+
+    async def test_new_events_are_one_image(self, cog):
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
+            return_value=b"png"
+        )
+        await cog._send_event_change_notifications(
+            channel, {"ended": [], "started": [self.CD, self.RAIDS]}, acknowledge=True
+        )
+        [call] = channel.send.await_args_list
+        assert call.kwargs["file"].filename == "novos-eventos.png"
+        assert "embeds" not in call.kwargs
+        _panels, heading, _date = (
+            cog.poliswag.image_generator.generate_stat_board.await_args.args
+        )
+        assert heading == "Novos eventos"
+        acked = cog.poliswag.event_manager.mark_event_notified.await_args_list
+        assert [c.kwargs["is_end"] for c in acked] == [False, False]
+
+    @pytest.mark.parametrize(
+        "minutes,text",
+        [
+            (60, "1 h"),
+            (210, "3 h 30 min"),
+            (45, "45 min"),
+            (24 * 60, "1 dia"),
+            (7 * 24 * 60, "7 dias"),
+        ],
+    )
+    def test_duration(self, minutes, text):
+        assert _duration(real_datetime.timedelta(minutes=minutes)) == text
+
+    def test_extras_without_scrapedduck_data(self):
+        assert _event_extras({"extra_data": None}) == ((), ())
 
 
 class TestBuildEventEmbed:
