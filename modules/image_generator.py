@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import contextlib
+import dataclasses
 import io
 import os
 import tempfile
@@ -17,6 +19,10 @@ from modules import scan_areas
 from modules.quest_map import draw_quest_map, fit_quest_map
 
 STAT_CARD_TEMPLATE = "stat-card.html"
+# The site's brand artwork (apps/landing/public/brand-header-400.webp), as PNG.
+BRAND_ART = "brand-header-400.png"
+# Banner images are scaled to twice the panel width (the 2x render).
+_BANNER_WIDTH = stat_card.PANEL_W * stat_card.RENDER_SCALE
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
@@ -39,6 +45,17 @@ def _recompress_png(data):
         return data
 
 
+def _banner_data_uri(data):
+    with Image.open(io.BytesIO(data)) as image:
+        image = image.convert("RGB")
+        if image.width > _BANNER_WIDTH:
+            height = round(image.height * _BANNER_WIDTH / image.width)
+            image = image.resize((_BANNER_WIDTH, height), Image.LANCZOS)
+        out = io.BytesIO()
+        image.save(out, "JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode()
+
+
 class ImageGenerator:
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -52,6 +69,7 @@ class ImageGenerator:
         self._env = None
         self._accounts_template = None
         self._stat_card_template = None
+        self._brand_uri = None
 
     def _get_env(self):
         if self._env is None:
@@ -108,11 +126,49 @@ class ImageGenerator:
             return png
         return await asyncio.to_thread(_recompress_png, png)
 
-    async def generate_stat_card(self, card):
-        """PNG bytes of a stat card (modules.stat_card.StatCard), or None."""
+    async def _banner(self, url):
+        """The event's game image as a data: URI, scaled to the banner, or "".
+
+        Inlined rather than left for wkhtmltoimage to fetch: a slow CDN then
+        can't leave a blank banner, and the PNG doesn't depend on its timing.
+        """
+        if not url or not url.startswith("http"):
+            return ""
+        try:
+            async with get_session().get(
+                url, timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                response.raise_for_status()
+                data = await response.read()
+            return await asyncio.to_thread(_banner_data_uri, data)
+        except Exception as error:
+            self.poliswag.utility.log_to_file(
+                f"Stat board banner {url} unavailable: {error}", "WARNING"
+            )
+            return ""
+
+    def _brand(self):
+        if self._brand_uri is None:
+            path = os.path.join(self.TEMPLATE_HTML_DIR or "", BRAND_ART)
+            try:
+                with open(path, "rb") as art:
+                    self._brand_uri = (
+                        "data:image/png;base64," + base64.b64encode(art.read()).decode()
+                    )
+            except OSError:
+                self._brand_uri = ""
+        return self._brand_uri
+
+    async def generate_stat_board(self, cards, heading, date=""):
+        """PNG bytes of one stat board (modules.stat_card), or None."""
         if self._stat_card_template is None:
             self._stat_card_template = self._get_env().get_template(STAT_CARD_TEMPLATE)
-        view = stat_card.build_view(card)
+        banners = await asyncio.gather(*(self._banner(card.image) for card in cards))
+        cards = [
+            dataclasses.replace(card, image=banner)
+            for card, banner in zip(cards, banners)
+        ]
+        view = stat_card.build_board_view(cards, heading, date, self._brand())
         html_content = self._stat_card_template.render(**view)
         # Same sizing as the account card: CSS at the token sizes, CSS zoom
         # to the scaled PNG.
@@ -126,7 +182,7 @@ class ImageGenerator:
             "javascript-delay": "1000",
             "quiet": "",
         }
-        png = await self._render_png(html_content, options, "stat card")
+        png = await self._render_png(html_content, options, "stat board")
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)

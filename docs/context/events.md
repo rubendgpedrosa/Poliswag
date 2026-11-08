@@ -11,9 +11,9 @@ Production repair converted 10 current/upcoming rows in place, preserving notifi
 
 Species-focused ended-event summaries (Community Day and Spotlight Hour) also read Golbat's `pokemon_shiny_stats` table. They show scanner-wide shiny and encounter totals for the complete calendar day(s), not an exact event-hour count: the table has daily rows and no event-window timestamps. The summary labels this provenance and keeps the existing outside-event-hours caveat; raid summaries do not claim shiny counts because no equivalent raid-period shiny aggregate is available.
 
-### Ended-event stat cards (2026-11-08)
+### Ended-event image (2026-11-08)
 
-Ended events with stats post as an image: `EventStats` fills a generic `StatCard` (`modules/stat_card.py`: kicker, hero figure, badge, optional chips, a bar row per scan area, note) and `ImageGenerator.generate_stat_card` renders `templates/stat-card.html` with wkhtmltoimage, same design tokens and 2x scale as the account card. The embed keeps only title, link and colour, with the PNG as its image. If the render fails, the text embed (headline, inline area fields, footer) is sent instead. Any other stats post can reuse the card by filling a `StatCard`.
+"Eventos que terminaram" is one PNG per post (up to six events per image), with no embed. `modules/stat_card.py` builds a board: the PoGoLeiria wordmark and brand art (`templates/brand-header-400.png`, from the site's `brand-header-400.webp`), then a panel per event with its ScrapedDuck game image as the banner, its name, and either its stats (`StatCard` from `EventStats`: hero figure, badge, optional chips, an ember bar per scan area) or when it ended. Panels sit side by side (1, 2, 3, then 2x2 or 3 wide) so the image stays landscape in Discord. `ImageGenerator.generate_stat_board` inlines the banners as data URIs and renders `templates/stat-card.html` at 2x with wkhtmltoimage. Colours are the site's tokens (`packages/ui/src/tokens.css`): ember is the main colour, never blue. If any image fails to render, the whole post goes out as the old text embeds. Any other stats post can reuse the board by filling `StatCard`s.
 
 ### Weekly and error digests: post-send acknowledgment
 

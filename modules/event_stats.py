@@ -171,7 +171,7 @@ class EventStats(LoggingMixin):
     def _card_note(whole_days=False, shiny=False):
         note = "Totais diários do scanner"
         if not whole_days:
-            note += " · incluem atividade fora do horário do evento"
+            note += " · inclui horas fora do evento"
         if shiny:
             note += " · shiny: scanner global"
         return note
