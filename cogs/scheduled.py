@@ -2,7 +2,9 @@ import datetime
 import time
 import traceback
 import asyncio
+import dataclasses
 import io
+import json
 import discord
 from discord.ext import commands, tasks
 
@@ -15,6 +17,8 @@ from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules import tracking_health
 from modules import scan_areas
 from modules.event_images import usable_image
+from modules import stat_card
+from modules.stat_card import StatCard
 from modules.hundo_alerts import HundoAlerts
 from modules.shiny_alerts import ShinyAlerts
 from modules.shiny_odds import ShinyOdds
@@ -28,6 +32,17 @@ from modules.trade_dm import TradeDM
 # 2026-09-23 rename stall ran for 5 hours visible only as discord.http
 # warnings on stdout.
 _SLOW_STEP_SECONDS = 60
+
+
+def _event_heading(event):
+    """ScrapedDuck's own label for the event ("Raid Battles", "Wild Area"),
+    for the kicker of a panel without stats; "Evento" without one."""
+    try:
+        data = json.loads(event.get("extra_data") or "{}")
+    except (TypeError, ValueError):
+        data = {}
+    return (data.get("heading") if isinstance(data, dict) else None) or "Evento"
+
 
 # Discord caps an embed description at 4096 chars and a message's embeds at
 # 6000 chars total. The weekly calendar is chunked at line boundaries so no
@@ -463,33 +478,19 @@ class Scheduled(commands.Cog):
         update cannot be atomic: a crash between them may still cause a repeat.
         """
         if changed["ended"]:
-            # The same shape as "Novos eventos": the header, then a card per
-            # event. Events with numbers carry their stats; the rest say when
-            # they ended.
-            cards, files, groups, seen = [], [], [], []
+            panels, summaries, groups = [], [], []
             for event in changed["ended"]:
                 summary = await self.poliswag.event_stats.get_summary(event)
-                if summary and summary in seen:
+                if summary and summary in summaries:
                     # "Super Mega Raid Day" and "Staraptor Super Mega Raid
-                    # Day" are one event under two names: one card.
-                    groups[seen.index(summary)].append(event)
+                    # Day" are one event under two names: one panel.
+                    groups[summaries.index(summary)].append(event)
                     continue
-                seen.append(summary)
+                summaries.append(summary)
                 groups.append([event])
-                embed, file = await self._build_ended_card(
-                    event, summary, f"event-stats-{len(cards) + 1}.png"
-                )
-                cards.append(embed)
-                files.append(file)
-            await self._send_event_batches(
-                channel,
-                "**Eventos que terminaram**",
-                cards,
-                groups,
-                [],
-                is_end=True,
-                acknowledge=acknowledge,
-                files=files,
+                panels.append(await self._ended_panel(event, summary))
+            await self._send_ended_boards(
+                channel, panels, summaries, groups, acknowledge=acknowledge
             )
         if changed["started"]:
             cards = [
@@ -515,7 +516,7 @@ class Scheduled(commands.Cog):
             )
 
     async def _send_event_batches(
-        self, channel, header, embeds, groups, plain, *, is_end, acknowledge, files=None
+        self, channel, header, embeds, groups, plain, *, is_end, acknowledge
     ):
         offset = 0
         first = True
@@ -530,24 +531,15 @@ class Scheduled(commands.Cog):
                 size += length
                 end += 1
             batch = embeds[offset:end]
-            # A stat card travels as an attachment its embed points at; at
-            # most ten embeds per message keeps it within ten files too.
-            extra = {}
-            attached = [f for f in (files or [])[offset:end] if f is not None]
-            if attached:
-                extra["files"] = attached
             if first:
                 await channel.send(
                     header,
                     embeds=batch,
                     allowed_mentions=discord.AllowedMentions.none(),
-                    **extra,
                 )
             else:
                 await channel.send(
-                    embeds=batch,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                    **extra,
+                    embeds=batch, allowed_mentions=discord.AllowedMentions.none()
                 )
             if acknowledge:
                 events = [event for group in groups[offset:end] for event in group]
@@ -555,36 +547,66 @@ class Scheduled(commands.Cog):
             first = False
             offset = end
 
-    async def _build_ended_card(self, event, summary, filename):
-        """(embed, file) for a finished event.
-
-        With stats, the numbers are a stat card image under a title-only
-        embed: five areas as inline fields beside the event art wrapped into
-        a cramped grid. Without stats, or when the image doesn't render, the
-        text embed as before and no file.
-        """
-        card = summary.card if summary else None
-        png = None
-        if card is not None:
-            png = await self.poliswag.image_generator.generate_stat_card(card)
-        if not png:
-            return (
-                await self._build_event_embed(event, is_ended=True, summary=summary),
-                None,
-            )
-        emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
-        event_type_key = self.poliswag.event_manager.get_event_type_key(
-            event["event_type"]
-        )
-        embed = discord.Embed(
-            title=f"{emoji} {event['name']}"[:256],
-            url=self.poliswag.event_manager.get_event_link(event),
-            color=self.poliswag.event_manager.event_colors.get(
-                event_type_key, 0x3498DB
+    async def _ended_panel(self, event, summary):
+        """The event's panel on the "Eventos que terminaram" image: its game
+        image and name, then its stats, or when it ended if it has none."""
+        title = event["name"]
+        image = await usable_image(event.get("image")) or ""
+        if summary and summary.card:
+            return dataclasses.replace(summary.card, title=title, image=image)
+        event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        return StatCard(
+            kicker=_event_heading(event),
+            hero=None,
+            title=title,
+            image=image,
+            ended=self.poliswag.event_manager.format_end_time(
+                event_end, verb="Terminou"
             ),
         )
-        embed.set_image(url=f"attachment://{filename}")
-        return embed, discord.File(io.BytesIO(png), filename=filename)
+
+    async def _send_ended_boards(
+        self, channel, panels, summaries, groups, *, acknowledge
+    ):
+        """One image per stat_card.PER_IMAGE events, no embed. If any board
+        doesn't render, the whole post goes out as the text cards instead, so
+        an ended event is never dropped for a renderer fault."""
+        date = datetime.date.today().strftime("%d/%m")
+        size = stat_card.PER_IMAGE
+        pngs = [
+            await self.poliswag.image_generator.generate_stat_board(
+                chunk, "Eventos que terminaram", date
+            )
+            for chunk in stat_card.chunks(panels)
+        ]
+        if pngs and all(pngs):
+            for index, png in enumerate(pngs):
+                await channel.send(
+                    file=discord.File(
+                        io.BytesIO(png), filename="eventos-terminados.png"
+                    ),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+                if acknowledge:
+                    chunk_groups = groups[index * size : (index + 1) * size]
+                    await self._ack_events(
+                        [event for group in chunk_groups for event in group],
+                        is_end=True,
+                    )
+            return
+        cards = [
+            await self._build_event_embed(group[0], is_ended=True, summary=summary)
+            for group, summary in zip(groups, summaries)
+        ]
+        await self._send_event_batches(
+            channel,
+            "**Eventos que terminaram**",
+            cards,
+            groups,
+            [],
+            is_end=True,
+            acknowledge=acknowledge,
+        )
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
         event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")

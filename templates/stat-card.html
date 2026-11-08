@@ -2,20 +2,23 @@
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
-<title>Stat card</title>
+<title>Stat board</title>
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@600;700;800&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap');
 
-    /* The generic stat card, filled from modules/stat_card.py. PoGoLeiria
-       design language, as templates/accounts.html: surfaces separated by
-       light, never shadow (the only effect is the `.lit` inset highlight);
-       hub type scale 10/11/13/15/17/19/22/44, figures in Bricolage Grotesque
-       800 with tabular digits, text in Figtree; radii 8/12/16/20/24.
+    /* The stat board, filled from modules/stat_card.py. PoGoLeiria design
+       language (DESIGN.md and packages/ui/src/tokens.css in the site repo):
+       tone ramp background #01040A -> card #0C131D -> sunken #161E2A, hairline
+       #262E3B, ink #F1F5FC / #D3DAE4 / #A7B0BE / #778190; ember (#B6322B,
+       bright #E36654) is the main colour. Surfaces separate by light, never
+       shadow: the only effect is the `.lit` inset top highlight. Type from
+       the hub scale 10/11/13/15/17/19/22/44, figures in Bricolage Grotesque
+       800 with tabular digits, text and the wordmark in Figtree. Radii
+       8/12/16/20/24. No emoji.
 
-       Every vertical size is fixed and mirrors a constant in
-       modules/stat_card.py, which sums them into the image height. The
-       renderer is wkhtmltoimage's old WebKit: no grid, no gap; rows are
-       fixed boxes and the bar widths come from Python. */
+       Every size here mirrors a constant in modules/stat_card.py, which
+       sums them into the image size. The renderer is wkhtmltoimage's old
+       WebKit: no grid, no gap, prefixed gradients and background-size. */
 
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: transparent; }
@@ -41,115 +44,178 @@
         color: #A7B0BE;
     }
 
-    .stage { width: {{ width }}px; height: {{ height }}px; padding: 16px; }
-    .card {
-        width: 100%;
-        height: {{ card_height }}px;
+    /* ---- board ---- */
+    .board {
+        position: relative;
+        width: {{ width }}px;
+        height: {{ height }}px;
+        padding: 24px;
+        overflow: hidden;
+        border-radius: 24px;
+        background: #01040A;
+        border: 1px solid #262E3B;
+    }
+    /* The brand artwork behind the heading, at 18% with a soft fade toward
+       the left, as on every page of the site. */
+    .brand {
+        position: absolute;
+        top: -40px;
+        right: -10px;
+        width: 220px;
+        height: 220px;
+        opacity: 0.18;
+    }
+    .brand-fade {
+        position: absolute;
+        top: -40px;
+        right: 90px;
+        width: 140px;
+        height: 220px;
+        background: -webkit-gradient(linear, left top, right top, color-stop(0, rgba(1, 4, 10, 1)), color-stop(1, rgba(1, 4, 10, 0)));
+    }
+    .head {                         /* 40px + 20px gap */
+        position: relative;
+        height: 40px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .head-left { display: flex; align-items: center; }
+    .wordmark {
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: -0.4px;
+        text-transform: uppercase;
+        color: #F1F5FC;
+    }
+    .head-rule { width: 1px; height: 18px; background: #262E3B; margin: 0 14px; }
+    .head-date { font-size: 13px; font-weight: 700; color: #A7B0BE; }
+
+    .panel-row { display: flex; align-items: flex-start; }
+    .panel-row.spaced { margin-bottom: 16px; }
+
+    /* ---- panel ---- */
+    .panel {
+        width: 520px;
         overflow: hidden;
         border-radius: 20px;
         background: #0C131D;
         border: 1px solid #262E3B;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
+        margin-right: 16px;
     }
-    .inner { padding: 22px 28px 20px 28px; }
+    .panel.last { margin-right: 0; }
 
-    /* ---- header: 20px ---- */
-    .header {
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+    /* The event's own game image, as on its embed, with its name over a
+       fade to the card colour. */
+    .banner {
+        position: relative;
+        height: 176px;
+        background-color: #161E2A;
+        background-position: center center;
+        background-repeat: no-repeat;
+        -webkit-background-size: cover;
+        background-size: cover;
     }
-    .period { font-size: 13px; font-weight: 700; color: #778190; }
+    .banner.plain {
+        background-image: -webkit-gradient(linear, left top, right bottom, color-stop(0, #68120F), color-stop(1, #161E2A));
+    }
+    .banner-fade {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: 120px;
+        background: -webkit-gradient(linear, left top, left bottom, color-stop(0, rgba(12, 19, 29, 0)), color-stop(0.6, rgba(12, 19, 29, 0.82)), color-stop(1, rgba(12, 19, 29, 1)));
+    }
+    .pill {
+        position: absolute;
+        top: 14px;
+        height: 26px;
+        line-height: 24px;
+        padding: 0 11px;
+        border-radius: 999px;
+        background: rgba(1, 4, 10, 0.78);
+        border: 1px solid #262E3B;
+        white-space: nowrap;
+    }
+    .pill-kicker { left: 14px; color: #F1F5FC; }
+    .pill-kicker .ember { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #E36654; margin-right: 7px; vertical-align: 0; }
+    .pill-period { right: 14px; font-size: 13px; font-weight: 700; color: #D3DAE4; }
+    .banner-title {
+        position: absolute;
+        left: 20px; right: 20px; bottom: 12px;
+        max-height: 48px;
+        overflow: hidden;
+        font-size: 19px;
+        font-weight: 800;
+        line-height: 24px;
+        color: #F1F5FC;
+    }
 
-    /* ---- hero: 8 + 56 = 64px ---- */
+    .body { padding: 18px 24px 20px 24px; }
+
+    /* ---- hero: 56px ---- */
     .hero {
         height: 56px;
-        margin-top: 8px;
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
-    .hero-main {
-        display: flex;
-        align-items: baseline;
-        overflow: hidden;
-        white-space: nowrap;
-    }
+    .hero-main { display: flex; align-items: baseline; overflow: hidden; white-space: nowrap; }
     .hero-figure { font-size: 44px; line-height: 56px; color: #F1F5FC; margin-right: 8px; }
-    .hero-unit { margin-right: 14px; }
-    .subject {
-        font-size: 22px;
-        font-weight: 800;
-        color: #F1F5FC;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 420px;
-    }
+    .hero-unit { margin-right: 12px; }
+    .subject { font-size: 17px; font-weight: 800; color: #D3DAE4; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
     .badge {
         height: 30px;
         line-height: 28px;
-        padding: 0 14px;
+        padding: 0 13px;
         border-radius: 999px;
         background: #161E2A;
         border: 1px solid #262E3B;
         font-size: 13px;
         font-weight: 700;
+        color: #D3DAE4;
         white-space: nowrap;
-        margin-left: 16px;
+        margin-left: 12px;
     }
-    .badge-up   { color: #52CD86; }
-    .badge-down { color: #F98F2B; }
-    .badge-flat { color: #D3DAE4; }
+    .badge .arrow { font-size: 10px; margin-right: 6px; }
+    .badge-up .arrow   { color: #52CD86; }
+    .badge-down .arrow { color: #A7B0BE; }
 
-    /* ---- chips: 14 + 14 + 4 + 26 = 58px ---- */
-    .chips { height: 44px; margin-top: 14px; display: flex; }
-    .chip { margin-right: 44px; }
+    /* ---- chips: 12 + 14 + 4 + 28 = 58px ---- */
+    .chips { height: 46px; margin-top: 12px; display: flex; }
+    .chip { margin-right: 32px; }
     .chip-label { height: 14px; margin-bottom: 4px; }
-    .chip-value { font-size: 22px; line-height: 26px; color: #F1F5FC; }
+    .chip-value { font-size: 22px; line-height: 28px; color: #F1F5FC; }
 
-    /* ---- divider: 18 + 1 + 18 = 37px ---- */
-    .divider { height: 1px; margin: 18px 0; background: #262E3B; }
+    /* ---- divider: 16 + 1 + 16 = 33px ---- */
+    .divider { height: 1px; margin: 16px 0; background: #262E3B; }
 
-    /* ---- one row per area: 36px ---- */
-    .row { height: 36px; display: flex; align-items: center; }
+    /* ---- one row per area: 32px ---- */
+    .row { height: 32px; display: flex; align-items: center; }
     .row-label {
-        width: 168px;
-        display: flex;
-        align-items: center;
-        font-size: 15px;
+        width: 140px;
+        font-size: 13px;
         font-weight: 700;
         color: #D3DAE4;
         white-space: nowrap;
         overflow: hidden;
     }
-    .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; }
-    .track {
-        width: {{ bar_track }}px;
-        height: 10px;
-        border-radius: 8px;
-        background: #161E2A;
-        overflow: hidden;
-    }
-    .bar { height: 10px; border-radius: 8px; }
-    .row-value {
-        width: 118px;
-        margin-left: 16px;
-        text-align: right;
-        white-space: nowrap;
-    }
-    .row-figure { font-size: 19px; color: #F1F5FC; margin-right: 5px; }
-    .row-unit { font-size: 11px; font-weight: 700; color: #778190; text-transform: uppercase; letter-spacing: 0.6px; }
+    .track { height: 8px; border-radius: 8px; background: #161E2A; overflow: hidden; }
+    .bar { height: 8px; border-radius: 8px; background: #B6322B; }
+    .bar.lead { background: #E36654; }
+    .row-value { width: 88px; margin-left: 12px; text-align: right; white-space: nowrap; }
+    .row-figure { font-size: 17px; color: #F1F5FC; margin-right: 4px; }
+    .row-unit { font-size: 10px; font-weight: 800; color: #778190; text-transform: uppercase; letter-spacing: 0.6px; }
     .row-none { font-size: 13px; font-weight: 700; color: #434E5E; }
-    .row-extra { width: 84px; text-align: right; white-space: nowrap; }
-    .extra-figure { font-size: 15px; color: #D3DAE4; margin-right: 4px; }
-    .extra-label { font-size: 10px; font-weight: 800; color: #778190; letter-spacing: 0.6px; }
+    .row-extra { width: 64px; text-align: right; white-space: nowrap; }
+    .extra-figure { font-size: 15px; color: #D3DAE4; margin-right: 3px; }
+    .extra-label { font-size: 10px; font-weight: 800; color: #778190; letter-spacing: 0.4px; }
 
-    /* ---- note: 18 + 14 = 32px ---- */
+    /* ---- note: 16 + 14 = 30px ---- */
     .note {
         height: 14px;
-        margin-top: 18px;
+        margin-top: 16px;
         font-size: 11px;
         font-weight: 600;
         line-height: 14px;
@@ -157,53 +223,76 @@
         white-space: nowrap;
         overflow: hidden;
     }
+
+    /* ---- a panel without stats: 24px ---- */
+    .ended { height: 24px; line-height: 24px; font-size: 15px; font-weight: 700; color: #A7B0BE; }
 </style>
 </head>
 <body>
-<div class="stage"><div class="card"><div class="inner">
-    <div class="header">
-        <div class="caps">{{ kicker }}</div>
-        <div class="period">{{ period }}</div>
-    </div>
-
-    <div class="hero">
-        <div class="hero-main">
-            <span class="hero-figure figure">{{ hero }}</span>
-            <span class="hero-unit caps">{{ hero_unit }}</span>
-            <span class="subject">{{ subject }}</span>
+<div class="board">
+    {% if brand %}<img class="brand" src="{{ brand }}"><div class="brand-fade"></div>{% endif %}
+    <div class="head">
+        <div class="head-left">
+            <div class="wordmark">PoGoLeiria</div>
+            <div class="head-rule"></div>
+            <div class="caps">{{ heading }}</div>
         </div>
-        {% if badge %}<div class="badge badge-{{ trend }}">{{ badge }}</div>{% endif %}
+        <div class="head-date">{{ date }}</div>
     </div>
 
-    {% if chips %}
-    <div class="chips">
-        {% for chip in chips %}
-        <div class="chip">
-            <div class="chip-label caps">{{ chip.label }}</div>
-            <div class="chip-value figure">{{ chip.value }}</div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if rows %}
-    <div class="divider"></div>
     {% for row in rows %}
-    <div class="row">
-        <div class="row-label"><div class="dot" style="background: {{ row.color }}"></div>{{ row.label }}</div>
-        <div class="track">{% if row.bar %}<div class="bar" style="width: {{ row.bar }}px; background: {{ row.color }}"></div>{% endif %}</div>
-        <div class="row-value">
-            {%- if row.value is none %}<span class="row-none">sem dados</span>
-            {%- else %}<span class="row-figure figure">{{ row.value }}</span><span class="row-unit">{{ row.unit }}</span>{% endif -%}
+    <div class="panel-row{% if not row.last %} spaced{% endif %}" style="height: {{ row.height }}px">
+        {% for p in row.panels %}
+        <div class="panel{% if loop.last %} last{% endif %}" style="height: {{ p.height }}px">
+            <div class="banner{% if not p.image %} plain{% endif %}"{% if p.image %} style="background-image: url('{{ p.image }}')"{% endif %}>
+                <div class="banner-fade"></div>
+                {% if p.kicker %}<div class="pill pill-kicker caps"><span class="ember"></span>{{ p.kicker }}</div>{% endif %}
+                {% if p.period %}<div class="pill pill-period">{{ p.period }}</div>{% endif %}
+                <div class="banner-title">{{ p.title }}</div>
+            </div>
+            <div class="body">
+                {% if p.stats %}
+                <div class="hero">
+                    <div class="hero-main">
+                        <span class="hero-figure figure">{{ p.hero }}</span>
+                        <span class="hero-unit caps">{{ p.hero_unit }}</span>
+                        {% if p.subject %}<span class="subject">{{ p.subject }}</span>{% endif %}
+                    </div>
+                    {% if p.badge %}<div class="badge badge-{{ p.trend }}">{% if p.trend == 'up' %}<span class="arrow">&#9650;</span>{% elif p.trend == 'down' %}<span class="arrow">&#9660;</span>{% endif %}{{ p.badge }}</div>{% endif %}
+                </div>
+
+                {% if p.chips %}
+                <div class="chips">
+                    {% for chip in p.chips %}
+                    <div class="chip"><div class="chip-label caps">{{ chip.label }}</div><div class="chip-value figure">{{ chip.value }}</div></div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if p.rows %}
+                <div class="divider"></div>
+                {% for r in p.rows %}
+                <div class="row">
+                    <div class="row-label">{{ r.label }}</div>
+                    <div class="track" style="width: {{ p.bar_track }}px">{% if r.bar %}<div class="bar{% if r.lead %} lead{% endif %}" style="width: {{ r.bar }}px"></div>{% endif %}</div>
+                    <div class="row-value">
+                        {%- if r.value is none %}<span class="row-none">sem dados</span>
+                        {%- else %}<span class="row-figure figure">{{ r.value }}</span><span class="row-unit">{{ r.unit }}</span>{% endif -%}
+                    </div>
+                    {% for x in r.extras %}<div class="row-extra"><span class="extra-figure figure">{{ x.value }}</span><span class="extra-label">{{ x.label }}</span></div>{% endfor %}
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if p.note %}<div class="note">{{ p.note }}</div>{% endif %}
+                {% else %}
+                <div class="ended">{{ p.ended }}</div>
+                {% endif %}
+            </div>
         </div>
-        {% for extra in row.extras %}
-        <div class="row-extra"><span class="extra-figure figure">{{ extra.value }}</span><span class="extra-label">{{ extra.label }}</span></div>
         {% endfor %}
     </div>
     {% endfor %}
-    {% endif %}
-
-    {% if note %}<div class="note">{{ note }}</div>{% endif %}
-</div></div></div>
+</div>
 </body>
 </html>
