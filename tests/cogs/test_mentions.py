@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -131,6 +131,7 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
         "map",
         text="Onde há Dragonite?",
         context={"snapshot": snapshot, "facts": None},
+        user_id=ANY,
     )
 
 
@@ -335,7 +336,7 @@ async def test_owner_guild_mentions_use_only_public_path(cog, text):
     cog.public.reply = AsyncMock(return_value="Resposta pública.")
     context = ctx("<@456> " + text, owner=True)
     assert await cog.handle(context)
-    cog.public.reply.assert_awaited_once_with(text)
+    cog.public.reply.assert_awaited_once_with(text, user_id=ANY)
     cog.poliswag.get_cog.assert_not_called()
     cog.poliswag.scanner_status.get_full_status.assert_not_called()
     assert context.reply.call_args.args == ("Resposta pública.",)
@@ -369,4 +370,6 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
     context.message.mentions = [member]
     cog.public.reply = AsyncMock(return_value="Poli-poli!")
     await cog.handle(context)
-    cog.public.reply.assert_awaited_once_with("quem é o faynn? e o Ash1? e <@888>?")
+    cog.public.reply.assert_awaited_once_with(
+        "quem é o faynn? e o Ash1? e <@888>?", user_id=ANY
+    )

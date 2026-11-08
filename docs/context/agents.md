@@ -384,3 +384,33 @@ Check `systemctl status poliswag-agent` / `journalctl -u poliswag-agent`, then
 `!self`. Disable with `systemctl disable --now poliswag-agent`. Artifacts have
 no automatic retention deletion: remove reviewed worktrees with
 `git worktree remove <path>` and delete the corresponding job directory.
+
+
+## Hermiswag (public agent, since 2026-11-08)
+
+Public tag replies go first to **Hermiswag**, a separate Hermes install on this
+host (user `hermiswag`, uid 1990, home `/home/hermiswag`, fresh state with no
+link to the owner's Hermes on CT 109). Model: Anthropic **Sonnet 5.5, medium
+effort**, using the public-only API key and its workspace
+(`providers.anthropic.extra_headers.anthropic-workspace-id`). Its only toolset on
+the `api_server` platform is `web` (Exa); memory, user profile, terminal, file,
+skills, browser, cron and session search are off, and the curator is paused.
+`SOUL.md` holds the Poliswag persona; each run also carries the same
+`INSTRUCTIONS` and the untrusted question/map snapshot built by
+`modules/conversation_model.public_prompt`.
+
+Service: `hermiswag.service` (alias of `hermes-gateway-bf3301ce.service`, created by
+`hermes gateway install --system --run-as-user hermiswag`), with the sandbox
+drop-in `hermiswag-sandbox.conf`: ProtectSystem=strict, ProtectHome=tmpfs plus
+its own home, no capabilities, NoNewPrivileges, and `/root`, the Docker socket
+and state, `/opt`, `/etc/poliswag-agent.conf`, `/etc/ssh` and the shadow files
+inaccessible. The API listens only on the `scanner` Docker bridge,
+`172.18.0.1:8643`, with a bearer key (`HERMISWAG_API_URL`/`HERMISWAG_API_KEY`
+in Poliswag's `.env`, `API_SERVER_KEY` in `/home/hermiswag/.hermes/.env`).
+
+`modules/hermiswag_client.py` posts `/v1/runs` with `X-Hermes-Session-Key:
+hermiswag:<discord id>:<Lisbon day>`, so each member has one conversation per
+day (follow-ups keep context; nobody sees another member's turns), polls up to
+50 s and stops the run on cancellation. The reply goes through the same
+`safe_reply` screening. Any failure, timeout or empty answer falls back to the
+agent worker path above; unset `HERMISWAG_API_URL` disables Hermiswag.

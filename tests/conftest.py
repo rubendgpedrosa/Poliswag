@@ -44,6 +44,8 @@ _TEST_ENV_DEFAULTS = {
     "HERMES_API_KEY": "",
     "HERMES_SESSION_ID": "",
     "HERMES_RUNS_DIR": "/tmp/poliswag-test/hermes-runs",
+    "HERMISWAG_API_URL": "",
+    "HERMISWAG_API_KEY": "",
     "CLAUDE_API_URL": "http://claude.test.invalid",
     "CLAUDE_API_KEY": "",
     "CLAUDE_RUNS_DIR": "/tmp/poliswag-test/claude-runs",

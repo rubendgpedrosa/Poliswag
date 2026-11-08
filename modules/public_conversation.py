@@ -358,7 +358,7 @@ class PublicConversation:
         self.model = model
         self.map_context = map_context
 
-    async def reply(self, text):
+    async def reply(self, text, user_id=None):
         if not isinstance(text, str) or len(text) > 2000 or private_topic(text):
             return _PRIVATE_REPLY
         question = clean_question(text)
@@ -408,7 +408,9 @@ class PublicConversation:
         unsafe = False
         if self.model is not None:
             try:
-                raw = await self.model.line(kind, text=question, context=model_context)
+                raw = await self.model.line(
+                    kind, text=question, context=model_context, user_id=user_id
+                )
                 line = safe_reply(raw)
                 unsafe = isinstance(raw, str) and bool(raw.strip()) and line is None
             except Exception:
