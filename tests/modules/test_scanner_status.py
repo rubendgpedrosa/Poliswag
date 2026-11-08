@@ -1175,23 +1175,13 @@ class TestRenameVoiceChannels:
         assert any("Error updating status channel" in m for m in logged)
 
 
-def _poliswag_db_handler(*, scanning_ongoing=False, expected=(371, 109)):
-    """Side-effect for the poliswag DB mock, routing by the SQL it receives.
-
-    Two distinct reads hit poliswag.db during a completion check: the
-    ``scanned = 1`` guard and the expected-totals lookup.
-    """
+def _poliswag_db_handler(*, scanning_ongoing=False):
+    """Side-effect for the poliswag DB mock: only the ``scanned = 1`` guard
+    reads the poliswag table now (the totals are counted live)."""
 
     def _handler(sql, *args, **kwargs):
         if "scanned = 1" in sql:
             return [{"scanned": 1}] if scanning_ongoing else []
-        if "FROM poliswag" in sql:
-            return [
-                {
-                    "quest_expected_leiria": expected[0],
-                    "quest_expected_marinha": expected[1],
-                }
-            ]
         return []
 
     return _handler
@@ -1296,8 +1286,10 @@ class TestIsQuestScanningComplete:
         # that guard set this explicitly instead.
         scanner_status._plateau_reset_at = 0
         scanner_status.poliswag.db.get_data_from_database.side_effect = (
-            _poliswag_db_handler(scanning_ongoing=scanning_ongoing, expected=expected)
+            _poliswag_db_handler(scanning_ongoing=scanning_ongoing)
         )
+        # The live pokestop totals per area, returned with each tick's counts.
+        self._totals = expected
         mocker.patch.object(
             scanner_status, "_is_scanner_alive", new=AsyncMock(return_value=alive)
         )
@@ -1308,7 +1300,9 @@ class TestIsQuestScanningComplete:
         The geometry itself is covered by test_scan_areas; here the counts
         are injected straight into the plateau detector.
         """
-        scanner_status._count_valid_quests = AsyncMock(side_effect=[leiria, marinha])
+        scanner_status._count_area = AsyncMock(
+            side_effect=[(leiria, self._totals[0]), (marinha, self._totals[1])]
+        )
         return await scanner_status.is_quest_scanning_complete()
 
     async def _tick_until_plateau(self, scanner_status, leiria, marinha):
@@ -1359,13 +1353,13 @@ class TestIsQuestScanningComplete:
         assert await scanner_status.is_quest_scanning_complete() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
-    async def test_returns_none_when_count_valid_quests_yields_no_row(
+    async def test_returns_none_when_count_area_yields_no_row(
         self, scanner_status, mocker
     ):
-        # An area without a usable fence makes _count_valid_quests return
-        # None, which short-circuits the whole check.
+        # An area without a usable fence makes _count_area return None,
+        # which short-circuits the whole check.
         self._prime(scanner_status, mocker)
-        scanner_status._count_valid_quests = AsyncMock(return_value=None)
+        scanner_status._count_area = AsyncMock(return_value=None)
         assert await scanner_status.is_quest_scanning_complete() is None
 
     # --- plateau behaviour -------------------------------------------------
@@ -1414,9 +1408,9 @@ class TestIsQuestScanningComplete:
     async def test_self_heals_when_plateau_stuck_below_floor(
         self, scanner_status, mocker
     ):
-        # Radius reduction: the real ceiling (80) is now permanently below the
-        # stale expected's floor (90). The fast path can never fire, so after a
-        # longer STUCK_TICKS window the plateau is accepted as the new ceiling.
+        # Some stops never get a quest: the real ceiling (80) sits below the
+        # 90% floor of the live total. The fast path can never fire, so after a
+        # longer STUCK_TICKS window the plateau is accepted as the ceiling.
         self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
         result = None
         for _ in range(scanner_status.STUCK_TICKS + 1):
@@ -1464,29 +1458,43 @@ class TestIsQuestScanningComplete:
             {},
         )
         self._prime(scanner_status, mocker)
-        scanner_status._get_expected_totals = AsyncMock(
-            return_value={"leiria": 10, "marinha": 5, "moita": 2}
-        )
-        scanner_status._count_valid_quests = AsyncMock(side_effect=[10, 5, 2])
+        scanner_status._count_area = AsyncMock(side_effect=[(10, 10), (5, 5), (2, 2)])
         scanner_status._is_scanner_alive = AsyncMock(return_value=True)
         result = await scanner_status.is_quest_scanning_complete()
         assert list(result["areas"]) == ["leiria", "marinha", "moita"]
         assert [data["scanned"] for data in result["areas"].values()] == [10, 5, 2]
         assert [data["total"] for data in result["areas"].values()] == [10, 5, 2]
 
-    async def test_a_new_area_without_an_expected_total_needs_the_long_window(
+    async def test_an_area_with_no_stops_never_blocks_completion(
         self, scanner_status, mocker
     ):
-        # The seeded columns only cover the two original areas; a newly
-        # activated one starts at 0. Ten flat ticks are not a finished scan
-        # yet; the 30-tick self-heal window is.
+        # A fence with no stops inside (new area, empty fence) has nothing
+        # to scan; the other area alone decides.
         self._prime(scanner_status, mocker, expected=(100, 0), alive=True)
-        _, after = await self._tick_until_plateau(scanner_status, 100, 50)
-        assert after["areas"]["marinha"]["completed"] is False
+        _, after = await self._tick_until_plateau(scanner_status, 100, 0)
+        assert after["areas"]["marinha"]["completed"] is True
+        assert self._complete(after) is True
+
+    async def test_an_area_stuck_at_zero_stops_blocking_after_the_long_window(
+        self, scanner_status, mocker
+    ):
+        # Marinha has stops but never gets a quest (left active in the
+        # registry, not quest-scanned). It must not hold Leiria back forever.
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
         result = None
-        for _ in range(scanner_status.STUCK_TICKS):
-            result = await self._tick(scanner_status, 100, 50)
+        for _ in range(scanner_status.ZERO_STUCK_TICKS):
+            result = await self._tick(scanner_status, 100, 0)
+        assert self._complete(result) is False
+        result = await self._tick(scanner_status, 100, 0)
         assert self._complete(result) is True
+
+    async def test_every_area_at_zero_never_completes(self, scanner_status, mocker):
+        # Zero everywhere is a scan that has not started, not a dead area.
+        self._prime(scanner_status, mocker, expected=(100, 50), alive=True)
+        result = None
+        for _ in range(scanner_status.ZERO_STUCK_TICKS + 5):
+            result = await self._tick(scanner_status, 0, 0)
+        assert self._complete(result) is False
 
     # --- scanner-health gate ----------------------------------------------
 
@@ -1546,7 +1554,7 @@ class TestQuestPlateauHelpers:
         )
         assert await scanner_status._is_scanner_alive() is False
 
-    async def test_count_valid_quests_coerces_decimal_to_int(self, scanner_status):
+    async def test_count_area_coerces_decimal_to_int(self, scanner_status):
         # MariaDB returns the live flag as a decimal.Decimal; if it leaks
         # through, _coverage_pct yields a Decimal that crashes
         # _build_progress_embed's Decimal + float math. Counts must be ints.
@@ -1556,11 +1564,11 @@ class TestQuestPlateauHelpers:
             {"lat": 39.7, "lon": -8.8, "scanned": Decimal("1")} for _ in range(330)
         ]
         area = {"area_key": "leiria"}
-        count = await scanner_status._count_valid_quests(
+        count, total = await scanner_status._count_area(
             scanner_status.poliswag.quest_search.db, area
         )
-        assert count == 330
-        assert type(count) is int
+        assert count == 330 and total == 330
+        assert type(count) is int and type(total) is int
         # And the derived percentage must be a plain float (addable to a float).
         pct = scanner_status._coverage_pct(count, 371)
         assert isinstance(pct, float)
@@ -1570,102 +1578,22 @@ class TestQuestPlateauHelpers:
         assert scanner_status._coverage_pct(10, 0) == 0
         assert scanner_status._coverage_pct(10, -1) == 0
 
-    async def test_expected_totals_fall_back_to_zero_without_a_row(
-        self, scanner_status
-    ):
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 0,
-            "marinha": 0,
-        }
-
-    async def test_expected_totals_read_from_db(self, scanner_status):
-        scanner_status.poliswag.db.get_data_from_database.return_value = [
-            {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
+    async def test_count_area_counts_all_stops_and_quested_ones(self, scanner_status):
+        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+            {"lat": 39.7, "lon": -8.8, "scanned": 1},
+            {"lat": 39.7, "lon": -8.8, "scanned": 0},
+            {"lat": 39.7, "lon": -8.8, "scanned": 1},
         ]
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 400,
-            "marinha": 120,
-        }
+        assert await scanner_status._count_area(
+            scanner_status.poliswag.quest_search.db, {"area_key": "leiria"}
+        ) == (2, 3)
 
-    async def test_record_completion_persists_and_resets(self, scanner_status):
+    async def test_record_completion_resets_without_writing(self, scanner_status):
         scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
         await scanner_status.record_quest_scan_completion(
             {"leiria": 371, "marinha": 109}
         )
-        calls = scanner_status.poliswag.db.execute_query_to_database.call_args_list
-        assert [call.kwargs["params"] for call in calls] == [(371,), (109,)]
-        assert scanner_status._quest_plateau["leiria"] == {
-            "prev_count": -1,
-            "flat_streak": 0,
-        }
-
-    async def test_expected_totals_second_read_does_not_hit_db_again(
-        self, scanner_status
-    ):
-        scanner_status.poliswag.db.get_data_from_database.return_value = [
-            {"quest_expected_leiria": 400, "quest_expected_marinha": 120}
-        ]
-
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 400,
-            "marinha": 120,
-        }
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 400,
-            "marinha": 120,
-        }
-
-        scanner_status.poliswag.db.get_data_from_database.assert_called_once()
-
-    async def test_empty_rows_are_not_cached(self, scanner_status):
-        scanner_status.poliswag.db.get_data_from_database.return_value = []
-
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 0,
-            "marinha": 0,
-        }
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 0,
-            "marinha": 0,
-        }
-
-        assert scanner_status.poliswag.db.get_data_from_database.call_count == 2
-
-    async def test_record_completion_updates_cache_without_a_read(self, scanner_status):
-        await scanner_status.record_quest_scan_completion(
-            {"leiria": 400, "marinha": 120}
-        )
-
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 400,
-            "marinha": 120,
-        }
-        scanner_status.poliswag.db.get_data_from_database.assert_not_called()
-
-    async def test_expected_totals_db_error_is_logged_and_falls_back(
-        self, scanner_status
-    ):
-        scanner_status.poliswag.db.get_data_from_database.side_effect = RuntimeError(
-            "db down"
-        )
-        assert await scanner_status._get_expected_totals() == {
-            "leiria": 0,
-            "marinha": 0,
-        }
-        scanner_status.poliswag.utility.log_to_file.assert_called_once()
-
-    async def test_record_completion_db_error_is_logged_but_still_resets(
-        self, scanner_status
-    ):
-        scanner_status._quest_plateau["leiria"] = {"prev_count": 371, "flat_streak": 10}
-        scanner_status.poliswag.db.execute_query_to_database.side_effect = RuntimeError(
-            "db down"
-        )
-        await scanner_status.record_quest_scan_completion(
-            {"leiria": 371, "marinha": 109}
-        )
-        assert scanner_status.poliswag.utility.log_to_file.call_count == 2
+        scanner_status.poliswag.db.execute_query_to_database.assert_not_called()
         assert scanner_status._quest_plateau["leiria"] == {
             "prev_count": -1,
             "flat_streak": 0,
