@@ -127,6 +127,10 @@ class Config:
     HERMES_API_KEY = os.environ.get("HERMES_API_KEY", "")
     HERMES_SESSION_ID = os.environ.get("HERMES_SESSION_ID", "")
     HERMES_RUNS_DIR = os.environ.get("HERMES_RUNS_DIR", "logs/hermes-runs")
+    # Hermiswag: the separate public agent on this host (modules/hermiswag_client.py).
+    # Unset = public tags use the agent worker only.
+    HERMISWAG_API_URL = os.environ.get("HERMISWAG_API_URL", "")
+    HERMISWAG_API_KEY = os.environ.get("HERMISWAG_API_KEY", "")
     # claude-bridge in CT 109 (owner DMs prefixed `c `); empty key disables calls.
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
     CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")

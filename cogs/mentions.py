@@ -9,6 +9,7 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
+from modules.hermiswag_client import HermiswagClient
 from modules.permissions import is_owner
 from modules.public_conversation import MentionLimiter, PublicConversation
 from modules.public_map_context import PublicMapContext
@@ -66,7 +67,10 @@ class Mentions(commands.Cog):
         self.public = PublicConversation(
             poliswag.db,
             quest_search.db,
-            ConversationModel(Config.AGENT_JOBS_DIR),
+            ConversationModel(
+                Config.AGENT_JOBS_DIR,
+                HermiswagClient(Config.HERMISWAG_API_URL, Config.HERMISWAG_API_KEY),
+            ),
             PublicMapContext(quest_search.db, pokemon_names),
         )
         self.limiter = MentionLimiter()
@@ -105,7 +109,9 @@ class Mentions(commands.Cog):
         text = named_mentions(text, message)
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
-            reply = await asyncio.wait_for(self.public.reply(text), timeout=65)
+            reply = await asyncio.wait_for(
+                self.public.reply(text, user_id=ctx.author.id), timeout=65
+            )
         except Exception:
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
