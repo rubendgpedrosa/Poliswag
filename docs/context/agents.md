@@ -457,6 +457,9 @@ no-tools line, plus how to use the tools) are what Hermiswag gets.
 (convívio since 2024-11, chat-raids since 2024-11, suporte-tecnico since 2020,
 announcements) by the owner's Claude Code session on CT 109 (`claude -p`, no
 tools), with personal data, attributions and internals removed. Hermiswag reads
-it through the `community_knowledge` tool of its `mapdb` MCP server; the file is
-not in git. Refreshing it is a manual job: fetch, extract per batch, consolidate,
+it through the `community_knowledge` tool of its `mapdb` MCP server, together with
+`/home/hermiswag/knowledge/poliswag.md` (the member commands and the site, written by
+hand: the authoritative source when the community notes disagree); the files are
+not in git. The map of every Hermiswag piece is the shared guide
+`PoGoLeiria/HERMISWAG.md`. Refreshing it is a manual job: fetch, extract per batch, consolidate,
 replace the file.

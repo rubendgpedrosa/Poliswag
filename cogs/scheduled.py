@@ -34,14 +34,57 @@ from modules.trade_dm import TradeDM
 _SLOW_STEP_SECONDS = 60
 
 
-def _event_heading(event):
-    """ScrapedDuck's own label for the event ("Raid Battles", "Wild Area"),
-    for the kicker of a panel without stats; "Evento" without one."""
+def _extra(event):
     try:
         data = json.loads(event.get("extra_data") or "{}")
     except (TypeError, ValueError):
-        data = {}
-    return (data.get("heading") if isinstance(data, dict) else None) or "Evento"
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _event_extras(event):
+    """(Pokémon, bonuses) for a new event's panel, from ScrapedDuck's
+    extraData: raid bosses, Community Day spawns and bonuses, the Spotlight
+    Hour Pokémon and its bonus. Pokémon are (name, icon URL, can be shiny)."""
+    extra = _extra(event).get("extraData") or {}
+    pokemon, bonuses = [], []
+    raids = extra.get("raidbattles") or {}
+    for boss in raids.get("bosses") or []:
+        pokemon.append(
+            (boss.get("name"), boss.get("image"), bool(boss.get("canBeShiny")))
+        )
+    cd = extra.get("communityday") or {}
+    shinies = {mon.get("name") for mon in cd.get("shinies") or []}
+    for mon in cd.get("spawns") or []:
+        pokemon.append((mon.get("name"), mon.get("image"), mon.get("name") in shinies))
+    bonuses += [bonus.get("text") for bonus in cd.get("bonuses") or []]
+    spotlight = extra.get("spotlight") or {}
+    for mon in spotlight.get("list") or []:
+        pokemon.append((mon.get("name"), mon.get("image"), bool(mon.get("canBeShiny"))))
+    if spotlight.get("bonus"):
+        bonuses.append(spotlight["bonus"])
+    return (
+        tuple((name, image or "", shiny) for name, image, shiny in pokemon if name),
+        tuple(bonus for bonus in bonuses if bonus),
+    )
+
+
+def _duration(span):
+    """'1 h', '3 h 30 min', '5 dias'."""
+    minutes = round(span.total_seconds() / 60)
+    if minutes >= 24 * 60:
+        days = round(minutes / (24 * 60))
+        return f"{days} dia" if days == 1 else f"{days} dias"
+    hours, rest = divmod(minutes, 60)
+    if not hours:
+        return f"{rest} min"
+    return f"{hours} h {rest} min" if rest else f"{hours} h"
+
+
+def _event_heading(event):
+    """ScrapedDuck's own label for the event ("Raid Battles", "Wild Area"),
+    for the kicker of a panel without stats; "Evento" without one."""
+    return _extra(event).get("heading") or "Evento"
 
 
 # Discord caps an embed description at 4096 chars and a message's embeds at
@@ -489,19 +532,36 @@ class Scheduled(commands.Cog):
                 summaries.append(summary)
                 groups.append([event])
                 panels.append(await self._ended_panel(event, summary))
-            await self._send_ended_boards(
-                channel, panels, summaries, groups, acknowledge=acknowledge
+
+            async def ended_cards():
+                return [
+                    await self._build_event_embed(
+                        group[0], is_ended=True, summary=summary
+                    )
+                    for group, summary in zip(groups, summaries)
+                ]
+
+            await self._send_boards(
+                channel,
+                "Eventos que terminaram",
+                panels,
+                groups,
+                ended_cards,
+                is_end=True,
+                acknowledge=acknowledge,
             )
         if changed["started"]:
-            cards = [
-                await self._build_event_embed(event) for event in changed["started"]
-            ]
-            await self._send_event_batches(
+            started = changed["started"]
+
+            async def started_cards():
+                return [await self._build_event_embed(event) for event in started]
+
+            await self._send_boards(
                 channel,
-                "**Novos eventos**",
-                cards,
-                [[event] for event in changed["started"]],
-                [],
+                "Novos eventos",
+                [await self._started_panel(event) for event in started],
+                [[event] for event in started],
+                started_cards,
                 is_end=False,
                 acknowledge=acknowledge,
             )
@@ -565,46 +625,68 @@ class Scheduled(commands.Cog):
             ),
         )
 
-    async def _send_ended_boards(
-        self, channel, panels, summaries, groups, *, acknowledge
+    async def _started_panel(self, event):
+        """A new event's panel: its game image and name, until when it runs
+        and for how long, then its Pokémon and bonuses where ScrapedDuck
+        lists them."""
+        end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        start = None
+        if event.get("start"):
+            start = datetime.datetime.strptime(str(event["start"]), "%Y-%m-%d %H:%M:%S")
+        if start and start.date() == end.date():
+            chips = [("Horário", f"{start:%H:%M} – {end:%H:%M}")]
+        else:
+            day = PT_DAYS_SHORT[end.weekday()]
+            chips = [("Até", f"{day} {end:%d/%m} · {end:%H:%M}")]
+        if start:
+            chips.append(("Duração", _duration(end - start)))
+        pokemon, bonuses = _event_extras(event)
+        return StatCard(
+            kicker=_event_heading(event),
+            hero=None,
+            title=event["name"],
+            image=await usable_image(event.get("image")) or "",
+            chips=tuple(chips),
+            pokemon=pokemon,
+            bonuses=bonuses,
+        )
+
+    async def _send_boards(
+        self, channel, heading, panels, groups, text_cards, *, is_end, acknowledge
     ):
         """One image per stat_card.PER_IMAGE events, no embed. If any board
-        doesn't render, the whole post goes out as the text cards instead, so
-        an ended event is never dropped for a renderer fault."""
+        doesn't render, the whole post goes out as the text cards
+        (`text_cards()`) instead, so an event is never dropped for a renderer
+        fault."""
         date = datetime.date.today().strftime("%d/%m")
         size = stat_card.PER_IMAGE
         pngs = [
             await self.poliswag.image_generator.generate_stat_board(
-                chunk, "Eventos que terminaram", date
+                chunk, heading, date
             )
             for chunk in stat_card.chunks(panels)
         ]
         if pngs and all(pngs):
+            filename = "eventos-terminados.png" if is_end else "novos-eventos.png"
             for index, png in enumerate(pngs):
                 await channel.send(
-                    file=discord.File(
-                        io.BytesIO(png), filename="eventos-terminados.png"
-                    ),
+                    file=discord.File(io.BytesIO(png), filename=filename),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 if acknowledge:
                     chunk_groups = groups[index * size : (index + 1) * size]
                     await self._ack_events(
                         [event for group in chunk_groups for event in group],
-                        is_end=True,
+                        is_end=is_end,
                     )
             return
-        cards = [
-            await self._build_event_embed(group[0], is_ended=True, summary=summary)
-            for group, summary in zip(groups, summaries)
-        ]
         await self._send_event_batches(
             channel,
-            "**Eventos que terminaram**",
-            cards,
+            f"**{heading}**",
+            await text_cards(),
             groups,
             [],
-            is_end=True,
+            is_end=is_end,
             acknowledge=acknowledge,
         )
 
