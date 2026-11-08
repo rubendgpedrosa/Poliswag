@@ -17,6 +17,7 @@ from modules.hermiswag_learning import (
     MAX_PER_CHANNEL,
     LearningState,
     batches,
+    learnable,
 )
 from modules.public_dumps import PublicDumps, dump_request
 from modules import scan_areas
@@ -174,9 +175,12 @@ class Mentions(commands.Cog):
                     items = [m async for m in channel.history(limit=FIRST_RUN)]
                     items.reverse()
                 lines = []
+                conversation = channel_id in Config.HERMISWAG_SESSION_CHANNELS
                 for item in items:
+                    if not learnable(item, self.poliswag.user, conversation):
+                        continue
                     text = named_mentions(item.content or "", item).strip()
-                    if text and item.webhook_id is None:
+                    if text:
                         lines.append((item.author.display_name, text))
                 for prompt in batches(channel.name, lines):
                     answer = await self.hermiswag.ask(
