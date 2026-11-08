@@ -1,7 +1,8 @@
 """The generic stat board: data in, a view model for templates/stat-card.html out.
 
-One image holds a post's panels, side by side so it stays landscape (Discord
-shrinks a tall image until nothing in it reads). Each panel is a StatCard:
+One image holds a post's panels, stacked in one column, phone first: three
+side by side made a 1600px-wide image that a phone shrank until nothing
+read; one 520px column shows near full width. Each panel is a StatCard:
 the event's own game image as a banner with its name on it, then the figure
 it was about, an optional row of secondary totals, and a bar per scan area.
 A panel without numbers is the banner and a line saying when it ended; a
@@ -25,8 +26,7 @@ BOARD_PAD = 24
 HEAD_H = 40
 HEAD_GAP = 20
 PANEL_GAP = 16
-MAX_COLUMNS = 3
-PER_IMAGE = 6  # panels per image; more go in another image
+PER_IMAGE = 4  # panels per image, stacked; more go in another image
 
 # Panel.
 PANEL_W = 520
@@ -121,15 +121,6 @@ def panel_height(card):
     return 2 * BORDER + BANNER_H + body
 
 
-def columns_for(count):
-    """1, 2, 3, then 2x2 for four and 3 wide for five or six."""
-    if count <= 1:
-        return 1
-    if count in (2, 4):
-        return 2
-    return MAX_COLUMNS
-
-
 def _panel_view(card):
     extras = max((len(row.extras) for row in card.rows), default=0)
     bar_track = (
@@ -193,11 +184,10 @@ def build_board_view(cards, heading, date="", brand=""):
     if not cards:
         raise ValueError("a stat board needs at least one panel")
     cards = list(cards)[:PER_IMAGE]
-    cols = columns_for(len(cards))
     panels = [_panel_view(card) for card in cards]
-    grid = [panels[i : i + cols] for i in range(0, len(panels), cols)]
+    grid = [[panel] for panel in panels]  # one panel per row
     row_heights = [max(p["height"] for p in row) for row in grid]
-    width = 2 * BOARD_PAD + cols * PANEL_W + (cols - 1) * PANEL_GAP + 2 * BORDER
+    width = 2 * BOARD_PAD + PANEL_W + 2 * BORDER
     height = (
         2 * BOARD_PAD
         + 2 * BORDER

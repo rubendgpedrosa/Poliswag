@@ -13,7 +13,7 @@ Species-focused ended-event summaries (Community Day and Spotlight Hour) also re
 
 ### Event images (2026-11-08)
 
-"Novos eventos" and "Eventos que terminaram" are each one PNG per post (up to six events per image), with no embed. `modules/stat_card.py` builds a board: the PoGoLeiria wordmark and brand art (`templates/brand-header-400.png`, from the site's `brand-header-400.webp`), then a panel per event with its ScrapedDuck game image as the banner and its name. Panels sit side by side (1, 2, 3, then 2x2 or 3 wide) so the image stays landscape in Discord.
+"Novos eventos" and "Eventos que terminaram" are each one PNG per post (up to four events per image), with no embed. `modules/stat_card.py` builds a board: the PoGoLeiria wordmark and brand art (`templates/brand-header-400.png`, from the site's `brand-header-400.webp`), then a panel per event with its ScrapedDuck game image as the banner and its name. Panels are stacked in one 520px column, phone first: side by side they made a 1600px-wide image a phone shrank until nothing read.
 
 - **New events** (`Scheduled._started_panel`): when it runs (`Horário 14:00 – 17:00` for one day, `Até Ter 01/12 · 22:00` otherwise) and for how long, then from ScrapedDuck's extraData the raid bosses, Community Day spawns or Spotlight Pokémon as tiles (gold dot: can be shiny in the game) and the bonuses (five, then "+N bónus").
 - **Ended events** (`Scheduled._ended_panel`): the `StatCard` from `EventStats` (hero figure, badge, 100IV/0IV chips, an ember bar per scan area), or when it ended for types without stats. Shiny counts appear only while `SHINY_ALERTS_ENABLED` is on: with shiny detection off the scanner sees none.
