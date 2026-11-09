@@ -137,7 +137,28 @@ class TestHeights:
         footer = {"Leiria": {"total": 10, "iv": 9}}
         assert (
             ac.build_card_view([scan_plain], footer)["height"] - without_note
-            == ac.FOOTER_H
+            == ac.footer_height(1)
+            == ac.AREA_DIVIDER_H + ac.AREA_ROW_H
+        )
+
+    def test_footer_wraps_after_five_areas(self):
+        assert ac.footer_height(0) == 0
+        assert ac.footer_height(5) == ac.footer_height(1)
+        assert ac.footer_height(6) == (
+            ac.AREA_DIVIDER_H + 2 * ac.AREA_ROW_H + ac.AREA_ROW_GAP
+        )
+        lines = [{"name": str(n), "rate": 90, "spawns": 100} for n in range(6)]
+        assert [len(r) for r in ac.area_rows(lines)] == [5, 1]
+
+    def test_area_columns_fill_the_content_width(self):
+        used = ac.AREA_COLUMNS * ac.AREA_COL_W + (ac.AREA_COLUMNS - 1) * ac.AREA_COL_GAP
+        assert used <= ac.CONTENT_WIDTH
+        assert ac.CONTENT_WIDTH - used < ac.AREA_COLUMNS
+
+    def test_image_height_includes_the_board_frame(self):
+        view = ac.build_card_view([_scan(_acc(45, 205), _dev())])
+        assert view["height"] == view["card_height"] + ac.BOARD_HEAD_H + 2 * (
+            ac.BOARD_PAD + ac.BOARD_BORDER
         )
 
     def test_template_css_uses_the_same_pixel_sizes(self):
@@ -154,7 +175,14 @@ class TestHeights:
         assert block_height(".pool-stats.plain") == ac.POOL_STATS_H
         assert block_height(".pool-stats.hero") == ac.POOL_STATS_HERO_H
         assert block_height(".pool-unavailable") == ac.POOL_UNAVAILABLE_H
-        assert block_height(".area-row") + 1 + 18 + 16 == ac.FOOTER_H
+        assert block_height(".area-row") == ac.AREA_ROW_H
+        assert ".area-row.spaced { margin-bottom: 12px; }" in css
+        assert ac.AREA_ROW_GAP == 12
+        assert "margin-right: 13px" in css and ac.AREA_COL_GAP == 13
+        assert "margin: 18px 0 16px" in css and ac.AREA_DIVIDER_H == 18 + 1 + 16
+        assert re.search(r"\.panel \{\s*width: (\d+)px", css).group(1) == str(
+            ac.PANEL_WIDTH
+        )
         assert block_height(".bar") + 12 == ac.POOL_BAR_H
         assert block_height(".note, .low") + 10 == ac.POOL_NOTE_H == ac.POOL_LOW_H
         assert "margin: 12px 0 14px" in css  # pool divider, POOL_DIVIDER_H

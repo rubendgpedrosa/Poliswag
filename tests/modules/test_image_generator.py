@@ -51,6 +51,7 @@ def ig():
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
     g._env = None
     g._accounts_template = None
+    g._brand_uri = None
     return g
 
 
@@ -297,7 +298,7 @@ class TestGenerateImageFromAccountStats:
                 "MarinhaGrande": {"total": 40, "iv": 36},
             },
         )
-        assert html == "Leiria:100:99 Marinha:40:90 "
+        assert html == "Leiria:100:99 Marinha Grande:40:90 "
 
     async def test_area_performance_leiria_always_before_marinha(
         self, ig, mocker, tmp_path

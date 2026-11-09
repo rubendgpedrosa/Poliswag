@@ -6,15 +6,24 @@ wkhtmltoimage's old WebKit: no CSS grid, no gap, unreliable flex-grow. The
 template only places fixed-size boxes.
 """
 
+import math
+
 from modules import scan_areas
 
 # Pixel geometry. The template's CSS uses these same numbers; the tests check
 # that a rendered layout and build_card_view's height stay in step.
+#
+# The card sits in the board frame every other bot image uses
+# (_board-base.css: 24px padding, 1px border, the "PoGoLeiria | heading" row
+# and the faint brand art), with the account panel inside it.
 CARD_WIDTH = 800
-STAGE_PAD = 16
+BOARD_PAD = 24
+BOARD_BORDER = 1
+BOARD_HEAD_H = 60  # the shared .head: 40 + 20 gap
+PANEL_WIDTH = CARD_WIDTH - 2 * BOARD_PAD - 2 * BOARD_BORDER  # 750
 INNER_PAD_TOP = 20
 INNER_PAD_BOTTOM = 18
-CONTENT_WIDTH = 712  # 800 - 2*16 stage padding - 30 left - 26 right padding
+CONTENT_WIDTH = PANEL_WIDTH - 2 - 30 - 26  # 692: panel border, 30 left, 26 right
 HEADER_H = 30
 POOL_DIVIDER_H = 27  # 12 margin + 1 line + 14 margin
 POOL_TITLE_H = 30
@@ -24,7 +33,24 @@ POOL_BAR_H = 22  # 12 margin + 10 bar
 POOL_NOTE_H = 24  # 10 margin + 14 line
 POOL_LOW_H = 24  # 10 margin + 14 line, the urgent "running low" note
 POOL_UNAVAILABLE_H = 36
-FOOTER_H = 61  # 18 margin + 1 line + 16 margin + 26 row
+
+# Footer: one column per area, AREA_COLUMNS to a row, so a sixth area wraps
+# instead of running off the card (five areas overflowed the old single line).
+AREA_DIVIDER_H = 35  # 18 margin + 1 line + 16 margin
+AREA_COLUMNS = 5
+AREA_COL_GAP = 13
+AREA_COL_W = (CONTENT_WIDTH - AREA_COL_GAP * (AREA_COLUMNS - 1)) // AREA_COLUMNS  # 128
+AREA_ROW_H = 62  # 14 name + 4 + 26 figure + 4 + 14 coverage
+AREA_ROW_GAP = 12
+
+
+def footer_height(count):
+    """Height of the area footer for `count` areas (0 when there are none)."""
+    if not count:
+        return 0
+    rows = math.ceil(count / AREA_COLUMNS)
+    return AREA_DIVIDER_H + rows * AREA_ROW_H + (rows - 1) * AREA_ROW_GAP
+
 
 # Rendered at 2x (wkhtmltoimage --zoom) so text stays sharp when Discord
 # downscales the image on phones; CSS stays at the token pixel sizes.
@@ -178,7 +204,7 @@ def area_lines(area_performance):
         rate = round(stats.get("iv", 0) / stats["total"] * 100)
         lines.append(
             {
-                "name": scan_areas.short_label(row["area_key"]),
+                "name": scan_areas.label(row["area_key"]),
                 "rate": rate,
                 "spawns": stats["total"],
             }
@@ -186,8 +212,13 @@ def area_lines(area_performance):
     return lines
 
 
-def build_card_view(pools, area_performance=None):
-    """Everything accounts.html needs, including the exact card height."""
+def area_rows(lines):
+    """The footer's lines, AREA_COLUMNS to a row."""
+    return [lines[i : i + AREA_COLUMNS] for i in range(0, len(lines), AREA_COLUMNS)]
+
+
+def build_card_view(pools, area_performance=None, brand=""):
+    """Everything accounts.html needs, including the exact image height."""
     pool_views = [_pool_view(p) for p in pools]
     status_tone, status_label = _status(pools)
     footer = area_lines(area_performance)
@@ -198,17 +229,20 @@ def build_card_view(pools, area_performance=None):
         INNER_PAD_TOP
         + HEADER_H
         + sum(v["height"] for v in pool_views)
-        + (FOOTER_H if footer else 0)
+        + footer_height(len(footer))
         + INNER_PAD_BOTTOM
     )
     return {
         "pools": pool_views,
         "area_lines": footer,
+        "area_rows": area_rows(footer),
+        "area_col_w": AREA_COL_W,
         "grand_total": grand_total,
         "status": status_tone,
         "status_label": status_label,
+        "brand": brand,
         "card_height": card_h,
-        "height": card_h + 2 * STAGE_PAD,
+        "height": card_h + BOARD_HEAD_H + 2 * BOARD_PAD + 2 * BOARD_BORDER,
         "width": CARD_WIDTH,
         "scale": RENDER_SCALE,
     }
