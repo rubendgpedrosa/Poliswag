@@ -68,7 +68,7 @@ class TestGatedCommands:
             (Scheduled, "testevent"),
         ],
     )
-    def test_body_gated_commands_also_carry_the_mods_check(self, cog_cls, name):
+    def test_mod_commands_carry_the_mods_check(self, cog_cls, name):
         command = next(c for c in cog_cls.__cog_commands__ if c.name == name)
         assert is_mod in command.checks
 

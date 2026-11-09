@@ -9,10 +9,10 @@ Run inside the bot container, which mounts /pogo-public/quests.json:
 
 import argparse
 import asyncio
-from io import BytesIO
 import json
-from pathlib import Path
 import sys
+from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 
 import discord

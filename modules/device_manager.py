@@ -61,7 +61,7 @@ class DeviceManager(LoggingMixin):
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
-            raise RuntimeError(f"Comando ADB expirou após {timeout}s")
+            raise RuntimeError(f"Comando ADB expirou após {timeout}s") from None
         return stdout.decode().strip(), stderr.decode().strip(), proc.returncode
 
     async def _device_state(self, device: str) -> str:
@@ -174,16 +174,6 @@ class DeviceManager(LoggingMixin):
         except RuntimeError as e:
             self._log(f"App restart failed: {e}")
             return False
-
-    async def run_as_root(
-        self, command: str, timeout: int = 15
-    ) -> tuple[str, str, int]:
-        """Run a shell command on the device through su (Magisk).
-
-        MappingService is not exported, so starting it is not something adb's
-        plain shell uid can be relied on to do.
-        """
-        return await self.run("shell", "su", "-c", command, timeout=timeout)
 
     async def restart_scanner_apps(self) -> bool:
         """The phone rung for PoliSnatch: put the game in front, or start the

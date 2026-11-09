@@ -1,6 +1,6 @@
 """Tests for cogs.quests.Quests.
 
-Covers the admin-gated exportquests/scan commands and the questleiria/
+Covers the mod-gated exportquests/scan commands and the questleiria/
 questmarinha search command's full branching. ``fetch_data`` in ``rescancmd``
 is imported locally inside the function, so we patch it at the module where it
 is *looked up* (``modules.http_client``).
@@ -11,12 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cogs.quests import Quests, setup
+from modules.permissions import is_mod
 
 
 @pytest.fixture
 def cog():
     poliswag = MagicMock()
-    poliswag.ADMIN_USERS_IDS = ["42"]
     poliswag.quest_exporter.export = AsyncMock()
     poliswag.scanner_manager.update_quest_scanning_state = AsyncMock()
     poliswag.quest_search.find_quest_by_search_keyword = AsyncMock()
@@ -37,11 +37,9 @@ def make_ctx(author_id="42", invoked_with="questleiria"):
 
 
 class TestExportQuestsCmd:
-    async def test_non_admin_returns_silently(self, cog):
-        ctx = make_ctx(author_id="nope")
-        await Quests.exportquestscmd.callback(cog, ctx)
-        ctx.send.assert_not_called()
-        cog.poliswag.quest_exporter.export.assert_not_called()
+    def test_gated_to_mods(self):
+        # The gate lives on the command (mods_only), not in the body.
+        assert is_mod in Quests.exportquestscmd.checks
 
     async def test_admin_success_edits_message(self, cog):
         ctx = make_ctx()
@@ -70,10 +68,8 @@ class TestExportQuestsCmd:
 
 
 class TestRescanCmd:
-    async def test_non_admin_returns_silently(self, cog):
-        ctx = make_ctx(author_id="nope")
-        await Quests.rescancmd.callback(cog, ctx)
-        ctx.send.assert_not_called()
+    def test_gated_to_mods(self):
+        assert is_mod in Quests.rescancmd.checks
 
     async def test_success_updates_state(self, cog):
         ctx = make_ctx()

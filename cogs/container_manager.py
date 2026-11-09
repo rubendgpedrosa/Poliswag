@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 
@@ -144,7 +146,11 @@ class ContainerManagerCog(commands.Cog):
             )
         )
         try:
-            self.poliswag.scanner_manager.change_scanner_status("start")
+            # docker-py blocks until Docker answers (a stop waits up to 10 s
+            # for the container): keep that wait off the event loop.
+            await asyncio.to_thread(
+                self.poliswag.scanner_manager.change_scanner_status, "start"
+            )
             await msg.edit(
                 embed=status_embed(
                     f"✅ Comando de início enviado para '{self.SCANNER_CONTAINER_NAME}'.",
@@ -170,7 +176,9 @@ class ContainerManagerCog(commands.Cog):
             )
         )
         try:
-            self.poliswag.scanner_manager.change_scanner_status("stop")
+            await asyncio.to_thread(
+                self.poliswag.scanner_manager.change_scanner_status, "stop"
+            )
             await msg.edit(
                 embed=status_embed(
                     f"✅ Comando de paragem enviado para '{self.SCANNER_CONTAINER_NAME}'.",

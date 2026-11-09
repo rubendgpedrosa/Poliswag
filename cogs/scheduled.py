@@ -1,38 +1,44 @@
-import datetime
-import time
-import traceback
 import asyncio
 import dataclasses
+import datetime
 import io
 import json
+import re
+import time
+import traceback
+
 import discord
 from discord.ext import commands, tasks
 
+from modules import scan_areas, tracking_health
 from modules.config import Config
-from modules.owner_alert import notify_owner
 from modules.embeds import build_embed, status_embed
-from modules.permissions import mods_only
-from modules.locale_pt import PT_DAYS_SHORT
-from modules.pokemon_name_sync import sync_pokemon_names
-from modules.pokemon_costume_sync import sync_pokemon_costumes
-from modules import tracking_health
-from modules import scan_areas
 from modules.event_images import usable_image
-from modules.stat_card import StatCard
-from modules.week_board import WeekEvent
 from modules.hundo_alerts import HundoAlerts
+from modules.locale_pt import PT_DAYS_SHORT
+from modules.owner_alert import notify_owner
+from modules.permissions import mods_only
+from modules.pokemon_costume_sync import sync_pokemon_costumes
+from modules.pokemon_name_sync import sync_pokemon_names
 from modules.shiny_alerts import ShinyAlerts
-from modules.shiny_odds import ShinyOdds
 from modules.shiny_availability import ShinyAvailability
+from modules.shiny_odds import ShinyOdds
+from modules.stat_card import StatCard
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
+from modules.week_board import WeekEvent
 
 # A step that alone outlasts the 60s tick interval delays every step after it
 # and the next tick. Logged as ERROR so the owner's daily error digest sees it: the
 # 2026-09-23 rename stall ran for 5 hours visible only as discord.http
 # warnings on stdout.
 _SLOW_STEP_SECONDS = 60
+
+
+def _event_time(event, key) -> datetime.datetime:
+    """Event rows hold Lisbon wall time as `%Y-%m-%d %H:%M:%S`."""
+    return datetime.datetime.strptime(str(event[key]), "%Y-%m-%d %H:%M:%S")
 
 
 def _extra(event):
@@ -141,6 +147,73 @@ def _split_weekly_description(text, limit=_WEEKLY_DESCRIPTION_LIMIT):
     return chunks or [""]
 
 
+# The daily error digest: an error.log entry's first line, split into its
+# timestamp and its message. Repeats are grouped on the message with every
+# run of digits made equal, so "took 61s" and "took 128s" are one problem.
+_ERROR_LINE_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - \w+ - (.*)$", re.DOTALL
+)
+_DIGITS_RE = re.compile(r"\d+")
+_DIGEST_MAX_GROUPS = 10
+_DIGEST_MESSAGE_LIMIT = 300
+_DIGEST_DESCRIPTION_LIMIT = 4000
+
+
+def _group_error_entries(
+    entries,
+) -> list[tuple[str, int, datetime.datetime | None, datetime.datetime | None]]:
+    """(text, count, first time, last time) per distinct error, in order of
+    first occurrence. The text is the group's first message; an entry that
+    is not a log line is grouped on its whole text and has no times."""
+    groups = {}
+    for entry in entries:
+        match = _ERROR_LINE_RE.match(entry)
+        if match:
+            when = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+            text = match.group(2)
+            key = ("log", _DIGITS_RE.sub("#", text))
+        else:
+            when = None
+            text = entry
+            key = ("raw", _DIGITS_RE.sub("#", text))
+        group = groups.get(key)
+        if group is None:
+            groups[key] = [text, 1, when, when]
+            continue
+        group[1] += 1
+        if when is not None:
+            group[2] = when if group[2] is None else min(group[2], when)
+            group[3] = when if group[3] is None else max(group[3], when)
+    return [tuple(group) for group in groups.values()]
+
+
+def _digest_line(text, count, first, last, today) -> str:
+    """One bullet: '3× message · 08/11 18:45 – 09/11 09:30' or
+    'message · 09:00'. Only the time when every time shown is today."""
+    if len(text) > _DIGEST_MESSAGE_LIMIT:
+        text = text[: _DIGEST_MESSAGE_LIMIT - 1].rstrip() + "…"
+    line = discord.utils.escape_markdown(text)
+    if count > 1:
+        line = f"{count}× {line}"
+    times = [t for t in (first, last) if t is not None]
+    if count == 1 or first == last:
+        times = times[:1]
+    if times:
+        fmt = "%H:%M" if all(t.date() == today for t in times) else "%d/%m %H:%M"
+        line += " · " + " – ".join(t.strftime(fmt) for t in times)
+    return f"• {line}"
+
+
+def _error_digest_description(entries, today) -> str:
+    groups = _group_error_entries(entries)
+    lines = [_digest_line(*group, today) for group in groups[:_DIGEST_MAX_GROUPS]]
+    left_out = len(groups) - _DIGEST_MAX_GROUPS
+    if left_out > 0:
+        kinds = "tipo" if left_out == 1 else "tipos"
+        lines.append(f"… e mais {left_out} {kinds} de erro.")
+    return "\n".join(lines)[:_DIGEST_DESCRIPTION_LIMIT]
+
+
 class Scheduled(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -232,8 +305,6 @@ class Scheduled(commands.Cog):
         name="weeklydigest", brief="Envia resumo semanal de eventos (admin)"
     )
     async def weeklydigestcmd(self, ctx):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
         await self._send_weekly_digest(channel=ctx.channel)
@@ -243,8 +314,6 @@ class Scheduled(commands.Cog):
         name="testevent", brief="Simula _check_events em HH:MM hoje (admin)"
     )
     async def testeventcmd(self, ctx, time_arg: str = None):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
@@ -373,7 +442,11 @@ class Scheduled(commands.Cog):
         """Proof for the host watchdog (scripts/watchdog.sh) that ticks still run."""
         try:
             with open(Config.HEARTBEAT_FILE, "w") as f:
-                f.write(datetime.datetime.utcnow().isoformat())
+                f.write(
+                    datetime.datetime.now(datetime.timezone.utc)
+                    .replace(tzinfo=None)
+                    .isoformat()
+                )
         except OSError as e:
             self.poliswag.utility.log_to_file(
                 f"Could not write heartbeat: {e}", "ERROR"
@@ -648,7 +721,7 @@ class Scheduled(commands.Cog):
         image = await usable_image(event.get("image")) or ""
         if summary and summary.card:
             return dataclasses.replace(summary.card, title=title, image=image)
-        event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        event_end = _event_time(event, "end")
         return StatCard(
             kicker=_event_heading(event),
             hero=None,
@@ -663,10 +736,10 @@ class Scheduled(commands.Cog):
         """A new event's panel: its game image and name, until when it runs
         and for how long, then its Pokémon and bonuses where ScrapedDuck
         lists them."""
-        end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        end = _event_time(event, "end")
         start = None
         if event.get("start"):
-            start = datetime.datetime.strptime(str(event["start"]), "%Y-%m-%d %H:%M:%S")
+            start = _event_time(event, "start")
         if start and start.date() == end.date():
             chips = [("Horário", f"{start:%H:%M} – {end:%H:%M}")]
         else:
@@ -721,7 +794,7 @@ class Scheduled(commands.Cog):
         )
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
-        event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        event_end = _event_time(event, "end")
         emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
         event_link = self.poliswag.event_manager.get_event_link(event)
         event_type_key = self.poliswag.event_manager.get_event_type_key(
@@ -823,12 +896,8 @@ class Scheduled(commands.Cog):
                 continue
             week_events.append(event)
 
-            event_start = datetime.datetime.strptime(
-                str(event["start"]), "%Y-%m-%d %H:%M:%S"
-            )
-            event_end = datetime.datetime.strptime(
-                str(event["end"]), "%Y-%m-%d %H:%M:%S"
-            )
+            event_start = _event_time(event, "start")
+            event_end = _event_time(event, "end")
             emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
 
             if event_start <= now:
@@ -896,12 +965,8 @@ class Scheduled(commands.Cog):
                     title=event["name"],
                     kicker=_type_label(event["event_type"]),
                     image=event.get("image") or "",
-                    start=datetime.datetime.strptime(
-                        str(event["start"]), "%Y-%m-%d %H:%M:%S"
-                    ),
-                    end=datetime.datetime.strptime(
-                        str(event["end"]), "%Y-%m-%d %H:%M:%S"
-                    ),
+                    start=_event_time(event, "start"),
+                    end=_event_time(event, "end"),
                 )
                 for event in week_events
             ],
@@ -992,14 +1057,11 @@ class Scheduled(commands.Cog):
             await self._save_error_digest_at(now)
             return
 
-        preview = entries[:10]
-        description = "\n".join(f"• {entry}" for entry in preview)
-        if len(entries) > len(preview):
-            description += f"\n… e mais {len(entries) - len(preview)}."
-
+        count = len(entries)
+        noun = "erro novo" if count == 1 else "erros novos"
         embed = build_embed(
-            f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
-            description[:4000],
+            f"⚠️ {count} {noun} desde o último resumo",
+            _error_digest_description(entries, now.date()),
         )
         try:
             user = self.poliswag.get_user(
@@ -1031,7 +1093,7 @@ class Scheduled(commands.Cog):
         if action is None:
             return
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         when = now if action == "alert" else None
         await self._save_tracking_alert_at(when)
         self._last_tracking_alert_at = when

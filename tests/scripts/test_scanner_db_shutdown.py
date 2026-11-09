@@ -2,14 +2,13 @@ import gzip
 import importlib.machinery
 import importlib.util
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
-loader = importlib.machinery.SourceFileLoader(
-    "scanner_db_shutdown", str(Path(__file__).with_name("scanner-db-shutdown"))
-)
+SOURCE = Path(__file__).resolve().parents[2] / "scripts" / "scanner-db-shutdown"
+loader = importlib.machinery.SourceFileLoader("scanner_db_shutdown", str(SOURCE))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 hook = importlib.util.module_from_spec(spec)
 loader.exec_module(hook)

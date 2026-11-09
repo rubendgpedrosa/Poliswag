@@ -22,14 +22,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modules.agent_jobs import AgentJobs, MAX_PROMPT, TERMINAL, read_json, write_json
+from modules.agent_artifacts import stage_artifacts
+from modules.agent_jobs import MAX_PROMPT, TERMINAL, AgentJobs, read_json, write_json
+from modules.agent_reply import REPLY_SCHEMA, parse_reply
 from modules.conversation_model import (
     INSTRUCTIONS,
     TOPICS,
     validate_public_context,
 )
-from modules.agent_reply import REPLY_SCHEMA, parse_reply
-from modules.agent_artifacts import stage_artifacts
 
 STOPPING = False
 

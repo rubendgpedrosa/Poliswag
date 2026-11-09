@@ -1,6 +1,7 @@
 from discord.ext import commands
-from modules.event_store import EventStore
+
 from modules.embeds import build_excluded_list_embed, status_embed
+from modules.event_store import EventStore
 
 
 class EventExclusion(commands.Cog):

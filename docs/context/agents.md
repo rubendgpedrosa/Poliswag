@@ -299,6 +299,21 @@ the next revision, and each revision is delivered once. JSON writes use atomic r
 heartbeat expires after 30 seconds. Maximum five outstanding requests per owner;
 one executes at a time, with a 20-minute limit. Systemd caps resources.
 
+The job modules: `modules/agent_jobs.py` is the queue (`AgentJobs`
+submit/get/resume/cancel/list, atomic `write_json`, `parse_direct_request`),
+standard library only because `scripts/agent_worker.py` imports it outside the
+container; `cogs/agents.py` and the public worker path (`conversation_model.py`,
+under `public/`) use it too. `modules/agent_reply.py` holds the `REPLY_SCHEMA`
+the worker asks for and `parse_reply`, which rejects any other shape;
+`short_sentence` trims status lines to one sentence (at most 280 characters).
+`modules/agent_artifacts.py` stages the files a reply names (worker) and reads
+them back (cog): relative paths inside the worktree, no dot-prefixed parts, an
+extension allowlist, regular files only, no final symlink, at most 9 files (one
+attachment slot stays for the report), 8 MB each and 24 MB in all.
+`modules/agent_destination.py` (`delivery_reference`) takes the last explicit,
+non-negated delivery directive in the owner's request (DM, `<#id>`, `#name`,
+`canal <name>`), so the agent never chooses a channel itself.
+
 Every owner job reads a checkout of **committed HEAD**, in a new branch
 `poliswag-agent/<id>` and worktree `/root/worktrees/poliswag-agent/<id>`.
 Uncommitted live-tree changes and production `.env` files are not copied. Tasks
@@ -441,6 +456,11 @@ moderation or alert channels) under `LEARN_INSTRUCTIONS`, in the session
 `hermiswag:learning`; Hermiswag keeps what is useful in its own memory
 (`memory_char_limit` 8000). The last message id per channel is in
 `logs/hermiswag-learning.json`; the first run reads the last 100 messages.
+`modules/hermiswag_learning.py` holds the prompt, that state file
+(`LearningState`), `batches` (prompts of at most 12 000 characters, 600 per
+message, oldest first; up to 200 new messages per channel per run) and
+`learnable` (never webhooks; in the conversation channels members only, so
+Poliswag's own replies are not learnt).
 
 **Its own queries.** Hermiswag has the MCP server `mapdb`
 (`/home/hermiswag/mapdb/server.py`, copy in `scripts/hermiswag_mapdb_server.py`,
@@ -469,7 +489,7 @@ replace the file.
 
 **Unanswered questions (owner, 2026-11-09).** `Mentions.proactive` runs every
 10 min over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
-message that looks like a question, waited 30 min to 3 h, is not a reply target,
+message that looks like a question, waited 10 min to 3 h, is not a reply target,
 does not tag Poliswag and was not looked at before (`logs/hermiswag-proactive.json`)
 goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
 empty reply means leave it (chat, aimed at a person, or already answered). An
@@ -478,7 +498,9 @@ three questions weighed per channel per run. It is published only when Hermiswag
 `verified_with` (community_knowledge, map_query or web) (`confirmed_reply`).
 For a member's own technical or account problem it may suggest the usual
 causes and fixes the sources back, and ask for a detail; it never invents
-(owner, 2026-11-09).
+(owner, 2026-11-09). The selection (`candidates`, `looks_like_question`), the
+rules, the state file (300 ids kept per channel) and `confirmed_reply` live in
+`modules/hermiswag_proactive.py`.
 
 **Follow-ups without a tag (owner, 2026-11-09).** `Mentions.followup` runs every
 minute over channels where Poliswag spoke in the last 15 min
@@ -491,9 +513,13 @@ messages are left to `handle`.
 
 Follow-ups continue with one person only: whoever Poliswag last answered in
 that channel (`ActiveChannels.partner`); others' messages are context.
+`modules/hermiswag_followup.py` holds those limits, `ActiveChannels`,
+`new_since_poliswag` (which messages count) and `followup_reply`.
 
 **Owner DM default (2026-11-09).** `!useclaude` / `!usehermes` (owner only)
 set `Config.OWNER_DM_DEFAULT` at once and write `OWNER_DM_DEFAULT` to `.env`
-(`modules/env_file.set_env_value`, keeps the other lines and the mode) for the
+(`modules/env_file.py` `set_env_value`: one `KEY=value` line replaced or
+appended, other lines and the file mode kept, written through a temp file;
+upper-case keys and one-line values only, the value never logged) for the
 next boot. With `claude`, unprefixed owner DMs go to ClaudeChat and `h ` sends
 one to Hermes; `c ` always means Claude.

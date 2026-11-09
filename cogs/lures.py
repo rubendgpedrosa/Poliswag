@@ -1,5 +1,5 @@
+import asyncio
 import re
-import time
 
 import discord
 from discord.ext import commands
@@ -41,86 +41,6 @@ class Lures(commands.Cog):
         self.poller = JobPoller(
             poliswag, self.jobs, self.job_store, announce=self._announce_job
         )
-
-    @commands.command(name="pn")
-    async def pn(self, ctx, action: str = "", worker: str = "*"):
-        """What the phones say they are doing - or start/stop/restart their workers.
-
-        !pn            the last word from each phone
-        !pn restart    restart the job workers on every phone
-        !pn stop       stop the job workers (the control poll keeps running)
-        !pn start      start them again
-        """
-        if action:
-            verb = action.lower()
-            if verb not in ("start", "stop", "restart", "status"):
-                await ctx.send(
-                    embed=build_embed(
-                        "AÇÃO DESCONHECIDA", "start, stop, restart ou status"
-                    )
-                )
-                return
-            try:
-                await self.jobs.command(worker, verb)
-            except JobApiError as error:
-                await ctx.send(
-                    embed=build_embed("COMANDO NÃO ENTREGUE", _error_text(error))
-                )
-                return
-            where = "todos os telefones" if worker == "*" else f"`{worker}`"
-            await ctx.send(
-                embed=build_embed(
-                    "COMANDO ENVIADO",
-                    f"`{verb}` para {where}. É entregue no próximo poll (até 5s) "
-                    "e aparece no `!pn` seguinte.",
-                )
-            )
-            return
-
-        try:
-            workers = await self.jobs.workers()
-        except JobApiError as error:
-            await ctx.send(
-                embed=build_embed("POLISNATCH INACESSÍVEL", _error_text(error))
-            )
-            return
-
-        if not workers:
-            await ctx.send(
-                embed=build_embed(
-                    "SEM ESTADO",
-                    "Nenhum worker reporta estado. O telefone não está a reportar "
-                    "estado, ou não está ligado.",
-                )
-            )
-            return
-
-        now = time.time()
-        lines = []
-        for name in sorted(workers):
-            beat = workers[name]
-            age = int(now - float(beat.get("receivedAt") or now))
-            bits = []
-            if beat.get("connected") is not None:
-                bits.append("ligado" if beat["connected"] else "desligado")
-            if beat.get("mode"):
-                bits.append(str(beat["mode"]))
-            if beat.get("ticks") is not None:
-                bits.append(f"{beat['ticks']} ticks")
-            if beat.get("rpc_total") is not None:
-                bits.append(f"{beat['rpc_total']} rpc")
-            attempts = beat.get("reconnect_attempts")
-            if attempts:
-                bits.append(f"{attempts} tentativa(s) de reconexão")
-            if beat.get("paused"):
-                bits.append("workers parados")
-            if beat.get("last_error"):
-                bits.append(f"erro: {beat['last_error']}")
-            state = "vivo" if age < 45 else f"silencioso há {age}s"
-            lines.append(
-                f"**{name}** — {state} — " + (", ".join(bits) or "sem detalhe")
-            )
-        await ctx.send(embed=build_embed("POLISNATCH", "\n".join(lines[:12])))
 
     @commands.command(
         name="pstoken",
@@ -260,7 +180,9 @@ class Lures(commands.Cog):
         key = (
             lure_locks.stop_key(lat=lat, lon=lon) if nearest is False else "geo:nearest"
         )
-        state = lure_locks.status(key)
+        # lure_locks and the job store open a pymysql connection per call:
+        # run them in a thread so a slow database never freezes the bot.
+        state = await asyncio.to_thread(lure_locks.status, key)
         if state["locked_for_s"] > 0:
             minutes = (state["locked_for_s"] + 59) // 60
             await ctx.send(
@@ -336,7 +258,8 @@ class Lures(commands.Cog):
     async def _record_job(self, ctx, message, job_id, key, nearest, lat, lon, job):
         """Persist the job before waiting on it; False when the store failed."""
         try:
-            self.job_store.record(
+            await asyncio.to_thread(
+                self.job_store.record,
                 job_id,
                 "lure",
                 discord_id=ctx.author.id,
@@ -385,7 +308,8 @@ class Lures(commands.Cog):
                 "LURE NÃO COLOCADO", REASONS.get(str(reason), str(reason))
             )
         await self._deliver(row, embed)
-        _settle(
+        await asyncio.to_thread(
+            _settle,
             row.get("stop_key"),
             row["job_id"],
             {

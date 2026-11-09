@@ -1,13 +1,12 @@
-from types import SimpleNamespace
 from datetime import datetime, timezone
-
-import discord
-from modules.shiny_access_requests import request_payload
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import discord
 import pytest
 
 from cogs import shiny_access_requests as cog_module
+from modules.shiny_access_requests import request_payload
 
 BUTTON = "shiny-access:accept:123:20261015120000123456"
 

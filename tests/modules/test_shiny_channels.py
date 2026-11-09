@@ -10,13 +10,13 @@ from modules.config import Config
 from modules.shiny_channels import (
     ARCHIVE_CATEGORY,
     CHANNEL_CATEGORY,
-    ShinyChannels,
-    STARTUP_TEXT,
+    FAILED_TEXT,
+    OFF_STATE,
     PROCESSING_TEXT,
     READY_TEXT,
-    FAILED_TEXT,
     SHUTDOWN_TEXT,
-    OFF_STATE,
+    STARTUP_TEXT,
+    ShinyChannels,
     map_url,
 )
 

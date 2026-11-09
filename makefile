@@ -19,7 +19,7 @@ DB_NAME := $(shell grep -s '^DB_NAME=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' 
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs install run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
+.PHONY: all help up down logs run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -57,12 +57,6 @@ run: ## Start the app only (without rebuilding)
 	@echo "Starting the app only..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) up -d poliswag
 	@echo "App started."
-
-install: ## Install dependencies
-	# This target is kept for reference. In general, you should not run pip here.
-	# It is redundant, the correct way to do is inside the dockerfile.
-	@echo "Running the install command is redudant. Packages are installed in the dockerfile"
-	@echo "docker compose -f $(DOCKER_COMPOSE_FILE) exec poliswag pip install -r requirements.txt"
 
 test: ## Run the tests with pytest inside the poliswag container
 	@echo "Running tests in $(CONTAINER_NAME) container..."

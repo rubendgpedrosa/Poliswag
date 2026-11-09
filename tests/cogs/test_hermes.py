@@ -363,6 +363,7 @@ async def test_failed_technical_message_keeps_run_pending(cog):
 
 def test_unclosed_oversized_code_stays_in_chat_with_balanced_fences():
     import re
+
     from cogs.hermes import prepare_reply
 
     body = "line\n" * 2000
@@ -378,6 +379,7 @@ def test_unclosed_oversized_code_stays_in_chat_with_balanced_fences():
 @pytest.mark.parametrize("marker", ["```", "~~~~"])
 def test_long_code_lines_are_kept_in_chat_without_truncation(marker):
     import re
+
     from cogs.hermes import prepare_reply
 
     body = "x" * 6500

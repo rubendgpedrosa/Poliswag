@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from modules.lure_manager import LureManager, DEFAULT_LURE_COUNT, MAX_LISTED
+from modules.lure_manager import DEFAULT_LURE_COUNT, MAX_LISTED, LureManager
 
 
 @pytest.fixture

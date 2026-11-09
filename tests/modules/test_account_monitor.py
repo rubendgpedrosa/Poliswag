@@ -4,7 +4,8 @@ import discord
 import pytest
 
 from modules.account_monitor import (
-    DISABLED_STATUSES,
+    ACCOUNT_CARD_ERROR_AFTER,
+    OUT_STATUSES,
     AccountMonitor,
     _device_name,
     _worker_counts,
@@ -90,16 +91,16 @@ class TestGetAccountStats:
         }
 
     async def test_all_disabled_statuses_counted(self, account_monitor, mocker):
-        # Every known DISABLED_STATUSES entry should contribute to the sum.
-        payload = {status: 1 for status in DISABLED_STATUSES}
+        # Every known OUT_STATUSES entry should contribute to the sum.
+        payload = {status: 1 for status in OUT_STATUSES}
         _mock_fetch(mocker, payload)
         result = await account_monitor.get_account_stats()
-        assert result["disabled"] == len(DISABLED_STATUSES)
+        assert result["disabled"] == len(OUT_STATUSES)
 
     async def test_unknown_keys_do_not_leak_into_disabled(
         self, account_monitor, mocker
     ):
-        # Statuses that aren't in DISABLED_STATUSES must be ignored for the sum.
+        # Statuses that aren't in OUT_STATUSES must be ignored for the sum.
         _mock_fetch(
             mocker,
             {
@@ -118,7 +119,7 @@ class TestGetAccountStats:
     ):
         _mock_fetch(
             mocker,
-            {"banned": 3, "invalid": 2},  # two of nine DISABLED_STATUSES
+            {"banned": 3, "invalid": 2},  # two of the OUT_STATUSES
         )
         result = await account_monitor.get_account_stats()
         assert result["disabled"] == 5
@@ -227,18 +228,18 @@ class TestConnectedWorkerCount:
         assert await account_monitor.connected_worker_count() == 0
 
 
-class TestDisabledStatusesConstant:
+class TestOutStatusesConstant:
     """Regression guards for the canonical list of disabled account statuses."""
 
     def test_contains_core_statuses(self):
         # If any of these disappear, account reporting will silently undercount.
-        assert "banned" in DISABLED_STATUSES
-        assert "warned" in DISABLED_STATUSES
-        assert "suspended" in DISABLED_STATUSES
-        assert "disabled" in DISABLED_STATUSES
+        assert "banned" in OUT_STATUSES
+        assert "warned" in OUT_STATUSES
+        assert "suspended" in OUT_STATUSES
+        assert "disabled" in OUT_STATUSES
 
     def test_has_no_duplicates(self):
-        assert len(DISABLED_STATUSES) == len(set(DISABLED_STATUSES))
+        assert len(OUT_STATUSES) == len(set(OUT_STATUSES))
 
 
 class _AsyncChannelHistory:
@@ -360,12 +361,10 @@ class TestUpdateChannelAccountsStats:
         )
         await account_monitor.update_channel_accounts_stats()
         channel.send.assert_not_called()
-        # An error is logged describing the image failure.
-        log_calls = [
-            c.args[0]
-            for c in account_monitor.poliswag.utility.log_to_file.call_args_list
-        ]
-        assert any("Error generating account image" in m for m in log_calls)
+        # The renderer logs the detail itself; this only counts the failure,
+        # without the old bare "Error generating account image" line.
+        account_monitor.poliswag.utility.log_to_file.assert_not_called()
+        assert account_monitor._card_failures.count == 1
 
     async def test_exception_is_logged(self, account_monitor, mocker):
         account_monitor.poliswag.ACCOUNTS_CHANNEL = MagicMock()
@@ -453,6 +452,94 @@ class TestUpdateChannelAccountsStats:
         channel.history.assert_not_called()
         channel.send.assert_awaited_once()
         assert account_monitor._accounts_message is new_message
+
+
+class TestAccountCardFailureLevels:
+    """A failed card update is a WARNING; ten in a row are one ERROR."""
+
+    @pytest.fixture
+    def card(self, account_monitor):
+        channel = MagicMock()
+        channel.history = MagicMock(return_value=_AsyncChannelHistory([]))
+        channel.send = AsyncMock()
+        account_monitor.poliswag.ACCOUNTS_CHANNEL = channel
+        account_monitor.build_account_card = AsyncMock(return_value=b"PNG")
+        return account_monitor
+
+    @staticmethod
+    def _levels(account_monitor):
+        return [
+            (c.args[1], c.args[0])
+            for c in account_monitor.poliswag.utility.log_to_file.call_args_list
+        ]
+
+    async def test_one_failed_upload_is_a_warning_naming_the_exception(self, card):
+        card.poliswag.ACCOUNTS_CHANNEL.send.side_effect = ConnectionResetError(
+            "Connection reset by peer"
+        )
+        await card.update_channel_accounts_stats()
+        assert self._levels(card) == [
+            (
+                "WARNING",
+                "Error in update_channel_accounts_stats: "
+                "ConnectionResetError: Connection reset by peer",
+            )
+        ]
+
+    async def test_ten_in_a_row_log_exactly_one_error(self, card):
+        card.poliswag.ACCOUNTS_CHANNEL.send.side_effect = ConnectionResetError("x")
+        for _ in range(ACCOUNT_CARD_ERROR_AFTER + 5):
+            await card.update_channel_accounts_stats()
+        levels = [level for level, _ in self._levels(card)]
+        assert levels.count("ERROR") == 1
+        assert levels.index("ERROR") == ACCOUNT_CARD_ERROR_AFTER - 1
+        assert levels.count("WARNING") == ACCOUNT_CARD_ERROR_AFTER - 1 + 5
+        [message] = [m for lvl, m in self._levels(card) if lvl == "ERROR"]
+        assert f"{ACCOUNT_CARD_ERROR_AFTER} times in a row" in message
+        assert "ConnectionResetError" in message
+
+    async def test_a_success_in_between_resets_the_streak(self, card):
+        before = ACCOUNT_CARD_ERROR_AFTER - 1
+        outcomes = [ConnectionResetError("x")] * before
+        outcomes += [MagicMock()]
+        outcomes += [ConnectionResetError("x")] * before
+        card.poliswag.ACCOUNTS_CHANNEL.send.side_effect = outcomes
+        for _ in outcomes:
+            # Resend every time so each update goes through send().
+            card._accounts_message = None
+            await card.update_channel_accounts_stats()
+        levels = [level for level, _ in self._levels(card)]
+        assert "ERROR" not in levels
+        assert levels.count("WARNING") == 2 * before
+
+    async def test_missing_images_count_without_the_old_bare_line(self, card):
+        card.build_account_card = AsyncMock(return_value=None)
+        for _ in range(ACCOUNT_CARD_ERROR_AFTER):
+            await card.update_channel_accounts_stats()
+        logged = self._levels(card)
+        assert logged == [
+            (
+                "ERROR",
+                f"Account card update failed {ACCOUNT_CARD_ERROR_AFTER} times "
+                "in a row",
+            )
+        ]
+        assert not any(m == "Error generating account image" for _, m in logged)
+
+    async def test_deleted_message_resends_and_is_not_a_failure(self, card):
+        card._card_failures.fail()
+        stale = MagicMock()
+        stale.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404, reason=""), "gone")
+        )
+        card._accounts_message = stale
+        new_message = MagicMock()
+        card.poliswag.ACCOUNTS_CHANNEL.send = AsyncMock(return_value=new_message)
+        await card.update_channel_accounts_stats()
+        card.poliswag.ACCOUNTS_CHANNEL.send.assert_awaited_once()
+        assert card._accounts_message is new_message
+        assert card._card_failures.count == 0
+        card.poliswag.utility.log_to_file.assert_not_called()
 
 
 class TestWorkerCounts:

@@ -20,7 +20,9 @@ from modules.config import Config
 from modules.utility import (
     LOG_BACKUP_COUNT,
     LOG_MAX_BYTES,
+    VERSION_CHECK_ERROR_AFTER,
     VERSION_CHECK_TIMEOUT,
+    FailureStreak,
     Utility,
 )
 
@@ -33,6 +35,7 @@ def util():
     u.poliswag.db = AsyncMock()
     u.logger = MagicMock(spec=logging.Logger)
     u.error_logger = MagicMock(spec=logging.Logger)
+    u._version_check_streak = FailureStreak(VERSION_CHECK_ERROR_AFTER)
     return u
 
 
@@ -87,12 +90,76 @@ class TestInit:
         assert "hello world" in log_file.read_text()
         assert "boom" in error_file.read_text()
 
+    def test_warning_is_written_as_warning_and_not_to_the_error_log(
+        self, tmp_path, mocker
+    ):
+        log_file, error_file = self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+        u.log_to_file("slow minute", "WARNING")
+        assert " - WARNING - slow minute" in log_file.read_text()
+        assert "slow minute" not in error_file.read_text()
+
+    def test_poliswag_logger_does_not_propagate(self, tmp_path, mocker):
+        self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+        assert u.logger.propagate is False
+
+    def test_lines_reach_own_handlers_but_not_the_root_logger(self, tmp_path, mocker):
+        self._configure(tmp_path, mocker)
+        u = Utility(poliswag=MagicMock())
+        own = MagicMock(spec=logging.Handler, level=logging.NOTSET)
+        root = MagicMock(spec=logging.Handler, level=logging.NOTSET)
+        u.logger.addHandler(own)
+        logging.getLogger().addHandler(root)
+        try:
+            u.log_to_file("only once", "INFO")
+        finally:
+            u.logger.removeHandler(own)
+            logging.getLogger().removeHandler(root)
+        assert [r.getMessage() for (r,), _ in own.handle.call_args_list] == [
+            "only once"
+        ]
+        root.handle.assert_not_called()
+
     def test_reinitializing_does_not_duplicate_handlers(self, tmp_path, mocker):
         self._configure(tmp_path, mocker)
         Utility(poliswag=MagicMock())
         u2 = Utility(poliswag=MagicMock())
         assert len(u2.logger.handlers) == 2  # rotating file + console
         assert len(u2.error_logger.handlers) == 1
+
+
+class TestFailureStreak:
+    def test_below_threshold_is_false(self):
+        streak = FailureStreak(3)
+        assert [streak.fail(), streak.fail()] == [False, False]
+        assert streak.count == 2
+
+    def test_reaching_threshold_is_true_once(self):
+        streak = FailureStreak(3)
+        streak.fail()
+        streak.fail()
+        assert streak.fail() is True
+        assert streak.count == 3
+
+    def test_beyond_threshold_stays_false(self):
+        streak = FailureStreak(2)
+        results = [streak.fail() for _ in range(6)]
+        assert results == [False, True, False, False, False, False]
+
+    def test_reset_starts_over(self):
+        streak = FailureStreak(2)
+        streak.fail()
+        streak.fail()
+        streak.reset()
+        assert streak.count == 0
+        assert streak.fail() is False
+        assert streak.fail() is True
+
+    def test_count_is_read_only(self):
+        streak = FailureStreak(2)
+        with pytest.raises(AttributeError):
+            streak.count = 5
 
 
 class TestLogToFile:
@@ -115,9 +182,16 @@ class TestLogToFile:
         util.error_logger.error.assert_called_once_with("crashed")
 
     def test_unknown_log_type_falls_through_to_info(self, util):
-        # Current behaviour: anything not ERROR/CRASH is treated as INFO.
+        # Anything not ERROR/CRASH/WARNING is treated as INFO.
         util.log_to_file("debug message", "DEBUG")
         util.logger.info.assert_called_once_with("debug message")
+        util.logger.warning.assert_not_called()
+
+    def test_warning_goes_to_warning_not_the_error_logger(self, util):
+        util.log_to_file("x", "WARNING")
+        util.logger.warning.assert_called_once_with("x")
+        util.logger.info.assert_not_called()
+        util.error_logger.error.assert_not_called()
 
 
 class TestTimeNow:
@@ -284,7 +358,7 @@ class TestFindQuestScanningMessage:
         assert await util.find_quest_scanning_message(None) is None
 
     async def test_finds_matching_message_from_today(self, util, mocker):
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
 
         embed = MagicMock()
         embed.title = "SCAN DE QUESTS — Leiria"
@@ -503,6 +577,110 @@ class TestGetNewPokemongoVersion:
         result = await util.get_new_pokemongo_version()
         assert result is None
         util.poliswag.db.execute_query_to_database.assert_not_called()
-        util.error_logger.error.assert_called_once()
+        # One timeout heals on the next tick: WARNING, not ERROR.
+        util.error_logger.error.assert_not_called()
+        util.logger.warning.assert_called_once_with(
+            "Error fetching Pokemon version: TimeoutError: timed out"
+        )
         assert "timeout" in seen
         assert seen["timeout"] == VERSION_CHECK_TIMEOUT
+
+
+class _VersionEndpoint:
+    """A session whose next requests fail or answer, in the order queued."""
+
+    def __init__(self):
+        self.outcomes = []
+
+    def get(self, url, **kwargs):
+        outcome = self.outcomes.pop(0)
+
+        class _CM:
+            async def __aenter__(_self):
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                response = MagicMock()
+                response.status = outcome
+
+                async def text():
+                    return "1.0.0"
+
+                response.text = text
+                return response
+
+            async def __aexit__(_self, *exc):
+                return False
+
+        return _CM()
+
+
+class TestVersionCheckFailureLevels:
+    @pytest.fixture
+    def endpoint(self, util, mocker):
+        endpoint = _VersionEndpoint()
+        mocker.patch("modules.utility.get_session", return_value=endpoint)
+        util.poliswag.db.get_data_from_database.return_value = [{"version": "1.0.0"}]
+        return endpoint
+
+    async def test_one_timeout_is_a_warning_naming_the_type(self, util, endpoint):
+        # A real timeout has an empty message; the line still says what failed.
+        endpoint.outcomes = [asyncio.TimeoutError()]
+        assert await util.get_new_pokemongo_version() is None
+        util.error_logger.error.assert_not_called()
+        util.logger.warning.assert_called_once_with(
+            "Error fetching Pokemon version: TimeoutError"
+        )
+
+    async def test_client_error_keeps_its_message(self, util, endpoint):
+        endpoint.outcomes = [aiohttp.ClientPayloadError("connection reset")]
+        await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+        util.logger.warning.assert_called_once_with(
+            "Error fetching Pokemon version: ClientPayloadError: connection reset"
+        )
+
+    async def test_persistent_failure_logs_exactly_one_error(self, util, endpoint):
+        endpoint.outcomes = [asyncio.TimeoutError()] * (VERSION_CHECK_ERROR_AFTER + 5)
+        for _ in range(VERSION_CHECK_ERROR_AFTER - 1):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+
+        await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_called_once()
+        assert "TimeoutError" in util.error_logger.error.call_args.args[0]
+
+        for _ in range(5):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_called_once()
+        assert util.logger.warning.call_count == VERSION_CHECK_ERROR_AFTER - 1 + 5
+
+    async def test_any_answer_resets_the_count(self, util, endpoint):
+        # 9 failures, an answer (even a 500), 9 more: never ten in a row.
+        before = VERSION_CHECK_ERROR_AFTER - 1
+        endpoint.outcomes = (
+            [asyncio.TimeoutError()] * before
+            + [500]
+            + [asyncio.TimeoutError()] * before
+        )
+        for _ in range(len(endpoint.outcomes)):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+
+    async def test_new_outage_after_recovery_errors_again(self, util, endpoint):
+        n = VERSION_CHECK_ERROR_AFTER
+        endpoint.outcomes = (
+            [asyncio.TimeoutError()] * n + [200] + [asyncio.TimeoutError()] * n
+        )
+        for _ in range(len(endpoint.outcomes)):
+            await util.get_new_pokemongo_version()
+        assert util.error_logger.error.call_count == 2
+
+    async def test_database_failure_is_an_error_at_once(self, util, endpoint):
+        endpoint.outcomes = [200]
+        util.poliswag.db.get_data_from_database.side_effect = RuntimeError("db down")
+        assert await util.get_new_pokemongo_version() is None
+        util.error_logger.error.assert_called_once_with(
+            "Error fetching Pokemon version: RuntimeError: db down"
+        )
+        util.logger.info.assert_not_called()
+        util.logger.warning.assert_not_called()

@@ -3,8 +3,8 @@ from io import BytesIO
 import discord
 from discord.ext import commands
 
-from modules.embeds import build_embed
 from modules import scan_areas
+from modules.embeds import build_embed
 from modules.permissions import mods_only
 
 
@@ -22,8 +22,6 @@ class Quests(commands.Cog):
     @mods_only()
     @commands.command(name="exportquests", brief="Exporta quests para o PWA (admin)")
     async def exportquestscmd(self, ctx):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         msg = await ctx.send(embed=build_embed("⏳ A exportar quests..."))
         try:
             wrote = await self.poliswag.quest_exporter.export()
@@ -45,8 +43,6 @@ class Quests(commands.Cog):
     @mods_only()
     @commands.command(name="scan", brief="Inicia novo scan de quests")
     async def rescancmd(self, ctx):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         from modules.http_client import fetch_data
 
         request = await fetch_data(
@@ -167,7 +163,7 @@ class Quests(commands.Cog):
             found_quests
         )
 
-        for reward_slug, group_data in reward_groups.items():
+        for group_data in reward_groups.values():
             reward_text = group_data.get("reward_text", "")
             reward_title = (
                 f"{group_data['title']} — {reward_text}"

@@ -322,6 +322,7 @@ def test_podium_ties_use_competition_ranks(drawn_text):
 
 def test_top_15_limits_only_display_preserving_full_totals_and_average(drawn_text):
     import copy
+
     from modules.shiny_leaderboard import number
 
     data = report_fixture(32)

@@ -35,7 +35,9 @@ def test_legacy_costume_is_a_real_separate_identity():
 
 def test_unknown_costume_enum_is_rejected():
     import copy
+
     import pytest
+
     from modules.pokemon_costume_sync import build_costume_rows
 
     invalid = copy.deepcopy(CATALOGUE)
@@ -46,7 +48,9 @@ def test_unknown_costume_enum_is_rejected():
 
 def test_form_must_belong_to_the_same_species():
     import copy
+
     import pytest
+
     from modules.pokemon_costume_sync import build_costume_rows
 
     invalid = copy.deepcopy(CATALOGUE)
@@ -57,7 +61,9 @@ def test_form_must_belong_to_the_same_species():
 
 def test_source_is_required_for_every_imported_variant():
     import copy
+
     import pytest
+
     from modules.pokemon_costume_sync import build_costume_rows
 
     invalid = copy.deepcopy(CATALOGUE)
@@ -68,7 +74,9 @@ def test_source_is_required_for_every_imported_variant():
 
 def test_duplicate_game_identity_cannot_merge_two_costumes():
     import copy
+
     import pytest
+
     from modules.pokemon_costume_sync import build_costume_rows
 
     invalid = copy.deepcopy(CATALOGUE)
@@ -79,6 +87,7 @@ def test_duplicate_game_identity_cannot_merge_two_costumes():
 
 async def test_sync_only_upserts_catalogue_never_user_selections():
     from unittest.mock import AsyncMock, MagicMock
+
     import modules.pokemon_costume_sync as sync
 
     db = MagicMock()
@@ -111,7 +120,9 @@ def test_versioned_catalogue_loads_all_reviewed_source_entries():
 
 def test_non_integer_or_plain_species_identity_is_rejected():
     import copy
+
     import pytest
+
     from modules.pokemon_costume_sync import build_costume_rows
 
     for changes in [

@@ -13,10 +13,10 @@ from datetime import datetime, timezone
 
 import pymysql
 
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import connect
 from modules.shiny_roll import is_player_id, is_shiny_at, shiny_draw
-from modules import scan_areas
 
 RETENTION_HOURS = 48
 POLL_SECONDS = 30

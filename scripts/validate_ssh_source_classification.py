@@ -9,9 +9,9 @@ must additionally be performed by their native tools before deployment.
 
 import ipaddress
 import json
-from pathlib import Path
 import random
 import re
+from pathlib import Path
 
 SNIPPET = Path(__file__).with_name("ssh_source_classification.alloy")
 NETWORKS = tuple(

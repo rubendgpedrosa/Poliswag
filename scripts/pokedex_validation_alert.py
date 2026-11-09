@@ -7,6 +7,7 @@ Failed delivery leaves the durable watermark unchanged for next-minute retry.
 import json
 import os
 from pathlib import Path
+
 from scripts import dm_owner
 
 SQL = """SELECT discord_id, COALESCE(trainer_name, display_name) AS name,

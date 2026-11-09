@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from scripts import repair_event_timezone as repair
 from modules.event_manager import EventManager
+from scripts import repair_event_timezone as repair
 
 NAME = "Lisbon, Portugal - Pokémon GO City Safari"
 

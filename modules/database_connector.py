@@ -1,8 +1,9 @@
 import asyncio
+import logging
 import time
 
 import pymysql
-import logging
+
 from modules.config import Config
 
 # pymysql error codes that indicate a lost/broken connection that may recover

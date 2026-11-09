@@ -7,10 +7,10 @@ its post. The reward is not drawn (owner, 2026-11-07): the embed's title and
 thumbnail already say what it is, and the art hid where the stop was.
 """
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
-import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont

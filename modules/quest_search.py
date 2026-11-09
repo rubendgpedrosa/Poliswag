@@ -1,14 +1,16 @@
+import json
+import logging
+import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 import discord
 import requests
-from datetime import datetime, timedelta
-import json
-import time
-from zoneinfo import ZoneInfo
+
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
-from modules import scan_areas
 from modules.embeds import status_embed
-import logging
 
 HTTP_TIMEOUT_SECONDS = 15
 

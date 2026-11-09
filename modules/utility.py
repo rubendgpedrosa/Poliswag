@@ -1,11 +1,14 @@
-import aiohttp
-import discord
-import re
-from datetime import datetime, time
-from zoneinfo import ZoneInfo
-from pathlib import Path
+import asyncio
 import logging
 import logging.handlers
+import re
+from datetime import datetime, time
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import aiohttp
+import discord
+
 from modules.config import Config
 from modules.http_client import get_session
 
@@ -23,10 +26,55 @@ LOG_BACKUP_COUNT = 5
 # the scheduler tick open.
 VERSION_CHECK_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
+# The version check runs on every 60 s scheduler tick and a single timeout
+# heals on the next one, so a network failure is a WARNING until it has
+# lasted this many checks in a row (about ten minutes); then it is logged
+# once as an ERROR, which reaches the owner's daily error digest.
+VERSION_CHECK_ERROR_AFTER = 10
+
+# What a failing request to the endpoint raises: aiohttp errors, the
+# request timeout, and socket-level errors.
+_VERSION_CHECK_NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
+
+
+def describe_error(error: BaseException) -> str:
+    """`Type: message`, or just `Type` when the message is empty (a timeout)."""
+    name = type(error).__name__
+    message = str(error)
+    return f"{name}: {message}" if message else name
+
+
+class FailureStreak:
+    """Consecutive failures of a periodic operation that usually heals itself.
+
+    The caller logs each failure as a WARNING and one ERROR per outage: when
+    `fail()` returns True, the streak has just reached `threshold`. Any
+    success calls `reset()` so the next outage is reported again.
+    """
+
+    def __init__(self, threshold: int):
+        self.threshold = threshold
+        self._count = 0
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def fail(self) -> bool:
+        """Count one failure; True exactly when the streak reaches the threshold."""
+        self._count += 1
+        return self._count == self.threshold
+
+    def reset(self) -> None:
+        self._count = 0
+
 
 class Utility:
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        # Consecutive network failures of the version check; reset as soon
+        # as the endpoint answers.
+        self._version_check_streak = FailureStreak(VERSION_CHECK_ERROR_AFTER)
 
         # Setup logging directories
         log_dir = Path(Config.LOG_FILE).parent
@@ -45,6 +93,9 @@ class Utility:
         # Configure logging
         self.logger = logging.getLogger("poliswag")
         self.logger.setLevel(logging.INFO)
+        # Bare logging.x() calls elsewhere configure the root logger, which
+        # then printed every line a second time on the console.
+        self.logger.propagate = False
 
         if self.logger.handlers:
             self.logger.handlers.clear()
@@ -85,31 +136,55 @@ class Utility:
                 Config.NIANTIC_FORCED_VERSION_ENDPOINT,
                 timeout=VERSION_CHECK_TIMEOUT,
             ) as response:
-                if response.status == 200:
-                    retrieved_version = (
-                        (await response.text()).strip().replace("\x07", "")
-                    )
-
-                    result = await self.poliswag.db.get_data_from_database(
-                        "SELECT version FROM poliswag"
-                    )
-                    current_version = result[0]["version"] if result else None
-
-                    if retrieved_version != current_version:
-                        await self.poliswag.db.execute_query_to_database(
-                            "UPDATE poliswag SET version = %s",
-                            params=(retrieved_version,),
-                        )
-                        return retrieved_version
+                self._version_check_streak.reset()
+                if response.status != 200:
                     return None
-                return None
-        except Exception as e:
-            self.log_to_file(f"Error fetching Pokemon version: {e}", "ERROR")
+                retrieved_version = (await response.text()).strip().replace("\x07", "")
+        except _VERSION_CHECK_NETWORK_ERRORS as e:
+            self._log_version_check_failure(e)
             return None
+        except Exception as e:
+            self.log_to_file(
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
+            )
+            return None
+
+        # The database side is not a network blip: log it at once.
+        try:
+            result = await self.poliswag.db.get_data_from_database(
+                "SELECT version FROM poliswag"
+            )
+            current_version = result[0]["version"] if result else None
+
+            if retrieved_version != current_version:
+                await self.poliswag.db.execute_query_to_database(
+                    "UPDATE poliswag SET version = %s",
+                    params=(retrieved_version,),
+                )
+                return retrieved_version
+            return None
+        except Exception as e:
+            self.log_to_file(
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
+            )
+            return None
+
+    def _log_version_check_failure(self, error: BaseException) -> None:
+        """WARNING per failed check; one ERROR when the outage reaches
+        VERSION_CHECK_ERROR_AFTER checks in a row."""
+        message = f"Error fetching Pokemon version: {describe_error(error)}"
+        if self._version_check_streak.fail():
+            self.log_to_file(
+                f"{message} ({VERSION_CHECK_ERROR_AFTER} checks in a row)", "ERROR"
+            )
+        else:
+            self.log_to_file(message, "WARNING")
 
     def log_to_file(self, message, log_type="INFO"):
         if log_type == "ERROR" or log_type == "CRASH":
             self.error_logger.error(message)
+        elif log_type == "WARNING":
+            self.logger.warning(message)
         else:
             self.logger.info(message)
 
@@ -164,7 +239,7 @@ class Utility:
         if channel is None:
             return None
         try:
-            from datetime import timezone, timedelta
+            from datetime import timedelta, timezone
 
             cutoff = datetime.now(timezone.utc) - timedelta(hours=25)
             async for message in channel.history(limit=100):

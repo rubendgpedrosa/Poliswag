@@ -82,14 +82,6 @@ class PoliSnatchJobs:
     async def get(self, kind, job_id):
         return await self._call("GET", job_path(kind, job_id), expect=(200,))
 
-    async def command(self, worker, action):
-        body = {"worker": worker or "*", "action": action}
-        return await self._call("POST", "/command", body, expect=(202,))
-
-    async def workers(self):
-        body = await self._call("GET", "/state", expect=(200,))
-        return body.get("workers") or {}
-
     async def issue_token(self, *, email, name="", workers=1, channels=None):
         """Mints a jobs-scoped person token; the raw token is in the reply only."""
         body = {
@@ -144,7 +136,10 @@ class JobPoller:
         startup sweep, which is simply the first tick.
         """
         try:
-            rows = self.store.open_jobs()
+            # The store opens a pymysql connection per call and this loop runs
+            # for the life of the bot: on the event loop a slow database would
+            # freeze Discord and every command for each call's timeout.
+            rows = await asyncio.to_thread(self.store.open_jobs)
         except Exception as error:  # noqa: BLE001 - the loop must survive
             self._warn("cannot read open jobs: %s" % error)
             return 0, 1
@@ -192,7 +187,7 @@ class JobPoller:
         if state == row.get("state"):
             return True
         try:
-            self.store.save(job_id, body)
+            await asyncio.to_thread(self.store.save, job_id, body)
         except Exception as error:  # noqa: BLE001 - keep the row open, retry
             self._warn("cannot save %s: %s" % (job_id, error))
             return False
@@ -202,7 +197,7 @@ class JobPoller:
         if self.announce is None:
             return
         try:
-            rows = self.store.unnotified()
+            rows = await asyncio.to_thread(self.store.unnotified)
         except Exception as error:  # noqa: BLE001 - retried next tick
             self._warn("cannot read jobs to announce: %s" % error)
             return
@@ -214,7 +209,7 @@ class JobPoller:
                 self._warn("cannot announce %s: %s" % (job_id, error))
                 continue
             try:
-                self.store.mark_notified(job_id)
+                await asyncio.to_thread(self.store.mark_notified, job_id)
             except Exception as error:  # noqa: BLE001 - retried next tick
                 self._warn("cannot mark %s announced: %s" % (job_id, error))
 
