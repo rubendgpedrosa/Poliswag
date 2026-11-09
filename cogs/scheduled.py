@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import re
 import time
 import traceback
 
@@ -27,6 +28,73 @@ from modules.trade_dm import TradeDM
 # 2026-09-23 rename stall ran for 5 hours visible only as discord.http
 # warnings on stdout.
 _SLOW_STEP_SECONDS = 60
+
+
+# The daily error digest: an error.log entry's first line, split into its
+# timestamp and its message. Repeats are grouped on the message with every
+# run of digits made equal, so "took 61s" and "took 128s" are one problem.
+_ERROR_LINE_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - \w+ - (.*)$", re.DOTALL
+)
+_DIGITS_RE = re.compile(r"\d+")
+_DIGEST_MAX_GROUPS = 10
+_DIGEST_MESSAGE_LIMIT = 300
+_DIGEST_DESCRIPTION_LIMIT = 4000
+
+
+def _group_error_entries(
+    entries,
+) -> list[tuple[str, int, datetime.datetime | None, datetime.datetime | None]]:
+    """(text, count, first time, last time) per distinct error, in order of
+    first occurrence. The text is the group's first message; an entry that
+    is not a log line is grouped on its whole text and has no times."""
+    groups = {}
+    for entry in entries:
+        match = _ERROR_LINE_RE.match(entry)
+        if match:
+            when = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+            text = match.group(2)
+            key = ("log", _DIGITS_RE.sub("#", text))
+        else:
+            when = None
+            text = entry
+            key = ("raw", _DIGITS_RE.sub("#", text))
+        group = groups.get(key)
+        if group is None:
+            groups[key] = [text, 1, when, when]
+            continue
+        group[1] += 1
+        if when is not None:
+            group[2] = when if group[2] is None else min(group[2], when)
+            group[3] = when if group[3] is None else max(group[3], when)
+    return [tuple(group) for group in groups.values()]
+
+
+def _digest_line(text, count, first, last, today) -> str:
+    """One bullet: '3× message · 08/11 18:45 – 09/11 09:30' or
+    'message · 09:00'. Only the time when every time shown is today."""
+    if len(text) > _DIGEST_MESSAGE_LIMIT:
+        text = text[: _DIGEST_MESSAGE_LIMIT - 1].rstrip() + "…"
+    line = discord.utils.escape_markdown(text)
+    if count > 1:
+        line = f"{count}× {line}"
+    times = [t for t in (first, last) if t is not None]
+    if count == 1 or first == last:
+        times = times[:1]
+    if times:
+        fmt = "%H:%M" if all(t.date() == today for t in times) else "%d/%m %H:%M"
+        line += " · " + " – ".join(t.strftime(fmt) for t in times)
+    return f"• {line}"
+
+
+def _error_digest_description(entries, today) -> str:
+    groups = _group_error_entries(entries)
+    lines = [_digest_line(*group, today) for group in groups[:_DIGEST_MAX_GROUPS]]
+    left_out = len(groups) - _DIGEST_MAX_GROUPS
+    if left_out > 0:
+        kinds = "tipo" if left_out == 1 else "tipos"
+        lines.append(f"… e mais {left_out} {kinds} de erro.")
+    return "\n".join(lines)[:_DIGEST_DESCRIPTION_LIMIT]
 
 
 class Scheduled(commands.Cog):
@@ -523,14 +591,11 @@ class Scheduled(commands.Cog):
             await self._save_error_digest_at(now)
             return
 
-        preview = entries[:10]
-        description = "\n".join(f"• {entry}" for entry in preview)
-        if len(entries) > len(preview):
-            description += f"\n… e mais {len(entries) - len(preview)}."
-
+        count = len(entries)
+        noun = "erro novo" if count == 1 else "erros novos"
         embed = build_embed(
-            f"⚠️ {len(entries)} erro(s) novo(s) desde o último resumo",
-            description[:4000],
+            f"⚠️ {count} {noun} desde o último resumo",
+            _error_digest_description(entries, now.date()),
         )
         try:
             user = self.poliswag.get_user(

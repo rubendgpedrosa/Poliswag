@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled, setup
+from cogs.scheduled import Scheduled, _group_error_entries, setup
 from modules.permissions import is_mod
 
 # --- fixtures -----------------------------------------------------------------
@@ -946,17 +946,76 @@ class TestCheckDailyErrorDigest:
         title = self.owner.send.call_args.kwargs["embed"].title
         assert "2 erro" in title
 
-    async def test_more_than_ten_entries_notes_the_overflow(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 9, 30, 0)
-        cog.poliswag.utility.read_new_error_entries = MagicMock(
-            return_value=[f"line{i}" for i in range(15)]
-        )
+    async def _digest(self, cog, entries, now=None):
+        """Run the digest on `entries`; the sent embed."""
+        now = now or real_datetime.datetime(2026, 4, 7, 9, 30, 0)
+        cog.poliswag.utility.read_new_error_entries = MagicMock(return_value=entries)
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = now
+            mock_dt.datetime.strptime = real_datetime.datetime.strptime
             mock_dt.timedelta = real_datetime.timedelta
             await cog._check_daily_error_digest()
-        desc = self.owner.send.call_args.kwargs["embed"].description
-        assert "e mais 5" in desc
+        return self.owner.send.call_args.kwargs["embed"]
+
+    async def test_more_than_ten_kinds_notes_the_kinds_left_out(self, cog):
+        letters = "abcdefghijklmno"
+        embed = await self._digest(
+            cog, [f"2026-04-07 08:00:00,000 - ERROR - fail {c}" for c in letters]
+        )
+        bullets = [line for line in embed.description.split("\n") if line[0] == "•"]
+        assert len(bullets) == 10
+        assert embed.description.endswith("… e mais 5 tipos de erro.")
+        assert "15 erros novos" in embed.title
+
+    async def test_repeated_entries_are_one_bullet_with_count_and_times(self, cog):
+        embed = await self._digest(
+            cog,
+            [
+                "2026-04-07 03:26:12,144 - ERROR - Poracle down",
+                "2026-04-07 05:00:00,000 - ERROR - Poracle down",
+                "2026-04-07 09:00:39,032 - ERROR - Poracle down",
+            ],
+        )
+        assert embed.description == "• 3× Poracle down · 03:26 – 09:00"
+        assert "3 erros novos" in embed.title
+
+    async def test_one_entry_shows_its_time_and_singular_title(self, cog):
+        embed = await self._digest(
+            cog, ["2026-04-07 09:00:39,032 - ERROR - Poracle down"]
+        )
+        assert embed.description == "• Poracle down · 09:00"
+        assert embed.title == "⚠️ 1 erro novo desde o último resumo"
+
+    async def test_times_on_another_day_include_the_day(self, cog):
+        embed = await self._digest(
+            cog,
+            [
+                "2026-04-06 18:45:12,729 - ERROR - Slow step took 128s",
+                "2026-04-07 03:26:12,144 - ERROR - Slow step took 61s",
+            ],
+        )
+        assert embed.description == (
+            "• 2× Slow step took 128s · 06/04 18:45 – 07/04 03:26"
+        )
+
+    async def test_markdown_in_a_message_is_escaped(self, cog):
+        embed = await self._digest(
+            cog, ["2026-04-07 09:00:00,000 - ERROR - Scheduled._update_x failed"]
+        )
+        assert "Scheduled.\\_update\\_x failed" in embed.description
+
+    async def test_a_long_message_is_trimmed(self, cog):
+        embed = await self._digest(
+            cog,
+            [
+                "2026-04-07 09:00:00,000 - ERROR - " + "x" * 1000,
+                "2026-04-07 09:01:00,000 - ERROR - short one",
+            ],
+        )
+        first, second = embed.description.split("\n")
+        assert len(first) < 320
+        assert "…" in first
+        assert second == "• short one · 09:01"
 
     async def test_no_owner_configured_is_a_noop(self, cog, monkeypatch):
         from modules.config import Config
@@ -992,6 +1051,61 @@ class TestCheckDailyErrorDigest:
             await cog._check_daily_error_digest()
         since_arg = cog.poliswag.utility.read_new_error_entries.call_args.args[0]
         assert since_arg == now - real_datetime.timedelta(days=1)
+
+
+class TestGroupErrorEntries:
+    def test_repeats_collapse_with_count_and_first_and_last_time(self):
+        groups = _group_error_entries(
+            [
+                "2026-11-09 03:00:00,001 - ERROR - Poracle down",
+                "2026-11-09 04:00:00,002 - ERROR - Poracle down",
+                "2026-11-09 05:00:00,003 - ERROR - Poracle down",
+            ]
+        )
+        assert groups == [
+            (
+                "Poracle down",
+                3,
+                real_datetime.datetime(2026, 11, 9, 3, 0, 0),
+                real_datetime.datetime(2026, 11, 9, 5, 0, 0),
+            )
+        ]
+
+    def test_messages_differing_only_in_numbers_group_together(self):
+        groups = _group_error_entries(
+            [
+                "2026-11-08 18:45:12,729 - ERROR - Step took 128s (tick 60s)",
+                "2026-11-09 03:26:12,144 - ERROR - Step took 61s (tick 60s)",
+            ]
+        )
+        assert len(groups) == 1
+        text, count, first, last = groups[0]
+        assert text == "Step took 128s (tick 60s)"
+        assert count == 2
+        assert first.date() == real_datetime.date(2026, 11, 8)
+        assert last.date() == real_datetime.date(2026, 11, 9)
+
+    def test_order_of_first_occurrence_is_kept(self):
+        groups = _group_error_entries(
+            [
+                "2026-11-09 01:00:00,000 - ERROR - b",
+                "2026-11-09 02:00:00,000 - ERROR - a",
+                "2026-11-09 03:00:00,000 - ERROR - b",
+                "2026-11-09 04:00:00,000 - CRASH - c",
+            ]
+        )
+        assert [(g[0], g[1]) for g in groups] == [("b", 2), ("a", 1), ("c", 1)]
+
+    def test_a_line_not_in_log_format_is_its_own_group_without_times(self):
+        groups = _group_error_entries(
+            ["not a log line", "2026-11-09 01:00:00,000 - ERROR - not a log line"]
+        )
+        assert groups[0] == ("not a log line", 1, None, None)
+        assert groups[1][:2] == ("not a log line", 1)
+        assert groups[1][2] is not None
+
+    def test_no_entries_is_no_groups(self):
+        assert _group_error_entries([]) == []
 
 
 # --- lifecycle ---------------------------------------------------------------
