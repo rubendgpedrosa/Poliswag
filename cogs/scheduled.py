@@ -232,8 +232,6 @@ class Scheduled(commands.Cog):
         name="weeklydigest", brief="Envia resumo semanal de eventos (admin)"
     )
     async def weeklydigestcmd(self, ctx):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
         await self._send_weekly_digest(channel=ctx.channel)
@@ -243,8 +241,6 @@ class Scheduled(commands.Cog):
         name="testevent", brief="Simula _check_events em HH:MM hoje (admin)"
     )
     async def testeventcmd(self, ctx, time_arg: str = None):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
