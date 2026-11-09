@@ -868,7 +868,7 @@ class TestEndedBoard:
     }
     CARD = StatCard(kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye")
 
-    async def test_one_image_and_no_embed(self, cog):
+    async def test_one_image_per_event_like_the_embeds(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
         gbl = {**self.EVENT, "name": "Great League", "extra_data": None}
@@ -886,14 +886,19 @@ class TestEndedBoard:
         await cog._send_event_change_notifications(
             channel, {"ended": [self.EVENT, gbl], "started": []}, acknowledge=True
         )
-        [call] = channel.send.await_args_list
-        assert call.kwargs["file"].filename == "eventos-terminados.png"
-        assert "embeds" not in call.kwargs and "embed" not in call.kwargs
-        panels, heading, _date = (
-            cog.poliswag.image_generator.generate_stat_board.await_args.args
-        )
-        assert heading == "Eventos que terminaram"
-        stats, plain = panels
+        first, second = channel.send.await_args_list
+        # The post's title on the first message, as before; no embeds.
+        assert first.args == ("**Eventos que terminaram**",)
+        assert second.args == (None,)
+        assert [c.kwargs["file"].filename for c in (first, second)] == [
+            "evento-terminado-1.png",
+            "evento-terminado-2.png",
+        ]
+        assert all("embeds" not in c.kwargs for c in (first, second))
+        renders = cog.poliswag.image_generator.generate_stat_board.await_args_list
+        # Each image is one bare panel: no board heading.
+        assert [c.args[1] for c in renders] == ["", ""]
+        [stats], [plain] = (c.args[0] for c in renders)
         # The game image and name on every panel; stats where there are some.
         assert (stats.title, stats.image, stats.hero) == (
             self.EVENT["name"],
@@ -925,22 +930,19 @@ class TestEndedBoard:
         [embed] = call.kwargs["embeds"]
         assert embed.description == SUMMARY.headline
 
-    async def test_more_than_four_events_take_two_images(self, cog):
+    async def test_one_failed_render_sends_the_whole_post_as_text(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
-        events = [{**self.EVENT, "name": f"E{i}"} for i in range(8)]
+        events = [{**self.EVENT, "name": f"E{i}"} for i in range(3)]
         cog.poliswag.image_generator.generate_stat_board = AsyncMock(
-            return_value=b"png"
+            side_effect=[b"png", None, b"png"]
         )
         await cog._send_event_change_notifications(
             channel, {"ended": events, "started": []}
         )
-        sizes = [
-            len(c.args[0])
-            for c in cog.poliswag.image_generator.generate_stat_board.await_args_list
-        ]
-        assert sizes == [4, 4]
-        assert len(channel.send.await_args_list) == 2
+        [call] = channel.send.await_args_list
+        assert call.args == ("**Eventos que terminaram**",)
+        assert len(call.kwargs["embeds"]) == 3
 
     def test_heading_comes_from_scrapedduck(self):
         assert _event_heading(self.EVENT) == "Raid Battles"
@@ -1005,7 +1007,7 @@ class TestStartedBoard:
         assert panel.pokemon == (("Mega Metagross", "http://m.png", True),)
         assert panel.image == ""
 
-    async def test_new_events_are_one_image(self, cog):
+    async def test_new_events_one_image_each(self, cog):
         channel = MagicMock()
         channel.send = AsyncMock()
         cog.poliswag.image_generator.generate_stat_board = AsyncMock(
@@ -1014,13 +1016,12 @@ class TestStartedBoard:
         await cog._send_event_change_notifications(
             channel, {"ended": [], "started": [self.CD, self.RAIDS]}, acknowledge=True
         )
-        [call] = channel.send.await_args_list
-        assert call.kwargs["file"].filename == "novos-eventos.png"
-        assert "embeds" not in call.kwargs
-        _panels, heading, _date = (
-            cog.poliswag.image_generator.generate_stat_board.await_args.args
-        )
-        assert heading == "Novos eventos"
+        first, second = channel.send.await_args_list
+        assert first.args == ("**Novos eventos**",)
+        assert [c.kwargs["file"].filename for c in (first, second)] == [
+            "novo-evento-1.png",
+            "novo-evento-2.png",
+        ]
         acked = cog.poliswag.event_manager.mark_event_notified.await_args_list
         assert [c.kwargs["is_end"] for c in acked] == [False, False]
 

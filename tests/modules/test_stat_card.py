@@ -93,8 +93,11 @@ class TestBoard:
             + 2 * sc.PANEL_GAP
         )
 
-    def test_chunks_of_four(self):
-        assert [len(c) for c in sc.chunks(range(9))] == [4, 4, 1]
+    def test_without_a_heading_the_panel_is_the_image(self):
+        card = _card()
+        view = sc.build_board_view([card], brand="data:brand")
+        assert view["bare"] is True and view["brand"] == ""
+        assert (view["width"], view["height"]) == (sc.PANEL_W, sc.panel_height(card))
 
     def test_needs_a_panel(self):
         with pytest.raises(ValueError):
