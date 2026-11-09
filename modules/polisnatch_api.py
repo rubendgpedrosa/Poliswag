@@ -10,8 +10,6 @@ may run outside the bot's venv, where aiohttp is not installed.
     POST   /lure       {lat, lon | nearest}  -> 202, or 200 {..., duplicate: true}
     GET    /link/<id> | /lure/<id>           -> {jobId, state, ...outcome}
     DELETE /link/<id> | /lure/<id>           -> cancels
-    POST   /command    {worker, action}      -> 202 {queued, worker}
-    GET    /state                            -> {workers: {...}}
     GET    /v1/health                        -> 200 {ok: true}   (outside /jobs)
 
 The submit key is never logged, never put in a URL and never in an error

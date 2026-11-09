@@ -14,7 +14,7 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 | Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |
 | Home Assistant | `OWNER_ALERT_ENDPOINT` | Generic backup phone notifications (`scripts/notify_owner.py`); Pokémon GO operational alerts use private Discord DMs (`modules/owner_alert.py`, host helper `--discord`). (Whether pogoleiria.pt, the Pokédex, the quest export and the map answer is watched by the home monitoring's probes since 2026-10-04, not by the bot.) Falls back to a DM. The daily error digest stays a DM. |
 | Poracle-NG | `PORACLE_API_URL` + `PORACLE_API_SECRET` | Pokémon alert rule CRUD |
-| PoliSnatch jobs | `POLISNATCH_JOBS_URL` + `POLISNATCH_JOBS_KEY_FILE` | `!lure`/`!pn` submit, poll and control jobs; the submit key comes from `polisnatch-dist jobs-key`, is read per call and never logged |
+| PoliSnatch jobs | `POLISNATCH_JOBS_URL` + `POLISNATCH_JOBS_KEY_FILE` | `!lure` submits and polls jobs; the submit key comes from `polisnatch-dist jobs-key`, is read per call and never logged |
 | ScrapedDuck | `EVENTS_ENDPOINT` | Event calendar JSON |
 | PokeMiners masterfile | `MASTERFILE_ENDPOINT` | Pokémon/item name translations |
 | Niantic version | `NIANTIC_FORCED_VERSION_ENDPOINT` | Version check |
@@ -49,7 +49,7 @@ LOG_FILE, ERROR_LOG_FILE
 The PoliSnatch submit key (server side: `polisnatch-dist jobs-key`) is read per
 call from `POLISNATCH_JOBS_KEY`, or from `POLISNATCH_JOBS_KEY_FILE` (mode 0600).
 The production container mounts `/etc/poliswag/secrets` read-only for it. With
-neither, nothing is submitted and `!lure`/`!pn` report the jobs as disabled. The
+neither, nothing is submitted and `!lure` reports the jobs as disabled. The
 same key can mint a jobs-scoped phone token through the server's
 `POST /v1/jobs/token`, which the owner-only, DM-only `!pstoken` command uses;
 treat it as an admin credential. Job ids are stored in `polisnatch_job` (see

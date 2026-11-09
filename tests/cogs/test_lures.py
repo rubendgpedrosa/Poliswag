@@ -6,7 +6,6 @@ build_embed is patched at the import site inside cogs.lures so we assert on the
 args, not discord.
 """
 
-import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,8 +25,6 @@ def cog():
     cog = Lures(poliswag)
     cog.jobs = MagicMock()
     cog.jobs.submit_lure = AsyncMock()
-    cog.jobs.workers = AsyncMock()
-    cog.jobs.command = AsyncMock()
     cog.jobs.issue_token = AsyncMock()
     cog.job_store = MagicMock()
     cog.poller.start = MagicMock()
@@ -132,79 +129,6 @@ class TestUseLure:
         await Lures.uselure.callback(cog, ctx, username="free_low", number="0")
         cog.lure_manager.adjust_lure_count.assert_not_called()
         assert "diferente de zero" in ctx.send.call_args.kwargs["embed"].description
-
-
-class TestPn:
-    async def test_renders_each_worker(self, cog):
-        ctx = make_ctx()
-        cog.jobs.workers.return_value = {
-            "worker-1": {
-                "connected": True,
-                "mode": "direct",
-                "ticks": 3,
-                "rpc_total": 120,
-                "reconnect_attempts": 1,
-                "receivedAt": time.time(),
-            }
-        }
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx)
-        cog.jobs.workers.assert_awaited_once_with()
-        desc = be.call_args.args[1]
-        assert "**worker-1**" in desc
-        assert "ligado" in desc
-        assert "3 ticks" in desc
-        assert "1 tentativa(s) de reconexão" in desc
-
-    async def test_no_workers_reports_no_state(self, cog):
-        ctx = make_ctx()
-        cog.jobs.workers.return_value = {}
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx)
-        assert be.call_args.args[0] == "SEM ESTADO"
-
-    async def test_disabled_jobs_are_explained(self, cog):
-        ctx = make_ctx()
-        cog.jobs.workers.side_effect = JobApiError(
-            "jobs are not enabled", status=503, code="jobs_disabled"
-        )
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx)
-        assert be.call_args.args[0] == "POLISNATCH INACESSÍVEL"
-        assert "desativados" in be.call_args.args[1]
-
-    async def test_a_missing_key_is_explained(self, cog):
-        ctx = make_ctx()
-        cog.jobs.workers.side_effect = JobApiError("no key", code="no_key")
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx)
-        assert "chave de submissão" in be.call_args.args[1]
-
-    async def test_sends_a_worker_command(self, cog):
-        ctx = make_ctx()
-        cog.jobs.command.return_value = {"queued": "restart", "worker": "*"}
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx, action="restart", worker="*")
-        cog.jobs.command.assert_awaited_once_with("*", "restart")
-        assert be.call_args.args[0] == "COMANDO ENVIADO"
-        assert "todos os telefones" in be.call_args.args[1]
-
-    async def test_unknown_action_is_rejected_before_any_call(self, cog):
-        ctx = make_ctx()
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx, action="explode")
-        cog.jobs.command.assert_not_called()
-        assert be.call_args.args[0] == "AÇÃO DESCONHECIDA"
-
-    async def test_a_failed_command_is_reported(self, cog):
-        ctx = make_ctx()
-        cog.jobs.command.side_effect = JobApiError(
-            "not valid", status=401, code="unauthorized"
-        )
-        with patch("cogs.lures.build_embed", return_value="EMBED") as be:
-            await Lures.pn.callback(cog, ctx, action="start", worker="worker-1")
-        assert be.call_args.args[0] == "COMANDO NÃO ENTREGUE"
-        assert "chave" in be.call_args.args[1]
 
 
 class TestPsToken:

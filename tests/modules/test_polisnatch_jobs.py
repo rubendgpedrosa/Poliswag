@@ -180,38 +180,6 @@ class TestReads:
 
         assert exc.value.status == 404
 
-    async def test_workers_returns_the_worker_map(self):
-        async def handler(request):
-            assert (request.method, request.path) == ("GET", "/v1/jobs/state")
-            return web.json_response(
-                {"workers": {"worker-1": {"connected": True, "receivedAt": 1.0}}}
-            )
-
-        async with jobs_server(handler) as base:
-            workers = await PoliSnatchJobs(base=base, key="k").workers()
-
-        assert workers == {"worker-1": {"connected": True, "receivedAt": 1.0}}
-
-    async def test_workers_empty_is_an_empty_dict(self):
-        async def handler(request):
-            return web.json_response({})
-
-        async with jobs_server(handler) as base:
-            assert await PoliSnatchJobs(base=base, key="k").workers() == {}
-
-    async def test_command_is_queued_with_202(self):
-        seen = []
-
-        async def handler(request):
-            seen.append(await request.json())
-            return web.json_response({"queued": "restart", "worker": "*"}, status=202)
-
-        async with jobs_server(handler) as base:
-            body = await PoliSnatchJobs(base=base, key="k").command("*", "restart")
-
-        assert body == {"queued": "restart", "worker": "*"}
-        assert seen == [{"worker": "*", "action": "restart"}]
-
 
 class TestIssueToken:
     async def test_posts_the_person_and_expects_201(self):
