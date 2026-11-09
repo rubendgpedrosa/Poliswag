@@ -74,6 +74,8 @@ def bot_for(store):
     bot.utility.format_datetime_string = Utility.__new__(Utility).format_datetime_string
     bot.event_manager = EventManager(bot)
     bot.event_stats.get_summary = AsyncMock(return_value=None)
+    # No renderer here: a missing board falls back to the text cards.
+    bot.image_generator.generate_stat_board = AsyncMock(return_value=None)
     return bot
 
 
