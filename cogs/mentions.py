@@ -10,7 +10,16 @@ from discord.ext import commands, tasks
 from modules.config import Config
 from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
-from modules.hermiswag_client import HermiswagClient
+from modules.conversation_model import AGENT_INSTRUCTIONS, clean_history, public_prompt
+from modules.hermiswag_client import HermiswagClient, reply_text
+from modules.hermiswag_proactive import (
+    PER_CHANNEL,
+    PROACTIVE_RULES,
+    ProactiveState,
+    candidates,
+    utcnow,
+)
+from modules.public_conversation import safe_reply
 from modules.hermiswag_learning import (
     FIRST_RUN,
     LEARN_INSTRUCTIONS,
@@ -79,6 +88,7 @@ class Mentions(commands.Cog):
             Config.HERMISWAG_API_URL, Config.HERMISWAG_API_KEY
         )
         self.learning = LearningState(Config.HERMISWAG_LEARNING_STATE)
+        self.proactive_state = ProactiveState(Config.HERMISWAG_PROACTIVE_STATE)
         self.public = PublicConversation(
             poliswag.db,
             quest_search.db,
@@ -148,9 +158,80 @@ class Mentions(commands.Cog):
     async def cog_load(self):
         if self.hermiswag.enabled:
             self.learn.start()
+            self.proactive.start()
 
     async def cog_unload(self):
         self.learn.cancel()
+        self.proactive.cancel()
+
+    @tasks.loop(minutes=30)
+    async def proactive(self):
+        """Answer the questions nobody answered (hermiswag_proactive)."""
+        user = self.poliswag.user
+        if user is None:
+            return
+        state = self.proactive_state.load()
+        now = utcnow()
+        for channel_id in Config.HERMISWAG_PROACTIVE_CHANNELS:
+            channel = self.poliswag.get_channel(channel_id)
+            if channel is None:
+                continue
+            handled = state.setdefault(str(channel_id), [])
+            try:
+                messages = [m async for m in channel.history(limit=60)]
+                messages.reverse()
+                for message, following in candidates(
+                    messages, now, set(handled), user.id
+                )[:PER_CHANNEL]:
+                    handled.append(message.id)
+                    self.proactive_state.save(state)
+                    await self._answer_open_question(channel, message, following)
+            except Exception as error:
+                self.poliswag.utility.log_to_file(
+                    f"Hermiswag proactive #{getattr(channel, 'name', channel_id)} "
+                    f"failed: {type(error).__name__}",
+                    "ERROR",
+                )
+
+    @proactive.before_loop
+    async def before_proactive(self):
+        await self.poliswag.wait_until_ready()
+
+    async def _answer_open_question(self, channel, message, following):
+        text = named_mentions(message.content or "", message).strip()
+        history = []
+        for item in following:
+            body = named_mentions(item.content or "", item).strip()
+            if body and item.webhook_id is None:
+                own = item.author.id == self.poliswag.user.id
+                history.append(
+                    {
+                        "author": "Poliswag" if own else item.author.display_name,
+                        "text": body,
+                    }
+                )
+        payload = {
+            "text": text[:2000],
+            "snapshot": None,
+            "facts": None,
+            "recent_channel_messages": clean_history(history),
+        }
+        raw = await self.hermiswag.ask(
+            HermiswagClient.conversation(channel.id),
+            AGENT_INSTRUCTIONS + "\n\n" + PROACTIVE_RULES,
+            public_prompt("greeting", payload),
+        )
+        reply = safe_reply(reply_text(raw) or "")
+        if not reply:
+            return
+        try:
+            await message.reply(
+                reply,
+                mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            pass
 
     @tasks.loop(hours=6)
     async def learn(self):

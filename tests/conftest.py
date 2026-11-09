@@ -48,6 +48,8 @@ _TEST_ENV_DEFAULTS = {
     "HERMISWAG_API_KEY": "",
     "HERMISWAG_SESSION_CHANNELS": "",
     "HERMISWAG_LEARN_CHANNELS": "",
+    "HERMISWAG_PROACTIVE_CHANNELS": "",
+    "HERMISWAG_PROACTIVE_STATE": "/tmp/poliswag-test/hermiswag-proactive.json",
     "HERMISWAG_LEARNING_STATE": "/tmp/poliswag-test/hermiswag-learning.json",
     "CLAUDE_API_URL": "http://claude.test.invalid",
     "CLAUDE_API_KEY": "",
