@@ -194,7 +194,7 @@ class Mentions(commands.Cog):
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
         await self.respond(ctx, reply)
-        self.active.spoke(ctx.channel.id, invited=True)
+        self.active.spoke(ctx.channel.id, invited=True, partner=ctx.author.id)
         return True
 
     async def cog_load(self):
@@ -251,7 +251,13 @@ class Mentions(commands.Cog):
             try:
                 messages = [m async for m in channel.history(limit=30)]
                 messages.reverse()
-                new = new_since_poliswag(messages, user.id, self.followup_handled, now)
+                new = new_since_poliswag(
+                    messages,
+                    user.id,
+                    self.followup_handled,
+                    now,
+                    partner=self.active.partner(channel_id),
+                )
                 if not new:
                     continue
                 self.followup_handled.update(m.id for m in new)
@@ -272,8 +278,11 @@ class Mentions(commands.Cog):
     async def _continue_conversation(self, channel, messages, new):
         own = self.poliswag.user.id
         first_new = messages.index(new[0])
+        last_new = messages.index(new[-1])
         history = []
-        for item in messages[max(0, first_new - 15) : first_new]:
+        # Context: what came before, plus what others said in between.
+        context = messages[max(0, first_new - 15) : last_new + 1]
+        for item in [m for m in context if m not in new]:
             body = named_mentions(item.content or "", item).strip()
             if (
                 body
@@ -358,7 +367,7 @@ class Mentions(commands.Cog):
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-            self.active.spoke(channel.id, invited=False)
+            self.active.spoke(channel.id, invited=False, partner=message.author.id)
         except discord.HTTPException:
             pass
 

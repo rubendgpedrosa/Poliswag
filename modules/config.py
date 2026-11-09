@@ -178,6 +178,10 @@ class Config:
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
     CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
     CLAUDE_RUNS_DIR = os.environ.get("CLAUDE_RUNS_DIR", "logs/claude-runs")
+    # Who gets the owner's unprefixed DMs: "hermes" or "claude". Switched by
+    # !usehermes / !useclaude, which also write it to .env for the next boot.
+    ENV_FILE = os.environ.get("POLISWAG_ENV_FILE", ".env")
+    OWNER_DM_DEFAULT = os.environ.get("OWNER_DM_DEFAULT", "hermes").strip().lower()
     # Names kept out of anything public. They are deployment data, so the
     # repository never carries them; unset means nothing is filtered.
     PRIVATE_NAMES = tuple(

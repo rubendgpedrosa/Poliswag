@@ -488,3 +488,12 @@ minute over channels where Poliswag spoke in the last 15 min
 the newest) only with `for_me: true`. Limits: one follow-up per channel per
 3 min, three in a row without a tag or reply (a tag resets it); tagged
 messages are left to `handle`.
+
+Follow-ups continue with one person only: whoever Poliswag last answered in
+that channel (`ActiveChannels.partner`); others' messages are context.
+
+**Owner DM default (2026-11-09).** `!useclaude` / `!usehermes` (owner only)
+set `Config.OWNER_DM_DEFAULT` at once and write `OWNER_DM_DEFAULT` to `.env`
+(`modules/env_file.set_env_value`, keeps the other lines and the mode) for the
+next boot. With `claude`, unprefixed owner DMs go to ClaudeChat and `h ` sends
+one to Hermes; `c ` always means Claude.

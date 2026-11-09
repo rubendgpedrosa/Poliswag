@@ -42,6 +42,8 @@ LOGGER = logging.getLogger(__name__)
 _IGNORED = re.compile(r"\s*!ignore(?:\s|$)", re.I)
 # "c <text>" or "!c <text>" in the owner DM goes to Claude instead of Hermes.
 _CLAUDE = re.compile(r"\s*!?c(?:\s+|$)", re.I)
+# With Claude as the default (!useclaude), "h " sends a DM to Hermes instead.
+_HERMES = re.compile(r"\s*!?h(?:\s+|$)", re.I)
 
 
 class Poliswag(commands.Bot):
@@ -133,6 +135,13 @@ class Poliswag(commands.Bot):
         ):
             hermes = self.get_cog("Hermes")
             claude = self.get_cog("ClaudeChat")
+            if Config.OWNER_DM_DEFAULT == "claude" and claude is not None:
+                to_hermes = _HERMES.match(message.content)
+                if to_hermes and hermes is not None:
+                    await hermes.handle(ctx, message.content[to_hermes.end() :])
+                else:
+                    await claude.handle(ctx, message.content)
+                return
             # A follow-up without "c " while only Claude is working steers it.
             if (
                 claude is not None

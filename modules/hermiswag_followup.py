@@ -7,7 +7,8 @@ channel and decides whether any of it is still a conversation with Poliswag
 (a follow-up question, an answer to something it asked). It answers only
 then, as a plain reply. Limits keep it from barging in: at most one
 follow-up per MIN_GAP per channel and MAX_CHAIN in a row without a tag or a
-reply to it; a tag resets the chain.
+reply to it; a tag resets the chain. It follows one person at a time:
+whoever it last answered; what others write meanwhile is only context.
 """
 
 import json
@@ -43,15 +44,20 @@ class ActiveChannels:
     def __init__(self):
         self._state = {}
 
-    def spoke(self, channel_id, *, invited, now=None):
-        """Poliswag answered here; `invited` (tag/reply) resets the chain."""
+    def spoke(self, channel_id, *, invited, partner=None, now=None):
+        """Poliswag answered `partner` here; `invited` (tag/reply) resets the
+        chain. Follow-ups only ever continue with that one person."""
         now = time.time() if now is None else now
         entry = self._state.setdefault(
             channel_id, {"at": now, "chain": 0, "followed_at": float("-inf")}
         )
         entry["at"] = now
+        entry["partner"] = partner
         if invited:
             entry["chain"] = 0
+
+    def partner(self, channel_id):
+        return self._state.get(channel_id, {}).get("partner")
 
     def followed_up(self, channel_id, now=None):
         now = time.time() if now is None else now
@@ -76,10 +82,11 @@ class ActiveChannels:
         return out
 
 
-def new_since_poliswag(messages, own_id, handled, now):
-    """Member messages after Poliswag's last message (messages oldest first),
-    or [] when there are none, they were looked at already, they tag or reply
-    to Poliswag (on_message answers those), or the newest is too fresh."""
+def new_since_poliswag(messages, own_id, handled, now, partner=None):
+    """The partner's messages after Poliswag's last message (messages oldest
+    first; everyone's when there is no partner), or [] when there are none,
+    they were looked at already, they tag Poliswag (on_message answers
+    those), or the newest is too fresh."""
     last = None
     for index, message in enumerate(messages):
         if message.author.id == own_id:
@@ -89,7 +96,9 @@ def new_since_poliswag(messages, own_id, handled, now):
     after = [
         m
         for m in messages[last + 1 :]
-        if not m.author.bot and getattr(m, "webhook_id", None) is None
+        if not m.author.bot
+        and getattr(m, "webhook_id", None) is None
+        and (partner is None or m.author.id == partner)
     ]
     if not after or any(m.id in handled for m in after):
         return []

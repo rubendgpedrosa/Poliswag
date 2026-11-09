@@ -44,6 +44,8 @@ _TEST_ENV_DEFAULTS = {
     "HERMES_API_KEY": "",
     "HERMES_SESSION_ID": "",
     "HERMES_RUNS_DIR": "/tmp/poliswag-test/hermes-runs",
+    "OWNER_DM_DEFAULT": "hermes",
+    "POLISWAG_ENV_FILE": "/tmp/poliswag-test/env",
     "HERMISWAG_API_URL": "",
     "HERMISWAG_API_KEY": "",
     "HERMISWAG_SESSION_CHANNELS": "",
