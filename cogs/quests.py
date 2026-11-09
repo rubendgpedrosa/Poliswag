@@ -163,7 +163,7 @@ class Quests(commands.Cog):
             found_quests
         )
 
-        for reward_slug, group_data in reward_groups.items():
+        for group_data in reward_groups.values():
             reward_text = group_data.get("reward_text", "")
             reward_title = (
                 f"{group_data['title']} — {reward_text}"

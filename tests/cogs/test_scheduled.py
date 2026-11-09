@@ -294,7 +294,9 @@ class TestScheduledTasksLoop:
 
         await cog.scheduled_tasks.coro(cog)
         with open(Config.HEARTBEAT_FILE) as f:
-            assert real_datetime.datetime.fromisoformat(f.read())
+            written = real_datetime.datetime.fromisoformat(f.read())
+        # Naive UTC with no "+00:00" suffix, as utcnow() wrote it.
+        assert written.tzinfo is None
 
     async def test_exception_logged_and_swallowed(self, cog, capsys):
         cog._check_version_update = AsyncMock(side_effect=RuntimeError("boom"))
