@@ -202,7 +202,7 @@ class ImageGenerator:
             self._accounts_template = self._get_env().get_template(
                 self.ACCOUNTS_TEMPLATE_HTML_FILE
             )
-        view = build_card_view(pools, area_performance)
+        view = build_card_view(pools, area_performance, self._brand())
         html_content = self._accounts_template.render(
             **view, font_faces=self._font_faces()
         )
