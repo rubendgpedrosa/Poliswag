@@ -1,20 +1,25 @@
 """Tests for modules.image_generator.ImageGenerator.
 
-Focuses on the async quest-map renderer and the error branches of
-the async HTML→PNG helpers (by making imgkit.from_file raise).
+Focuses on the async quest-map renderer, the error branches of the async
+HTML→PNG helpers (by making imgkit.from_file raise), and what every render
+must keep: local fonts only, one options dict, escaped values.
 
 The renderer writes the page to a temp file it deletes, so a test that wants
 the rendered HTML reads the path it was handed.
 """
 
+import datetime as dt
 import os
+import re
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
-from PIL import Image
+from PIL import Image, ImageFont
 import pytest
 
+from modules import stat_card, week_board
 from modules.config import Config
 from modules.image_generator import ImageGenerator, _recompress_png
 
@@ -34,6 +39,7 @@ class TestInit:
         assert g.ACCOUNTS_TEMPLATE_HTML_FILE == "accounts.html"
         assert g._env is None
         assert g._accounts_template is None
+        assert g._font_css is None
 
 
 def rendered(path):
@@ -51,6 +57,9 @@ def ig():
     g.ACCOUNTS_TEMPLATE_HTML_FILE = "accounts.html"
     g._env = None
     g._accounts_template = None
+    g._stat_card_template = None
+    g._brand_uri = None
+    g._font_css = None
     return g
 
 
@@ -469,3 +478,156 @@ class TestDataUri:
         uri = _data_uri(out.getvalue(), width=1040)
         assert uri.startswith("data:image/jpeg;base64,")
         assert self._decode(uri).size == (1040, 520)
+
+
+TEMPLATES = Path(__file__).resolve().parents[2] / "templates"
+
+
+def capture_render(mocker):
+    """Patch the renderer; the dict gets the last page's HTML and options."""
+    seen = {}
+
+    def fake_from_file(path, out, options):
+        seen["html"] = rendered(path)
+        seen["options"] = options
+        return b"IMG"
+
+    mocker.patch("modules.image_generator.imgkit.from_file", side_effect=fake_from_file)
+    return seen
+
+
+class TestFontFaces:
+    """The fonts come from disk: a Google Fonts stall used to fail the card."""
+
+    def test_five_local_faces_with_their_weights(self, ig):
+        ig.TEMPLATE_HTML_DIR = str(TEMPLATES)
+        css = ig._font_faces()
+        faces = re.findall(
+            r"font-family: '([^']+)';[^}]*font-weight: (\d+);[^}]*url\('([^']+)'\)",
+            css,
+        )
+        assert [(family, int(weight)) for family, weight, _url in faces] == [
+            ("Figtree", 600),
+            ("Figtree", 700),
+            ("Figtree", 800),
+            ("Figtree", 900),
+            ("Bricolage Grotesque", 800),
+        ]
+        assert css.count("@font-face") == 5
+        assert "http" not in css
+        for _family, _weight, url in faces:
+            assert url.startswith("file:///")
+            assert Path(url.removeprefix("file://")).is_file()
+
+    def test_built_once(self, ig):
+        ig.TEMPLATE_HTML_DIR = str(TEMPLATES)
+        assert ig._font_faces() is ig._font_faces()
+
+    @pytest.mark.parametrize(
+        "name",
+        ["figtree-600", "figtree-700", "figtree-800", "figtree-900", "bricolage-800"],
+    )
+    def test_each_font_is_a_static_instance(self, name):
+        # wkhtmltoimage's Qt can't pick variable-font axes.
+        font = ImageFont.truetype(str(TEMPLATES / "fonts" / f"{name}.ttf"))
+        with pytest.raises(OSError):
+            font.get_variation_axes()
+
+
+class TestPngOptions:
+    def test_one_options_dict_for_every_render(self, ig, tmp_path):
+        ig.TEMPLATE_HTML_DIR = str(tmp_path)
+        assert ig._png_options({"width": 400, "height": 300, "scale": 2}) == {
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": "800",
+            "height": "600",
+            "quality": "100",
+            "transparent": "",
+            "allow": str(tmp_path / "fonts"),
+            "quiet": "",
+        }
+
+    def test_the_allowed_folder_holds_the_fonts(self, ig):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        allowed = Path(ig._png_options({"width": 1, "height": 1, "scale": 1})["allow"])
+        assert allowed.is_absolute()
+        assert (allowed / "figtree-700.ttf").is_file()
+
+    async def test_every_board_renders_with_it(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        seen = capture_render(mocker)
+        options = mocker.spy(ig, "_png_options")
+        card = stat_card.StatCard(kicker="k", hero=None, title="t", ended="e")
+        event = week_board.WeekEvent(
+            "Raid Hour", "Evento", "", NOW, NOW + dt.timedelta(hours=1)
+        )
+        renders = [
+            ig.generate_image_from_account_stats(_pools()),
+            ig.generate_stat_board([card], "Semana"),
+            ig.generate_week_board([event], NOW),
+        ]
+        for render in renders:
+            await render
+            assert seen["options"] is options.spy_return
+            assert "@font-face" in seen["html"]
+        assert options.call_count == 3
+
+
+NOW = dt.datetime(2026, 11, 9, 9, 0)
+HOSTILE = "<b>x</b> & 'y'"
+ESCAPED = "&lt;b&gt;x&lt;/b&gt; &amp; &#39;y&#39;"
+
+
+class TestAutoescape:
+    """Event names and bonuses come from ScrapedDuck: they are text, not markup."""
+
+    async def test_stat_board_escapes_values(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        seen = capture_render(mocker)
+        card = stat_card.StatCard(
+            kicker=HOSTILE,
+            hero=None,
+            title=HOSTILE,
+            chips=(("Horário", HOSTILE),),
+            bonuses=(HOSTILE,),
+        )
+        await ig.generate_stat_board([card], HOSTILE)
+        html = seen["html"]
+        assert ESCAPED in html
+        assert "<b>x</b>" not in html
+        # Our own CSS still arrives as CSS: the font faces and the include.
+        assert "@font-face { font-family: 'Figtree';" in html
+        assert "font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;" in html
+
+    async def test_week_board_escapes_values(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        seen = capture_render(mocker)
+        event = week_board.WeekEvent(
+            HOSTILE, HOSTILE, "", NOW, NOW + dt.timedelta(hours=1)
+        )
+        await ig.generate_week_board([event], NOW)
+        html = seen["html"]
+        assert ESCAPED in html
+        assert "<b>x</b>" not in html
+        assert "@font-face { font-family: 'Figtree';" in html
+
+
+class TestTemplatesNeedNoNetwork:
+    """wkhtmltoimage fetches whatever a page references; a stall fails the
+    render and holds up the scheduler tick. Nothing may come from the network."""
+
+    NETWORK = re.compile(r"https?://|@import|url\(\s*['\"]?//", re.IGNORECASE)
+
+    @pytest.mark.parametrize(
+        "path",
+        sorted(TEMPLATES.glob("*.html")) + sorted(TEMPLATES.glob("*.css")),
+        ids=lambda path: path.name,
+    )
+    def test_no_network_reference(self, path):
+        hits = [
+            f"{path.name}:{number}: {line.strip()}"
+            for number, line in enumerate(path.read_text().splitlines(), 1)
+            if self.NETWORK.search(line)
+        ]
+        assert hits == []

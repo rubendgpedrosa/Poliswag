@@ -4,12 +4,14 @@ import contextlib
 import dataclasses
 import io
 import os
+import pathlib
 import tempfile
 
 import aiohttp
 import imgkit
 from PIL import Image
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from modules.account_card import build_card_view
 from modules import stat_card, week_board
@@ -28,6 +30,20 @@ _BANNER_WIDTH = stat_card.PANEL_W * stat_card.RENDER_SCALE
 _ICON_SIZE = 50 * stat_card.RENDER_SCALE
 # The week board's pictures are row thumbnails; 2x for the render.
 _WEEK_IMAGE_WIDTH = week_board.THUMB_W * stat_card.RENDER_SCALE
+
+# Static instances of the site's two typefaces, cut from the variable fonts in
+# templates/shiny-leaderboard/ (rebuild command in docs/context/modules.md).
+# Served from disk because a Google Fonts @import made every render depend on
+# the network: a stall there failed the card and held up the 60s tick.
+# wkhtmltoimage's Qt can't pick a variable font's axes, hence one file each.
+FONTS_DIR = "fonts"
+_FONT_FILES = (
+    ("Figtree", 600, "figtree-600.ttf"),
+    ("Figtree", 700, "figtree-700.ttf"),
+    ("Figtree", 800, "figtree-800.ttf"),
+    ("Figtree", 900, "figtree-900.ttf"),
+    ("Bricolage Grotesque", 800, "bricolage-800.ttf"),
+)
 
 # What imgkit.from_string prepends to every source it pipes; kept so rendering
 # from a file cannot change how a template without its own charset tag renders.
@@ -102,11 +118,62 @@ class ImageGenerator:
         self._accounts_template = None
         self._stat_card_template = None
         self._brand_uri = None
+        self._font_css = None
 
     def _get_env(self):
         if self._env is None:
-            self._env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
+            # Event names and bonuses come from ScrapedDuck, so values are
+            # escaped; only markup we build ourselves is passed as Markup.
+            self._env = Environment(
+                loader=FileSystemLoader(self.TEMPLATE_HTML_DIR),
+                autoescape=select_autoescape(["html"]),
+            )
         return self._env
+
+    def _fonts_dir(self):
+        return os.path.abspath(os.path.join(self.TEMPLATE_HTML_DIR or "", FONTS_DIR))
+
+    def _font_faces(self):
+        """The @font-face rules for the local fonts, as Markup for the templates.
+
+        file:// URLs: the page is rendered from a temp file, and wkhtmltoimage
+        lets it read the fonts because _png_options allows their folder.
+        """
+        if self._font_css is None:
+            fonts = pathlib.Path(self._fonts_dir())
+            self._font_css = Markup(
+                "\n".join(
+                    f"@font-face {{ font-family: '{family}'; font-style: normal; "
+                    f"font-weight: {weight}; "
+                    f"src: url('{(fonts / name).as_uri()}') format('truetype'); }}"
+                    for family, weight, name in _FONT_FILES
+                )
+            )
+        return self._font_css
+
+    def _png_options(self, view):
+        """wkhtmltoimage options for a card or board laid out by `view`.
+
+        CSS is laid out at view["width"] x view["height"] and scaled by the
+        template's CSS `zoom` (this wkhtmltoimage build ignores its --zoom
+        flag), so the PNG is scale x larger and text stays sharp when Discord
+        scales it down on phones. The height follows the layout: each view
+        builder sums the same pixel constants the template's CSS uses.
+        """
+        return {
+            "format": "png",
+            "encoding": "UTF-8",
+            "width": str(view["width"] * view["scale"]),
+            "height": str(view["height"] * view["scale"]),
+            "quality": "100",
+            "transparent": "",
+            # No javascript-delay: the templates run no JavaScript, and the
+            # second it added only gave web fonts time to arrive.
+            # 0.12.6 blocks local file access by default; the fonts' folder is
+            # the only one the page may read.
+            "allow": self._fonts_dir(),
+            "quiet": "",
+        }
 
     async def _render_png(self, html_content, options, error_label):
         # Renders from a file we own rather than imgkit.from_string, which
@@ -136,24 +203,12 @@ class ImageGenerator:
                 self.ACCOUNTS_TEMPLATE_HTML_FILE
             )
         view = build_card_view(pools, area_performance)
-        html_content = self._accounts_template.render(**view)
-        options = {
-            "format": "png",
-            "encoding": "UTF-8",
-            # CSS is laid out at view["width"] x view["height"] and scaled by
-            # the template's CSS `zoom` (this wkhtmltoimage build ignores its
-            # --zoom flag), so the PNG is scale x larger and text stays sharp
-            # when Discord scales it down on phones. The height follows the
-            # layout -- build_card_view sums the same pixel constants the
-            # template's CSS uses.
-            "width": str(view["width"] * view["scale"]),
-            "height": str(view["height"] * view["scale"]),
-            "quality": "100",
-            "transparent": "",
-            "javascript-delay": "1000",
-            "quiet": "",
-        }
-        png = await self._render_png(html_content, options, "account image")
+        html_content = self._accounts_template.render(
+            **view, font_faces=self._font_faces()
+        )
+        png = await self._render_png(
+            html_content, self._png_options(view), "account image"
+        )
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)
@@ -210,20 +265,12 @@ class ImageGenerator:
             self._stat_card_template = self._get_env().get_template(STAT_CARD_TEMPLATE)
         cards = await asyncio.gather(*(self._inline_card(card) for card in cards))
         view = stat_card.build_board_view(cards, heading, date, self._brand())
-        html_content = self._stat_card_template.render(**view)
-        # Same sizing as the account card: CSS at the token sizes, CSS zoom
-        # to the scaled PNG.
-        options = {
-            "format": "png",
-            "encoding": "UTF-8",
-            "width": str(view["width"] * view["scale"]),
-            "height": str(view["height"] * view["scale"]),
-            "quality": "100",
-            "transparent": "",
-            "javascript-delay": "1000",
-            "quiet": "",
-        }
-        png = await self._render_png(html_content, options, "stat board")
+        html_content = self._stat_card_template.render(
+            **view, font_faces=self._font_faces()
+        )
+        png = await self._render_png(
+            html_content, self._png_options(view), "stat board"
+        )
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)
@@ -241,18 +288,14 @@ class ImageGenerator:
         view = week_board.build_week_view(events, now, self._brand())
         if view is None:
             return None
-        html_content = self._get_env().get_template(WEEK_BOARD_TEMPLATE).render(**view)
-        options = {
-            "format": "png",
-            "encoding": "UTF-8",
-            "width": str(view["width"] * view["scale"]),
-            "height": str(view["height"] * view["scale"]),
-            "quality": "100",
-            "transparent": "",
-            "javascript-delay": "1000",
-            "quiet": "",
-        }
-        png = await self._render_png(html_content, options, "week board")
+        html_content = (
+            self._get_env()
+            .get_template(WEEK_BOARD_TEMPLATE)
+            .render(**view, font_faces=self._font_faces())
+        )
+        png = await self._render_png(
+            html_content, self._png_options(view), "week board"
+        )
         if not png:
             return png
         return await asyncio.to_thread(_recompress_png, png)
