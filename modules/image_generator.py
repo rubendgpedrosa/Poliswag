@@ -165,6 +165,7 @@ class ImageGenerator:
             "width": str(view["width"] * view["scale"]),
             "height": str(view["height"] * view["scale"]),
             "quality": "100",
+            # Tested: works despite the unpatched-qt warning; else white margins.
             "transparent": "",
             # No javascript-delay: the templates run no JavaScript, and the
             # second it added only gave web fonts time to arrive.
