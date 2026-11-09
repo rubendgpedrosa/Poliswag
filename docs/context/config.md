@@ -35,6 +35,9 @@ POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNAT
   (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
 POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
 MBWAY_DETAILS  (free text `!mbway` sends by DM; empty points at the Revolut link)
+OWNER_DM_DEFAULT  (hermes|claude, default hermes; read from the .env file itself at boot, see agents.md)
+HERMISWAG_API_URL, HERMISWAG_API_KEY  (public agent; unset URL disables it, see agents.md)
+SCANNER_CARD_FILE, SCANNER_GAME_VERSION_FILE  (scanner card and last game build, under logs/)
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
 UI_ICONS_URL, TEMPLATE_HTML_DIR, ACCOUNTS_TEMPLATE_HTML_FILE
