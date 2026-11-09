@@ -29,7 +29,13 @@ PROACTIVE_RULES = (
     "retórica; ou se alguém já respondeu nas mensagens seguintes. Caso "
     "contrário, responde diretamente à pergunta, curto e útil: não menciones "
     "a pessoa, não digas que viste a pergunta nem que ninguém respondeu, não "
-    "fales das mensagens anteriores. Na dúvida, devolve vazio."
+    "fales das mensagens anteriores. Como ninguém te chamou, só respondes "
+    "quando tens a certeza de que a resposta está certa: confirma-a primeiro "
+    "com as tuas ferramentas (community_knowledge, map_query ou a pesquisa "
+    "web nas fontes de confiança). Se não conseguires confirmar, se a "
+    "resposta depender de algo que não sabes (a conta, o telemóvel ou a "
+    "situação da pessoa) ou se só tiveres um palpite, devolve vazio. Na "
+    "dúvida, devolve sempre vazio."
 )
 
 _QUESTION = re.compile(
