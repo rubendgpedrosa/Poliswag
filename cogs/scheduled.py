@@ -35,6 +35,11 @@ from modules.trade_dm import TradeDM
 _SLOW_STEP_SECONDS = 60
 
 
+def _event_time(event, key) -> datetime.datetime:
+    """Event rows hold Lisbon wall time as `%Y-%m-%d %H:%M:%S`."""
+    return datetime.datetime.strptime(str(event[key]), "%Y-%m-%d %H:%M:%S")
+
+
 def _extra(event):
     try:
         data = json.loads(event.get("extra_data") or "{}")
@@ -232,8 +237,6 @@ class Scheduled(commands.Cog):
         name="weeklydigest", brief="Envia resumo semanal de eventos (admin)"
     )
     async def weeklydigestcmd(self, ctx):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
         await self._send_weekly_digest(channel=ctx.channel)
@@ -243,8 +246,6 @@ class Scheduled(commands.Cog):
         name="testevent", brief="Simula _check_events em HH:MM hoje (admin)"
     )
     async def testeventcmd(self, ctx, time_arg: str = None):
-        if str(ctx.author.id) not in self.poliswag.ADMIN_USERS_IDS:
-            return
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
@@ -373,7 +374,11 @@ class Scheduled(commands.Cog):
         """Proof for the host watchdog (scripts/watchdog.sh) that ticks still run."""
         try:
             with open(Config.HEARTBEAT_FILE, "w") as f:
-                f.write(datetime.datetime.utcnow().isoformat())
+                f.write(
+                    datetime.datetime.now(datetime.timezone.utc)
+                    .replace(tzinfo=None)
+                    .isoformat()
+                )
         except OSError as e:
             self.poliswag.utility.log_to_file(
                 f"Could not write heartbeat: {e}", "ERROR"
@@ -648,7 +653,7 @@ class Scheduled(commands.Cog):
         image = await usable_image(event.get("image")) or ""
         if summary and summary.card:
             return dataclasses.replace(summary.card, title=title, image=image)
-        event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        event_end = _event_time(event, "end")
         return StatCard(
             kicker=_event_heading(event),
             hero=None,
@@ -663,10 +668,10 @@ class Scheduled(commands.Cog):
         """A new event's panel: its game image and name, until when it runs
         and for how long, then its Pokémon and bonuses where ScrapedDuck
         lists them."""
-        end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        end = _event_time(event, "end")
         start = None
         if event.get("start"):
-            start = datetime.datetime.strptime(str(event["start"]), "%Y-%m-%d %H:%M:%S")
+            start = _event_time(event, "start")
         if start and start.date() == end.date():
             chips = [("Horário", f"{start:%H:%M} – {end:%H:%M}")]
         else:
@@ -721,7 +726,7 @@ class Scheduled(commands.Cog):
         )
 
     async def _build_event_embed(self, event, is_ended=False, summary=None):
-        event_end = datetime.datetime.strptime(str(event["end"]), "%Y-%m-%d %H:%M:%S")
+        event_end = _event_time(event, "end")
         emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
         event_link = self.poliswag.event_manager.get_event_link(event)
         event_type_key = self.poliswag.event_manager.get_event_type_key(
@@ -823,12 +828,8 @@ class Scheduled(commands.Cog):
                 continue
             week_events.append(event)
 
-            event_start = datetime.datetime.strptime(
-                str(event["start"]), "%Y-%m-%d %H:%M:%S"
-            )
-            event_end = datetime.datetime.strptime(
-                str(event["end"]), "%Y-%m-%d %H:%M:%S"
-            )
+            event_start = _event_time(event, "start")
+            event_end = _event_time(event, "end")
             emoji = self.poliswag.event_manager.get_event_emoji(event["event_type"])
 
             if event_start <= now:
@@ -896,12 +897,8 @@ class Scheduled(commands.Cog):
                     title=event["name"],
                     kicker=_type_label(event["event_type"]),
                     image=event.get("image") or "",
-                    start=datetime.datetime.strptime(
-                        str(event["start"]), "%Y-%m-%d %H:%M:%S"
-                    ),
-                    end=datetime.datetime.strptime(
-                        str(event["end"]), "%Y-%m-%d %H:%M:%S"
-                    ),
+                    start=_event_time(event, "start"),
+                    end=_event_time(event, "end"),
                 )
                 for event in week_events
             ],
@@ -1031,7 +1028,7 @@ class Scheduled(commands.Cog):
         if action is None:
             return
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         when = now if action == "alert" else None
         await self._save_tracking_alert_at(when)
         self._last_tracking_alert_at = when

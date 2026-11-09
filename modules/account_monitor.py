@@ -24,9 +24,6 @@ PARTITION_STATUSES = ("in_use", "good", "cooldown", "zero_last_released") + (
     OUT_STATUSES
 )
 
-# Kept for callers/tests that import the old name: the unusable buckets only.
-DISABLED_STATUSES = list(OUT_STATUSES)
-
 # Pools shown on the card: (key, title, account endpoint, device endpoint).
 # The levelling pool is optional -- unset endpoints hide its section.
 POOLS = (

@@ -28,6 +28,7 @@ from cogs.scheduled import (
     setup,
 )
 from modules.event_stats import Summary
+from modules.permissions import is_mod
 from modules.stat_card import StatCard
 
 SUMMARY = Summary(
@@ -59,7 +60,6 @@ def _make_poliswag():
     poliswag = MagicMock()
     poliswag.db.get_data_from_database = AsyncMock(return_value=[])
     poliswag.db.execute_query_to_database = AsyncMock()
-    poliswag.ADMIN_USERS_IDS = ["42"]
     poliswag.CONVIVIO_CHANNEL = MagicMock()
     poliswag.CONVIVIO_CHANNEL.send = AsyncMock()
     poliswag.QUEST_CHANNEL = MagicMock()
@@ -183,10 +183,9 @@ class TestSaveDigestDate:
 
 
 class TestWeeklyDigestCmd:
-    async def test_non_admin_silent(self, cog):
-        ctx = make_ctx(author_id="nope")
-        await Scheduled.weeklydigestcmd.callback(cog, ctx)
-        ctx.channel.send.assert_not_called()
+    def test_gated_to_mods(self):
+        # The gate lives on the command (mods_only), not in the body.
+        assert is_mod in Scheduled.weeklydigestcmd.checks
 
     async def test_guild_deletes_message_and_sends(self, cog):
         ctx = make_ctx()
@@ -206,10 +205,8 @@ class TestWeeklyDigestCmd:
 
 
 class TestTestEventCmd:
-    async def test_non_admin_silent(self, cog):
-        ctx = make_ctx(author_id="nope")
-        await Scheduled.testeventcmd.callback(cog, ctx)
-        ctx.channel.send.assert_not_called()
+    def test_gated_to_mods(self):
+        assert is_mod in Scheduled.testeventcmd.checks
 
     async def test_bad_time_format_sends_hint(self, cog):
         ctx = make_ctx(dm=True)
@@ -297,7 +294,9 @@ class TestScheduledTasksLoop:
 
         await cog.scheduled_tasks.coro(cog)
         with open(Config.HEARTBEAT_FILE) as f:
-            assert real_datetime.datetime.fromisoformat(f.read())
+            written = real_datetime.datetime.fromisoformat(f.read())
+        # Naive UTC with no "+00:00" suffix, as utcnow() wrote it.
+        assert written.tzinfo is None
 
     async def test_exception_logged_and_swallowed(self, cog, capsys):
         cog._check_version_update = AsyncMock(side_effect=RuntimeError("boom"))

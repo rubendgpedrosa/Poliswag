@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 import discord
 import re
 from datetime import datetime, time
@@ -23,10 +24,33 @@ LOG_BACKUP_COUNT = 5
 # the scheduler tick open.
 VERSION_CHECK_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
+# The version check runs on every 60 s scheduler tick and a single timeout
+# heals on the next one, so a network failure is a WARNING until it has
+# lasted this many checks in a row (about ten minutes); then it is logged
+# once as an ERROR, which reaches the owner's daily error digest.
+VERSION_CHECK_ERROR_AFTER = 10
+
+# What a failing request to the endpoint raises: aiohttp errors, the
+# request timeout, and socket-level errors.
+_VERSION_CHECK_NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
+
+
+def _describe_error(error: BaseException) -> str:
+    """`Type: message`, or just `Type` when the message is empty (a timeout)."""
+    name = type(error).__name__
+    message = str(error)
+    return f"{name}: {message}" if message else name
+
 
 class Utility:
+    # Consecutive network failures of the version check; reset as soon as
+    # the endpoint answers. Class default so instances built without
+    # __init__ (tests) start at zero too.
+    _version_check_failures = 0
+
     def __init__(self, poliswag):
         self.poliswag = poliswag
+        self._version_check_failures = 0
 
         # Setup logging directories
         log_dir = Path(Config.LOG_FILE).parent
@@ -85,27 +109,50 @@ class Utility:
                 Config.NIANTIC_FORCED_VERSION_ENDPOINT,
                 timeout=VERSION_CHECK_TIMEOUT,
             ) as response:
-                if response.status == 200:
-                    retrieved_version = (
-                        (await response.text()).strip().replace("\x07", "")
-                    )
-
-                    result = await self.poliswag.db.get_data_from_database(
-                        "SELECT version FROM poliswag"
-                    )
-                    current_version = result[0]["version"] if result else None
-
-                    if retrieved_version != current_version:
-                        await self.poliswag.db.execute_query_to_database(
-                            "UPDATE poliswag SET version = %s",
-                            params=(retrieved_version,),
-                        )
-                        return retrieved_version
+                self._version_check_failures = 0
+                if response.status != 200:
                     return None
-                return None
-        except Exception as e:
-            self.log_to_file(f"Error fetching Pokemon version: {e}", "ERROR")
+                retrieved_version = (await response.text()).strip().replace("\x07", "")
+        except _VERSION_CHECK_NETWORK_ERRORS as e:
+            self._log_version_check_failure(e)
             return None
+        except Exception as e:
+            self.log_to_file(
+                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+            )
+            return None
+
+        # The database side is not a network blip: log it at once.
+        try:
+            result = await self.poliswag.db.get_data_from_database(
+                "SELECT version FROM poliswag"
+            )
+            current_version = result[0]["version"] if result else None
+
+            if retrieved_version != current_version:
+                await self.poliswag.db.execute_query_to_database(
+                    "UPDATE poliswag SET version = %s",
+                    params=(retrieved_version,),
+                )
+                return retrieved_version
+            return None
+        except Exception as e:
+            self.log_to_file(
+                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+            )
+            return None
+
+    def _log_version_check_failure(self, error: BaseException) -> None:
+        """WARNING per failed check; one ERROR when the outage reaches
+        VERSION_CHECK_ERROR_AFTER checks in a row."""
+        self._version_check_failures += 1
+        message = f"Error fetching Pokemon version: {_describe_error(error)}"
+        if self._version_check_failures == VERSION_CHECK_ERROR_AFTER:
+            self.log_to_file(
+                f"{message} ({VERSION_CHECK_ERROR_AFTER} checks in a row)", "ERROR"
+            )
+        else:
+            self.log_to_file(message, "WARNING")
 
     def log_to_file(self, message, log_type="INFO"):
         if log_type == "ERROR" or log_type == "CRASH":

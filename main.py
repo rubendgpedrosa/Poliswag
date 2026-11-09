@@ -50,7 +50,6 @@ _HERMES = re.compile(r"\s*!?h(?:\s+|$)", re.I)
 class Poliswag(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        intents.messages = True
         super().__init__(
             command_prefix=commands.when_mentioned_or("!"),
             intents=intents,

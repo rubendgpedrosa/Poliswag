@@ -58,9 +58,11 @@ class ScannerManager:
                     f"Invalid action: {action}. Must be 'start' or 'stop'."
                 )
         except docker.errors.NotFound:
-            raise Exception(f"Container '{self.SCANNER_CONTAINER_NAME}' not found.")
+            raise Exception(
+                f"Container '{self.SCANNER_CONTAINER_NAME}' not found."
+            ) from None
         except docker.errors.APIError as e:
-            raise Exception(f"Docker API error: {e}")
+            raise Exception(f"Docker API error: {e}") from e
         finally:
             if client:
                 client.close()
