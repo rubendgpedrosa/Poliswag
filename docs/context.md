@@ -23,7 +23,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` / `quest_exporter.py` / `quest_map.py` | Quest lookup (only future expiry is live), `quests.json` export, map PNGs. See `quests.md`. |
 | `scan_areas.py` | The area registry and its Dragonite fences: `active_areas()`, `area_for(lat, lon)`, labels/roles/bit codes; point-in-polygon, 10 min cache, last good fences on disk. See `database.md`. |
-| `event_manager.py` / `event_store.py` / `event_stats.py` / `event_images.py` | ScrapedDuck ingestion, `event` table, notices, end-of-event stats. See `events.md`. |
+| `event_manager.py` / `event_store.py` / `event_stats.py` / `event_images.py` / `event_notices.py` | ScrapedDuck ingestion, `event` table, notices (posted by `event_notices.py`), end-of-event stats. See `events.md`. |
 | `trade_digest.py` / `trade_dm.py` / `trade_announcer.py` | Trade digest, match posts and match DMs. See `trades.md`. |
 | `hundo_alerts.py` / `hundo_confirmation.py` | Pokédex 100IV DMs via Poracle rules. See `hundo-alerts.md`. |
 | `shiny_roll.py` / `shiny_store.py` / `shiny_alerts.py` / `shiny_odds.py` | Shiny prediction, tables, odds; alerts in private channels, DMs only for pilot users. See the internal shiny notes (not in this repo). |
