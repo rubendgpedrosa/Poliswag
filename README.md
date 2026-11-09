@@ -69,7 +69,7 @@ against a throwaway MariaDB; CI runs them on every push. How the isolation works
 
 ## PoliSnatch
 
-`!lure`, `!pn` and shiny link resolution send jobs to PoliSnatch over HTTPS; the in-game half
+`!lure` and shiny link resolution send jobs to PoliSnatch over HTTPS; the in-game half
 never runs here. Two settings point at it:
 
 | Variable | What it is |

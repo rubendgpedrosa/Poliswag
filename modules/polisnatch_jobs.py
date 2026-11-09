@@ -82,14 +82,6 @@ class PoliSnatchJobs:
     async def get(self, kind, job_id):
         return await self._call("GET", job_path(kind, job_id), expect=(200,))
 
-    async def command(self, worker, action):
-        body = {"worker": worker or "*", "action": action}
-        return await self._call("POST", "/command", body, expect=(202,))
-
-    async def workers(self):
-        body = await self._call("GET", "/state", expect=(200,))
-        return body.get("workers") or {}
-
     async def issue_token(self, *, email, name="", workers=1, channels=None):
         """Mints a jobs-scoped person token; the raw token is in the reply only."""
         body = {
