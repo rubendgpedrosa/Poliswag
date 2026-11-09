@@ -20,6 +20,7 @@ from modules.config import Config
 from modules.utility import (
     LOG_BACKUP_COUNT,
     LOG_MAX_BYTES,
+    VERSION_CHECK_ERROR_AFTER,
     VERSION_CHECK_TIMEOUT,
     Utility,
 )
@@ -503,6 +504,109 @@ class TestGetNewPokemongoVersion:
         result = await util.get_new_pokemongo_version()
         assert result is None
         util.poliswag.db.execute_query_to_database.assert_not_called()
-        util.error_logger.error.assert_called_once()
+        # One timeout heals on the next tick: WARNING, not ERROR.
+        util.error_logger.error.assert_not_called()
+        util.logger.info.assert_called_once_with(
+            "Error fetching Pokemon version: TimeoutError: timed out"
+        )
         assert "timeout" in seen
         assert seen["timeout"] == VERSION_CHECK_TIMEOUT
+
+
+class _VersionEndpoint:
+    """A session whose next requests fail or answer, in the order queued."""
+
+    def __init__(self):
+        self.outcomes = []
+
+    def get(self, url, **kwargs):
+        outcome = self.outcomes.pop(0)
+
+        class _CM:
+            async def __aenter__(_self):
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                response = MagicMock()
+                response.status = outcome
+
+                async def text():
+                    return "1.0.0"
+
+                response.text = text
+                return response
+
+            async def __aexit__(_self, *exc):
+                return False
+
+        return _CM()
+
+
+class TestVersionCheckFailureLevels:
+    @pytest.fixture
+    def endpoint(self, util, mocker):
+        endpoint = _VersionEndpoint()
+        mocker.patch("modules.utility.get_session", return_value=endpoint)
+        util.poliswag.db.get_data_from_database.return_value = [{"version": "1.0.0"}]
+        return endpoint
+
+    async def test_one_timeout_is_a_warning_naming_the_type(self, util, endpoint):
+        # A real timeout has an empty message; the line still says what failed.
+        endpoint.outcomes = [asyncio.TimeoutError()]
+        assert await util.get_new_pokemongo_version() is None
+        util.error_logger.error.assert_not_called()
+        util.logger.info.assert_called_once_with(
+            "Error fetching Pokemon version: TimeoutError"
+        )
+
+    async def test_client_error_keeps_its_message(self, util, endpoint):
+        endpoint.outcomes = [aiohttp.ClientPayloadError("connection reset")]
+        await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+        util.logger.info.assert_called_once_with(
+            "Error fetching Pokemon version: ClientPayloadError: connection reset"
+        )
+
+    async def test_persistent_failure_logs_exactly_one_error(self, util, endpoint):
+        endpoint.outcomes = [asyncio.TimeoutError()] * (VERSION_CHECK_ERROR_AFTER + 5)
+        for _ in range(VERSION_CHECK_ERROR_AFTER - 1):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+
+        await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_called_once()
+        assert "TimeoutError" in util.error_logger.error.call_args.args[0]
+
+        for _ in range(5):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_called_once()
+        assert util.logger.info.call_count == VERSION_CHECK_ERROR_AFTER - 1 + 5
+
+    async def test_any_answer_resets_the_count(self, util, endpoint):
+        # 9 failures, an answer (even a 500), 9 more: never ten in a row.
+        before = VERSION_CHECK_ERROR_AFTER - 1
+        endpoint.outcomes = (
+            [asyncio.TimeoutError()] * before
+            + [500]
+            + [asyncio.TimeoutError()] * before
+        )
+        for _ in range(len(endpoint.outcomes)):
+            await util.get_new_pokemongo_version()
+        util.error_logger.error.assert_not_called()
+
+    async def test_new_outage_after_recovery_errors_again(self, util, endpoint):
+        n = VERSION_CHECK_ERROR_AFTER
+        endpoint.outcomes = (
+            [asyncio.TimeoutError()] * n + [200] + [asyncio.TimeoutError()] * n
+        )
+        for _ in range(len(endpoint.outcomes)):
+            await util.get_new_pokemongo_version()
+        assert util.error_logger.error.call_count == 2
+
+    async def test_database_failure_is_an_error_at_once(self, util, endpoint):
+        endpoint.outcomes = [200]
+        util.poliswag.db.get_data_from_database.side_effect = RuntimeError("db down")
+        assert await util.get_new_pokemongo_version() is None
+        util.error_logger.error.assert_called_once_with(
+            "Error fetching Pokemon version: RuntimeError: db down"
+        )
+        util.logger.info.assert_not_called()
