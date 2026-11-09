@@ -3,11 +3,11 @@ import json
 import discord
 from discord.ext import commands
 
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import DatabaseConnector
 from modules.embeds import status_embed
 from modules.poracle_client import PoracleError
-from modules import scan_areas
 
 
 def paired_prefixes():

@@ -13,8 +13,8 @@ import unicodedata
 from decimal import Decimal
 from pathlib import Path
 
-from modules.agent_jobs import AgentJobs, TERMINAL
 from modules import scan_areas
+from modules.agent_jobs import TERMINAL, AgentJobs
 
 TOPICS = {
     "greeting": (

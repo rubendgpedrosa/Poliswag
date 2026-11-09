@@ -2,6 +2,7 @@ import io
 import time
 
 import discord
+
 from modules.config import Config
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin

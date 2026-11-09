@@ -1,10 +1,10 @@
 """Validate routing, delivery transitions and authenticated webhook handling."""
 
 import copy
-from http.client import HTTPConnection
-from http.server import HTTPServer
 import json
 import stat
+from http.client import HTTPConnection
+from http.server import HTTPServer
 from threading import Thread
 
 import pytest

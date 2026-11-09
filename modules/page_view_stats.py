@@ -15,9 +15,9 @@ Two rules run through everything here:
 """
 
 import asyncio
+import time
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-import time
 
 from modules.config import Config
 from modules.database_connector import connect

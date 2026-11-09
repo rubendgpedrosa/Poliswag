@@ -1,4 +1,5 @@
 from argparse import Namespace
+
 import pytest
 
 from scripts.background_rule import epoch, insert_sql, make_rule

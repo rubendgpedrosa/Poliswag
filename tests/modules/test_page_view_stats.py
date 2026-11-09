@@ -4,21 +4,20 @@ The period helpers are pure and get a fixed clock injected. The collector
 talks to a mocked DatabaseConnector, so nothing here needs a live schema.
 """
 
+import sqlite3
+import threading
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from modules.page_view_stats import resolve_period, since_for
-
-from unittest.mock import MagicMock, patch
-import sqlite3
-import threading
-
 from modules.page_view_stats import (
-    PageViewStats,
     _DIMENSIONS,
     _STATEMENTS,
+    PageViewStats,
     dimension_sql,
+    resolve_period,
+    since_for,
 )
 
 NOW = datetime(2026, 9, 19, 14, 30, 0, tzinfo=timezone.utc)

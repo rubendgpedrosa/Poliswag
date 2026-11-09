@@ -12,11 +12,11 @@ import time
 import discord
 from discord.ext import commands, tasks
 
-from modules.agent_jobs import AgentJobs, TERMINAL, parse_direct_request
-from modules.agent_reply import short_sentence
-from modules.agent_database import AgentDatabase
 from modules.agent_artifacts import MAX_ATTACHMENTS, MAX_TOTAL_BYTES, read_artifact
+from modules.agent_database import AgentDatabase
 from modules.agent_destination import delivery_reference, normalized_name
+from modules.agent_jobs import TERMINAL, AgentJobs, parse_direct_request
+from modules.agent_reply import short_sentence
 from modules.config import Config
 from modules.embeds import react_to_request, status_embed
 from modules.permissions import is_owner, owner_only

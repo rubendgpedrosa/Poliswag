@@ -16,9 +16,10 @@ import asyncio
 import datetime
 
 import discord
+
 from modules.config import Config
-from modules.pokemon_sprites import LARGE_SPRITE_BASE, pokemon_sprite_url
 from modules.database_connector import connect
+from modules.pokemon_sprites import LARGE_SPRITE_BASE, pokemon_sprite_url
 
 DIGEST_HOUR = 9
 # A longer list is a wall nobody reads anyway.

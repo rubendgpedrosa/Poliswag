@@ -7,21 +7,16 @@ import re
 import discord
 from discord.ext import commands, tasks
 
+from modules import scan_areas
 from modules.config import Config
-from modules.embeds import react_to_request
-from modules.conversation_model import ConversationModel
-from modules.conversation_model import AGENT_INSTRUCTIONS, clean_history, public_prompt
-from modules.hermiswag_client import HermiswagClient
-from modules.hermiswag_proactive import (
-    FORMAT_REMINDER,
-    PER_CHANNEL,
-    PROACTIVE_RULES,
-    ProactiveState,
-    candidates,
-    confirmed_reply,
-    utcnow,
+from modules.conversation_model import (
+    AGENT_INSTRUCTIONS,
+    ConversationModel,
+    clean_history,
+    public_prompt,
 )
-from modules.public_conversation import safe_reply
+from modules.embeds import react_to_request
+from modules.hermiswag_client import HermiswagClient
 from modules.hermiswag_followup import (
     FOLLOWUP_FORMAT,
     FOLLOWUP_RULES,
@@ -37,10 +32,18 @@ from modules.hermiswag_learning import (
     batches,
     learnable,
 )
-from modules.public_dumps import PublicDumps, dump_request
-from modules import scan_areas
+from modules.hermiswag_proactive import (
+    FORMAT_REMINDER,
+    PER_CHANNEL,
+    PROACTIVE_RULES,
+    ProactiveState,
+    candidates,
+    confirmed_reply,
+    utcnow,
+)
 from modules.permissions import is_owner
-from modules.public_conversation import MentionLimiter, PublicConversation
+from modules.public_conversation import MentionLimiter, PublicConversation, safe_reply
+from modules.public_dumps import PublicDumps, dump_request
 from modules.public_map_context import PublicMapContext
 
 _GREETING = "Olá! Estou aqui — diz-me o que precisas. 🐸"

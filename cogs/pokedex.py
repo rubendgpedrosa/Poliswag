@@ -19,8 +19,8 @@ from discord.ext import commands
 from modules.config import Config
 from modules.embeds import build_embed
 from modules.membership import is_member
-from modules.trade_digest import build_digest, rows_since
 from modules.trade_codes import format_code, generate, hash_code
+from modules.trade_digest import build_digest, rows_since
 
 # How long the in-channel reply lives. Long enough to read on a phone, short
 # enough that the channel doesn't fill with them.

@@ -13,10 +13,11 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import aiohttp
+
 from modules.config import Config
 from modules.database_connector import connect
-from modules.utility import Utility
 from modules.locale_pt import PT_MONTHS_SHORT
+from modules.utility import Utility
 
 
 def plan_changes(rows):

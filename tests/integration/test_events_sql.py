@@ -1,7 +1,7 @@
 """Real event SQL. Only runs against the marked disposable server from the runner."""
 
-import os
 import asyncio
+import os
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -10,8 +10,8 @@ import pymysql
 import pytest
 
 from cogs.scheduled import Scheduled
-from modules.event_manager import EventManager
 from modules.database_connector import DatabaseConnector
+from modules.event_manager import EventManager
 from modules.utility import Utility
 
 _REAL_CONNECT = pymysql.connect

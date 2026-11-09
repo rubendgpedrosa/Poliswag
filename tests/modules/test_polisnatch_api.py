@@ -10,11 +10,11 @@ from modules.polisnatch_api import (
     decode,
     error_for,
     health_url,
-    using_default_url,
     job_path,
     jobs_url,
     missing_key_error,
     read_key,
+    using_default_url,
 )
 
 

@@ -17,8 +17,8 @@ from zoneinfo import ZoneInfo
 
 import discord
 
-from modules.config import Config
 from modules import scan_areas
+from modules.config import Config
 
 # Only requests for private/operational material or code are rejected. Normal
 # game words (shiny, Dragonite, Golbat, quest, raid, map) are allowed.

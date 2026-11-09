@@ -9,13 +9,13 @@ All period reach is browser DOCUMENTS. Daily IP/UA hashes are estimates and
 rotate at UTC midnight. No activity-session or installation count is implied.
 """
 
-from datetime import date, datetime
-from decimal import Decimal
 import json
 import re
+from datetime import date, datetime
+from decimal import Decimal
 
-from modules.embeds import build_embed
 from modules import scan_areas
+from modules.embeds import build_embed
 
 DIMENSIONS = {
     "devices": ("Dispositivo / sistema / navegador", ("device", "os", "browser")),

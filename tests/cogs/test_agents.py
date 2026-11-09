@@ -430,6 +430,7 @@ async def test_image_and_long_report_delivered_to_saved_channel_once(cog):
 
 async def test_failed_channel_delivery_retries_without_dm_fallback(cog):
     import discord
+
     from modules.agent_jobs import read_json, write_json
 
     job = save_reply(cog)

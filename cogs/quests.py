@@ -3,8 +3,8 @@ from io import BytesIO
 import discord
 from discord.ext import commands
 
-from modules.embeds import build_embed
 from modules import scan_areas
+from modules.embeds import build_embed
 from modules.permissions import mods_only
 
 

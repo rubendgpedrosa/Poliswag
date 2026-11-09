@@ -2,13 +2,13 @@
 
 import hashlib
 import hmac
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import logging
 import os
-from pathlib import Path
 import tempfile
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from scripts import dm_owner

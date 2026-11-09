@@ -11,15 +11,15 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
 import tempfile
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
 import urllib.error
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -27,11 +27,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import dm_owner
 from test_scanner_update import StagingTests
+
+from cogs.webstats import WebStats
 from modules.config import Config
 from modules.device_manager import DeviceManager
 from modules.owner_alert import notify_owner
 from modules.stack_recovery import StackRecovery
-from cogs.webstats import WebStats
 
 
 def load_script(name):

@@ -18,14 +18,14 @@ from modules.config import Config
 from modules.embeds import build_embed
 from modules.membership import is_member
 from modules.permissions import owner_only
-from modules.shiny_roll import normalise_friend_code
-from modules.shiny_store import ShinyStore
 from modules.shiny_channels import (
     CHANNEL_CATEGORY,
     CHANNEL_LOCK,
     STARTUP_TEXT,
     intro_embed,
 )
+from modules.shiny_roll import normalise_friend_code
+from modules.shiny_store import ShinyStore
 
 TITLE = "SHINY"
 _WHEN = (
