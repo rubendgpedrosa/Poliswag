@@ -93,6 +93,9 @@ class Utility:
         # Configure logging
         self.logger = logging.getLogger("poliswag")
         self.logger.setLevel(logging.INFO)
+        # Bare logging.x() calls elsewhere configure the root logger, which
+        # then printed every line a second time on the console.
+        self.logger.propagate = False
 
         if self.logger.handlers:
             self.logger.handlers.clear()
@@ -180,6 +183,8 @@ class Utility:
     def log_to_file(self, message, log_type="INFO"):
         if log_type == "ERROR" or log_type == "CRASH":
             self.error_logger.error(message)
+        elif log_type == "WARNING":
+            self.logger.warning(message)
         else:
             self.logger.info(message)
 
