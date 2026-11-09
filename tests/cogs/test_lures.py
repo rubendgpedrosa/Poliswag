@@ -6,6 +6,8 @@ build_embed is patched at the import site inside cogs.lures so we assert on the
 args, not discord.
 """
 
+import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -50,6 +52,32 @@ def make_dm_ctx(author_id="111"):
 
 def free_stop():
     return {"locked_for_s": 0, "cooldown_for_s": 0}
+
+
+async def beats_while(coro):
+    """Runs coro beside a 10 ms heartbeat; returns how often the loop beat."""
+    beats = 0
+
+    async def heartbeat():
+        nonlocal beats
+        while True:
+            await asyncio.sleep(0.01)
+            beats += 1
+
+    ticker = asyncio.create_task(heartbeat())
+    try:
+        await coro
+    finally:
+        ticker.cancel()
+    return beats
+
+
+def slow(result=None):
+    def call(*args, **kwargs):
+        time.sleep(0.3)
+        return result
+
+    return call
 
 
 class TestCogCheck:
@@ -315,6 +343,20 @@ class TestLure:
         cog.poller.wake.assert_not_called()
         cog.poliswag.utility.log_to_file.assert_called()
 
+    async def test_slow_lock_and_store_calls_do_not_freeze_the_loop(self, cog):
+        ctx = make_ctx()
+        cog.jobs.submit_lure.return_value = {"jobId": "job_1", "state": "queued"}
+        cog.job_store.record.side_effect = slow()
+        with patch("cogs.lures.lure_locks.status", side_effect=slow(free_stop())):
+            with patch("cogs.lures.build_embed", return_value="EMBED") as be:
+                beats = await beats_while(
+                    Lures.lure.callback(cog, ctx, coords=None, tipo=None)
+                )
+        assert be.call_args.args[0] == "LURE NA FILA"
+        cog.job_store.record.assert_called_once()
+        # Two 0.3 s blocking calls on the loop would allow at most a couple.
+        assert beats >= 20
+
 
 def lure_row(**overrides):
     row = {
@@ -356,6 +398,14 @@ class TestAnnounce:
         assert "confirmado no mapa" in be.call_args.args[1]
         message.edit.assert_awaited_once_with(embed="EMBED")
         lock.assert_called_once_with("geo:39.74,-8.80", fort_id="fort-1", discord_id=42)
+
+    async def test_a_slow_lock_write_does_not_freeze_the_loop(self, cog):
+        delivering_cog(cog)
+        with patch("cogs.lures.lure_locks.lock", side_effect=slow()) as lock:
+            with patch("cogs.lures.build_embed", return_value="EMBED"):
+                beats = await beats_while(cog._announce_job(lure_row()))
+        lock.assert_called_once()
+        assert beats >= 10
 
     async def test_an_unverified_lure_clears_the_lock(self, cog):
         delivering_cog(cog)
