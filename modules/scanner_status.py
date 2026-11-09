@@ -129,7 +129,7 @@ class ScannerStatus(LoggingMixin):
         if indicator == "🔴":
             device_connected = await self.poliswag.account_monitor.is_device_connected()
 
-        # Dragonite's view (None when it didn't answer) plus the Aegis workers
+        # Dragonite's view (None when it didn't answer) plus the phone's workers
         # rotom-ng has (None likewise) are what StackRecovery sorts into
         # "restart the phone", "recreate the stack" or "just wait".
         all_red: bool | None = None if indicator is None else indicator == "🔴"

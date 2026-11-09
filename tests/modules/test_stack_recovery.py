@@ -12,6 +12,7 @@ def stack_recovery(mocker):
     sr = StackRecovery(poliswag=MagicMock())
     sr.poliswag.MOD_CHANNEL = None
     sr.poliswag.device_manager.restart_scanner_apps = AsyncMock(return_value=True)
+    sr.poliswag.device_manager.remember_working_version = AsyncMock()
     sr.poliswag.device_manager.phone_health = AsyncMock(
         return_value=("healthy", "Aegis running and injected")
     )
@@ -568,7 +569,7 @@ class TestWording:
 
         title, description, color = stack_recovery._notify.await_args.args
         assert title == "🔴 Mapa em baixo há 5 min"
-        assert "Pokémod parou no telemóvel" in description
+        assert "o PoliSnatch parou no telemóvel" in description
         assert "nova tentativa daqui a **10 min**" in description
         assert color == discord.Color.orange()
 
@@ -604,3 +605,45 @@ class TestWording:
         title, description, color = stack_recovery._notify.await_args.args
         assert "Não consigo chegar ao telemóvel" in description
         assert color == discord.Color.red()
+
+
+class TestGameUpdated:
+    """A Play Store update to an unsupported build: no restarts, told at once."""
+
+    @pytest.mark.usefixtures("no_compose")
+    async def test_announces_once_and_never_restarts(self, stack_recovery, mocker):
+        stack_recovery.poliswag.device_manager.phone_health = AsyncMock(
+            return_value=("game_updated", "Pokémon GO 0.435.1 instalado")
+        )
+        owner = mocker.patch(
+            "modules.stack_recovery.notify_owner", new=AsyncMock(return_value=True)
+        )
+        stack_recovery._notify = AsyncMock()
+        for minute in range(0, 30):
+            await _tick(stack_recovery, mocker, 1000 + 60 * minute, NO_WORKERS)
+        owner.assert_awaited_once()
+        assert "0.435.1" in owner.await_args.args[1]
+        stack_recovery.poliswag.device_manager.restart_scanner_apps.assert_not_called()
+        stack_recovery.recreate_services.assert_not_called()
+
+    @pytest.mark.usefixtures("no_compose")
+    async def test_scanning_remembers_the_game_build(self, stack_recovery, mocker):
+        await _tick(stack_recovery, mocker, 1000, (False, 32))
+        stack_recovery.poliswag.device_manager.remember_working_version.assert_awaited_once()
+
+
+async def test_phone_rung_is_not_blocked_by_accounts_without_workers(mocker):
+    """2026-11-09: 87 accounts 'in use' with no Rotom worker blocked the phone
+    rung for five hours. The phone rung only needs no live worker."""
+    recovery = StackRecovery(poliswag=MagicMock())
+    data = {
+        "account_status": {"in_use": 87},
+        "device_status": {"devices": [{"worker_in_use_count": 0}]},
+    }
+    mocker.patch(
+        "modules.stack_recovery.fetch_data",
+        new=AsyncMock(side_effect=lambda key, **_: data[key]),
+    )
+    recovery._notify = AsyncMock()
+    assert await recovery._sessions_allow_reset(phone_only=True) is True
+    assert await recovery._sessions_allow_reset() is False

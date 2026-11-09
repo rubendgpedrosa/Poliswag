@@ -1,5 +1,7 @@
 import asyncio
+import json
 import time
+from pathlib import Path
 
 from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
@@ -19,23 +21,22 @@ class DeviceManager(LoggingMixin):
         "com.nianticproject.holoholo.libholoholo.unity.UnityMainActivity"
     )
 
-    # Pokémod Aegis is the MITM. Its "Start" button does nothing more than
-    # startForegroundService on MappingService with a bare component intent,
-    # so restarting mapping is fully scriptable -- no UI automation needed.
-    AEGIS_PACKAGE = "com.pokemod.aegis"
-    AEGIS_MAPPING_SERVICE = "com.pokemod.aegis/.services.MappingService"
-    # Let the force-stops settle before Aegis is started again.
+    # PoliSnatch is the MITM since 2026-10-31 (Aegis retired): its loader
+    # injects the release into a fresh game process and reconnects by
+    # itself. A release supports one game build; a Play Store update to an
+    # unsupported build leaves the loader showing "Unsupported" (2026-11-09).
+    POLISNATCH_PACKAGE = "pt.leiria.deviceinfo"
+    # Let the phone settle after bringing an app to the front.
     APP_RESTART_SETTLE = 5
-    # The process that runs MappingService and logs its injection check.
-    AEGIS_MAPPING_PROCESS = "com.pokemod.aegis:mapping"
-    # Aegis logs "running and injected" every ~5s; silence past this = broken.
-    INJECTED_STALE_AFTER = 120
+    # How often a scanning phone's game version is re-read and remembered.
+    VERSION_REMEMBER_EVERY = 3600
 
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._offline_since: float | None = None
         self._last_notification_time: float = 0
         self._auto_reboot_setting = CachedBoolSetting(poliswag, "auto_reboot_enabled")
+        self._version_read_at: float = 0
 
     async def get_auto_reboot_enabled(self) -> bool:
         return await self._auto_reboot_setting.get()
@@ -184,80 +185,103 @@ class DeviceManager(LoggingMixin):
         return await self.run("shell", "su", "-c", command, timeout=timeout)
 
     async def restart_scanner_apps(self) -> bool:
-        """Force-stop Pokémon GO + Pokémod, then start Aegis mapping again.
+        """The phone rung for PoliSnatch: put the game in front, or start the
+        loader when the game is gone.
 
-        The device-side rung of the recovery ladder: recreating the scanner
-        containers cannot fix a wedged MITM, only restarting the apps on the
-        phone can. Aegis relaunches and re-injects Pokémon GO itself once its
-        mapping service is up, so the game is deliberately not started here.
+        PoliSnatch's runbook (CURRENT-RUNTIME.md): a game killed in the
+        background comes back by bringing it to the front, and the loader
+        reconnects it; with no game at all, the loader (which reconnects
+        automatically) starts it. The game is never force-stopped here: a
+        Connect is the loader's job and parks every account.
         """
         try:
-            for package in (self.POGO_PACKAGE, self.AEGIS_PACKAGE):
-                _, _, rc = await self.run_as_root(
-                    f"am force-stop {package}", timeout=20
-                )
-                if rc != 0:
-                    self._log(f"Force-stop of {package} failed (rc={rc})")
-                    return False
-
-            await asyncio.sleep(self.APP_RESTART_SETTLE)
-
-            stdout, stderr, rc = await self.run_as_root(
-                f"am start-foreground-service -n {self.AEGIS_MAPPING_SERVICE}",
+            stdout, _, rc = await self.run(
+                "shell", f"pidof {self.POGO_PACKAGE}", timeout=15
+            )
+            package = self.POGO_PACKAGE if stdout.strip() else self.POLISNATCH_PACKAGE
+            stdout, stderr, rc = await self.run(
+                "shell",
+                f"monkey -p {package} -c android.intent.category.LAUNCHER 1",
                 timeout=20,
             )
-            # am prints "Error: ..." on stdout; belt and braces alongside rc.
-            output = f"{stdout} {stderr}"
-            if rc != 0 or "Error" in output:
-                self._log(f"Starting Aegis mapping service failed: {output.strip()}")
+            if rc != 0 or "aborted" in f"{stdout} {stderr}".lower():
+                self._log(f"Bringing {package} to the front failed (rc={rc})")
                 return False
+            await asyncio.sleep(self.APP_RESTART_SETTLE)
+            return True
         except RuntimeError as e:
             self._log(f"Scanner app restart failed: {e}")
             return False
 
-        self._log("Restarted Pokémon GO + Pokémod Aegis on the device", "INFO")
-        return True
-
     async def phone_health(self) -> tuple[str, str]:
-        """('healthy' | 'broken' | 'unreachable', reason) — read from the phone.
+        """('healthy' | 'broken' | 'game_updated' | 'unreachable', reason).
 
-        'broken' is what a restart of the phone's apps can fix: Aegis's
-        mapping process or Pokémon GO not running, or Aegis no longer logging
-        its "running and injected" maintenance line (every ~5s when fine).
-        On 2026-09-28 every worker dropped off rotom-ng while this all stayed
-        healthy, and Aegis reconnected by itself within a minute.
+        'game_updated' means the installed Pokémon GO is not the build the
+        phone last scanned with: the Play Store updated it and the PoliSnatch
+        release does not support it yet. Restarting anything cannot help;
+        a release for the new build (or the old build back) can.
         """
         command = (
-            f"m=$(pidof {self.AEGIS_MAPPING_PROCESS}); "
-            f"g=$(pidof {self.POGO_PACKAGE}); "
-            'echo "mapping=$m"; echo "pogo=$g"; echo "now=$(date +%s)"; '
-            '[ -n "$m" ] && logcat -d --pid=$m -v epoch '
-            '-e "running and injected" | tail -1; true'
+            f"l=$(pidof {self.POLISNATCH_PACKAGE}); g=$(pidof {self.POGO_PACKAGE}); "
+            'echo "loader=$l"; echo "pogo=$g"; '
+            f"dumpsys package {self.POGO_PACKAGE} | grep -m1 versionName; true"
         )
         try:
             stdout, stderr, rc = await self.run("shell", command, timeout=20)
         except RuntimeError as e:
             return "unreachable", str(e)
-        lines = stdout.splitlines()
-        fields = {
-            key: value
-            for key, _, value in (line.partition("=") for line in lines)
-            if key in ("mapping", "pogo", "now")
-        }
-        if rc != 0 or "now" not in fields:
+        fields = {}
+        for line in stdout.splitlines():
+            key, _, value = line.strip().partition("=")
+            if key in ("loader", "pogo", "versionName"):
+                fields[key] = value.strip()
+        if rc != 0 or "loader" not in fields:
             return "unreachable", (stderr or stdout or f"adb rc={rc}").strip()
-
-        if not fields.get("mapping"):
-            return "broken", "Aegis mapping service is not running"
+        version = fields.get("versionName", "")
+        known = self.working_game_version()
+        if version and known and version != known:
+            return (
+                "game_updated",
+                f"Pokémon GO {version} instalado; o scanner funcionava com {known}",
+            )
+        if not fields.get("loader"):
+            return "broken", "PoliSnatch loader is not running"
         if not fields.get("pogo"):
             return "broken", "Pokémon GO is not running"
-        injected = [line for line in lines if "running and injected" in line]
-        if not injected:
-            return "broken", "Aegis has not logged 'running and injected'"
-        age = int(fields["now"]) - int(float(injected[-1].split()[0]))
-        if age > self.INJECTED_STALE_AFTER:
-            return "broken", f"Aegis last logged 'running and injected' {age}s ago"
-        return "healthy", "Aegis running and injected"
+        return "healthy", f"PoliSnatch and Pokémon GO {version} running"
+
+    def _version_file(self):
+        return Path(Config.SCANNER_GAME_VERSION_FILE)
+
+    def working_game_version(self) -> str:
+        """The game build the phone last scanned with, or ''."""
+        try:
+            data = json.loads(self._version_file().read_text())
+            return str(data.get("version") or "")
+        except (OSError, ValueError, AttributeError):
+            return ""
+
+    async def remember_working_version(self) -> None:
+        """While the map scans, record the phone's game build (hourly)."""
+        now = time.time()
+        if now - self._version_read_at < self.VERSION_REMEMBER_EVERY:
+            return
+        self._version_read_at = now
+        try:
+            stdout, _, rc = await self.run(
+                "shell",
+                f"dumpsys package {self.POGO_PACKAGE} | grep -m1 versionName",
+                timeout=20,
+            )
+        except RuntimeError:
+            return
+        version = stdout.strip().partition("=")[2].strip()
+        if rc != 0 or not version or version == self.working_game_version():
+            return
+        path = self._version_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": version, "at": int(now)}))
+        self._log(f"Scanner game version recorded: {version}", "INFO")
 
     def _next_notify_interval(self, offline_duration: float) -> float:
         """Escalating gap between repeated offline notifications."""

@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands, tasks
 
 from modules.config import Config
+from modules.owner_alert import notify_owner
 from modules.embeds import build_embed, status_embed
 from modules.permissions import mods_only
 from modules.locale_pt import PT_DAYS_SHORT
@@ -384,6 +385,19 @@ class Scheduled(commands.Cog):
     async def _check_version_update(self):
         new_version = await self.poliswag.utility.get_new_pokemongo_version()
         if new_version is not None:
+            # The phone keeps scanning on its build until the Play Store
+            # updates it (2026-11-02 → 2026-11-09 for 0.435.1): the owner
+            # gets the lead time to publish a PoliSnatch release first.
+            working = self.poliswag.device_manager.working_game_version()
+            await notify_owner(
+                self.poliswag,
+                f"A Niantic passou a exigir o Pokémon GO **{new_version}**. "
+                f"O scanner funciona com {working or 'a versão atual'}. Quando a "
+                "Play Store atualizar o telemóvel, o PoliSnatch só volta a "
+                "mapear com uma release para esta versão: publica-a antes disso.",
+                title="🟠 Nova versão obrigatória do Pokémon GO",
+                tag="force-update",
+            )
             await self.poliswag.CONVIVIO_CHANNEL.send(
                 embed=build_embed(
                     "PAAAAAAAAAUUUUUUUUUU!!! FORCE UPDATE!",

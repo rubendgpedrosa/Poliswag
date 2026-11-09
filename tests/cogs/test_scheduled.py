@@ -500,10 +500,19 @@ class TestCheckVersionUpdate:
         await cog._check_version_update()
         cog.poliswag.CONVIVIO_CHANNEL.send.assert_not_called()
 
-    async def test_new_version_sends_announcement(self, cog):
+    async def test_new_version_sends_announcement(self, cog, mocker):
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        cog.poliswag.device_manager.working_game_version = MagicMock(
+            return_value="0.433.1"
+        )
         cog.poliswag.utility.get_new_pokemongo_version = AsyncMock(return_value="0.0.1")
         await cog._check_version_update()
         cog.poliswag.CONVIVIO_CHANNEL.send.assert_awaited_once()
+        # The owner gets the lead time before the Play Store updates the phone.
+        text = owner.await_args.args[1]
+        assert "0.0.1" in text and "0.433.1" in text and "PoliSnatch" in text
 
 
 # --- _check_quest_scan_progress ----------------------------------------------

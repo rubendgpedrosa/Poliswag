@@ -163,7 +163,8 @@ class TestRestartApp:
 
 
 class TestRestartScannerApps:
-    """Device rung: force-stop both apps, then start Aegis mapping via su."""
+    """Phone rung for PoliSnatch: game to the front, or the loader when the
+    game is gone; never a force-stop (a Connect is the loader's job)."""
 
     @pytest.fixture(autouse=True)
     def _no_settle_delay(self, mocker):
@@ -171,45 +172,30 @@ class TestRestartScannerApps:
             "modules.device_manager.asyncio.sleep", new=AsyncMock(return_value=None)
         )
 
-    async def test_force_stops_both_apps_then_starts_mapping(self, device_manager):
-        device_manager.run = AsyncMock(return_value=("Starting service", "", 0))
-
+    async def test_running_game_is_brought_to_the_front(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=[("31441", "", 0), ("", "", 0)])
         assert await device_manager.restart_scanner_apps() is True
-
-        commands = [call.args[-1] for call in device_manager.run.await_args_list]
-        assert commands == [
-            f"am force-stop {DeviceManager.POGO_PACKAGE}",
-            f"am force-stop {DeviceManager.AEGIS_PACKAGE}",
-            f"am start-foreground-service -n {DeviceManager.AEGIS_MAPPING_SERVICE}",
-        ]
-        # MappingService is not exported, so every step goes through su
-        assert all(
-            call.args[:3] == ("shell", "su", "-c")
-            for call in device_manager.run.await_args_list
+        last = device_manager.run.await_args_list[-1].args[-1]
+        assert last == (
+            f"monkey -p {DeviceManager.POGO_PACKAGE} "
+            "-c android.intent.category.LAUNCHER 1"
         )
 
-    async def test_pogo_is_not_relaunched(self, device_manager):
-        """Aegis relaunches and re-injects the game itself once mapping is up."""
-        device_manager.run = AsyncMock(return_value=("", "", 0))
+    async def test_no_game_starts_the_loader(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=[("", "", 1), ("", "", 0)])
+        assert await device_manager.restart_scanner_apps() is True
+        last = device_manager.run.await_args_list[-1].args[-1]
+        assert DeviceManager.POLISNATCH_PACKAGE in last
 
+    async def test_never_force_stops(self, device_manager):
+        device_manager.run = AsyncMock(side_effect=[("31441", "", 0), ("", "", 0)])
         await device_manager.restart_scanner_apps()
+        commands = [c.args[-1] for c in device_manager.run.await_args_list]
+        assert not any("force-stop" in command for command in commands)
 
-        commands = [call.args[-1] for call in device_manager.run.await_args_list]
-        assert not any("am start -n" in command for command in commands)
-
-    async def test_failed_force_stop_short_circuits(self, device_manager):
-        device_manager.run = AsyncMock(return_value=("", "err", 1))
-        assert await device_manager.restart_scanner_apps() is False
-        assert device_manager.run.await_count == 1
-
-    async def test_rejected_service_start_is_a_failure(self, device_manager):
-        """am prints the rejection on stdout and still exits 0."""
+    async def test_monkey_abort_is_a_failure(self, device_manager):
         device_manager.run = AsyncMock(
-            side_effect=[
-                ("", "", 0),
-                ("", "", 0),
-                ("Error: Not allowed to start service Intent", "", 0),
-            ]
+            side_effect=[("31441", "", 0), ("** monkey aborted", "", 0)]
         )
         assert await device_manager.restart_scanner_apps() is False
 
@@ -218,76 +204,88 @@ class TestRestartScannerApps:
         assert await device_manager.restart_scanner_apps() is False
 
 
-def _health_output(mapping="10889", pogo="31441", now=1_000_000, injected_at=None):
+def _health_output(loader="5428", pogo="31441", version="0.435.1"):
     """What the phone_health shell one-liner prints on the device."""
-    lines = [f"mapping={mapping}", f"pogo={pogo}", f"now={now}"]
-    if injected_at is not None:
-        lines.append(
-            f"         {injected_at}.991 10889 11198 I Aegis MappingService: "
-            "App is running and injected. Maintenance checks performed."
-        )
+    lines = [f"loader={loader}", f"pogo={pogo}"]
+    if version:
+        lines.append(f"    versionName={version}")
     return "\n".join(lines)
 
 
-class TestPhoneHealth:
-    """Whether a restart of the phone's apps can help, read from the phone."""
+@pytest.fixture
+def version_file(tmp_path, mocker):
+    path = tmp_path / "version.json"
+    mocker.patch.object(Config, "SCANNER_GAME_VERSION_FILE", str(path))
+    return path
 
-    async def test_healthy_when_both_run_and_aegis_reports_injected(
-        self, device_manager
-    ):
-        device_manager.run = AsyncMock(
-            return_value=(_health_output(injected_at=1_000_000 - 5), "", 0)
-        )
+
+class TestPhoneHealth:
+    """Whether the phone can scan, and why not, read from the phone."""
+
+    async def test_healthy_when_loader_and_game_run(self, device_manager, version_file):
+        version_file.write_text('{"version": "0.435.1"}')
+        device_manager.run = AsyncMock(return_value=(_health_output(), "", 0))
         state, _ = await device_manager.phone_health()
         assert state == "healthy"
 
-    async def test_one_adb_call_reads_processes_and_the_log(self, device_manager):
-        device_manager.run = AsyncMock(
-            return_value=(_health_output(injected_at=1_000_000), "", 0)
-        )
+    async def test_one_adb_call_reads_processes_and_version(
+        self, device_manager, version_file
+    ):
+        device_manager.run = AsyncMock(return_value=(_health_output(), "", 0))
         await device_manager.phone_health()
         device_manager.run.assert_awaited_once()
         command = device_manager.run.await_args.args[-1]
-        assert "pidof com.pokemod.aegis:mapping" in command
-        assert "pidof com.nianticlabs.pokemongo" in command
-        assert "running and injected" in command
+        assert f"pidof {DeviceManager.POLISNATCH_PACKAGE}" in command
+        assert "versionName" in command
 
-    async def test_broken_when_mapping_service_is_gone(self, device_manager):
-        device_manager.run = AsyncMock(return_value=(_health_output(mapping=""), "", 0))
-        state, reason = await device_manager.phone_health()
-        assert state == "broken"
-        assert "Aegis" in reason
-
-    async def test_broken_when_pokemon_go_is_not_running(self, device_manager):
+    async def test_game_updated_when_build_differs_from_the_working_one(
+        self, device_manager, version_file
+    ):
+        """2026-11-09: the Play Store moved the phone from 0.433.1 to 0.435.1."""
+        version_file.write_text('{"version": "0.433.1"}')
         device_manager.run = AsyncMock(
-            return_value=(_health_output(pogo="", injected_at=1_000_000), "", 0)
+            return_value=(_health_output(pogo="", version="0.435.1"), "", 0)
         )
         state, reason = await device_manager.phone_health()
-        assert state == "broken"
-        assert "Pokémon GO" in reason
+        assert state == "game_updated"
+        assert "0.435.1" in reason and "0.433.1" in reason
 
-    async def test_broken_when_injected_line_is_stale(self, device_manager):
-        stale = 1_000_000 - DeviceManager.INJECTED_STALE_AFTER - 1
-        device_manager.run = AsyncMock(
-            return_value=(_health_output(injected_at=stale), "", 0)
-        )
-        state, _ = await device_manager.phone_health()
-        assert state == "broken"
+    async def test_unknown_working_version_is_not_an_update(
+        self, device_manager, version_file
+    ):
+        device_manager.run = AsyncMock(return_value=(_health_output(pogo=""), "", 0))
+        state, reason = await device_manager.phone_health()
+        assert state == "broken" and "Pokémon GO" in reason
 
-    async def test_broken_when_injected_line_is_missing(self, device_manager):
-        device_manager.run = AsyncMock(return_value=(_health_output(), "", 0))
-        state, _ = await device_manager.phone_health()
-        assert state == "broken"
+    async def test_broken_when_loader_is_gone(self, device_manager, version_file):
+        device_manager.run = AsyncMock(return_value=(_health_output(loader=""), "", 0))
+        state, reason = await device_manager.phone_health()
+        assert state == "broken" and "PoliSnatch" in reason
 
-    async def test_unreachable_when_adb_fails(self, device_manager):
+    async def test_unreachable_when_adb_fails(self, device_manager, version_file):
         device_manager.run = AsyncMock(side_effect=RuntimeError("expirou"))
         state, _ = await device_manager.phone_health()
         assert state == "unreachable"
 
-    async def test_unreachable_when_the_shell_never_ran(self, device_manager):
+    async def test_unreachable_when_the_shell_never_ran(
+        self, device_manager, version_file
+    ):
         device_manager.run = AsyncMock(return_value=("", "error: device offline", 1))
         state, _ = await device_manager.phone_health()
         assert state == "unreachable"
+
+
+class TestRememberWorkingVersion:
+    async def test_records_the_build_while_scanning(self, device_manager, version_file):
+        device_manager.run = AsyncMock(return_value=("    versionName=0.435.1", "", 0))
+        await device_manager.remember_working_version()
+        assert device_manager.working_game_version() == "0.435.1"
+
+    async def test_reads_the_phone_at_most_hourly(self, device_manager, version_file):
+        device_manager.run = AsyncMock(return_value=("    versionName=0.435.1", "", 0))
+        await device_manager.remember_working_version()
+        await device_manager.remember_working_version()
+        device_manager.run.assert_awaited_once()
 
 
 class TestAlertIfOffline:

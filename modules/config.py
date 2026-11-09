@@ -165,6 +165,10 @@ class Config:
     HERMISWAG_PROACTIVE_STATE = os.environ.get(
         "HERMISWAG_PROACTIVE_STATE", "logs/hermiswag-proactive.json"
     )
+    # The Pokémon GO build the scanner phone last scanned with (DeviceManager).
+    SCANNER_GAME_VERSION_FILE = os.environ.get(
+        "SCANNER_GAME_VERSION_FILE", "logs/scanner-game-version.json"
+    )
     HERMISWAG_LEARNING_STATE = os.environ.get(
         "HERMISWAG_LEARNING_STATE", "logs/hermiswag-learning.json"
     )

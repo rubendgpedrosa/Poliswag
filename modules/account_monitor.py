@@ -192,7 +192,7 @@ class AccountMonitor(LoggingMixin):
         return (await self.get_device_snapshot())["connected"]
 
     async def connected_worker_count(self) -> int | None:
-        """Aegis workers registered in rotom-ng, or None if it didn't answer.
+        """Phone (PoliSnatch) workers registered in rotom-ng, or None if it didn't answer.
 
         An offline phone counts as 0. None is kept apart from 0 because the
         recovery ladder treats "rotom-ng is down" and "no workers" differently.

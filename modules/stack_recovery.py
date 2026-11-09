@@ -12,6 +12,7 @@ from modules.config import Config
 from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
 from modules.http_client import fetch_data
+from modules.owner_alert import notify_owner
 
 
 class StackRecovery(LoggingMixin):
@@ -20,12 +21,16 @@ class StackRecovery(LoggingMixin):
     Every tick sorts the scanner into one problem (see _diagnose), and each
     gets its own answer:
 
-    - phone: no Aegis workers in rotom-ng and the phone says it's broken
-      (mapping service or Pokémon GO not running, or Aegis stopped logging
-      "running and injected"). Restart the phone's apps.
+    - phone: no workers in rotom-ng and the phone says it's broken (the
+      PoliSnatch loader or Pokémon GO not running). Bring the game, or the
+      loader, to the front.
+    - game_updated: the installed Pokémon GO is not the build the phone last
+      scanned with (a Play Store update the PoliSnatch release doesn't support
+      yet, 2026-11-09). Nothing to restart: the mods and the owner are told
+      at once.
     - stack: Dragonite or rotom-ng doesn't answer. Recreate them, then
       restart the phone's apps so they reconnect to the fresh rotom-ng.
-    - link: no workers in rotom-ng but the phone is healthy. Aegis
+    - link: no workers in rotom-ng but the phone is healthy. The loader
       reconnects by itself (2026-09-28: back within a minute), so only the
       last rung acts.
     - no_data: workers connected but nothing scanning (accounts, the game's
@@ -54,10 +59,13 @@ class StackRecovery(LoggingMixin):
         "link": (None, "full"),
         "no_data": (None, None),
         "unreachable": (None, None),
+        # A Play Store update to a game build PoliSnatch doesn't support yet:
+        # nothing to restart; the owner is told at once (_announce_game_update).
+        "game_updated": (None, None),
     }
     # Why the map is down, for the mods: the state, not the mechanics.
     CAUSES = {
-        "phone": "o Pokémod parou no telemóvel",
+        "phone": "o jogo ou o PoliSnatch parou no telemóvel",
         "stack": "o scanner deixou de responder",
         "link": "o telemóvel não volta a ligar ao scanner",
     }
@@ -71,6 +79,8 @@ class StackRecovery(LoggingMixin):
         self._wait_announced: bool = False
         self._session_wait_announced = False
         self._session_guard_deferred = False
+        self._game_update_reason = ""
+        self._game_update_announced = False
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
@@ -85,7 +95,7 @@ class StackRecovery(LoggingMixin):
         """Advance the recovery ladder one tick.
 
         ``all_red`` is Dragonite's view (every worker down; None when it
-        didn't answer), ``workers`` the Aegis workers in rotom-ng (None when
+        didn't answer), ``workers`` the phone's workers in rotom-ng (None when
         it didn't answer). Returns True when a rung ran and succeeded.
         """
         now = time.time()
@@ -104,10 +114,17 @@ class StackRecovery(LoggingMixin):
             self._recovery_attempts = 0
             self._wait_announced = False
             self._session_wait_announced = False
+            self._game_update_announced = False
+            if workers:
+                await self.poliswag.device_manager.remember_working_version()
             return False
 
         if self._red_since is None:
             self._red_since = now
+
+        if problem == "game_updated" and not self._game_update_announced:
+            self._game_update_announced = True
+            await self._announce_game_update()
 
         if not await self.get_auto_recreate_enabled():
             return False
@@ -149,7 +166,13 @@ class StackRecovery(LoggingMixin):
             # decides between restarting its apps and waiting.
             state, reason = await self.poliswag.device_manager.phone_health()
             self._log(f"No workers in rotom-ng; phone {state}: {reason}", "INFO")
-            return {"broken": "phone", "unreachable": "unreachable"}.get(state, "link")
+            if state == "game_updated":
+                self._game_update_reason = reason
+            return {
+                "broken": "phone",
+                "unreachable": "unreachable",
+                "game_updated": "game_updated",
+            }.get(state, "link")
         if all_red:
             return "no_data"
         return None
@@ -158,7 +181,9 @@ class StackRecovery(LoggingMixin):
         """'apps' restarts the phone's apps; 'full' recreates the containers
         first. The phone runs even if the containers failed."""
         self._session_guard_deferred = False
-        if Config.IS_PRODUCTION and not await self._sessions_allow_reset():
+        if Config.IS_PRODUCTION and not await self._sessions_allow_reset(
+            phone_only=action == "apps"
+        ):
             self._session_guard_deferred = True
             return False
         containers_ok = True
@@ -172,8 +197,14 @@ class StackRecovery(LoggingMixin):
         device_ok = await self.poliswag.device_manager.restart_scanner_apps()
         return containers_ok and device_ok
 
-    async def _sessions_allow_reset(self) -> bool:
-        """Fresh direct counts; an unavailable endpoint is never a zero."""
+    async def _sessions_allow_reset(self, phone_only: bool = False) -> bool:
+        """Fresh direct counts; an unavailable endpoint is never a zero.
+
+        `phone_only` (the "apps" rung, which never touches Dragonite): with no
+        Rotom worker in use there is no live session on the phone to protect,
+        whatever Dragonite still counts as in use. On 2026-11-09 Dragonite
+        held 87 accounts waiting for a worker that no longer existed, and the
+        guard deferred every phone action for five hours."""
         try:
             accounts = await fetch_data("account_status", log_fn=self._log, timeout=5)
             devices = await fetch_data("device_status", log_fn=self._log, timeout=5)
@@ -184,7 +215,7 @@ class StackRecovery(LoggingMixin):
             worker_counts = [row.get("worker_in_use_count") for row in rows]
             if any(type(n) is not int or n < 0 for n in worker_counts):
                 raise ValueError("Rotom worker usage is unavailable")
-            if count == 0 and sum(worker_counts) == 0:
+            if sum(worker_counts) == 0 and (count == 0 or phone_only):
                 self._session_wait_announced = False
                 return True
             reason = f"{count} account(s), {sum(worker_counts)} worker(s) still in use"
@@ -226,6 +257,28 @@ class StackRecovery(LoggingMixin):
             cause + description,
             discord.Color.orange() if ok else discord.Color.red(),
         )
+
+    async def _announce_game_update(self) -> None:
+        """Right away, to the mods and the owner: the cause and the fix."""
+        text = (
+            f"{self._game_update_reason}.\n"
+            "A Play Store atualizou o Pokémon GO e a release do PoliSnatch ainda "
+            'não suporta esta versão (o loader mostra "Unsupported"). Reiniciar '
+            "não resolve: é preciso publicar uma release do PoliSnatch para esta "
+            "versão, ou repor a versão anterior no telemóvel."
+        )
+        await self._notify(
+            "🔴 Mapa em baixo: o jogo foi atualizado", text, discord.Color.red()
+        )
+        try:
+            await notify_owner(
+                self.poliswag,
+                text,
+                title="🔴 Scanner: jogo atualizado",
+                tag="game-update",
+            )
+        except Exception as error:
+            self._log(f"Owner game-update alert failed: {type(error).__name__}")
 
     async def _announce_waiting(self, problem: str, elapsed: float) -> None:
         minutes = int(elapsed // 60)
