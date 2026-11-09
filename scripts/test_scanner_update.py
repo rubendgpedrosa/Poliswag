@@ -2,9 +2,9 @@ import importlib.machinery
 import importlib.util
 import json
 import subprocess
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 SOURCE = Path(__file__).with_name("scanner-update")

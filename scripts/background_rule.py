@@ -2,10 +2,10 @@
 """Build a reviewed event rule offline; never connects to a database."""
 
 import argparse
-from datetime import datetime
 import json
 import math
 import re
+from datetime import datetime
 
 # A bare file name from the game's location cards (PokeMiners/pogo_assets,
 # Images/LocationCards): the map draws it behind the Pokémon.

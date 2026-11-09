@@ -1,6 +1,7 @@
 from discord.ext import commands
-from modules.tracker_store import TrackerStore
+
 from modules.embeds import build_tracked_list_embed, status_embed
+from modules.tracker_store import TrackerStore
 
 
 class Tracker(commands.Cog):

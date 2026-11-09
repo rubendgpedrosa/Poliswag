@@ -9,17 +9,17 @@ import pytest
 
 from modules import hundo_alerts
 from modules.hundo_alerts import (
-    HundoAlerts,
     RULE_COLUMNS,
     TEMPLATE,
+    HundoAlerts,
     areas_json,
     confirmation_due,
     confirmation_message,
-    settled_back,
     default_forms,
     is_active,
     rule_row,
     rules_equal,
+    settled_back,
     wanted_rules,
 )
 

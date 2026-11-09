@@ -429,6 +429,7 @@ class TestExport:
 
     async def test_writes_merged_quests_to_json(self, tmp_path, mocker):
         from unittest.mock import AsyncMock, MagicMock
+
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
@@ -541,6 +542,7 @@ class TestExport:
     @staticmethod
     def _make_exporter(tmp_path, rows):
         from unittest.mock import AsyncMock, MagicMock
+
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
@@ -641,6 +643,7 @@ class TestExport:
 
     async def test_handles_missing_translations_and_masterfile(self, tmp_path):
         from unittest.mock import AsyncMock, MagicMock
+
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
@@ -682,6 +685,7 @@ class TestRewardSpeciesSeparation:
     @staticmethod
     def _make_exporter_with_names(tmp_path, rows):
         from unittest.mock import AsyncMock, MagicMock
+
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
@@ -821,6 +825,7 @@ class TestPayloadRecovery:
     @staticmethod
     def _make_exporter(tmp_path, rows):
         from unittest.mock import AsyncMock, MagicMock
+
         from modules.quest_exporter import QuestExporter
 
         poliswag = MagicMock()
@@ -942,6 +947,7 @@ class TestPayloadRecovery:
 
     async def test_retry_after_metadata_failure(self, tmp_path, mocker):
         import json
+
         from modules.quest_exporter import QuestExporter
 
         rows = [self._row()]

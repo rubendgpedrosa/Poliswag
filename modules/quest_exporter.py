@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from modules.config import Config
 from modules import scan_areas
+from modules.config import Config
 
 _LISBON = ZoneInfo("Europe/Lisbon")
 

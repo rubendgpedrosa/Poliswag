@@ -6,13 +6,13 @@ Requires the sibling PoGoLeiria checkout and its installed npm dependencies.
 Never uses production database settings or records.
 """
 
-from datetime import datetime
-import os
-from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 import time
+from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -21,8 +21,8 @@ import pymysql
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from modules.page_view_stats import PageViewStats  # noqa: E402
 from modules.page_view_report import render_export  # noqa: E402
+from modules.page_view_stats import PageViewStats  # noqa: E402
 
 WEB = ROOT.parent / "PoGoLeiria"
 name = "webstats-test-" + uuid4().hex[:8]

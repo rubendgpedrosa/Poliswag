@@ -1,12 +1,14 @@
-import aiohttp
 import asyncio
-import discord
-import re
-from datetime import datetime, time
-from zoneinfo import ZoneInfo
-from pathlib import Path
 import logging
 import logging.handlers
+import re
+from datetime import datetime, time
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import aiohttp
+import discord
+
 from modules.config import Config
 from modules.http_client import get_session
 
@@ -211,7 +213,7 @@ class Utility:
         if channel is None:
             return None
         try:
-            from datetime import timezone, timedelta
+            from datetime import timedelta, timezone
 
             cutoff = datetime.now(timezone.utc) - timedelta(hours=25)
             async for message in channel.history(limit=100):

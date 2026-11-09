@@ -16,8 +16,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
-from PIL import Image, ImageFont
 import pytest
+from PIL import Image, ImageFont
 
 from modules import stat_card, week_board
 from modules.config import Config

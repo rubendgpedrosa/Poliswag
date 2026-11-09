@@ -2,8 +2,8 @@
 
 from io import BytesIO
 
-from PIL import Image
 import pytest
+from PIL import Image
 
 from modules.quest_map import SCALE, draw_quest_map, fit_quest_map, place_labels
 

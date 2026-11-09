@@ -285,7 +285,7 @@ class TestFindQuestScanningMessage:
         assert await util.find_quest_scanning_message(None) is None
 
     async def test_finds_matching_message_from_today(self, util, mocker):
-        from datetime import timezone, timedelta
+        from datetime import timedelta, timezone
 
         embed = MagicMock()
         embed.title = "SCAN DE QUESTS — Leiria"

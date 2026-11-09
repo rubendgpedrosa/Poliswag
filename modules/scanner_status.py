@@ -2,10 +2,12 @@ import asyncio
 import collections
 import datetime
 import time
+
 import discord
-from modules.http_client import fetch_data
-from modules.config import Config
+
 from modules import scan_areas
+from modules.config import Config
+from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
 from modules.owner_alert import notify_owner
 

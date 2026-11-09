@@ -5,11 +5,11 @@ import time
 
 import discord
 
+from modules import scan_areas
 from modules.config import Config
 from modules.embeds import build_embed
 from modules.shiny_roll import is_shiny_at, shiny_draw
 from modules.shiny_store import ShinyStore
-from modules import scan_areas
 
 MAX_DIGEST_SPAWNS = 10
 MIN_SECONDS_LEFT = 120

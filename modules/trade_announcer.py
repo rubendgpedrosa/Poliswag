@@ -8,6 +8,7 @@ import asyncio
 from collections import defaultdict
 
 import discord
+
 from modules.config import Config
 from modules.database_connector import connect
 from modules.trade_digest import CATEGORY_LABELS

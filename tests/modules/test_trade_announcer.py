@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from modules.config import Config
-from modules.trade_announcer import TradeAnnouncer, _DETAIL_LIMIT
+from modules.trade_announcer import _DETAIL_LIMIT, TradeAnnouncer
 
 
 def row(**patch):

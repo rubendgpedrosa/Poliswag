@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 from modules.config import Config
 from modules.trade_digest import TradeDigest, build_digest, describe, is_due, rows_since
 

@@ -3,9 +3,9 @@ import io
 import discord
 from discord.ext import commands
 
+from modules import scan_areas
 from modules.config import Config
 from modules.embeds import status_embed
-from modules import scan_areas
 from modules.role_manager import _TEAM_ROLES
 
 _IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")

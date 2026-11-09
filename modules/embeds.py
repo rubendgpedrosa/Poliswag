@@ -1,5 +1,7 @@
-import discord
 from datetime import datetime
+
+import discord
+
 from modules.config import Config
 
 _MAX_FIELDS = 25

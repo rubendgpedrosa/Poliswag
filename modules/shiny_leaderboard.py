@@ -2,8 +2,8 @@
 
 import asyncio
 from datetime import datetime
-from io import BytesIO
 from functools import lru_cache
+from io import BytesIO
 from math import isfinite
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -12,10 +12,9 @@ import aiohttp
 import discord
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from modules import scan_areas, spawn_history
 from modules.config import Config
 from modules.http_client import get_session
-from modules import spawn_history
-from modules import scan_areas
 
 LISBON = ZoneInfo("Europe/Lisbon")
 SITE_ENV = Path("/etc/pogoleiria/landing/.env.local")

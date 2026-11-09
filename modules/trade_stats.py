@@ -2,10 +2,10 @@
 
 import asyncio
 
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import connect
 from modules.hundo_alerts import collects_hundo, is_active
-from modules import scan_areas
 
 # Enough of trade_player for hundo_alerts.is_active, plus area and health.
 _HUNDO_SQL = """

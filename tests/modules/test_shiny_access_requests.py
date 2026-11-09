@@ -1,12 +1,11 @@
+import os
+import time
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-import os
-import time
-
-import discord
 from unittest.mock import MagicMock
 
+import discord
 import pytest
 
 from modules import shiny_access_requests as requests

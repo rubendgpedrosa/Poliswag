@@ -3,9 +3,9 @@ import json
 import re
 from dataclasses import dataclass
 
+from modules import scan_areas
 from modules.config import Config
 from modules.logging_mixin import LoggingMixin
-from modules import scan_areas
 from modules.stat_card import StatCard, StatRow
 
 

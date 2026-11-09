@@ -5,38 +5,38 @@ import re
 import discord
 from discord.ext import commands
 
-from modules.role_manager import RoleManager
 from cogs.event_panel import EventPanelView
 from cogs.mentions import directed_mention, replied_bot_message
 from modules import scan_areas
-from modules.scanner_status import ScannerStatus
-from modules.scanner_manager import ScannerManager
-from modules.utility import Utility
+from modules.account_guard import AccountGuard
+from modules.account_monitor import AccountMonitor
+from modules.config import Config
 from modules.database_connector import DatabaseConnector
-from modules.image_generator import ImageGenerator
-from modules.quest_search import QuestSearch
+from modules.device_manager import DeviceManager
+from modules.dm_policy import may_run_in_dm
+from modules.embeds import status_embed
 from modules.event_manager import EventManager
 from modules.event_stats import EventStats
-from modules.quest_exporter import QuestExporter
-from modules.mega_exporter import MegaExporter
-from modules.account_monitor import AccountMonitor
-from modules.poracle_client import PoracleClient
-from modules.device_manager import DeviceManager
+from modules.help_command import EmbedHelpCommand
+from modules.http_client import close_session
+from modules.image_generator import ImageGenerator
 from modules.lure_manager import LureManager
-from modules.page_view_stats import PageViewStats
 from modules.lure_watcher import LureWatcher
+from modules.mega_exporter import MegaExporter
+from modules.migrations import apply_migrations
+from modules.page_view_stats import PageViewStats
+from modules.permissions import is_owner
+from modules.polisnatch_api import using_default_url
+from modules.poracle_client import PoracleClient
+from modules.quest_exporter import QuestExporter
+from modules.quest_search import QuestSearch
+from modules.role_manager import RoleManager
+from modules.scanner_manager import ScannerManager
+from modules.scanner_status import ScannerStatus
+from modules.stack_recovery import StackRecovery
 from modules.trade_player_store import TradePlayerStore
 from modules.trade_stats import TradeStats
-from modules.stack_recovery import StackRecovery
-from modules.account_guard import AccountGuard
-from modules.help_command import EmbedHelpCommand
-from modules.config import Config
-from modules.embeds import status_embed
-from modules.dm_policy import may_run_in_dm
-from modules.permissions import is_owner
-from modules.http_client import close_session
-from modules.migrations import apply_migrations
-from modules.polisnatch_api import using_default_url
+from modules.utility import Utility
 
 LOGGER = logging.getLogger(__name__)
 

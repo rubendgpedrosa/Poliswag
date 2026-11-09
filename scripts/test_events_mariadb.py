@@ -6,9 +6,9 @@ Run on the host: python3 scripts/test_events_mariadb.py
 """
 
 import os
-from pathlib import Path
 import subprocess
 import time
+from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -9,15 +9,14 @@ import tempfile
 
 import aiohttp
 import imgkit
-from PIL import Image
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
+from PIL import Image
 
+from modules import scan_areas, stat_card, week_board
 from modules.account_card import build_card_view
-from modules import stat_card, week_board
 from modules.config import Config
 from modules.http_client import get_session
-from modules import scan_areas
 from modules.quest_map import draw_quest_map, fit_quest_map
 
 STAT_CARD_TEMPLATE = "stat-card.html"

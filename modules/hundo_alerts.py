@@ -16,10 +16,10 @@ from contextlib import closing
 
 import discord
 
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import connect
 from modules.hundo_confirmation import send_once
-from modules import scan_areas
 
 TEMPLATE = "pokedex-100iv"
 

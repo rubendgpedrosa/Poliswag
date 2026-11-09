@@ -1,0 +1,3 @@
+# Mechanical commits git blame skips (git blame --ignore-revs-file, and GitHub reads this file by name).
+# Lint: sort imports and add ruff I to the pinned rule set
+086aca5006fb4038ea34e2ecef3b5e87eb99d33a

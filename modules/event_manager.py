@@ -1,7 +1,8 @@
-import time
-from datetime import datetime, timedelta
 import json
 import re
+import time
+from datetime import datetime, timedelta
+
 from modules.http_client import fetch_data
 from modules.locale_pt import MONTH_NAMES, PT_MONTHS_SHORT
 

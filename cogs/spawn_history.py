@@ -7,10 +7,9 @@ import json
 import discord
 from discord.ext import commands, tasks
 
-from modules import spawn_history
-from modules import scan_areas
-from modules.shiny_leaderboard import ShinyLeaderboard
+from modules import scan_areas, spawn_history
 from modules.permissions import is_owner, owner_only
+from modules.shiny_leaderboard import ShinyLeaderboard
 
 
 class SpawnHistory(commands.Cog):

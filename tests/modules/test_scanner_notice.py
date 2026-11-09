@@ -4,7 +4,6 @@ from types import SimpleNamespace as N
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
-
 import pytest
 
 from modules.config import Config

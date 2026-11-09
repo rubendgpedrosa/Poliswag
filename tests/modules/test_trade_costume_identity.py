@@ -1,7 +1,9 @@
 """Costume-aware SQL matching, independent of live services or Discord."""
 
 import sqlite3
+
 import pytest
+
 from modules import trade_dm
 
 
@@ -73,8 +75,9 @@ def test_digest_names_the_exact_costume_instead_of_the_plain_species():
 
 
 def test_digest_passes_costume_to_checked_sprite_helper(monkeypatch):
-    from modules import trade_digest
     from unittest.mock import Mock
+
+    from modules import trade_digest
 
     art = Mock(return_value="https://example.test/costume.png")
     monkeypatch.setattr(trade_digest, "pokemon_sprite_url", art)
@@ -87,6 +90,7 @@ def test_digest_passes_costume_to_checked_sprite_helper(monkeypatch):
 def test_announcer_keeps_exact_costume_in_notices():
     from types import SimpleNamespace
     from unittest.mock import MagicMock
+
     from modules.trade_announcer import TradeAnnouncer
 
     cursor, db = MagicMock(), MagicMock()
@@ -123,7 +127,8 @@ def test_legacy_wildcards_and_exact_costumes_agree_with_the_site(
 ):
     from types import SimpleNamespace
     from unittest.mock import MagicMock
-    from modules import trade_digest, trade_announcer
+
+    from modules import trade_announcer, trade_digest
 
     db = _match_db()
     db.create_function("GREATEST", 2, max)

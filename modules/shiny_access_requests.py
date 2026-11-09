@@ -7,9 +7,9 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import discord
 
+from modules import scan_areas
 from modules.config import Config
 from modules.database_connector import connect
-from modules import scan_areas
 
 PREFIX = "shiny-access:"
 BUTTON = re.compile(r"^shiny-access:(accept|reject):(\d{1,20}):(\d{20})$")
