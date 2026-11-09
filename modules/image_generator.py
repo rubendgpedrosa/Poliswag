@@ -10,7 +10,7 @@ import tempfile
 import aiohttp
 import imgkit
 from PIL import Image
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from modules.account_card import build_card_view
@@ -122,7 +122,12 @@ class ImageGenerator:
 
     def _get_env(self):
         if self._env is None:
-            self._env = Environment(loader=FileSystemLoader(self.TEMPLATE_HTML_DIR))
+            # Event names and bonuses come from ScrapedDuck, so values are
+            # escaped; only markup we build ourselves is passed as Markup.
+            self._env = Environment(
+                loader=FileSystemLoader(self.TEMPLATE_HTML_DIR),
+                autoescape=select_autoescape(["html"]),
+            )
         return self._env
 
     def _fonts_dir(self):

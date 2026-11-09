@@ -575,6 +575,42 @@ class TestPngOptions:
 
 
 NOW = dt.datetime(2026, 11, 9, 9, 0)
+HOSTILE = "<b>x</b> & 'y'"
+ESCAPED = "&lt;b&gt;x&lt;/b&gt; &amp; &#39;y&#39;"
+
+
+class TestAutoescape:
+    """Event names and bonuses come from ScrapedDuck: they are text, not markup."""
+
+    async def test_stat_board_escapes_values(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        seen = capture_render(mocker)
+        card = stat_card.StatCard(
+            kicker=HOSTILE,
+            hero=None,
+            title=HOSTILE,
+            chips=(("Horário", HOSTILE),),
+            bonuses=(HOSTILE,),
+        )
+        await ig.generate_stat_board([card], HOSTILE)
+        html = seen["html"]
+        assert ESCAPED in html
+        assert "<b>x</b>" not in html
+        # Our own CSS still arrives as CSS: the font faces and the include.
+        assert "@font-face { font-family: 'Figtree';" in html
+        assert "font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;" in html
+
+    async def test_week_board_escapes_values(self, ig, mocker):
+        ig.TEMPLATE_HTML_DIR = Config.TEMPLATE_HTML_DIR
+        seen = capture_render(mocker)
+        event = week_board.WeekEvent(
+            HOSTILE, HOSTILE, "", NOW, NOW + dt.timedelta(hours=1)
+        )
+        await ig.generate_week_board([event], NOW)
+        html = seen["html"]
+        assert ESCAPED in html
+        assert "<b>x</b>" not in html
+        assert "@font-face { font-family: 'Figtree';" in html
 
 
 class TestTemplatesNeedNoNetwork:
