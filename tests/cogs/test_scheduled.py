@@ -1102,7 +1102,9 @@ class TestTrackingActivityLogs:
     async def test_silence_and_resumption_log_once_without_any_notification(self):
         poliswag = _make_poliswag()
         cog = Scheduled(poliswag)
-        old = real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
+        old = real_datetime.datetime.now(real_datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - real_datetime.timedelta(days=5)
         cog._tracking.last_event_at = AsyncMock(return_value=old)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
@@ -1110,7 +1112,9 @@ class TestTrackingActivityLogs:
             await cog._check_tracking_health()
             assert cog._last_tracking_alert_at is not None
             await cog._check_tracking_health()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
+                real_datetime.timezone.utc
+            ).replace(tzinfo=None)
             await cog._check_tracking_health()
             await cog._check_tracking_health()
             notify.assert_not_awaited()
@@ -1128,9 +1132,9 @@ class TestTrackingActivityLogs:
     async def test_persisted_silence_does_not_repeat_or_send_recovery_dm(self):
         poliswag = _make_poliswag()
         cog = Scheduled(poliswag)
-        cog._last_tracking_alert_at = (
-            real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
-        )
+        cog._last_tracking_alert_at = real_datetime.datetime.now(
+            real_datetime.timezone.utc
+        ).replace(tzinfo=None) - real_datetime.timedelta(days=5)
         cog._tracking.last_event_at = AsyncMock(return_value=None)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
@@ -1138,7 +1142,9 @@ class TestTrackingActivityLogs:
             await cog._check_tracking_health()
             poliswag.utility.log_to_file.assert_not_called()
             poliswag.db.execute_query_to_database.assert_not_awaited()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
+                real_datetime.timezone.utc
+            ).replace(tzinfo=None)
             await cog._check_tracking_health()
             notify.assert_not_awaited()
         assert cog._last_tracking_alert_at is None
