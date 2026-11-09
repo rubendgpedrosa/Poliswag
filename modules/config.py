@@ -153,6 +153,18 @@ class Config:
         ).split(",")
         if x.strip().isdigit()
     ]
+    # Where Poliswag answers questions nobody answered for 30 min (convívio,
+    # suporte-tecnico), and the ids it already looked at.
+    HERMISWAG_PROACTIVE_CHANNELS = [
+        int(x)
+        for x in os.environ.get(
+            "HERMISWAG_PROACTIVE_CHANNELS", "329321552241754115,331442170802339842"
+        ).split(",")
+        if x.strip().isdigit()
+    ]
+    HERMISWAG_PROACTIVE_STATE = os.environ.get(
+        "HERMISWAG_PROACTIVE_STATE", "logs/hermiswag-proactive.json"
+    )
     HERMISWAG_LEARNING_STATE = os.environ.get(
         "HERMISWAG_LEARNING_STATE", "logs/hermiswag-learning.json"
     )

@@ -463,3 +463,12 @@ hand: the authoritative source when the community notes disagree); the files are
 not in git. The map of every Hermiswag piece is the shared guide
 `PoGoLeiria/HERMISWAG.md`. Refreshing it is a manual job: fetch, extract per batch, consolidate,
 replace the file.
+
+**Unanswered questions (owner, 2026-11-09).** `Mentions.proactive` runs every
+30 min over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
+message that looks like a question, waited 30 min to 3 h, is not a reply target,
+does not tag Poliswag and was not looked at before (`logs/hermiswag-proactive.json`)
+goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
+empty reply means leave it (chat, aimed at a person, or already answered). An
+answer is a plain reply to the message, no ping, screened by `safe_reply`; at most
+three questions weighed per channel per run.
