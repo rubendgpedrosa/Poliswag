@@ -1,11 +1,12 @@
 """The `polisnatch_job` ledger: what Poliswag submitted and what became of it.
 
 PoliSnatch owns the queue; this table is only Poliswag's memory of it. The bot
-opens a short-lived connection per call (same pattern as `modules/lure_locks.py`),
-because callers run inside commands and the scheduler tick where every wait is
-bounded. The host shiny linker already holds a connection, and on the host
-`Config.DB_HOST` is the container name, so it passes its connection in and the
-store uses that one without closing it.
+opens a short-lived connection per call (same pattern as `modules/lure_locks.py`)
+with bounded waits. Every call is synchronous and blocks until the database
+answers, so a coroutine must call it through `asyncio.to_thread`. The host
+shiny linker already holds a connection, and on the host `Config.DB_HOST` is
+the container name, so it passes its connection in and the store uses that one
+without closing it.
 """
 
 from contextlib import closing, contextmanager
