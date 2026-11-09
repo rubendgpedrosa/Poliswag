@@ -1,6 +1,6 @@
 """Poliswag answers questions nobody answered.
 
-Every 30 minutes, in the conversation channels the owner picked (convívio
+Every 10 minutes, in the conversation channels the owner picked (convívio
 and suporte-tecnico), a member's question that has waited at least 30
 minutes (and at most three hours) with no reply gets an answer from
 Hermiswag, as a plain reply: no ping and no "I saw you asked". Hermiswag
