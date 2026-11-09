@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-SOURCE = Path(__file__).with_name("scanner-update")
+SOURCE = Path(__file__).resolve().parents[2] / "scripts" / "scanner-update"
 loader = importlib.machinery.SourceFileLoader("scanner_update", str(SOURCE))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 updater = importlib.util.module_from_spec(spec)

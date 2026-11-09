@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import discord
@@ -179,7 +180,9 @@ class Lures(commands.Cog):
         key = (
             lure_locks.stop_key(lat=lat, lon=lon) if nearest is False else "geo:nearest"
         )
-        state = lure_locks.status(key)
+        # lure_locks and the job store open a pymysql connection per call:
+        # run them in a thread so a slow database never freezes the bot.
+        state = await asyncio.to_thread(lure_locks.status, key)
         if state["locked_for_s"] > 0:
             minutes = (state["locked_for_s"] + 59) // 60
             await ctx.send(
@@ -255,7 +258,8 @@ class Lures(commands.Cog):
     async def _record_job(self, ctx, message, job_id, key, nearest, lat, lon, job):
         """Persist the job before waiting on it; False when the store failed."""
         try:
-            self.job_store.record(
+            await asyncio.to_thread(
+                self.job_store.record,
                 job_id,
                 "lure",
                 discord_id=ctx.author.id,
@@ -304,7 +308,8 @@ class Lures(commands.Cog):
                 "LURE NÃO COLOCADO", REASONS.get(str(reason), str(reason))
             )
         await self._deliver(row, embed)
-        _settle(
+        await asyncio.to_thread(
+            _settle,
             row.get("stop_key"),
             row["job_id"],
             {
