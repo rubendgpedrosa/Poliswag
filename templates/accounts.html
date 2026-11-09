@@ -18,51 +18,17 @@
        modules/account_card.py, which sums them into the image height --
        change one, change the other. The renderer is wkhtmltoimage's old
        WebKit: no grid, no gap, so rows are fixed boxes with explicit
-       margins, and the bar segments are floats with widths from Python. */
+       margins, and the bar segments are floats with widths from Python.
 
-    * { box-sizing: border-box; }
+       The frame is the one every bot board uses (_board-base.css: the
+       "PoGoLeiria | heading" row, the faint brand art, the dark board), and
+       the account figures sit in one panel inside it, as the stat board's
+       panels do. */
 
-    html, body {
-        margin: 0;
-        padding: 0;
-        /* Transparent on purpose: everything outside .card stays alpha-0 so
-           the PNG composites on both Discord light and dark backgrounds. */
-        background: transparent;
-    }
-    /* The page is the scaled PNG size; body lays out at the token sizes and
-       CSS `zoom` renders it at {{ scale }}x, for sharp text when Discord
-       scales the image down on phones. wkhtmltoimage's own --zoom flag is
-       ignored by this build; CSS zoom is not. Zoom only body: on html too it
-       would apply twice. */
-    html {
-        width: {{ width * scale }}px;
-        height: {{ height * scale }}px;
-    }
-    body {
-        width: {{ width }}px;
-        height: {{ height }}px;
-        zoom: {{ scale }};
-        font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        color: #F1F5FC;
-    }
+    {% include "_board-base.css" %}
 
-    .figure {
-        font-family: 'Bricolage Grotesque', 'Figtree', sans-serif;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        -webkit-font-feature-settings: "tnum";
-        font-feature-settings: "tnum";
-    }
-
-    .stage {
-        width: {{ width }}px;
-        height: {{ height }}px;
-        padding: 16px;
-    }
-
-    .card {
-        position: relative;
-        width: 100%;
+    .panel {
+        width: 750px;
         height: {{ card_height }}px;
         overflow: hidden;
         border-radius: 20px;
@@ -75,28 +41,19 @@
         padding: 20px 26px 18px 30px;
     }
 
-    /* ---- header: 30px ---- */
+    /* ---- panel header: 30px, the grand total ---- */
     .header-row {
         height: 30px;
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
-    .title-group {
-        display: flex;
-        align-items: center;
-    }
-    .title {
-        font-size: 15px;
-        font-weight: 800;
-        color: #F1F5FC;
-    }
-    /* Status in words right after the title; no coloured strip or edge
-       accent anywhere on the card (owner, 2026-11-05). */
+    /* Status in words in the board's heading row, where the other boards
+       put their date; no coloured strip or edge accent anywhere on the card
+       (owner, 2026-11-05). */
     .status {
         display: flex;
         align-items: center;
-        margin-left: 14px;
     }
     .status-dot {
         width: 8px;
@@ -274,30 +231,42 @@
         color: #A7B0BE;
     }
 
-    /* ---- footer: per-area scanner performance, 18 + 1 + 16 + 26 = 61px ---- */
+    /* ---- footer: per-area scanner performance ----
+       One column per area, five to a row (AREA_COLUMNS), so every area fits
+       and a sixth wraps; the old single line ran off both edges at five.
+       Divider 18 + 1 + 16 = 35px, then rows of 62px with 12px between. */
     .area-divider {
         height: 1px;
         margin: 18px 0 16px;
         background: #262E3B;
     }
     .area-row {
-        height: 26px;
-        display: flex;
-        align-items: baseline;
-        justify-content: center;
+        height: 62px;
+        overflow: hidden;
     }
+    .area-row.spaced { margin-bottom: 12px; }
     .area-item {
-        display: flex;
-        align-items: baseline;
-        margin: 0 14px;
+        float: left;
+        height: 62px;
+        margin-right: 13px;
+        overflow: hidden;
     }
+    .area-item.last { margin-right: 0; }
     .area-name {
+        height: 14px;
+        line-height: 14px;
+        margin-bottom: 4px;
         font-size: 11px;
         font-weight: 800;
         letter-spacing: 1.2px;
         text-transform: uppercase;
         color: #A7B0BE;
-        margin-right: 8px;
+        white-space: nowrap;
+    }
+    .area-spawns {
+        height: 26px;
+        margin-bottom: 4px;
+        white-space: nowrap;
     }
     .area-value {
         font-size: 22px;
@@ -313,20 +282,31 @@
         color: #778190;
         text-transform: uppercase;
         letter-spacing: 0.6px;
-        margin-right: 10px;
     }
-    .area-unit:last-child { margin-right: 0; }
+    .area-coverage {
+        height: 14px;
+        line-height: 14px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #A7B0BE;
+        white-space: nowrap;
+    }
 </style>
 </head>
 <body>
-    <div class="stage">
-        <div class="card">
+    <div class="board">
+        {% if brand %}<img class="brand" src="{{ brand }}"><div class="brand-fade"></div>{% endif %}
+        <div class="head">
+            <div class="head-left">
+                <div class="wordmark">PoGoLeiria</div>
+                <div class="head-rule"></div>
+                <div class="caps">Accounts</div>
+            </div>
+            <div class="status status-{{ status }}"><div class="status-dot"></div><div class="status-text">{{ status_label }}</div></div>
+        </div>
+        <div class="panel">
             <div class="card-inner">
                 <div class="header-row">
-                    <div class="title-group">
-                        <div class="title">Accounts</div>
-                        <div class="status status-{{ status }}"><div class="status-dot"></div><div class="status-text">{{ status_label }}</div></div>
-                    </div>
                     <div class="grand-total"><span class="figure">{{ grand_total }}</span><span class="unit">in total</span></div>
                 </div>
 
@@ -372,19 +352,19 @@
                 {% endif %}
                 {% endfor %}
 
-                {% if area_lines %}
+                {% if area_rows %}
                 <div class="area-divider"></div>
-                <div class="area-row">
-                    {% for line in area_lines %}
-                    <div class="area-item">
-                        <span class="area-name">{{ line.name }}</span>
-                        <span class="area-value figure">{{ line.spawns }}</span>
-                        <span class="area-unit">spawns/h</span>
-                        <span class="area-value figure">{{ line.rate }}%</span>
-                        <span class="area-unit">coverage</span>
+                {% for row in area_rows %}
+                <div class="area-row{% if not loop.last %} spaced{% endif %}">
+                    {% for line in row %}
+                    <div class="area-item{% if loop.last %} last{% endif %}" style="width: {{ area_col_w }}px">
+                        <div class="area-name">{{ line.name }}</div>
+                        <div class="area-spawns"><span class="area-value figure">{{ line.spawns }}</span><span class="area-unit">spawns/h</span></div>
+                        <div class="area-coverage">{{ line.rate }}% coverage</div>
                     </div>
                     {% endfor %}
                 </div>
+                {% endfor %}
                 {% endif %}
             </div>
         </div>
