@@ -101,6 +101,7 @@ def _make_poliswag():
     )
     poliswag.scanner_status.rename_voice_channels = AsyncMock()
     poliswag.account_monitor.update_channel_accounts_stats = AsyncMock()
+    poliswag.account_guard.tick = AsyncMock()
     return poliswag
 
 

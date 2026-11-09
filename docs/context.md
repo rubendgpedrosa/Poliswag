@@ -19,6 +19,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `config.py` / `database_connector.py` | Env config; pymysql wrapper that retries only before execution (never replays a statement); `connect(...)` for short-lived connections. |
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
 | `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
+| `account_guard.py` | Alert-only guard: fake-ban bursts and mass login failures from the scanner logs → owner DM saying what it would pause. |
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` / `quest_exporter.py` / `quest_map.py` | Quest lookup (only future expiry is live), `quests.json` export, map PNGs. See `quests.md`. |
 | `scan_areas.py` | The area registry and its Dragonite fences: `active_areas()`, `area_for(lat, lon)`, labels/roles/bit codes; point-in-polygon, 10 min cache, last good fences on disk. See `database.md`. |
