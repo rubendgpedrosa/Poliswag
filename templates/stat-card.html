@@ -22,6 +22,9 @@
 
     {% include "_board-base.css" %}
 
+    /* One event alone: the panel is the whole image, no frame around it. */
+    .board.bare { padding: 0; background: transparent; border: 0; border-radius: 20px; }
+
     .panel-row { display: flex; align-items: flex-start; }
     .panel-row.spaced { margin-bottom: 16px; }
 
@@ -201,8 +204,9 @@
 </style>
 </head>
 <body>
-<div class="board">
+<div class="board{% if bare %} bare{% endif %}">
     {% if brand %}<img class="brand" src="{{ brand }}"><div class="brand-fade"></div>{% endif %}
+    {% if not bare %}
     <div class="head">
         <div class="head-left">
             <div class="wordmark">PoGoLeiria</div>
@@ -211,6 +215,7 @@
         </div>
         <div class="head-date">{{ date }}</div>
     </div>
+    {% endif %}
 
     {% for row in rows %}
     <div class="panel-row{% if not row.last %} spaced{% endif %}" style="height: {{ row.height }}px">
