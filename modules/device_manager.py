@@ -353,6 +353,7 @@ class DeviceManager(LoggingMixin):
                     self.poliswag,
                     channel,
                     status_embed("Telemóvel do scanner", message),
+                    up=message.startswith("🟢"),
                 )
         except Exception as e:
             self._log(f"Failed to send device notification: {e}")

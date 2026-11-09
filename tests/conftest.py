@@ -51,6 +51,7 @@ _TEST_ENV_DEFAULTS = {
     "HERMISWAG_PROACTIVE_CHANNELS": "",
     "HERMISWAG_PROACTIVE_STATE": "/tmp/poliswag-test/hermiswag-proactive.json",
     "SCANNER_GAME_VERSION_FILE": "/tmp/poliswag-test/scanner-game-version.json",
+    "SCANNER_CARD_FILE": "/tmp/poliswag-test/scanner-card.json",
     "HERMISWAG_LEARNING_STATE": "/tmp/poliswag-test/hermiswag-learning.json",
     "CLAUDE_API_URL": "http://claude.test.invalid",
     "CLAUDE_API_KEY": "",
