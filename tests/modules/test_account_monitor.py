@@ -4,7 +4,7 @@ import discord
 import pytest
 
 from modules.account_monitor import (
-    DISABLED_STATUSES,
+    OUT_STATUSES,
     AccountMonitor,
     _device_name,
     _worker_counts,
@@ -90,16 +90,16 @@ class TestGetAccountStats:
         }
 
     async def test_all_disabled_statuses_counted(self, account_monitor, mocker):
-        # Every known DISABLED_STATUSES entry should contribute to the sum.
-        payload = {status: 1 for status in DISABLED_STATUSES}
+        # Every known OUT_STATUSES entry should contribute to the sum.
+        payload = {status: 1 for status in OUT_STATUSES}
         _mock_fetch(mocker, payload)
         result = await account_monitor.get_account_stats()
-        assert result["disabled"] == len(DISABLED_STATUSES)
+        assert result["disabled"] == len(OUT_STATUSES)
 
     async def test_unknown_keys_do_not_leak_into_disabled(
         self, account_monitor, mocker
     ):
-        # Statuses that aren't in DISABLED_STATUSES must be ignored for the sum.
+        # Statuses that aren't in OUT_STATUSES must be ignored for the sum.
         _mock_fetch(
             mocker,
             {
@@ -118,7 +118,7 @@ class TestGetAccountStats:
     ):
         _mock_fetch(
             mocker,
-            {"banned": 3, "invalid": 2},  # two of nine DISABLED_STATUSES
+            {"banned": 3, "invalid": 2},  # two of the OUT_STATUSES
         )
         result = await account_monitor.get_account_stats()
         assert result["disabled"] == 5
@@ -227,18 +227,18 @@ class TestConnectedWorkerCount:
         assert await account_monitor.connected_worker_count() == 0
 
 
-class TestDisabledStatusesConstant:
+class TestOutStatusesConstant:
     """Regression guards for the canonical list of disabled account statuses."""
 
     def test_contains_core_statuses(self):
         # If any of these disappear, account reporting will silently undercount.
-        assert "banned" in DISABLED_STATUSES
-        assert "warned" in DISABLED_STATUSES
-        assert "suspended" in DISABLED_STATUSES
-        assert "disabled" in DISABLED_STATUSES
+        assert "banned" in OUT_STATUSES
+        assert "warned" in OUT_STATUSES
+        assert "suspended" in OUT_STATUSES
+        assert "disabled" in OUT_STATUSES
 
     def test_has_no_duplicates(self):
-        assert len(DISABLED_STATUSES) == len(set(DISABLED_STATUSES))
+        assert len(OUT_STATUSES) == len(set(OUT_STATUSES))
 
 
 class _AsyncChannelHistory:
