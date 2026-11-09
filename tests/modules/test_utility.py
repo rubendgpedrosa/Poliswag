@@ -22,6 +22,7 @@ from modules.utility import (
     LOG_MAX_BYTES,
     VERSION_CHECK_ERROR_AFTER,
     VERSION_CHECK_TIMEOUT,
+    FailureStreak,
     Utility,
 )
 
@@ -34,6 +35,7 @@ def util():
     u.poliswag.db = AsyncMock()
     u.logger = MagicMock(spec=logging.Logger)
     u.error_logger = MagicMock(spec=logging.Logger)
+    u._version_check_streak = FailureStreak(VERSION_CHECK_ERROR_AFTER)
     return u
 
 
@@ -94,6 +96,39 @@ class TestInit:
         u2 = Utility(poliswag=MagicMock())
         assert len(u2.logger.handlers) == 2  # rotating file + console
         assert len(u2.error_logger.handlers) == 1
+
+
+class TestFailureStreak:
+    def test_below_threshold_is_false(self):
+        streak = FailureStreak(3)
+        assert [streak.fail(), streak.fail()] == [False, False]
+        assert streak.count == 2
+
+    def test_reaching_threshold_is_true_once(self):
+        streak = FailureStreak(3)
+        streak.fail()
+        streak.fail()
+        assert streak.fail() is True
+        assert streak.count == 3
+
+    def test_beyond_threshold_stays_false(self):
+        streak = FailureStreak(2)
+        results = [streak.fail() for _ in range(6)]
+        assert results == [False, True, False, False, False, False]
+
+    def test_reset_starts_over(self):
+        streak = FailureStreak(2)
+        streak.fail()
+        streak.fail()
+        streak.reset()
+        assert streak.count == 0
+        assert streak.fail() is False
+        assert streak.fail() is True
+
+    def test_count_is_read_only(self):
+        streak = FailureStreak(2)
+        with pytest.raises(AttributeError):
+            streak.count = 5
 
 
 class TestLogToFile:
