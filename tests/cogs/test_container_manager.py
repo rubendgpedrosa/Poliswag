@@ -5,6 +5,7 @@ import time, so we seed them before importing anything from the project.
 """
 
 import os
+import threading
 
 os.environ.setdefault("MY_ID", "111")
 os.environ.setdefault("SCANNER_CONTAINER_NAME", "test-scanner")
@@ -99,6 +100,28 @@ class TestStopContainer:
         msg = ctx.send.return_value
         embed = msg.edit.call_args.kwargs["embed"]
         assert "Erro ao parar" in embed.title
+
+
+class TestScannerControlOffTheLoop:
+    @pytest.mark.parametrize(
+        "command, action",
+        [
+            (ContainerManagerCog.start_container, "start"),
+            (ContainerManagerCog.stop_container, "stop"),
+        ],
+    )
+    async def test_docker_call_runs_in_a_worker_thread(self, cog, command, action):
+        # docker-py blocks (a stop waits up to 10 s): it must not run on the
+        # thread that drives the event loop.
+        loop_thread = threading.current_thread()
+        seen = []
+        cog.poliswag.scanner_manager.change_scanner_status.side_effect = (
+            lambda arg: seen.append((arg, threading.current_thread()))
+        )
+        await command.callback(cog, make_ctx())
+        assert len(seen) == 1
+        assert seen[0][0] == action
+        assert seen[0][1] is not loop_thread
 
 
 class TestStatusCmd:
