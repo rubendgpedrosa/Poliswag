@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pymysql
 import pytest
 
-from cogs.scheduled import Scheduled
 from modules.database_connector import DatabaseConnector
 from modules.event_manager import EventManager
+from modules.event_notices import EventNotices
 from modules.utility import Utility
 
 _REAL_CONNECT = pymysql.connect
@@ -91,9 +91,7 @@ def source(**changes):
 
 
 def sender(bot):
-    cog = Scheduled.__new__(Scheduled)
-    cog.poliswag = bot
-    return cog
+    return EventNotices(bot)
 
 
 async def test_ingest_deliver_restart_and_exact_end(store):
@@ -118,9 +116,7 @@ async def test_ingest_deliver_restart_and_exact_end(store):
     assert len(changed["started"]) == 1
     channel = SimpleNamespace(send=AsyncMock(side_effect=RuntimeError("offline")))
     with pytest.raises(RuntimeError):
-        await sender(bot)._send_event_change_notifications(
-            channel, changed, acknowledge=True
-        )
+        await sender(bot).send_change_notifications(channel, changed, acknowledge=True)
     assert (await store.get_data_from_database("SELECT notification_date FROM event"))[
         0
     ]["notification_date"] is None
@@ -130,9 +126,7 @@ async def test_ingest_deliver_restart_and_exact_end(store):
         at_time=datetime(2026, 9, 26, 10)
     )
     channel.send = AsyncMock()
-    await sender(bot)._send_event_change_notifications(
-        channel, changed, acknowledge=True
-    )
+    await sender(bot).send_change_notifications(channel, changed, acknowledge=True)
     manager = bot_for(store).event_manager
     manager.events = [source()]
     await manager.process_and_store_events()
@@ -150,9 +144,7 @@ async def test_ingest_deliver_restart_and_exact_end(store):
         at_time=datetime(2026, 9, 27, 18)
     )
     assert len(changed["ended"]) == 1 and not changed["started"]
-    await sender(bot)._send_event_change_notifications(
-        channel, changed, acknowledge=True
-    )
+    await sender(bot).send_change_notifications(channel, changed, acknowledge=True)
     assert (
         await manager.check_current_events_changes(at_time=datetime(2026, 9, 27, 18))
         is None
@@ -214,9 +206,7 @@ async def test_partial_batch_retry_after_restart(store):
         send=AsyncMock(side_effect=[None, RuntimeError("offline")])
     )
     with pytest.raises(RuntimeError):
-        await sender(bot)._send_event_change_notifications(
-            channel, changed, acknowledge=True
-        )
+        await sender(bot).send_change_notifications(channel, changed, acknowledge=True)
     retry = await bot_for(store).event_manager.check_current_events_changes(
         at_time=datetime(2026, 9, 26, 10)
     )
