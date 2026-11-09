@@ -28,8 +28,6 @@ services:
     init: true
     mem_limit: 1g
     mem_reservation: 256m
-    ports:
-      - "8989:8989"
     volumes:
       - .:/app
     depends_on:
