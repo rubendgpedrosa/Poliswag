@@ -1,6 +1,6 @@
 import os
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 # python-dotenv >= 1.2 skips load_dotenv() while PYTHON_DOTENV_DISABLED is set
 # (the test suite sets it to block reading a real .env); older versions, like
@@ -181,7 +181,20 @@ class Config:
     # Who gets the owner's unprefixed DMs: "hermes" or "claude". Switched by
     # !usehermes / !useclaude, which also write it to .env for the next boot.
     ENV_FILE = os.environ.get("POLISWAG_ENV_FILE", ".env")
-    OWNER_DM_DEFAULT = os.environ.get("OWNER_DM_DEFAULT", "hermes").strip().lower()
+    # Read from the file itself: docker compose's env_file is frozen into the
+    # container at creation, so a plain restart would keep the old value.
+    OWNER_DM_DEFAULT = (
+        (
+            (
+                None
+                if os.environ.get("PYTHON_DOTENV_DISABLED")
+                else dotenv_values(ENV_FILE).get("OWNER_DM_DEFAULT")
+            )
+            or os.environ.get("OWNER_DM_DEFAULT", "hermes")
+        )
+        .strip()
+        .lower()
+    )
     # Names kept out of anything public. They are deployment data, so the
     # repository never carries them; unset means nothing is filtered.
     PRIVATE_NAMES = tuple(
