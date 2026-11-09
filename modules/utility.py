@@ -37,7 +37,7 @@ VERSION_CHECK_ERROR_AFTER = 10
 _VERSION_CHECK_NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
 
 
-def _describe_error(error: BaseException) -> str:
+def describe_error(error: BaseException) -> str:
     """`Type: message`, or just `Type` when the message is empty (a timeout)."""
     name = type(error).__name__
     message = str(error)
@@ -142,7 +142,7 @@ class Utility:
             return None
         except Exception as e:
             self.log_to_file(
-                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
             )
             return None
 
@@ -162,14 +162,14 @@ class Utility:
             return None
         except Exception as e:
             self.log_to_file(
-                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
             )
             return None
 
     def _log_version_check_failure(self, error: BaseException) -> None:
         """WARNING per failed check; one ERROR when the outage reaches
         VERSION_CHECK_ERROR_AFTER checks in a row."""
-        message = f"Error fetching Pokemon version: {_describe_error(error)}"
+        message = f"Error fetching Pokemon version: {describe_error(error)}"
         if self._version_check_streak.fail():
             self.log_to_file(
                 f"{message} ({VERSION_CHECK_ERROR_AFTER} checks in a row)", "ERROR"

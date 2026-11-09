@@ -6,6 +6,7 @@ import discord
 from modules.config import Config
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
+from modules.utility import FailureStreak, describe_error
 
 # Dragonite's /accounts/stats buckets. These partition `total`: every account
 # is in exactly one of them. `missing_token` is deliberately absent -- it is an
@@ -31,6 +32,14 @@ POOLS = (
     ("scanning", "Scanning", "account_status", "device_status"),
     ("levelling", "Levelling", "level_account_status", "level_device_status"),
 )
+
+# The card is redrawn every 60 s, so a single failed update (a connection
+# reset, a Discord 503/504, a render hiccup) heals on the next minute, and the
+# message's "Last updated" relative time already shows when the card is
+# stale. A failure is a WARNING until this many updates in a row have failed
+# (about ten minutes, as for the version check); then it is one ERROR, which
+# reaches the owner's daily error digest.
+ACCOUNT_CARD_ERROR_AFTER = 10
 
 
 def _device_is_connected(device):
@@ -106,6 +115,7 @@ class AccountMonitor(LoggingMixin):
         # Last (partition_sum, total) logged per pool, so a mismatch is
         # logged when it appears or changes, not on every 60s tick.
         self._partition_warned = {}
+        self._card_failures = FailureStreak(ACCOUNT_CARD_ERROR_AFTER)
 
     async def get_account_stats(self):
         """Scanning-pool account counts for the status embeds and alerts.
@@ -236,7 +246,8 @@ class AccountMonitor(LoggingMixin):
             image_bytes = await self.build_account_card()
 
             if not image_bytes:
-                self._log("Error generating account image")
+                # The renderer has already logged why; only count it here.
+                self._card_failed(None)
                 return
 
             discord_file = discord.File(
@@ -256,6 +267,7 @@ class AccountMonitor(LoggingMixin):
                     await self._accounts_message.edit(
                         content=content, embed=None, attachments=[discord_file]
                     )
+                    self._card_failures.reset()
                     return
                 except discord.NotFound:
                     # Message was deleted out from under us — fall through to
@@ -265,6 +277,23 @@ class AccountMonitor(LoggingMixin):
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
                 content=content, file=discord_file
             )
+            self._card_failures.reset()
 
         except Exception as e:
-            self._log(f"Error in update_channel_accounts_stats: {e}")
+            self._card_failed(e)
+
+    def _card_failed(self, error):
+        """WARNING per failed update (none when the renderer already logged
+        it); one ERROR when ACCOUNT_CARD_ERROR_AFTER updates in a row failed."""
+        if self._card_failures.fail():
+            detail = f": {describe_error(error)}" if error is not None else ""
+            self._log(
+                f"Account card update failed {ACCOUNT_CARD_ERROR_AFTER} times "
+                f"in a row{detail}",
+                "ERROR",
+            )
+        elif error is not None:
+            self._log(
+                f"Error in update_channel_accounts_stats: {describe_error(error)}",
+                "WARNING",
+            )
