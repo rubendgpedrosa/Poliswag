@@ -135,22 +135,23 @@ class Poliswag(commands.Bot):
         ):
             hermes = self.get_cog("Hermes")
             claude = self.get_cog("ClaudeChat")
+            to_hermes = _HERMES.match(message.content)
+            if to_hermes and hermes is not None:
+                await hermes.handle(ctx, message.content[to_hermes.end() :])
+                return
+            claude_busy = claude is not None and claude.busy()
+            hermes_busy = hermes is not None and hermes.busy()
+            # Whoever is replying gets the follow-up (steer), whatever the
+            # default; with both or neither busy, the default decides.
+            if claude_busy and not hermes_busy:
+                if await claude.handle(ctx, message.content, steer_only=True):
+                    return
+            elif hermes_busy and not claude_busy:
+                await hermes.handle(ctx, message.content)
+                return
             if Config.OWNER_DM_DEFAULT == "claude" and claude is not None:
-                to_hermes = _HERMES.match(message.content)
-                if to_hermes and hermes is not None:
-                    await hermes.handle(ctx, message.content[to_hermes.end() :])
-                else:
-                    await claude.handle(ctx, message.content)
-                return
-            # A follow-up without "c " while only Claude is working steers it.
-            if (
-                claude is not None
-                and claude.busy()
-                and not (hermes is not None and hermes.busy())
-                and await claude.handle(ctx, message.content, steer_only=True)
-            ):
-                return
-            if hermes is not None:
+                await claude.handle(ctx, message.content)
+            elif hermes is not None:
                 await hermes.handle(ctx, message.content)
             return
         if ctx.command is not None and not may_run_in_dm(ctx):
