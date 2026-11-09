@@ -37,22 +37,44 @@ VERSION_CHECK_ERROR_AFTER = 10
 _VERSION_CHECK_NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
 
 
-def _describe_error(error: BaseException) -> str:
+def describe_error(error: BaseException) -> str:
     """`Type: message`, or just `Type` when the message is empty (a timeout)."""
     name = type(error).__name__
     message = str(error)
     return f"{name}: {message}" if message else name
 
 
-class Utility:
-    # Consecutive network failures of the version check; reset as soon as
-    # the endpoint answers. Class default so instances built without
-    # __init__ (tests) start at zero too.
-    _version_check_failures = 0
+class FailureStreak:
+    """Consecutive failures of a periodic operation that usually heals itself.
 
+    The caller logs each failure as a WARNING and one ERROR per outage: when
+    `fail()` returns True, the streak has just reached `threshold`. Any
+    success calls `reset()` so the next outage is reported again.
+    """
+
+    def __init__(self, threshold: int):
+        self.threshold = threshold
+        self._count = 0
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def fail(self) -> bool:
+        """Count one failure; True exactly when the streak reaches the threshold."""
+        self._count += 1
+        return self._count == self.threshold
+
+    def reset(self) -> None:
+        self._count = 0
+
+
+class Utility:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self._version_check_failures = 0
+        # Consecutive network failures of the version check; reset as soon
+        # as the endpoint answers.
+        self._version_check_streak = FailureStreak(VERSION_CHECK_ERROR_AFTER)
 
         # Setup logging directories
         log_dir = Path(Config.LOG_FILE).parent
@@ -71,6 +93,9 @@ class Utility:
         # Configure logging
         self.logger = logging.getLogger("poliswag")
         self.logger.setLevel(logging.INFO)
+        # Bare logging.x() calls elsewhere configure the root logger, which
+        # then printed every line a second time on the console.
+        self.logger.propagate = False
 
         if self.logger.handlers:
             self.logger.handlers.clear()
@@ -111,7 +136,7 @@ class Utility:
                 Config.NIANTIC_FORCED_VERSION_ENDPOINT,
                 timeout=VERSION_CHECK_TIMEOUT,
             ) as response:
-                self._version_check_failures = 0
+                self._version_check_streak.reset()
                 if response.status != 200:
                     return None
                 retrieved_version = (await response.text()).strip().replace("\x07", "")
@@ -120,7 +145,7 @@ class Utility:
             return None
         except Exception as e:
             self.log_to_file(
-                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
             )
             return None
 
@@ -140,16 +165,15 @@ class Utility:
             return None
         except Exception as e:
             self.log_to_file(
-                f"Error fetching Pokemon version: {_describe_error(e)}", "ERROR"
+                f"Error fetching Pokemon version: {describe_error(e)}", "ERROR"
             )
             return None
 
     def _log_version_check_failure(self, error: BaseException) -> None:
         """WARNING per failed check; one ERROR when the outage reaches
         VERSION_CHECK_ERROR_AFTER checks in a row."""
-        self._version_check_failures += 1
-        message = f"Error fetching Pokemon version: {_describe_error(error)}"
-        if self._version_check_failures == VERSION_CHECK_ERROR_AFTER:
+        message = f"Error fetching Pokemon version: {describe_error(error)}"
+        if self._version_check_streak.fail():
             self.log_to_file(
                 f"{message} ({VERSION_CHECK_ERROR_AFTER} checks in a row)", "ERROR"
             )
@@ -159,6 +183,8 @@ class Utility:
     def log_to_file(self, message, log_type="INFO"):
         if log_type == "ERROR" or log_type == "CRASH":
             self.error_logger.error(message)
+        elif log_type == "WARNING":
+            self.logger.warning(message)
         else:
             self.logger.info(message)
 
