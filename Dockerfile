@@ -34,8 +34,5 @@ RUN pip install --upgrade pip setuptools && pip install -r requirements-dev.txt
 # Copy the rest of the source (overridden at runtime by the .:/app bind mount)
 COPY . /app
 
-# Make port 8989 available to the world outside this container
-EXPOSE 8989
-
 # Run the bot
 CMD ["python", "main.py"]

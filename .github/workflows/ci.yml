@@ -14,19 +14,18 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
-
-    - name: Set up Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
+        cache: pip
+        cache-dependency-path: |
+          requirements.txt
+          requirements-dev.txt
 
     - name: Install dependencies
       run: |
@@ -58,10 +57,6 @@ jobs:
         GITLEAKS_COMMIT_RANGE: ''
 
     # Additional quality checks
-    - name: Check for TODOs
-      run: |
-        grep -r "TODO" . || true
-
     - name: Check for dead code with Vulture
       run: vulture . --min-confidence 70
 
@@ -99,12 +94,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v7
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
+        cache: pip
+        cache-dependency-path: |
+          requirements.txt
+          requirements-dev.txt
 
     - name: Install dependencies
       run: |
