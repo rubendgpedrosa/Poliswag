@@ -11,12 +11,13 @@ from modules.config import Config
 from modules.embeds import react_to_request
 from modules.conversation_model import ConversationModel
 from modules.conversation_model import AGENT_INSTRUCTIONS, clean_history, public_prompt
-from modules.hermiswag_client import HermiswagClient, reply_text
+from modules.hermiswag_client import HermiswagClient
 from modules.hermiswag_proactive import (
     PER_CHANNEL,
     PROACTIVE_RULES,
     ProactiveState,
     candidates,
+    confirmed_reply,
     utcnow,
 )
 from modules.public_conversation import safe_reply
@@ -221,7 +222,7 @@ class Mentions(commands.Cog):
             AGENT_INSTRUCTIONS + "\n\n" + PROACTIVE_RULES,
             public_prompt("greeting", payload),
         )
-        reply = safe_reply(reply_text(raw) or "")
+        reply = safe_reply(confirmed_reply(raw) or "")
         if not reply:
             return
         try:

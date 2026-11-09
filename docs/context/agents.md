@@ -471,4 +471,7 @@ does not tag Poliswag and was not looked at before (`logs/hermiswag-proactive.js
 goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
 empty reply means leave it (chat, aimed at a person, or already answered). An
 answer is a plain reply to the message, no ping, screened by `safe_reply`; at most
-three questions weighed per channel per run.
+three questions weighed per channel per run. It is published only when Hermiswag returns `confident: true` and
+`verified_with` (community_knowledge, map_query or web), and does not end by
+asking the member something (`confirmed_reply`): no guesses, nothing that
+depends on the member's own account or phone.

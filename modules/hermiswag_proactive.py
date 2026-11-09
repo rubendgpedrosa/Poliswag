@@ -34,8 +34,12 @@ PROACTIVE_RULES = (
     "com as tuas ferramentas (community_knowledge, map_query ou a pesquisa "
     "web nas fontes de confiança). Se não conseguires confirmar, se a "
     "resposta depender de algo que não sabes (a conta, o telemóvel ou a "
-    "situação da pessoa) ou se só tiveres um palpite, devolve vazio. Na "
-    "dúvida, devolve sempre vazio."
+    "situação da pessoa) ou se só tiveres um palpite, devolve vazio. Se "
+    "precisarias de perguntar algo à pessoa para responder bem, devolve "
+    "vazio. Na dúvida, devolve sempre vazio. Formato desta resposta: "
+    '{"reply": "...", "confident": true ou false, "verified_with": '
+    '"community_knowledge", "map_query", "web" ou ""}. Só é publicada com '
+    "confident true e verified_with preenchido."
 )
 
 _QUESTION = re.compile(
@@ -98,3 +102,31 @@ class ProactiveState:
 
 def utcnow():
     return datetime.now(timezone.utc)
+
+
+VERIFIED = {"community_knowledge", "map_query", "web"}
+
+
+def confirmed_reply(raw):
+    """The reply text only when Hermiswag says it is sure and names the tool
+    it checked with; anything else (a guess, a follow-up question, plain
+    text) is dropped."""
+    if not isinstance(raw, str) or len(raw) > 4096:
+        return None
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.strip("`").removeprefix("json").strip()
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or data.get("confident") is not True:
+        return None
+    if data.get("verified_with") not in VERIFIED:
+        return None
+    reply = data.get("reply")
+    if not isinstance(reply, str) or not reply.strip():
+        return None
+    if reply.rstrip().endswith("?"):
+        return None  # asking the member back means it was not sure
+    return reply.strip()

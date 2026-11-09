@@ -150,3 +150,17 @@ def test_open_questions_wait_10_minutes_and_skip_answered_ones():
     assert [m.id for m in found[0][1]][:2] == [2, 3]
     assert looks_like_question("O Go Plus não liga, alguém sabe?")
     assert not looks_like_question("ok?")
+
+
+def test_unprompted_answers_need_confidence_and_a_checked_source():
+    import json as j
+
+    from modules.hermiswag_proactive import confirmed_reply
+
+    ok = {"reply": "Reinicia a app.", "confident": True, "verified_with": "web"}
+    assert confirmed_reply(j.dumps(ok)) == "Reinicia a app."
+    assert confirmed_reply(j.dumps({**ok, "confident": False})) is None
+    assert confirmed_reply(j.dumps({**ok, "verified_with": ""})) is None
+    assert confirmed_reply(j.dumps({**ok, "reply": ""})) is None
+    assert confirmed_reply(j.dumps({**ok, "reply": "Qual foi o evento?"})) is None
+    assert confirmed_reply("Reinicia a app.") is None
