@@ -28,6 +28,7 @@ from modules.lure_watcher import LureWatcher
 from modules.trade_player_store import TradePlayerStore
 from modules.trade_stats import TradeStats
 from modules.stack_recovery import StackRecovery
+from modules.account_guard import AccountGuard
 from modules.help_command import EmbedHelpCommand
 from modules.config import Config
 from modules.embeds import status_embed
@@ -76,6 +77,7 @@ class Poliswag(commands.Bot):
         self.trade_stats = TradeStats()
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
+        self.account_guard = AccountGuard(self)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None

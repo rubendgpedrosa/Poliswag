@@ -352,6 +352,7 @@ class Scheduled(commands.Cog):
             self._check_quest_export,
             self._check_events,
             self._check_workers,
+            self.poliswag.account_guard.tick,
             self._update_lure_status,
             self._update_accounts_display,
             self._check_weekly_digest,
