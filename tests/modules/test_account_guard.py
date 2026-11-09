@@ -48,7 +48,10 @@ class TestParseLine:
         assert t == pytest.approx(at(0))
 
     def test_dragonite_auth_error(self):
-        assert parse_line("dragonite-level", authfail_line(0))[1] == "authfail"
+        assert parse_line("dragonite", authfail_line(0))[1] == "authfail"
+
+    def test_levelling_stack_is_not_watched(self):
+        assert set(ag.CONTAINERS) == {"dragonite", "lork"}
 
     def test_lork_failure_with_colour_codes(self):
         assert parse_line("lork", lork_line(0))[1] == "authfail"
@@ -94,11 +97,9 @@ class TestEvaluate:
         events = [ev(i * 40, kind="authfail") for i in range(19)]
         assert evaluate(events, at(720)) == []
 
-    def test_stacks_are_counted_apart(self):
-        events = [ev(i, kind="authfail", stack="main") for i in range(10)] + [
-            ev(i, kind="authfail", stack="level") for i in range(10)
-        ]
-        assert evaluate(events, at(10)) == []
+    def test_events_from_other_stacks_are_ignored(self):
+        events = [ev(i, kind="authfail", stack="level") for i in range(30)]
+        assert evaluate(events, at(30)) == []
 
 
 class TestDescribe:
@@ -108,11 +109,9 @@ class TestDescribe:
         assert "a área Leiria" in text
         assert "nada foi pausado" in text
 
-    def test_levelling_pause_is_the_mode(self):
-        _, text = describe(("worker", "level", "LevelUp_05", 3, "x"))
-        assert "modo LevelUp" in text
-        _, text = describe(("auth", "level", "", 25, "x"))
-        assert "LevelUp a 0" in text
+    def test_auth_alert_pauses_every_area(self):
+        _, text = describe(("auth", "main", "", 25, "x"))
+        assert "todas as áreas" in text
 
     def test_area_of(self):
         assert area_of("MarinhaGrande_05") == "MarinhaGrande"

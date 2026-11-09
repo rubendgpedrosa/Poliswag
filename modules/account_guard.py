@@ -16,12 +16,13 @@ Three rules, chosen by replaying 2026-11-02..09 from Loki (no false trips):
 - fleet: FLEET_PROBLEMS flags from FLEET_WORKERS different workers within
   FLEET_WINDOW (the same evening, spreading over the area).
 - auth: AUTH_FAILURES failed logins on one stack within AUTH_WINDOW (2026-11-04,
-  Imperva/OAuth failures on every route). Normal days peak at 7 (main) and 15
-  (levelling) per 15 min.
+  Imperva/OAuth failures on every route). Normal days peak at 7 per 15 min.
 
 MODE "alert" (the only mode so far) DMs the owner what it *would* pause and
 pauses nothing. Each (rule, stack, key) alerts at most once per COOLDOWN.
-Production only: the dev stack has no scanner containers.
+Production scanning only (owner, 2026-11-09): the levelling stack
+(dragonite-level, lork-level) is left out. Production only: the dev stack has
+no scanner containers.
 """
 
 import asyncio
@@ -42,12 +43,10 @@ AUTH_FAILURES, AUTH_WINDOW = 20, 900
 COOLDOWN = 3600
 KEEP = max(WORKER_WINDOW, FLEET_WINDOW, AUTH_WINDOW)
 
-# container -> stack
+# container -> stack (the levelling stack is deliberately not watched)
 CONTAINERS = {
     "dragonite": "main",
     "lork": "main",
-    "dragonite-level": "level",
-    "lork-level": "level",
 }
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -59,7 +58,7 @@ def parse_line(container, line):
     """Return (epoch, kind, worker, detail) for a timestamped docker log line, or None."""
     stamp, _, text = line.partition(" ")
     text = _ANSI.sub("", text)
-    if container.startswith("dragonite"):
+    if container == "dragonite":
         if "ACCOUNT PROBLEM" in text:
             kind = "problem"
         elif "Error during authentication" in text:
@@ -88,7 +87,7 @@ def parse_line(container, line):
 
 
 def area_of(worker):
-    """Leiria_26 -> Leiria; LevelUp_05 -> LevelUp."""
+    """Leiria_26 -> Leiria."""
     return worker.rsplit("_", 1)[0] if "_" in worker else worker
 
 
@@ -99,7 +98,7 @@ def evaluate(events, now):
     worker rule and "" otherwise.
     """
     trips = []
-    for stack in ("main", "level"):
+    for stack in set(CONTAINERS.values()):
         problems = [
             e
             for e in events
@@ -125,7 +124,7 @@ def evaluate(events, now):
     return trips
 
 
-_STACK_PT = {"main": "scanner principal", "level": "levelling"}
+_STACK_PT = {"main": "scanner principal"}
 
 
 def describe(trip):
@@ -140,7 +139,7 @@ def describe(trip):
             f"{WORKER_WINDOW // 60} min. Quando é um só worker, normalmente é o "
             f"worker que está avariado e as contas estão boas.\n"
             f"Último: `{detail}`\n\n"
-            f"**Pausaria:** {'o modo ' + area + ' (workers a 0)' if stack == 'level' else 'a área ' + area}.\n"
+            f"**Pausaria:** a área {area}.\n"
             f"Depois: rever as contas marcadas e fazer `reset-banned` às falsas."
         )
     elif rule == "fleet":
@@ -154,10 +153,9 @@ def describe(trip):
         title = f"🛡️ Muitas autenticações falhadas ({where})"
         text = (
             f"{count} logins falhados em {AUTH_WINDOW // 60} min "
-            f"(num dia normal, no máximo 7 no principal e 15 no levelling).\n"
+            f"(num dia normal, no máximo 7).\n"
             f"Último: `{detail}`\n\n"
-            f"**Pausaria:** os logins do {where} "
-            f"({'workers do LevelUp a 0' if stack == 'level' else 'todas as áreas'})."
+            f"**Pausaria:** os logins do {where} (todas as áreas)."
         )
     if MODE == "alert":
         text += "\n\n_Modo de alerta: nada foi pausado._"
