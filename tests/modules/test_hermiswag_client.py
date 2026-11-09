@@ -113,7 +113,7 @@ def test_learning_skips_its_own_replies_in_conversations_only():
     ]
 
 
-def test_open_questions_wait_30_minutes_and_skip_answered_ones():
+def test_open_questions_wait_10_minutes_and_skip_answered_ones():
     from datetime import timedelta
     from types import SimpleNamespace as N
 
@@ -136,16 +136,17 @@ def test_open_questions_wait_30_minutes_and_skip_answered_ones():
         msg(1, "Alguém sabe como se evolui o Kubfu?", 45),
         msg(2, "Onde é que fica o Gym da Sé?", 50),
         msg(3, "isso é verdade", 40, reference=2),
-        msg(4, "Como faço reset ao Go Plus?", 10),  # too recent
+        msg(4, "Como faço reset ao Go Plus?", 5),  # too recent
+        msg(9, "Qual é o melhor counter para o Garchomp?", 15),
         msg(5, "Quando volta o Dialga?", 300),  # too old
         msg(6, "Há Raids hoje?", 40, bot=True),
         msg(7, "Como se chama o evento?", 40, mentions=[N(id=99)]),
         msg(8, "ok obrigado", 35),
     ]
     found = candidates(messages, now, handled={1}, own_id=99)
-    assert [m.id for m, _ in found] == []
+    assert [m.id for m, _ in found] == [9]
     found = candidates(messages, now, handled=set(), own_id=99)
-    assert [m.id for m, _ in found] == [1]
+    assert [m.id for m, _ in found] == [1, 9]
     assert [m.id for m in found[0][1]][:2] == [2, 3]
     assert looks_like_question("O Go Plus não liga, alguém sabe?")
     assert not looks_like_question("ok?")
