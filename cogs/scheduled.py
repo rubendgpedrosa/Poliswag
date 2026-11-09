@@ -17,7 +17,6 @@ from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules import tracking_health
 from modules import scan_areas
 from modules.event_images import usable_image
-from modules import stat_card
 from modules.stat_card import StatCard
 from modules.week_board import WeekEvent
 from modules.hundo_alerts import HundoAlerts
@@ -674,31 +673,27 @@ class Scheduled(commands.Cog):
     async def _send_boards(
         self, channel, heading, panels, groups, text_cards, *, is_end, acknowledge
     ):
-        """One image per stat_card.PER_IMAGE events, no embed. If any board
-        doesn't render, the whole post goes out as the text cards
-        (`text_cards()`) instead, so an event is never dropped for a renderer
-        fault."""
-        date = datetime.date.today().strftime("%d/%m")
-        size = stat_card.PER_IMAGE
+        """One image per event, each in its own message as the embeds were,
+        so Discord shows every one full width; the first message carries the
+        post's title. If any image doesn't render, the whole post goes out as
+        the text cards (`text_cards()`) instead, so an event is never dropped
+        for a renderer fault."""
         pngs = [
-            await self.poliswag.image_generator.generate_stat_board(
-                chunk, heading, date
-            )
-            for chunk in stat_card.chunks(panels)
+            await self.poliswag.image_generator.generate_stat_board([panel], "")
+            for panel in panels
         ]
         if pngs and all(pngs):
-            filename = "eventos-terminados.png" if is_end else "novos-eventos.png"
-            for index, png in enumerate(pngs):
+            kind = "evento-terminado" if is_end else "novo-evento"
+            for index, (png, group) in enumerate(zip(pngs, groups)):
                 await channel.send(
-                    file=discord.File(io.BytesIO(png), filename=filename),
+                    f"**{heading}**" if index == 0 else None,
+                    file=discord.File(
+                        io.BytesIO(png), filename=f"{kind}-{index + 1}.png"
+                    ),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 if acknowledge:
-                    chunk_groups = groups[index * size : (index + 1) * size]
-                    await self._ack_events(
-                        [event for group in chunk_groups for event in group],
-                        is_end=is_end,
-                    )
+                    await self._ack_events(group, is_end=is_end)
             return
         await self._send_event_batches(
             channel,

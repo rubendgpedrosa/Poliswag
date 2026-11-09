@@ -179,20 +179,24 @@ def _panel_view(card):
     }
 
 
-def build_board_view(cards, heading, date="", brand=""):
-    """The template's view for one image of up to PER_IMAGE panels."""
+def build_board_view(cards, heading="", date="", brand=""):
+    """The template's view for one image of up to PER_IMAGE panels.
+
+    Without a heading the image is bare: the panels alone, no board frame,
+    wordmark or brand art. That is how an event post goes out, one image
+    per event in its own message, the post's title as the message text."""
     if not cards:
         raise ValueError("a stat board needs at least one panel")
     cards = list(cards)[:PER_IMAGE]
     panels = [_panel_view(card) for card in cards]
     grid = [[panel] for panel in panels]  # one panel per row
     row_heights = [max(p["height"] for p in row) for row in grid]
-    width = 2 * BOARD_PAD + PANEL_W + 2 * BORDER
+    bare = not heading
+    frame = 0 if bare else 2 * BOARD_PAD + 2 * BORDER
+    width = frame + PANEL_W
     height = (
-        2 * BOARD_PAD
-        + 2 * BORDER
-        + HEAD_H
-        + HEAD_GAP
+        frame
+        + (0 if bare else HEAD_H + HEAD_GAP)
         + sum(row_heights)
         + PANEL_GAP * (len(grid) - 1)
     )
@@ -200,17 +204,12 @@ def build_board_view(cards, heading, date="", brand=""):
         "width": width,
         "height": height,
         "scale": RENDER_SCALE,
+        "bare": bare,
         "heading": heading,
         "date": date,
-        "brand": brand,
+        "brand": "" if bare else brand,
         "rows": [
             {"height": h, "panels": row, "last": i == len(grid) - 1}
             for i, (h, row) in enumerate(zip(row_heights, grid))
         ],
     }
-
-
-def chunks(cards):
-    """Split a post's panels into images of at most PER_IMAGE."""
-    cards = list(cards)
-    return [cards[i : i + PER_IMAGE] for i in range(0, len(cards), PER_IMAGE)]
