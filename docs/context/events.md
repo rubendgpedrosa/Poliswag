@@ -36,7 +36,7 @@ The weekly calendar is chunked at line boundaries within Discord's 4096-char des
 - Active intervals are start-inclusive and end-exclusive. Exact end-minute previews remain inclusive at the minute's lower boundary.
 - Feed `eventID` identifies a reschedule/rename, preserving the existing row's notification markers. End-only changes update on upsert. Distinct IDs with the same name remain distinct rows.
 - The repair tool now journals each edit, supports `--resume <journal>` after a committed DB repair, re-reads before editing, retries bounded rate limits, records deleted messages, and never replaces a missing message with a new post. New journal filenames are unique. Old pre-journal backups remain evidence for manual recovery, not resumable journals.
-- Tests: `pytest tests/modules/test_utility.py tests/modules/test_event_manager.py tests/cogs/test_scheduled.py tests/scripts/test_repair_event_timezone.py -q --no-cov`. `python3 scripts/test_events_mariadb.py` on the host creates/removes an isolated UTC MariaDB and runs the bot lifecycle plus sibling landing event-query tests; no production DB settings are used.
+- Tests: `pytest tests/modules/test_utility.py tests/modules/test_event_manager.py tests/cogs/test_scheduled.py tests/scripts/test_repair_event_timezone.py -q --no-cov`. `python3 scripts/test_events_mariadb.py` on the host creates/removes an isolated UTC MariaDB and runs the bot lifecycle plus sibling landing event-query tests; no production DB settings are used. It is run by hand on the host and is not part of CI (pytest does not collect it).
 
 ### Further event audit (2026-09-26)
 
