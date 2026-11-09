@@ -19,7 +19,7 @@ DB_NAME := $(shell grep -s '^DB_NAME=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' 
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down build logs run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
+.PHONY: all help up down logs run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
 
 all: help
 
