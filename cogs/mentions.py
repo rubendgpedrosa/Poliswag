@@ -22,6 +22,13 @@ from modules.hermiswag_proactive import (
     utcnow,
 )
 from modules.public_conversation import safe_reply
+from modules.hermiswag_followup import (
+    FOLLOWUP_FORMAT,
+    FOLLOWUP_RULES,
+    ActiveChannels,
+    followup_reply,
+    new_since_poliswag,
+)
 from modules.hermiswag_learning import (
     FIRST_RUN,
     LEARN_INSTRUCTIONS,
@@ -112,6 +119,8 @@ class Mentions(commands.Cog):
         )
         self.learning = LearningState(Config.HERMISWAG_LEARNING_STATE)
         self.proactive_state = ProactiveState(Config.HERMISWAG_PROACTIVE_STATE)
+        self.active = ActiveChannels()
+        self.followup_handled = set()
         self.public = PublicConversation(
             poliswag.db,
             quest_search.db,
@@ -185,16 +194,19 @@ class Mentions(commands.Cog):
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
         await self.respond(ctx, reply)
+        self.active.spoke(ctx.channel.id, invited=True)
         return True
 
     async def cog_load(self):
         if self.hermiswag.enabled:
             self.learn.start()
             self.proactive.start()
+            self.followup.start()
 
     async def cog_unload(self):
         self.learn.cancel()
         self.proactive.cancel()
+        self.followup.cancel()
 
     @tasks.loop(minutes=10)
     async def proactive(self):
@@ -224,6 +236,90 @@ class Mentions(commands.Cog):
                     f"failed: {type(error).__name__}",
                     "ERROR",
                 )
+
+    @tasks.loop(minutes=1)
+    async def followup(self):
+        """Continue a conversation Poliswag is in (hermiswag_followup)."""
+        user = self.poliswag.user
+        if user is None:
+            return
+        now = utcnow()
+        for channel_id in self.active.due():
+            channel = self.poliswag.get_channel(channel_id)
+            if channel is None:
+                continue
+            try:
+                messages = [m async for m in channel.history(limit=30)]
+                messages.reverse()
+                new = new_since_poliswag(messages, user.id, self.followup_handled, now)
+                if not new:
+                    continue
+                self.followup_handled.update(m.id for m in new)
+                if len(self.followup_handled) > 2000:
+                    self.followup_handled = set(list(self.followup_handled)[-1000:])
+                await self._continue_conversation(channel, messages, new)
+            except Exception as error:
+                self.poliswag.utility.log_to_file(
+                    f"Hermiswag follow-up #{getattr(channel, 'name', channel_id)} "
+                    f"failed: {type(error).__name__}",
+                    "ERROR",
+                )
+
+    @followup.before_loop
+    async def before_followup(self):
+        await self.poliswag.wait_until_ready()
+
+    async def _continue_conversation(self, channel, messages, new):
+        own = self.poliswag.user.id
+        first_new = messages.index(new[0])
+        history = []
+        for item in messages[max(0, first_new - 15) : first_new]:
+            body = named_mentions(item.content or "", item).strip()
+            if (
+                body
+                and item.webhook_id is None
+                and (not item.author.bot or item.author.id == own)
+            ):
+                history.append(
+                    {
+                        "author": (
+                            "Poliswag"
+                            if item.author.id == own
+                            else item.author.display_name
+                        ),
+                        "text": body,
+                    }
+                )
+        lines = [
+            f"{m.author.display_name}: {named_mentions(m.content or '', m).strip()}"
+            for m in new
+            if (m.content or "").strip()
+        ]
+        if not lines:
+            return
+        payload = {
+            "text": "\n".join(lines)[:2000],
+            "snapshot": None,
+            "facts": None,
+            "recent_channel_messages": clean_history(history),
+        }
+        raw = await self.hermiswag.ask(
+            HermiswagClient.conversation(channel.id),
+            AGENT_INSTRUCTIONS + "\n\n" + FOLLOWUP_RULES,
+            public_prompt("greeting", payload) + "\n\n" + FOLLOWUP_FORMAT,
+        )
+        reply = safe_reply(followup_reply(raw) or "")
+        if not reply:
+            return
+        try:
+            await new[-1].reply(
+                reply,
+                mention_author=False,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            self.active.followed_up(channel.id)
+        except discord.HTTPException:
+            pass
 
     @proactive.before_loop
     async def before_proactive(self):
@@ -262,6 +358,7 @@ class Mentions(commands.Cog):
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
+            self.active.spoke(channel.id, invited=False)
         except discord.HTTPException:
             pass
 

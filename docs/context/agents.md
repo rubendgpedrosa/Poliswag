@@ -479,3 +479,12 @@ three questions weighed per channel per run. It is published only when Hermiswag
 For a member's own technical or account problem it may suggest the usual
 causes and fixes the sources back, and ask for a detail; it never invents
 (owner, 2026-11-09).
+
+**Follow-ups without a tag (owner, 2026-11-09).** `Mentions.followup` runs every
+minute over channels where Poliswag spoke in the last 15 min
+(`hermiswag_followup.ActiveChannels`, in memory). Once members went quiet for
+45 s after its last message, the new messages go to Hermiswag with
+`FOLLOWUP_RULES` and the 15 messages before them; it answers (a plain reply to
+the newest) only with `for_me: true`. Limits: one follow-up per channel per
+3 min, three in a row without a tag or reply (a tag resets it); tagged
+messages are left to `handle`.
