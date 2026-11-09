@@ -18,6 +18,13 @@ Three rules, chosen by replaying 2026-11-02..09 from Loki (no false trips):
 - auth: AUTH_FAILURES failed logins on one stack within AUTH_WINDOW (2026-11-04,
   Imperva/OAuth failures on every route). Normal days peak at 7 per 15 min.
 
+A fourth check watches the account pool rather than the logs: Dragonite's
+``ready`` accounts (good + never used, from ``/accounts/stats``). Below
+POOL_LOW it DMs the owner, below POOL_CRITICAL again (owner, 2026-11-09: "below
+30 and 10"); each level repeats at most once per COOLDOWN while it lasts and is
+re-armed silently once ready is back at POOL_REARM. On 2026-11-09 game-side RPC
+timeouts parked ~85 accounts until midnight per burst and drained the pool.
+
 MODE "alert" (the only mode so far) DMs the owner what it *would* pause and
 pauses nothing. Each (rule, stack, key) alerts at most once per COOLDOWN.
 Production scanning only (owner, 2026-11-09): the levelling stack
@@ -42,6 +49,8 @@ FLEET_PROBLEMS, FLEET_WORKERS, FLEET_WINDOW = 5, 3, 600
 AUTH_FAILURES, AUTH_WINDOW = 20, 900
 COOLDOWN = 3600
 KEEP = max(WORKER_WINDOW, FLEET_WINDOW, AUTH_WINDOW)
+POOL_LOW, POOL_CRITICAL, POOL_REARM = 30, 10, 40
+_POOL_RANK = {None: 0, "low": 1, "critical": 2}
 
 # container -> stack (the levelling stack is deliberately not watched)
 CONTAINERS = {
@@ -162,6 +171,46 @@ def describe(trip):
     return title, text
 
 
+def pool_step(state, ready, last_alert, now):
+    """(new_state, level_to_alert_or_None) for the account-pool check.
+
+    state is the level last alerted (None, "low", "critical"); last_alert the
+    epoch of that alert.
+    """
+    if ready < POOL_CRITICAL:
+        level = "critical"
+    elif ready < POOL_LOW:
+        level = "low"
+    else:
+        level = None
+    if level is None:
+        return (None if ready >= POOL_REARM else state), None
+    if _POOL_RANK[level] > _POOL_RANK[state] or now - last_alert >= COOLDOWN:
+        return level, level
+    return state, None
+
+
+def describe_pool(level, stats):
+    """(title, text) in PT-PT for a low-pool DM."""
+    ready = stats["ready"]
+    if level == "critical":
+        title = f"🛡️ Contas quase esgotadas: {ready} prontas"
+        lead = "Os workers vão ficar parados à espera de conta."
+    else:
+        title = f"🛡️ Poucas contas prontas: {ready}"
+        lead = f"Abaixo de {POOL_LOW} contas prontas no scanner principal."
+    text = (
+        f"{lead}\n"
+        f"Prontas: **{ready}** · Em uso: {stats.get('in_use', 0)} · "
+        f"Em cooldown: {stats.get('cooldown', 0)} · "
+        f"Fora (ban/inválidas): {stats.get('disabled', 0)}\n\n"
+        f"Se o cooldown for de reciclagens sem culpa das contas (ex.: timeouts do "
+        f"jogo), libertá-las: painel → Devices → Accounts → "
+        f"**Make accounts available**, ou `free-connect-accounts.py`."
+    )
+    return title, text
+
+
 class AccountGuard(LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -170,6 +219,8 @@ class AccountGuard(LoggingMixin):
         self._last_event = {}  # container -> epoch of the newest event kept
         self._last_alert = {}  # (rule, stack, key) -> epoch
         self._started = None
+        self._pool_state = None  # last pool level alerted
+        self._pool_alert_at = -1e12
 
     def _read_new_lines(self, since, until):
         """Blocking: timestamped lines per container in [since, until]."""
@@ -239,3 +290,22 @@ class AccountGuard(LoggingMixin):
                 "WARNING",
             )
             await notify_owner(self.poliswag, text, title=title, tag="account_guard")
+        await self.check_pool(now)
+
+    async def check_pool(self, now):
+        try:
+            stats = await self.poliswag.account_monitor.get_account_stats()
+        except Exception as exc:  # never let the pool check break the tick
+            self._log(f"Account guard: pool stats failed: {exc}", "WARNING")
+            return
+        if not stats or "ready" not in stats:
+            return  # Dragonite didn't answer: no data is not an empty pool
+        self._pool_state, level = pool_step(
+            self._pool_state, stats["ready"], self._pool_alert_at, now
+        )
+        if level is None:
+            return
+        self._pool_alert_at = now
+        title, text = describe_pool(level, stats)
+        self._log(f"Account guard: pool {level} — {stats['ready']} ready", "WARNING")
+        await notify_owner(self.poliswag, text, title=title, tag="account_guard")

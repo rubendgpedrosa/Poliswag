@@ -4,7 +4,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from modules import account_guard as ag
-from modules.account_guard import AccountGuard, area_of, describe, evaluate, parse_line
+from modules.account_guard import (
+    AccountGuard,
+    area_of,
+    describe,
+    describe_pool,
+    evaluate,
+    parse_line,
+    pool_step,
+)
 
 T0 = datetime.datetime(2026, 11, 5, 20, 36, 30, tzinfo=datetime.timezone.utc)
 
@@ -180,3 +188,70 @@ class TestTick:
         notify.assert_awaited_once()
         assert notify.await_args.kwargs["tag"] == "account_guard"
         guard._read_new_lines.assert_called_once_with(int(at(0)), at(10))
+
+
+class TestPoolStep:
+    def test_healthy_pool_is_quiet(self):
+        assert pool_step(None, 133, -1e12, 0) == (None, None)
+
+    def test_below_30_alerts_low_once(self):
+        state, level = pool_step(None, 29, -1e12, 0)
+        assert (state, level) == ("low", "low")
+        assert pool_step(state, 25, 0, 600) == ("low", None)
+
+    def test_low_repeats_after_cooldown(self):
+        assert pool_step("low", 25, 0, ag.COOLDOWN) == ("low", "low")
+
+    def test_below_10_escalates_at_once(self):
+        assert pool_step("low", 9, 0, 60) == ("critical", "critical")
+
+    def test_recovering_from_critical_does_not_realert_low(self):
+        assert pool_step("critical", 20, 0, 60) == ("critical", None)
+
+    def test_rearms_silently_at_40(self):
+        assert pool_step("low", 35, 0, 60) == ("low", None)
+        assert pool_step("low", 40, 0, 60) == (None, None)
+        assert pool_step(None, 29, 0, 120) == ("low", "low")
+
+
+class TestDescribePool:
+    def test_texts(self):
+        stats = {"ready": 9, "in_use": 87, "cooldown": 150, "disabled": 0}
+        title, text = describe_pool("critical", stats)
+        assert "9" in title and "Make accounts available" in text
+        title, _ = describe_pool("low", {**stats, "ready": 25})
+        assert "25" in title
+
+
+class TestCheckPool:
+    def _guard(self, stats):
+        poliswag = MagicMock()
+        poliswag.account_monitor.get_account_stats = AsyncMock(return_value=stats)
+        return AccountGuard(poliswag=poliswag)
+
+    async def test_low_pool_dms(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        guard = self._guard({"ready": 12, "in_use": 87, "cooldown": 200, "disabled": 0})
+        await guard.check_pool(at(0))
+        notify.assert_awaited_once()
+        assert notify.await_args.kwargs["tag"] == "account_guard"
+        await guard.check_pool(at(60))
+        notify.assert_awaited_once()
+
+    async def test_unreachable_dragonite_is_not_an_empty_pool(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        guard = self._guard({"in_use": 0, "good": 0, "cooldown": 0, "disabled": 0})
+        await guard.check_pool(at(0))
+        notify.assert_not_awaited()
+
+    async def test_stats_error_is_swallowed(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        guard = self._guard(None)
+        guard.poliswag.account_monitor.get_account_stats = AsyncMock(
+            side_effect=RuntimeError("boom")
+        )
+        await guard.check_pool(at(0))
+        notify.assert_not_awaited()
