@@ -7,6 +7,7 @@ fake client and a fake store: no network, no database.
 """
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 
 import pytest
@@ -488,6 +489,32 @@ class TestPollerAnnouncements:
         store.open_error = RuntimeError("db down")
         assert await poller.tick() == (0, 1)
         assert client.calls == []
+
+
+class SlowStore(FakeStore):
+    def open_jobs(self):
+        time.sleep(0.3)
+        return super().open_jobs()
+
+
+class TestPollerOffTheLoop:
+    async def test_a_slow_store_does_not_freeze_the_event_loop(self):
+        poller = JobPoller(FakeBot(), FakeClient(), SlowStore(), announce=None)
+        beats = 0
+
+        async def heartbeat():
+            nonlocal beats
+            while True:
+                await asyncio.sleep(0.01)
+                beats += 1
+
+        ticker = asyncio.create_task(heartbeat())
+        try:
+            assert await poller.tick() == (0, 0)
+        finally:
+            ticker.cancel()
+        # A 0.3 s blocking read on the loop would allow at most one beat.
+        assert beats >= 10
 
 
 class TestPollerLifecycle:

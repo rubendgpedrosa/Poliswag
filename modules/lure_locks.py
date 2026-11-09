@@ -13,6 +13,9 @@ Two ideas, answering different questions:
 
 The map stays the truth: a worker answers already_lured without spending anything.
 This table exists so the bot can say so before queueing a job.
+
+Each call opens a short-lived connection and is synchronous: it blocks until
+the database answers, so a coroutine must call it through `asyncio.to_thread`.
 """
 
 from __future__ import annotations
