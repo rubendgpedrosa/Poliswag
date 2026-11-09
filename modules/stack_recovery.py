@@ -13,6 +13,7 @@ from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
 from modules.http_client import fetch_data
 from modules.owner_alert import notify_owner
+from modules.scanner_notice import post_scanner_status
 
 
 class StackRecovery(LoggingMixin):
@@ -393,6 +394,6 @@ class StackRecovery(LoggingMixin):
             channel = self.poliswag.MOD_CHANNEL
             if channel:
                 embed = status_embed(title, description, color=color)
-                await channel.send(embed=embed)
+                await post_scanner_status(self.poliswag, channel, embed)
         except Exception as e:
             self._log(f"Failed to send stack recovery notification: {e}")

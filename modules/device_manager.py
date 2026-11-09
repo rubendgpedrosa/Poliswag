@@ -7,6 +7,7 @@ from modules.cached_bool_setting import CachedBoolSetting
 from modules.config import Config
 from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
+from modules.scanner_notice import post_scanner_status
 
 
 class DeviceManager(LoggingMixin):
@@ -348,6 +349,10 @@ class DeviceManager(LoggingMixin):
         try:
             channel = self.poliswag.MOD_CHANNEL
             if channel:
-                await channel.send(embed=status_embed("Telemóvel do scanner", message))
+                await post_scanner_status(
+                    self.poliswag,
+                    channel,
+                    status_embed("Telemóvel do scanner", message),
+                )
         except Exception as e:
             self._log(f"Failed to send device notification: {e}")
