@@ -131,8 +131,8 @@ class Config:
     # Unset = public tags use the agent worker only.
     HERMISWAG_API_URL = os.environ.get("HERMISWAG_API_URL", "")
     HERMISWAG_API_KEY = os.environ.get("HERMISWAG_API_KEY", "")
-    # Channels where Hermiswag keeps the channel's conversation (convívio,
-    # chat-raids, suporte-tecnico); a tag elsewhere gets a one-off session.
+    # The community conversation channels (convívio, chat-raids,
+    # suporte-tecnico): learning there keeps only members' messages.
     HERMISWAG_SESSION_CHANNELS = [
         int(x)
         for x in os.environ.get(

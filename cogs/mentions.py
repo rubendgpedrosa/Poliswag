@@ -60,6 +60,27 @@ def directed_mention(content, bot_id):
     return bool(re.search(rf"(?<!\\)<@!?{bot_id}>", visible))
 
 
+def replied_bot_message(message, bot_id):
+    """The Poliswag chat message this guild message replies to, or None.
+
+    Replying to one of Poliswag's conversational answers counts like a tag
+    (owner, 2026-11-09). Only plain-text answers count: replying to an embed
+    or a file (event boards, scanner cards, CSV lists, giveaway results) is
+    talk between members, not a question for the bot. Commands never count.
+    """
+    if bot_id is None or getattr(message, "guild", None) is None:
+        return None
+    if (message.content or "").lstrip().startswith("!"):
+        return None
+    reference = getattr(message, "reference", None)
+    replied = getattr(reference, "resolved", None) if reference else None
+    if not isinstance(replied, discord.Message):
+        return None
+    if replied.author.id != bot_id or replied.embeds or replied.attachments:
+        return None
+    return replied if (replied.content or "").strip() else None
+
+
 def named_mentions(text, message):
     """Turn member tags into names so the public model knows who is meant.
 
@@ -106,8 +127,11 @@ class Mentions(commands.Cog):
         if user is None or message.author.bot or message.webhook_id is not None:
             return False
         pattern = rf"<@!?{user.id}>"
+        replied = None
         if not directed_mention(message.content, user.id):
-            return False
+            replied = replied_bot_message(message, user.id)
+            if replied is None:
+                return False
         text = re.sub(pattern, "", message.content).strip()
         if ctx.guild is None and is_owner(ctx):
             agents = self.poliswag.get_cog("Agents")
@@ -140,11 +164,17 @@ class Mentions(commands.Cog):
         if dump is not None:
             await self.send_dump(ctx, *dump)
             return True
-        if ctx.channel.id in Config.HERMISWAG_SESSION_CHANNELS:
-            session = HermiswagClient.conversation(ctx.channel.id)
-            history = await self.channel_history(ctx)
-        else:
-            session, history = HermiswagClient.single(message.id), None
+        # Every channel keeps its conversation (owner, 2026-11-09): one
+        # Hermiswag session per channel per day plus the channel's recent
+        # messages, so a follow-up never needs the whole context again.
+        session = HermiswagClient.conversation(ctx.channel.id)
+        history = await self.channel_history(ctx) or []
+        if replied is not None and not any(
+            item["text"] == replied.content.strip() for item in history
+        ):
+            # A reply to an older Poliswag answer: that answer is the context.
+            history.insert(0, {"author": "Poliswag", "text": replied.content[:300]})
+        history = history or None
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(

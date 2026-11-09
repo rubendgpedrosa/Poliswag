@@ -429,9 +429,12 @@ level, end), for one registry area or all, at most 5000 rows, fixed parameterize
 queries inside the registry box and `area_for` per row.
 
 **Channels and learning (owner, 2026-11-08).** Hermiswag keeps the channel's
-conversation only in `HERMISWAG_SESSION_CHANNELS` (convívio, chat-raids,
-suporte-tecnico); a tag anywhere else gets a one-off session
-(`hermiswag:message:<id>`) without channel history. Every 6 h
+conversation in every channel (owner, 2026-11-09): one session per channel per
+day plus the last 15 channel messages. A reply to one of Poliswag's plain-text
+answers counts like a tag (`replied_bot_message`; replies to embeds, files and
+commands do not), and that answer joins the context when it is older than the
+last 15 messages. `HERMISWAG_SESSION_CHANNELS` (convívio, chat-raids,
+suporte-tecnico) now only marks where learning keeps members' messages only. Every 6 h
 (`Mentions.learn`) Poliswag sends Hermiswag the new messages of
 `HERMISWAG_LEARN_CHANNELS` (the Informação category plus those three; never
 moderation or alert channels) under `LEARN_INSTRUCTIONS`, in the session

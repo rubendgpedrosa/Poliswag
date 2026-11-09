@@ -42,11 +42,6 @@ class HermiswagClient:
         day = datetime.now(_LISBON).strftime("%Y%m%d")
         return f"hermiswag:channel:{int(channel_id)}:{day}"
 
-    @staticmethod
-    def single(message_id):
-        """A one-off session for a tag outside the conversation channels."""
-        return f"hermiswag:message:{int(message_id)}"
-
     async def ask(self, session, instructions, prompt, timeout=None):
         """The run's final text, or None on any failure or timeout."""
         if not self.enabled or not session:

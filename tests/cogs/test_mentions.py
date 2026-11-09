@@ -374,3 +374,27 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
     cog.public.reply.assert_awaited_once_with(
         "quem é o faynn? e o Ash1? e <@888>?", session=ANY, history=ANY
     )
+
+
+def _reply_to(author_id, *, content="Olá!", embeds=(), guild=True, text="e o Kubfu?"):
+    replied = MagicMock(spec=discord.Message)
+    replied.author = MagicMock(id=author_id)
+    replied.content = content
+    replied.embeds = list(embeds)
+    replied.attachments = []
+    message = MagicMock()
+    message.guild = MagicMock() if guild else None
+    message.content = text
+    message.reference = MagicMock(resolved=replied)
+    return message
+
+
+def test_reply_to_a_poliswag_answer_counts_like_a_tag():
+    from cogs.mentions import replied_bot_message
+
+    assert replied_bot_message(_reply_to(42), 42) is not None
+    assert replied_bot_message(_reply_to(7), 42) is None  # a member's message
+    assert replied_bot_message(_reply_to(42, embeds=[object()]), 42) is None
+    assert replied_bot_message(_reply_to(42, content=""), 42) is None
+    assert replied_bot_message(_reply_to(42, guild=False), 42) is None
+    assert replied_bot_message(_reply_to(42, text="!quest leiria"), 42) is None
