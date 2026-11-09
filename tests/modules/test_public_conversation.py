@@ -475,3 +475,29 @@ async def test_generic_fallbacks_do_not_push_the_site(public):
 
     for text in (pc._NEUTRAL_HELP, pc._UNAVAILABLE, pc._PRIVATE_REPLY, pc._GREETING):
         assert "pogoleiria.pt" not in text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Se o crash começou depois de um update, reinstala os assets.",
+        "Podes create uma conta nova ou delete a app e voltar a instalar.",
+        "Select the Pokémon and update the team.",
+    ],
+)
+def test_game_talk_with_sql_words_is_not_code(text):
+    assert safe_reply(text) == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "SELECT name FROM pokestop",
+        "UPDATE pokemon SET iv = 100",
+        "DELETE FROM gym WHERE 1",
+        "DROP TABLE trade_player",
+        "INSERT INTO account VALUES (1)",
+    ],
+)
+def test_sql_statements_are_still_code(text):
+    assert safe_reply(text) is None

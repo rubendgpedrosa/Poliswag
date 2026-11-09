@@ -30,16 +30,18 @@ PROACTIVE_RULES = (
     "contrário, responde diretamente à pergunta, curto e útil: não menciones "
     "a pessoa, não digas que viste a pergunta nem que ninguém respondeu, não "
     "fales das mensagens anteriores. Como ninguém te chamou, só respondes "
-    "quando tens a certeza de que a resposta está certa: confirma-a primeiro "
-    "com as tuas ferramentas (community_knowledge, map_query ou a pesquisa "
-    "web nas fontes de confiança). Se não conseguires confirmar, se a "
-    "resposta depender de algo que não sabes (a conta, o telemóvel ou a "
-    "situação da pessoa) ou se só tiveres um palpite, devolve vazio. Se "
-    "precisarias de perguntar algo à pessoa para responder bem, devolve "
-    "vazio. Na dúvida, devolve sempre vazio. Formato desta resposta: "
+    "com o que consegues apoiar: confirma primeiro com as tuas ferramentas "
+    "(community_knowledge, map_query ou a pesquisa web nas fontes de "
+    "confiança). Em problemas técnicos ou de conta podes sugerir as causas e "
+    'soluções que costumam resultar ("costuma resolver…", "experimenta…"), '
+    "desde que estejam confirmadas nessas fontes, e podes acabar a pedir um "
+    "detalhe que ajude. O que não fazes é inventar: sem base nas fontes, "
+    "devolve vazio. Nesta tarefa, em vez da regra da chave única, o JSON "
+    "tem sempre estas três chaves: "
     '{"reply": "...", "confident": true ou false, "verified_with": '
     '"community_knowledge", "map_query", "web" ou ""}. Só é publicada com '
-    "confident true e verified_with preenchido."
+    "confident true (a resposta ou as sugestões estão apoiadas) e "
+    "verified_with preenchido."
 )
 
 _QUESTION = re.compile(
@@ -104,13 +106,21 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
+# Repeated after the member data: the general rules ask for a single "reply"
+# key, and without this the extra keys were often dropped.
+FORMAT_REMINDER = (
+    'Responde só com o JSON de três chaves: {"reply": "...", "confident": '
+    'true/false, "verified_with": "community_knowledge"|"map_query"|"web"|""}.'
+)
+
 VERIFIED = {"community_knowledge", "map_query", "web"}
 
 
 def confirmed_reply(raw):
-    """The reply text only when Hermiswag says it is sure and names the tool
-    it checked with; anything else (a guess, a follow-up question, plain
-    text) is dropped."""
+    """The reply text only when Hermiswag says it is backed and names the
+    tool it checked with; anything else (an unbacked guess, plain text) is
+    dropped. Suggested fixes for a member's own problem are fine when the
+    sources back them."""
     if not isinstance(raw, str) or len(raw) > 4096:
         return None
     text = raw.strip()
@@ -127,6 +137,4 @@ def confirmed_reply(raw):
     reply = data.get("reply")
     if not isinstance(reply, str) or not reply.strip():
         return None
-    if reply.rstrip().endswith("?"):
-        return None  # asking the member back means it was not sure
     return reply.strip()

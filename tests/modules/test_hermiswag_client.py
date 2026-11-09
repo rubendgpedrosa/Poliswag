@@ -162,5 +162,6 @@ def test_unprompted_answers_need_confidence_and_a_checked_source():
     assert confirmed_reply(j.dumps({**ok, "confident": False})) is None
     assert confirmed_reply(j.dumps({**ok, "verified_with": ""})) is None
     assert confirmed_reply(j.dumps({**ok, "reply": ""})) is None
-    assert confirmed_reply(j.dumps({**ok, "reply": "Qual foi o evento?"})) is None
+    tip = {**ok, "reply": "Costuma resolver reiniciar a app. Qual é o telemóvel?"}
+    assert confirmed_reply(j.dumps(tip)).endswith("Qual é o telemóvel?")
     assert confirmed_reply("Reinicia a app.") is None

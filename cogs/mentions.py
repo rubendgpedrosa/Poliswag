@@ -13,6 +13,7 @@ from modules.conversation_model import ConversationModel
 from modules.conversation_model import AGENT_INSTRUCTIONS, clean_history, public_prompt
 from modules.hermiswag_client import HermiswagClient
 from modules.hermiswag_proactive import (
+    FORMAT_REMINDER,
     PER_CHANNEL,
     PROACTIVE_RULES,
     ProactiveState,
@@ -220,7 +221,7 @@ class Mentions(commands.Cog):
         raw = await self.hermiswag.ask(
             HermiswagClient.conversation(channel.id),
             AGENT_INSTRUCTIONS + "\n\n" + PROACTIVE_RULES,
-            public_prompt("greeting", payload),
+            public_prompt("greeting", payload) + "\n\n" + FORMAT_REMINDER,
         )
         reply = safe_reply(confirmed_reply(raw) or "")
         if not reply:

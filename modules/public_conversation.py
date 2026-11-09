@@ -159,7 +159,10 @@ _ASSIGNMENT = re.compile(
     re.I,
 )
 _CODE = re.compile(
-    r"(?:```|`|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b|"
+    # SQL by its shape, not its words: "depois de um update" is game talk.
+    r"(?:```|`|\bSELECT\s.{1,200}?\sFROM\s+\w|\bINSERT\s+INTO\b|"
+    r"\bUPDATE\s+\w+\s+SET\b|\bDELETE\s+FROM\b|"
+    r"\b(?:DROP|ALTER|CREATE)\s+(?:TABLE|DATABASE|USER|VIEW|INDEX)\b|"
     r"\b(?:def|class|import|lambda|function|print)\b\s*[\(\{:]|"
     r"\b(?:int|void|float|double|char|bool)\s+\w+\s*\([^)]*\)\s*\{|"
     r"\b(?:const|let|var)\s+\w+\s*=|"
