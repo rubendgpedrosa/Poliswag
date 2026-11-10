@@ -516,6 +516,79 @@ class TestCheckVersionUpdate:
         assert "0.0.1" in text and "0.433.1" in text and "PoliSnatch" in text
 
 
+class TestCheckPolisnatchUpdate:
+    async def test_up_to_date_sends_nothing(self, cog, mocker):
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(
+            return_value={
+                "supported_version": "0.435.2",
+                "lib_changed": False,
+                "status": "up_to_date",
+            }
+        )
+        mocker.patch(
+            "cogs.scheduled.get_session"
+        ).return_value.get.return_value.__aenter__.return_value = mock_resp
+
+        await cog._check_polisnatch_update()
+        owner.assert_not_called()
+
+    async def test_lib_changed_sends_owner_alert(self, cog, mocker, tmp_path):
+        mocker.patch(
+            "modules.config.Config.POLISNATCH_UPDATE_STATE_FILE",
+            str(tmp_path / "state.json"),
+        )
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(
+            return_value={
+                "supported_version": "0.437.0",
+                "lib_changed": True,
+                "lib_sha256": "abcdef1234567890abcdef1234567890abcdef12",
+                "status": "staged_on_lab",
+                "lab_verified": True,
+                "message": "Offsets recovered and verified on .223",
+                "offsets": {
+                    "vtableRva": "0x722418",
+                    "getterRva": "0x30a128",
+                    "setterRva": "0x207ef8",
+                },
+            }
+        )
+        mocker.patch(
+            "cogs.scheduled.get_session"
+        ).return_value.get.return_value.__aenter__.return_value = mock_resp
+
+        await cog._check_polisnatch_update()
+        owner.assert_called_once()
+        args, kwargs = owner.call_args
+        assert "0.437.0" in args[1]
+        assert "tag" in kwargs and kwargs["tag"] == "polisnatch-update"
+
+        # Subsequent call does not repeat alert
+        owner.reset_mock()
+        await cog._check_polisnatch_update()
+        owner.assert_not_called()
+
+    async def test_network_error_handled_gracefully(self, cog, mocker):
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        mocker.patch("cogs.scheduled.get_session").return_value.get.side_effect = (
+            OSError("connection refused")
+        )
+
+        await cog._check_polisnatch_update()
+        owner.assert_not_called()
+
+
 # --- _check_quest_scan_progress ----------------------------------------------
 
 

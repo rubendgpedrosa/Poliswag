@@ -3,10 +3,12 @@ import dataclasses
 import datetime
 import io
 import json
+import os
 import re
 import time
 import traceback
 
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 
@@ -14,6 +16,7 @@ from modules import scan_areas, tracking_health
 from modules.config import Config
 from modules.embeds import build_embed, status_embed
 from modules.event_images import usable_image
+from modules.http_client import get_session
 from modules.hundo_alerts import HundoAlerts
 from modules.locale_pt import PT_DAYS_SHORT
 from modules.owner_alert import notify_owner
@@ -477,6 +480,106 @@ class Scheduled(commands.Cog):
                     "PAAAAAAAAAUUUUUUUUUU!!! FORCE UPDATE!",
                     f"Nova versão: {new_version}",
                 )
+            )
+        await self._check_polisnatch_update()
+
+    async def _check_polisnatch_update(self):
+        url = getattr(
+            Config, "POLISNATCH_STATUS_URL", "http://192.168.1.242:9300/v1/game/status"
+        )
+        try:
+            session = get_session()
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return
+                data = await resp.json()
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Polisnatch status poll failed: {e}", "DEBUG"
+            )
+            return
+
+        version = data.get("supported_version") or data.get("mirror_version")
+        lib_changed = data.get("lib_changed", False)
+        status = data.get("status", "unknown")
+        needs_notification = lib_changed or status in (
+            "staged_on_lab",
+            "profile_recovered_pending_test",
+            "profile_updated",
+        )
+
+        if not needs_notification or not version:
+            return
+
+        state = self._load_polisnatch_update_state()
+        if (
+            state.get("last_notified_version") == version
+            and state.get("last_notified_status") == status
+        ):
+            return
+
+        sha = data.get("lib_sha256") or "desconhecido"
+        sha_short = sha[:16] + "…" if len(sha) > 16 else sha
+        lab_verified = "✅ Sim" if data.get("lab_verified") else "⏳ Pendente"
+        msg_detail = data.get("message", "")
+
+        offsets_info = ""
+        if "offsets" in data:
+            o = data["offsets"]
+            vt = o.get("vtableRva")
+            gt = o.get("getterRva")
+            st = o.get("setterRva")
+            offsets_info = (
+                f"\n• **Offsets:** vtable `{vt}`, getter `{gt}`, setter `{st}`"
+            )
+
+        text = (
+            f"🔔 **PoliSnatch: Nova Atualização do Pokémon GO detectada (`{version}`)**\n\n"
+            f"• **Biblioteca Nativa:** Alterada (`libNianticLabsPlugin.so`)\n"
+            f"• **SHA-256:** `{sha_short}`\n"
+            f"• **Estado:** `{status}`{offsets_info}\n"
+            f"• **Validação Lab (.223):** {lab_verified}\n"
+            f"• **Proteção:** O telemóvel de produção (`.222`) **NÃO** foi tocado.\n\n"
+            f"Detalhes: {msg_detail}"
+        )
+
+        sent = await notify_owner(
+            self.poliswag,
+            text,
+            title=f"🔔 PoliSnatch: Atualização {version}",
+            tag="polisnatch-update",
+        )
+        if sent:
+            state["last_notified_version"] = version
+            state["last_notified_status"] = status
+            state["last_notified_at"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+            self._save_polisnatch_update_state(state)
+
+    def _load_polisnatch_update_state(self) -> dict:
+        state_file = getattr(
+            Config, "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
+        )
+        if os.path.isfile(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    def _save_polisnatch_update_state(self, state: dict) -> None:
+        state_file = getattr(
+            Config, "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
+        )
+        try:
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            self.poliswag.utility.log_to_file(
+                f"Failed to save polisnatch update state: {e}", "ERROR"
             )
 
     async def _check_quest_scan_progress(self):
