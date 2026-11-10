@@ -41,7 +41,8 @@ _USAGE = (
     "**Sortear:** à hora marcada, ou já com `!sorteio sortear`. O resultado vai "
     "para a moderação com os botões Publicar · Repetir · Repetir sem este · "
     "Cancelar; só quem escreveu o anúncio publica.\n"
-    "**Depois:** `!sorteio reroll` (novo vencedor) · `!sorteio estado` · "
+    "**Ver:** `!sorteio lista` (todos os nomes) · `!sorteio estado`\n"
+    "**Depois:** `!sorteio reroll` (novo vencedor) · "
     "`!sorteio cancelar`\n"
     "Com um só sorteio ativo não precisas do link."
 )
@@ -154,6 +155,11 @@ class Giveaways(commands.Cog):
     async def entries(self, row, message=None):
         """(mensagem, entradas, ids do Discord, nomes do Campfire repetidos):
         todos os que podem ganhar, cada pessoa uma vez."""
+        message, pool, ids, _, duplicates = await self.listing(row, message)
+        return message, pool, ids, duplicates
+
+    async def listing(self, row, message=None):
+        """Como `entries`, mais {discord_id: [nomes]} para mostrar a lista."""
         message, ids, names = await self.participants(row, message)
         trainers = await self._trainers()
         aliases = {}
@@ -172,7 +178,7 @@ class Giveaways(commands.Cog):
             aliases,
             blocked,
         )
-        return message, pool, ids, duplicates
+        return message, pool, ids, names, duplicates
 
     # --- review ----------------------------------------------------------
 
@@ -636,6 +642,51 @@ class Giveaways(commands.Cog):
             embed=status_embed("🎟️ Estado do sorteio", "\n".join(lines)),
             allowed_mentions=_NO_PINGS,
         )
+
+    @sorteio.command(name="lista", brief="Todos os nomes que entram no sorteio")
+    async def lista(self, ctx, *, texto: str = ""):
+        row = await self._target(
+            ctx, texto, lambda r: r["status"] in ("open", "drawn"), latest=True
+        )
+        if row is None:
+            return
+        _, pool, ids, names, duplicates = await self.listing(row)
+        excluded = set(
+            giveaways.winner_ids(row) + giveaways.entries(row.get("excluded_ids"))
+        )
+        lines = []
+        for number, entry in enumerate(pool, 1):
+            label = (
+                f"{(names.get(entry) or [str(entry)])[0]} (Discord)"
+                if isinstance(entry, int)
+                else f"{entry} (Campfire)"
+            )
+            if entry in excluded:
+                label += " · já ganhou ou foi excluído"
+            lines.append(f"{number}. {label}")
+        head = (
+            f"[Anúncio]({giveaways.message_link(row)}) · **{len(pool)}** "
+            f"{'participante' if len(pool) == 1 else 'participantes'}: {len(ids)} "
+            f"pela reação {row['emoji']}, {len(pool) - len(ids)} só do Campfire"
+            + (
+                f" ({len(duplicates)} do Campfire também reagiram e contam uma vez)"
+                if duplicates
+                else ""
+            )
+            + "."
+        )
+        listing = "\n".join(lines) or "Ninguém, por agora."
+        if len(head) + len(listing) + 2 <= 4000:
+            await ctx.send(
+                embed=status_embed("📋 Participantes", head + "\n\n" + listing),
+                allowed_mentions=_NO_PINGS,
+            )
+        else:
+            await ctx.send(
+                embed=status_embed("📋 Participantes", head + "\n\nLista em anexo."),
+                file=discord.File(io.BytesIO(listing.encode()), "participantes.txt"),
+                allowed_mentions=_NO_PINGS,
+            )
 
     @sorteio.command(name="sortear", brief="Sorteia já, sem esperar pela hora")
     async def sortear(self, ctx, *, texto: str = ""):

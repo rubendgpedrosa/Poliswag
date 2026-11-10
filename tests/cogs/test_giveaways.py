@@ -337,3 +337,17 @@ async def test_announcing_a_campfire_winner_pings_nobody():
 def test_media_type(content_type, filename, expected):
     attachment = SimpleNamespace(content_type=content_type, filename=filename)
     assert cog_module._media_type(attachment) == expected
+
+
+async def test_lista_shows_discord_and_campfire_names_without_pings():
+    row = _row(campfire_names=json.dumps(["Nuno", "Ricmat"]))
+    cog, _, _, _ = _cog([_user(1, name="Ricmat"), _user(2, name="Ana")], row=row)
+    ctx = MagicMock()
+    ctx.send = AsyncMock()
+    ctx.message.reference = None
+    await cog.lista.callback(cog, ctx, texto=LINK)
+    sent = ctx.send.call_args.kwargs
+    assert sent["allowed_mentions"].users is False
+    text = sent["embed"].description
+    assert "**3** participantes: 2 pela reação" in text
+    assert "1. Ricmat (Discord)\n2. Ana (Discord)\n3. Nuno (Campfire)" in text
