@@ -16,6 +16,14 @@ class DeviceManager(LoggingMixin):
     # How long the device must be continuously offline before alerting.
     OFFLINE_BEFORE_ALERT = 900  # 15 minutes offline before acting
 
+    # Wi-Fi watchdog. A wedged wlan reads as "connected" but passes no traffic
+    # (2026-11-10: after a reboot the phone stayed associated to a stale BSSID
+    # for ~2 h, "wificond: Scan is not started", no DNS, adb timeouts). The
+    # heal is a radio toggle -- supplicant then re-associates to the best BSSID
+    # -- never a reboot.
+    WIFI_DEAD_AFTER = 3  # consecutive dead checks (~3 min at the 60 s tick)
+    WIFI_HEAL_SETTLE = 20  # seconds to wait after the toggle before re-checking
+
     POGO_PACKAGE = "com.nianticlabs.pokemongo"
     POGO_ACTIVITY = (
         "com.nianticlabs.pokemongo/"
@@ -38,6 +46,8 @@ class DeviceManager(LoggingMixin):
         self._last_notification_time: float = 0
         self._auto_reboot_setting = CachedBoolSetting(poliswag, "auto_reboot_enabled")
         self._version_read_at: float = 0
+        self._wifi_dead_streak = 0
+        self._wifi_heal_announced = False
 
     async def get_auto_reboot_enabled(self) -> bool:
         return await self._auto_reboot_setting.get()
@@ -333,6 +343,73 @@ class DeviceManager(LoggingMixin):
             f"**{int(offline_duration // 60)} min** — precisa de intervenção manual."
         )
         return True
+
+    async def wifi_link_ok(self) -> bool | None:
+        """Whether the phone's wlan is up AND the gateway answers from it.
+
+        None when adb can't reach the phone at all (left to alert_if_offline).
+        An associated-but-wedged link passes "Wifi is connected" but fails the
+        ping, which is exactly the dead-wifi case this watchdog exists for.
+        """
+        command = (
+            'cmd wifi status 2>/dev/null | grep -q "Wifi is connected"'
+            " && ping -c 1 -W 2 192.168.1.1 >/dev/null 2>&1"
+            " && echo UP || echo DOWN"
+        )
+        try:
+            stdout, _, rc = await self.run("shell", command, timeout=15)
+        except RuntimeError as e:
+            self._log(f"Wi-Fi link check failed: {e}")
+            return None
+        if rc != 0:
+            return None
+        return stdout.strip().endswith("UP")
+
+    async def _heal_wifi(self) -> bool:
+        """Toggle the radio so supplicant re-associates to the best BSSID.
+
+        Root is needed for svc on this build (Magisk su is present), hence
+        `su -c`. Returns whether the link is up again after settling.
+        """
+        self._log("Wi-Fi link dead — toggling the radio (svc wifi)", "WARNING")
+        try:
+            await self.run("shell", "su -c 'svc wifi disable'", timeout=10)
+            await asyncio.sleep(3)
+            await self.run("shell", "su -c 'svc wifi enable'", timeout=10)
+            await asyncio.sleep(self.WIFI_HEAL_SETTLE)
+        except RuntimeError as e:
+            self._log(f"Wi-Fi heal failed: {e}", "ERROR")
+            return False
+        return bool(await self.wifi_link_ok())
+
+    async def ensure_wifi(self) -> None:
+        """Per-tick Wi-Fi liveness watchdog for the scanning phone.
+
+        After WIFI_DEAD_AFTER consecutive dead checks the radio is toggled
+        once per episode and the mod channel hears about it; a reboot is
+        never sent automatically. adb-unreachable is not handled here.
+        """
+        if not Config.ADB_DEVICE:
+            return
+        ok = await self.wifi_link_ok()
+        if ok is None:
+            return
+        if ok:
+            self._wifi_dead_streak = 0
+            self._wifi_heal_announced = False
+            return
+        self._wifi_dead_streak += 1
+        if self._wifi_dead_streak < self.WIFI_DEAD_AFTER:
+            return
+        healed = await self._heal_wifi()
+        self._wifi_dead_streak = 0
+        if not self._wifi_heal_announced:
+            self._wifi_heal_announced = True
+            state = "recuperado" if healed else "ainda em baixo"
+            await self._notify(
+                "📶 Wi-Fi do telemóvel do scanner morto — reiniciei o rádio Wi-Fi; "
+                f"link {state}."
+            )
 
     async def _notify(self, message: str) -> None:
         """Post `message` as an embed in the mod channel if it's available."""

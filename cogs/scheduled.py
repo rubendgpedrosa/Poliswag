@@ -831,6 +831,7 @@ class Scheduled(commands.Cog):
         workers_status = await self.poliswag.scanner_status.get_workers_with_issues()
         await self.poliswag.scanner_status.rename_voice_channels(workers_status)
         await self.poliswag.device_manager.alert_if_offline()
+        await self.poliswag.device_manager.ensure_wifi()
 
     async def _update_lure_status(self):
         """Reflect the live active-lure count in the bot's Discord presence.
