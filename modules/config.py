@@ -41,7 +41,7 @@ class Config:
     )
     POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
     POLISNATCH_STATUS_URL = os.environ.get(
-        "POLISNATCH_STATUS_URL", "http://192.168.1.242:9300/v1/game/status"
+        "POLISNATCH_STATUS_URL", "https://polisnatch.pogoleiria.pt/v1/game/status"
     )
     POLISNATCH_UPDATE_STATE_FILE = os.environ.get(
         "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"

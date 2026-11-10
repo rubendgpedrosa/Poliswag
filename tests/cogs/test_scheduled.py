@@ -517,6 +517,23 @@ class TestCheckVersionUpdate:
 
 
 class TestCheckPolisnatchUpdate:
+    @pytest.fixture(autouse=True)
+    def submit_key(self, mocker):
+        return mocker.patch(
+            "cogs.scheduled.polisnatch_api.read_key", return_value="test-key"
+        )
+
+    async def test_no_key_sends_no_request(self, cog, mocker, submit_key):
+        submit_key.return_value = ""
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        session = mocker.patch("cogs.scheduled.get_session")
+
+        await cog._check_polisnatch_update()
+        session.return_value.get.assert_not_called()
+        owner.assert_not_called()
+
     async def test_up_to_date_sends_nothing(self, cog, mocker):
         owner = mocker.patch(
             "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
@@ -554,20 +571,16 @@ class TestCheckPolisnatchUpdate:
                 "lib_sha256": "abcdef1234567890abcdef1234567890abcdef12",
                 "status": "staged_on_lab",
                 "lab_verified": True,
-                "message": "Offsets recovered and verified on .223",
-                "offsets": {
-                    "vtableRva": "0x722418",
-                    "getterRva": "0x30a128",
-                    "setterRva": "0x207ef8",
-                },
+                "message": "Verified on .223",
             }
         )
-        mocker.patch(
-            "cogs.scheduled.get_session"
-        ).return_value.get.return_value.__aenter__.return_value = mock_resp
+        session = mocker.patch("cogs.scheduled.get_session")
+        session.return_value.get.return_value.__aenter__.return_value = mock_resp
 
         await cog._check_polisnatch_update()
         owner.assert_called_once()
+        _, sent = session.return_value.get.call_args
+        assert sent["headers"] == {"Authorization": "Bearer test-key"}
         args, kwargs = owner.call_args
         assert "0.437.0" in args[1]
         assert "tag" in kwargs and kwargs["tag"] == "polisnatch-update"
