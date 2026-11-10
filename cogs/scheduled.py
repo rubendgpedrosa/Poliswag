@@ -511,13 +511,23 @@ class Scheduled(commands.Cog):
             )
             return
 
-        version = data.get("supported_version") or data.get("mirror_version")
-        lib_changed = data.get("lib_changed", False)
+        # mirror_version is the build that came out; supported_version is the
+        # newest one PoliSnatch already runs.
+        version = data.get("mirror_version") or data.get("supported_version")
+        supported = data.get("supported_version") or "desconhecida"
+        lib_changed = bool(data.get("lib_changed", False))
         status = data.get("status", "unknown")
-        needs_notification = lib_changed or status in (
-            "staged_on_lab",
-            "profile_recovered_pending_test",
-            "profile_updated",
+        # A new version needs a profile and a release even when its library is
+        # the one already supported, so the server says so explicitly.
+        needs_notification = (
+            bool(data.get("action_needed"))
+            or lib_changed
+            or status
+            in (
+                "staged_on_lab",
+                "profile_recovered_pending_test",
+                "profile_updated",
+            )
         )
 
         if not needs_notification or not version:
@@ -532,15 +542,20 @@ class Scheduled(commands.Cog):
 
         sha = data.get("lib_sha256") or "desconhecido"
         sha_short = sha[:16] + "…" if len(sha) > 16 else sha
-        lab_verified = "✅ Sim" if data.get("lab_verified") else "⏳ Pendente"
+        if lib_changed:
+            library = "Alterada (`libNianticLabsPlugin.so`)"
+        elif data.get("same_lib_as"):
+            library = f"Igual à da `{data['same_lib_as']}`"
+        else:
+            library = "Sem alteração conhecida"
         msg_detail = data.get("message", "")
 
         text = (
             f"🔔 **PoliSnatch: Nova Atualização do Pokémon GO detectada (`{version}`)**\n\n"
-            f"• **Biblioteca Nativa:** Alterada (`libNianticLabsPlugin.so`)\n"
+            f"• **Biblioteca Nativa:** {library}\n"
             f"• **SHA-256:** `{sha_short}`\n"
             f"• **Estado:** `{status}`\n"
-            f"• **Validação Lab (.223):** {lab_verified}\n"
+            f"• **Versão suportada hoje:** `{supported}`\n"
             f"• **Proteção:** O telemóvel de produção (`.222`) **NÃO** foi tocado.\n\n"
             f"Detalhes: {msg_detail}"
         )
