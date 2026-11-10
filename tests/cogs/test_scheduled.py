@@ -590,6 +590,60 @@ class TestCheckPolisnatchUpdate:
         await cog._check_polisnatch_update()
         owner.assert_not_called()
 
+    async def test_same_library_new_version_still_alerts(self, cog, mocker, tmp_path):
+        mocker.patch(
+            "modules.config.Config.POLISNATCH_UPDATE_STATE_FILE",
+            str(tmp_path / "state.json"),
+        )
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(
+            return_value={
+                "supported_version": "0.435.2",
+                "mirror_version": "0.435.3",
+                "lib_changed": False,
+                "action_needed": True,
+                "same_lib_as": "0.435.2",
+                "status": "profile_needed_same_lib",
+                "lab_verified": False,
+            }
+        )
+        mocker.patch(
+            "cogs.scheduled.get_session"
+        ).return_value.get.return_value.__aenter__.return_value = mock_resp
+
+        await cog._check_polisnatch_update()
+        owner.assert_called_once()
+        args, kwargs = owner.call_args
+        assert "0.435.3" in args[1] and "0.435.3" in kwargs["title"]
+        assert "Igual à da `0.435.2`" in args[1]
+        assert "Alterada" not in args[1]
+
+    async def test_failed_check_sends_nothing(self, cog, mocker):
+        owner = mocker.patch(
+            "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
+        )
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(
+            return_value={
+                "supported_version": "0.435.2",
+                "mirror_version": None,
+                "lib_changed": False,
+                "action_needed": False,
+                "status": "check_failed",
+            }
+        )
+        mocker.patch(
+            "cogs.scheduled.get_session"
+        ).return_value.get.return_value.__aenter__.return_value = mock_resp
+
+        await cog._check_polisnatch_update()
+        owner.assert_not_called()
+
     async def test_network_error_handled_gracefully(self, cog, mocker):
         owner = mocker.patch(
             "cogs.scheduled.notify_owner", new=AsyncMock(return_value=True)
