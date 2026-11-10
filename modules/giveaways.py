@@ -38,7 +38,8 @@ INSERT_SQL = (
     "draw_at = VALUES(draw_at), winners = VALUES(winners), "
     "created_by = VALUES(created_by), status = 'open', winner_ids = NULL, "
     "participants = NULL, drawn_at = NULL, awaiting_review = 0, "
-    "pending_ids = NULL, excluded_ids = NULL, review_message_id = NULL"
+    "pending_ids = NULL, excluded_ids = NULL, review_message_id = NULL, "
+    "announcement_reply_id = NULL, replacing_ids = NULL"
 )
 SELECT_SQL = "SELECT * FROM giveaway WHERE message_id = %s"
 OPEN_SQL = "SELECT * FROM giveaway WHERE status = 'open' ORDER BY draw_at"
@@ -55,7 +56,8 @@ RECENT_SQL = (
 # de uma revisão (nova mensagem). Guardado pelo estado de onde parte.
 REVIEW_SQL = (
     "UPDATE giveaway SET status = 'drawn', awaiting_review = 1, "
-    "pending_ids = %s, participants = %s, review_message_id = NULL, "
+    "pending_ids = %s, replacing_ids = %s, participants = %s, "
+    "review_message_id = NULL, "
     "drawn_at = UTC_TIMESTAMP() "
     "WHERE message_id = %s AND status = %s AND awaiting_review = %s"
 )
@@ -70,7 +72,8 @@ REROLL_SQL = (
     "AND pending_ids <=> %s"
 )
 PUBLISH_SQL = (
-    "UPDATE giveaway SET awaiting_review = 0, winner_ids = %s, pending_ids = NULL "
+    "UPDATE giveaway SET awaiting_review = 0, winner_ids = %s, excluded_ids = %s, "
+    "pending_ids = NULL, replacing_ids = NULL "
     "WHERE message_id = %s AND awaiting_review = 1 AND review_message_id = %s "
     "AND pending_ids <=> %s"
 )
@@ -78,13 +81,14 @@ PUBLISH_SQL = (
 # de um reroll, volta ao vencedor que já estava publicado.
 STOP_SQL = (
     "UPDATE giveaway SET awaiting_review = 0, pending_ids = NULL, "
-    "status = IF(winner_ids IS NULL, 'cancelled', 'drawn') "
+    "replacing_ids = NULL, status = IF(winner_ids IS NULL, 'cancelled', 'drawn') "
     "WHERE message_id = %s AND awaiting_review = 1 AND review_message_id <=> %s"
 )
 CANCEL_SQL = (
     "UPDATE giveaway SET status = 'cancelled' WHERE message_id = %s "
     "AND status = 'open'"
 )
+REPLY_SQL = "UPDATE giveaway SET announcement_reply_id = %s WHERE message_id = %s"
 CAMPFIRE_SQL = "UPDATE giveaway SET campfire_names = %s WHERE message_id = %s"
 # Treinadores associados a uma conta do Discord (`!shiny <código>`), para que
 # quem reagiu e também esteve no Campfire conte uma só vez.

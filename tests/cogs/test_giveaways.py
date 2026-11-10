@@ -169,9 +169,11 @@ def _cog(users, row=None, author_bot=False, changed=1, trainers=()):
     message.guild.get_member = MagicMock(
         side_effect=lambda uid: None if uid == 404 else object()
     )
-    message.reply = AsyncMock()
+    message.reply = AsyncMock(return_value=SimpleNamespace(id=888))
+    message.delete = AsyncMock()
     channel = MagicMock()
     channel.fetch_message = AsyncMock(return_value=message)
+    message.channel = channel
     mod_channel = MagicMock()
     mod_channel.send = AsyncMock(return_value=SimpleNamespace(id=REVIEW))
     bot.MOD_CHANNEL = mod_channel
@@ -211,7 +213,7 @@ async def test_draw_only_posts_a_review_in_moderation():
     cog, bot, message, mod_channel = _cog([_user(7)])
     assert await cog.start_review(_row()) == [7]
     (params,) = _calls(bot, giveaways.REVIEW_SQL)
-    assert params == ("[7]", 1, GIVEAWAY, "open", 0)
+    assert params == ("[7]", None, 1, GIVEAWAY, "open", 0)
     message.reply.assert_not_awaited()
     sent = mod_channel.send.call_args.kwargs
     ids = [item.custom_id for item in sent["view"].children]
@@ -260,7 +262,11 @@ async def test_only_the_announcer_can_publish():
 
     interaction = _interaction(AUTHOR, "publish")
     await cog.on_interaction(interaction)
-    assert _calls(bot, giveaways.PUBLISH_SQL) == [("[7]", GIVEAWAY, REVIEW, "[7]")]
+    assert _calls(bot, giveaways.PUBLISH_SQL) == [
+        ("[7]", None, GIVEAWAY, REVIEW, "[7]")
+    ]
+    assert _calls(bot, giveaways.REPLY_SQL) == [(888, GIVEAWAY)]
+    message.delete.assert_not_awaited()
     reply = message.reply.call_args.kwargs
     assert reply["content"] == "🎉 <@7>"
     assert reply["allowed_mentions"].everyone is False
@@ -313,14 +319,19 @@ async def test_cancel_button_stops_the_review():
 async def test_reroll_after_publishing_reopens_a_review_for_one_more():
     row = _row(status="drawn", winner_ids="7", winners=1)
     cog, bot, _, mod_channel = _cog([_user(7), _user(8)], row=row)
-    assert await cog.start_review(row) == [8]
-    assert _calls(bot, giveaways.REVIEW_SQL) == [("[8]", 2, GIVEAWAY, "drawn", 0)]
+    assert await cog.start_review(row, replacing=[7]) == [8]
+    assert _calls(bot, giveaways.REVIEW_SQL) == [
+        ("[8]", "[7]", 2, GIVEAWAY, "drawn", 0)
+    ]
+    assert (
+        "A substituir: <@7>" in mod_channel.send.call_args.kwargs["embed"].description
+    )
     assert mod_channel.send.call_args.kwargs["embed"].title.startswith("🔁")
 
 
 async def test_announcing_a_campfire_winner_pings_nobody():
     cog, _, message, _ = _cog([])
-    await cog._announce(message, _row(), ["Nuno"], 3, False)
+    await cog._announce(message, _row(), ["Nuno"], ["Nuno"], 3)
     reply = message.reply.call_args.kwargs
     assert reply["content"] is None
     assert "**Nuno** (Campfire)" in reply["embed"].description
@@ -351,3 +362,50 @@ async def test_lista_shows_discord_and_campfire_names_without_pings():
     text = sent["embed"].description
     assert "**3** participantes: 2 pela reação" in text
     assert "1. Ricmat (Discord)\n2. Ana (Discord)\n3. Nuno (Campfire)" in text
+
+
+async def test_publishing_a_replacement_swaps_the_public_reply():
+    row = _review_row(
+        winner_ids="[7]",
+        replacing_ids="[7]",
+        pending_ids="[8]",
+        announcement_reply_id=555,
+    )
+    cog, bot, message, _ = _cog([_user(7), _user(8)], row=row)
+    await cog.on_interaction(_interaction(AUTHOR, "publish"))
+    # 7 already had the prize: out of the winners, into the excluded.
+    assert _calls(bot, giveaways.PUBLISH_SQL) == [
+        ("[8]", "[7]", GIVEAWAY, REVIEW, "[8]")
+    ]
+    bot.get_channel.return_value.fetch_message.assert_awaited_with(555)
+    message.delete.assert_awaited_once()
+    reply = message.reply.call_args.kwargs
+    assert reply["content"] == "🎉 <@8>"
+    assert reply["embed"].title == "🎉 Sorteio terminado!"
+    assert "<@7>" not in reply["embed"].description
+    assert _calls(bot, giveaways.REPLY_SQL) == [(888, GIVEAWAY)]
+
+
+def _ctx(mentions=()):
+    ctx = MagicMock()
+    ctx.message.mentions = [SimpleNamespace(id=m) for m in mentions]
+    return ctx
+
+
+def test_who_to_replace():
+    assert cog_module._who_to_replace(_ctx(), "", [7]) == [7]
+    assert cog_module._who_to_replace(_ctx(), "", [7, 8]) is None
+    assert cog_module._who_to_replace(_ctx([8]), "<@8>", [7, 8]) == [8]
+    assert cog_module._who_to_replace(_ctx(), f"{LINK} nuno", [7, "Nuno"]) == ["Nuno"]
+
+
+async def test_reroll_with_several_winners_asks_who():
+    row = _row(status="drawn", winner_ids="[7, 8]", winners=2)
+    cog, bot, _, mod_channel = _cog([_user(7), _user(8), _user(9)], row=row)
+    ctx = _ctx()
+    ctx.send = AsyncMock()
+    ctx.message.reference = None
+    await cog.reroll.callback(cog, ctx, texto=LINK)
+    assert ctx.send.call_args.kwargs["embed"].title == "❓ Quem substituir?"
+    assert _calls(bot, giveaways.REVIEW_SQL) == []
+    mod_channel.send.assert_not_awaited()
