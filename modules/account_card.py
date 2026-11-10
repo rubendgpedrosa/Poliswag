@@ -15,15 +15,19 @@ from modules import scan_areas
 #
 # The card sits in the board frame every other bot image uses
 # (_board-base.css: 24px padding, 1px border, the "PoGoLeiria | heading" row
-# and the faint brand art), with the account panel inside it.
+# and the faint brand art), with the content directly on the board like the
+# week board -- no second card surface inside the frame.
 CARD_WIDTH = 800
 BOARD_PAD = 24
 BOARD_BORDER = 1
 BOARD_HEAD_H = 60  # the shared .head: 40 + 20 gap
-PANEL_WIDTH = CARD_WIDTH - 2 * BOARD_PAD - 2 * BOARD_BORDER  # 750
 INNER_PAD_TOP = 20
 INNER_PAD_BOTTOM = 18
-CONTENT_WIDTH = PANEL_WIDTH - 2 - 30 - 26  # 692: panel border, 30 left, 26 right
+INNER_PAD_X_L = 30
+INNER_PAD_X_R = 28
+CONTENT_WIDTH = (
+    CARD_WIDTH - 2 * BOARD_PAD - 2 * BOARD_BORDER - INNER_PAD_X_L - INNER_PAD_X_R
+)  # 692
 HEADER_H = 30
 POOL_DIVIDER_H = 27  # 12 margin + 1 line + 14 margin
 POOL_TITLE_H = 30

@@ -9,8 +9,7 @@
 
     /* PoGoLeiria design language (polisnatch-app/design/DESIGN.md, hub
        tokens): surfaces are separated by light, never shadow -- no drop
-       shadows, text shadows or glows; the card's only effect is the `.lit`
-       inset top highlight. Type comes only from the hub scale
+       shadows, text shadows or glows. Type comes only from the hub scale
        (10/11/13/15/17/19/22/44), figures in Bricolage Grotesque 800 with
        tabular digits, text in Figtree. Radii only 8/12/16/20/24.
 
@@ -22,26 +21,16 @@
 
        The frame is the one every bot board uses (_board-base.css: the
        "PoGoLeiria | heading" row, the faint brand art, the dark board), and
-       the account figures sit in one panel inside it, as the stat board's
-       panels do. */
+       the figures sit directly on the board, like the week board's rows --
+       no second card surface inside the frame. */
 
     {% include "_board-base.css" %}
 
-    .panel {
-        width: 750px;
-        height: {{ card_height }}px;
-        overflow: hidden;
-        border-radius: 20px;
-        background: #0C131D;
-        border: 1px solid #262E3B;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);  /* .lit */
-    }
-
     .card-inner {
-        padding: 20px 26px 18px 30px;
+        padding: 20px 28px 18px 30px;
     }
 
-    /* ---- panel header: 30px, the grand total ---- */
+    /* ---- content header: 30px, the grand total ---- */
     .header-row {
         height: 30px;
         display: flex;
@@ -304,8 +293,7 @@
             </div>
             <div class="status status-{{ status }}"><div class="status-dot"></div><div class="status-text">{{ status_label }}</div></div>
         </div>
-        <div class="panel">
-            <div class="card-inner">
+        <div class="card-inner">
                 <div class="header-row">
                     <div class="grand-total"><span class="figure">{{ grand_total }}</span><span class="unit">in total</span></div>
                 </div>
@@ -366,7 +354,6 @@
                 </div>
                 {% endfor %}
                 {% endif %}
-            </div>
         </div>
     </div>
 </body>
