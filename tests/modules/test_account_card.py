@@ -180,8 +180,20 @@ class TestHeights:
         assert ac.AREA_ROW_GAP == 12
         assert "margin-right: 13px" in css and ac.AREA_COL_GAP == 13
         assert "margin: 18px 0 16px" in css and ac.AREA_DIVIDER_H == 18 + 1 + 16
-        assert re.search(r"\.panel \{\s*width: (\d+)px", css).group(1) == str(
-            ac.PANEL_WIDTH
+        # The content sits directly on the board: .card-inner's padding is
+        # what bounds the text, and CONTENT_WIDTH follows from it.
+        pad = re.search(
+            r"\.card-inner \{\s*padding: (\d+)px (\d+)px (\d+)px (\d+)px;", css
+        )
+        top, right, bottom, left = map(int, pad.groups())
+        assert (top, bottom, left, right) == (
+            ac.INNER_PAD_TOP,
+            ac.INNER_PAD_BOTTOM,
+            ac.INNER_PAD_X_L,
+            ac.INNER_PAD_X_R,
+        )
+        assert ac.CONTENT_WIDTH == (
+            ac.CARD_WIDTH - 2 * ac.BOARD_PAD - 2 * ac.BOARD_BORDER - left - right
         )
         assert block_height(".bar") + 12 == ac.POOL_BAR_H
         assert block_height(".note, .low") + 10 == ac.POOL_NOTE_H == ac.POOL_LOW_H
@@ -218,8 +230,9 @@ class TestDesignTokens:
     css = Path("templates/accounts.html").read_text(encoding="utf-8")
 
     def test_no_drop_shadows_or_glows(self):
-        shadows = re.findall(r"(?:box|text)-shadow:\s*([^;]+);", self.css)
-        assert shadows == ["inset 0 1px 0 rgba(255, 255, 255, 0.07)"]
+        # No second surface inside the board frame, so not even the `.lit`
+        # inset highlight is needed.
+        assert not re.findall(r"(?:box|text)-shadow:", self.css)
 
     def test_font_sizes_only_from_the_scale(self):
         sizes = {int(n) for n in re.findall(r"font-size:\s*(\d+)px", self.css)}
