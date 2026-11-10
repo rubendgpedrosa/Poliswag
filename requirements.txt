@@ -8,3 +8,4 @@ PyMySQL==1.2.3
 python-dotenv==1.2.4
 Requests==2.34.2
 certifi>=2026.10.23
+anthropic==2.8.0

@@ -40,6 +40,12 @@ class Config:
         "POLISNATCH_JOBS_URL", "https://polisnatch.pogoleiria.pt/v1/jobs"
     )
     POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
+    POLISNATCH_STATUS_URL = os.environ.get(
+        "POLISNATCH_STATUS_URL", "http://192.168.1.242:9300/v1/game/status"
+    )
+    POLISNATCH_UPDATE_STATE_FILE = os.environ.get(
+        "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
+    )
     MY_ID = int(os.environ.get("MY_ID", "0"))
     # Apoio por MB Way (!mbway). Free text so the owner can change the
     # wording, not just the number, without touching code; empty means the
@@ -177,6 +183,10 @@ class Config:
     # claude-bridge in CT 109 (owner DMs prefixed `c `); empty key disables calls.
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")
     CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+    # !sorteio campfire: leitura das capturas do Campfire (Messages API).
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_WORKSPACE_ID = os.environ.get("ANTHROPIC_WORKSPACE_ID", "")
+    CAMPFIRE_MODEL = os.environ.get("CAMPFIRE_MODEL", "claude-sonnet-5-5")
     CLAUDE_RUNS_DIR = os.environ.get("CLAUDE_RUNS_DIR", "logs/claude-runs")
     # Who gets the owner's unprefixed DMs: "hermes" or "claude". Switched by
     # !usehermes / !useclaude, which also write it to .env for the next boot.

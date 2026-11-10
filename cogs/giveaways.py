@@ -1,17 +1,32 @@
-"""!sorteio: sorteios por reação num anúncio.
+"""!sorteio: sorteios por reação num anúncio, revistos pelos mods.
 
-Um mod regista a mensagem (link ou resposta a ela); o bot lê do próprio texto
-a hora (`<t:…>`) e o emoji personalizado, e reage com ele para que entrar seja
-um clique. A cada minuto, um sorteio cuja hora chegou é tirado entre quem tem
-a reação nesse momento (sem bots, sem quem escreveu o anúncio, que entrega o
-prémio, e sem quem o registou). O vencedor é anunciado em resposta ao anúncio
-e quem registou recebe um DM com o resultado.
+Um mod regista a mensagem (`!sorteio <link>` ou resposta a ela); o bot lê do
+próprio texto a hora (`<t:…>`) e o emoji personalizado, e reage com ele para
+que entrar seja um clique. Quem esteve no Campfire entra com
+`!sorteio campfire` + capturas. À hora marcada (ou com `!sorteio sortear`) o
+bot tira um nome entre quem tem a reação nesse momento e os do Campfire (sem
+bots, sem quem escreveu o anúncio, que entrega o prémio, e sem quem o
+registou), e não anuncia nada: põe uma mensagem de revisão no canal de
+moderação, sem prazo, com quatro botões:
+
+- Publicar: responde ao anúncio com o vencedor. Só quem escreveu o anúncio o
+  pode fazer (os mods, se foi o Poliswag a escrevê-lo).
+- Repetir: tira outro nome; quem saiu pode voltar a sair numa próxima vez.
+- Repetir sem este: tira outro e exclui quem saiu (já tem o prémio).
+- Cancelar: para tudo.
+
+`!sorteio reroll` abre uma nova revisão depois de publicado.
 """
+
+import io
+from pathlib import Path
+from types import SimpleNamespace
 
 import discord
 from discord.ext import commands, tasks
 
-from modules import giveaways
+from modules import campfire, giveaways
+from modules.config import Config
 from modules.embeds import status_embed
 from modules.permissions import is_mod
 
@@ -20,11 +35,24 @@ _USAGE = (
     "`!sorteio <link da mensagem>`. A hora (`<t:…>`) e o emoji personalizado "
     "vêm do próprio anúncio; podes indicar outros: "
     "`!sorteio <link> <t:1794348000:f> 2` (2 vencedores).\n"
-    "**Ver:** `!sorteio estado` · **Já:** `!sorteio sortear` · "
-    "**Novo vencedor:** `!sorteio repetir` · `!sorteio cancelar`\n"
-    "Com um só sorteio aberto não precisas do link."
+    "**Campfire:** `!sorteio campfire` com as capturas anexadas (ou em resposta "
+    "a elas, ou com o link da mensagem que as tem): os nomes entram no sorteio, "
+    "sem contar duas vezes quem também reagiu. `!sorteio campfire limpar` tira-os.\n"
+    "**Sortear:** à hora marcada, ou já com `!sorteio sortear`. O resultado vai "
+    "para a moderação com os botões Publicar · Repetir · Repetir sem este · "
+    "Cancelar; só quem escreveu o anúncio publica.\n"
+    "**Depois:** `!sorteio reroll` (novo vencedor) · `!sorteio estado` · "
+    "`!sorteio cancelar`\n"
+    "Com um só sorteio ativo não precisas do link."
 )
 _MAX_WINNERS = 20
+_PREFIX = "sorteio"
+_ACTIONS = ("publish", "reroll", "exclude", "stop")
+_NO_PINGS = discord.AllowedMentions.none()
+
+
+def _plural(count, one, many):
+    return f"{count} {one if count == 1 else many}"
 
 
 class Giveaways(commands.Cog):
@@ -51,7 +79,7 @@ class Giveaways(commands.Cog):
             return
         for row in rows or []:
             try:
-                await self.draw(row)
+                await self.start_review(row)
             except Exception as error:
                 self._log(
                     f"draw {row.get('message_id')} failed: "
@@ -63,33 +91,55 @@ class Giveaways(commands.Cog):
     async def before_draw_due(self):
         await self.poliswag.wait_until_ready()
 
-    # --- core ------------------------------------------------------------
+    # --- participants ----------------------------------------------------
 
     def _log(self, text, level="INFO"):
         self.poliswag.utility.log_to_file(f"[SORTEIO] {text}", level)
 
-    async def _message(self, row):
-        channel_id = int(row["channel_id"])
-        channel = self.poliswag.get_channel(channel_id)
+    async def _channel(self, channel_id):
+        channel = self.poliswag.get_channel(int(channel_id))
         if channel is None:
-            channel = await self.poliswag.fetch_channel(channel_id)
+            channel = await self.poliswag.fetch_channel(int(channel_id))
+        return channel
+
+    async def _message(self, row):
+        channel = await self._channel(row["channel_id"])
         return await channel.fetch_message(int(row["message_id"]))
 
+    async def _mod_channel(self):
+        channel = getattr(self.poliswag, "MOD_CHANNEL", None)
+        if channel is None and Config.MOD_CHANNEL_ID:
+            channel = await self._channel(Config.MOD_CHANNEL_ID)
+        return channel
+
+    async def _trainers(self):
+        """{discord_id: [trainer_name]} de quem associou a conta."""
+        try:
+            rows = await self.poliswag.db.get_data_from_database(giveaways.TRAINERS_SQL)
+        except Exception as error:
+            self._log(f"trainer names unavailable: {type(error).__name__}", "ERROR")
+            return {}
+        trainers = {}
+        for row in rows or []:
+            trainers.setdefault(int(row["discord_id"]), []).append(row["trainer_name"])
+        return trainers
+
     async def participants(self, row, message=None):
-        """(mensagem, ids) de quem tem a reação agora: sem bots, sem o autor
-        do anúncio nem quem registou o sorteio, e só membros do servidor
-        quando a lista de membros está completa."""
+        """(mensagem, ids, nomes) de quem tem a reação agora: sem bots, sem o
+        autor do anúncio nem quem registou o sorteio, e só membros do
+        servidor quando a lista de membros está completa. `nomes` é
+        {discord_id: [nomes no Discord]}, para comparar com o Campfire."""
         message = message or await self._message(row)
         reaction = next(
             (r for r in message.reactions if str(r.emoji) == row["emoji"]), None
         )
         if reaction is None:
-            return message, []
+            return message, [], {}
         guild = message.guild
         excluded = {int(row["created_by"]), message.author.id}
-        ids = []
+        ids, names = [], {}
         async for user in reaction.users(limit=None):
-            if user.bot or user.id in excluded or user.id in ids:
+            if user.bot or user.id in excluded or user.id in names:
                 continue
             if (
                 guild is not None
@@ -98,125 +148,365 @@ class Giveaways(commands.Cog):
             ):
                 continue
             ids.append(user.id)
-        return message, ids
+            names[user.id] = _names_of(user)
+        return message, ids, names
 
-    async def draw(self, row, reroll=False):
-        """Tira o(s) vencedor(es), fecha a linha e anuncia. Devolve os novos
-        vencedores, [] sem participantes, ou None se outro sorteio já a fechou."""
-        message, ids = await self.participants(row)
-        previous = giveaways.winner_ids(row)
-        count = 1 if reroll else int(row.get("winners") or 1)
-        won = giveaways.pick(ids, count, exclude=previous)
-        all_winners = previous + won
-        expected = "drawn" if reroll else "open"
-        closed = await self.poliswag.db.execute_query_to_database(
-            giveaways.CLOSE_SQL,
+    async def entries(self, row, message=None):
+        """(mensagem, entradas, ids do Discord, nomes do Campfire repetidos):
+        todos os que podem ganhar, cada pessoa uma vez."""
+        message, ids, names = await self.participants(row, message)
+        trainers = await self._trainers()
+        aliases = {}
+        for user_id in ids:
+            for name in names.get(user_id, []) + trainers.get(user_id, []):
+                aliases.setdefault(giveaways.name_key(name), user_id)
+        blocked = set()
+        for user_id in {int(row["created_by"]), message.author.id}:
+            for name in trainers.get(user_id, []):
+                blocked.add(giveaways.name_key(name))
+        for name in _names_of(message.author):
+            blocked.add(giveaways.name_key(name))
+        pool, duplicates = giveaways.pool(
+            ids,
+            giveaways.entries(row.get("campfire_names")),
+            aliases,
+            blocked,
+        )
+        return message, pool, ids, duplicates
+
+    # --- review ----------------------------------------------------------
+
+    async def start_review(self, row, reroll=False):
+        """Tira o(s) nome(s) e põe a revisão na moderação. De `open` (o
+        sorteio), de publicado ou de uma revisão (`reroll`). Devolve quem
+        saiu, [] sem ninguém, ou None se outro pedido já mudou a linha."""
+        message, pool, ids, duplicates = await self.entries(row)
+        winners = giveaways.winner_ids(row)
+        exclude = winners + giveaways.entries(row.get("excluded_ids"))
+        count = 1 if winners else int(row.get("winners") or 1)
+        avoid = giveaways.entries(row.get("pending_ids")) if reroll else ()
+        pending = giveaways.pick(pool, count, exclude=exclude, avoid=avoid)
+        from_status, from_review = (
+            ("drawn", 1 if giveaways.in_review(row) else 0)
+            if row["status"] == "drawn"
+            else ("open", 0)
+        )
+        changed = await self.poliswag.db.execute_query_to_database(
+            giveaways.REVIEW_SQL,
             params=(
-                ",".join(str(i) for i in all_winners) or None,
-                len(ids),
+                giveaways.dump(pending),
+                len(pool),
                 int(row["message_id"]),
-                expected,
+                from_status,
+                from_review,
             ),
         )
-        if not closed:
+        if not changed:
             return None
+        old_review = row.get("review_message_id") if from_review else None
+        row = {
+            **row,
+            "status": "drawn",
+            "awaiting_review": 1,
+            "pending_ids": giveaways.dump(pending),
+            "participants": len(pool),
+            "review_message_id": None,
+        }
         self._log(
-            f"{giveaways.message_link(row)}: {len(ids)} participants, "
-            f"winners {won} (reroll={reroll})"
+            f"{giveaways.message_link(row)}: {len(pool)} entries "
+            f"({len(ids)} discord), drew {pending} for review"
         )
-        await self._announce(message, row, won, len(ids), reroll)
-        await self._tell_creator(row, won, len(ids), reroll)
-        return won
+        channel = await self._mod_channel()
+        if channel is None:
+            self._log("no moderation channel for the review", "ERROR")
+            return pending
+        embed = self._review_embed(row, message, pool, ids, duplicates)
+        review = await channel.send(
+            embed=embed,
+            view=self._review_view(row, can_publish=bool(pending)),
+            allowed_mentions=_NO_PINGS,
+        )
+        await self.poliswag.db.execute_query_to_database(
+            giveaways.REVIEW_MESSAGE_SQL,
+            params=(review.id, int(row["message_id"])),
+        )
+        if old_review:
+            await self._retire(channel, old_review, "Substituída por uma nova revisão.")
+        return pending
+
+    def _review_embed(self, row, message, pool, ids, duplicates, footer=None):
+        winners = giveaways.winner_ids(row)
+        pending = giveaways.entries(row.get("pending_ids"))
+        excluded = giveaways.entries(row.get("excluded_ids"))
+        from_campfire = len(pool) - len(ids)
+        lines = [
+            f"[Anúncio]({giveaways.message_link(row)}) · "
+            f"{_plural(len(pool), 'participante', 'participantes')} "
+            f"({len(ids)} pela reação {row['emoji']}"
+            + (f", {from_campfire} do Campfire" if from_campfire else "")
+            + ")"
+            + (
+                f" · {_plural(len(duplicates), 'nome', 'nomes')} do Campfire "
+                "já contava(m) pela reação"
+                if duplicates
+                else ""
+            ),
+        ]
+        if pending:
+            label = "Saiu" if len(pending) == 1 else "Saíram"
+            lines.append(f"\n**{label}:** " + ", ".join(map(_describe, pending)))
+        else:
+            lines.append("\n**Ninguém para sortear** (sem participantes novos).")
+        if winners:
+            lines.append("Já publicado: " + ", ".join(map(giveaways.show, winners)))
+        if excluded:
+            lines.append("Excluídos: " + ", ".join(map(giveaways.show, excluded)))
+        publisher = (
+            "os mods"
+            if message.author.bot
+            else f"<@{message.author.id}> (quem escreveu o anúncio)"
+        )
+        lines.append(
+            f"\n**Publicar** responde ao anúncio com o vencedor; só {publisher} "
+            "pode publicar. **Repetir** tira outro nome; **Repetir sem este** "
+            "também o exclui (já tem o prémio). Nada é publicado sem um clique."
+        )
+        title = "🔁 Novo vencedor: confirmar" if winners else "🎟️ Sorteio: confirmar"
+        embed = status_embed(title, "\n".join(lines))
+        if footer:
+            embed.set_footer(text=footer)
+        return embed
+
+    @staticmethod
+    def _review_view(row, can_publish=True):
+        message_id = int(row["message_id"])
+        view = discord.ui.View(timeout=None)
+        for action, label, style in (
+            ("publish", "Publicar", discord.ButtonStyle.success),
+            ("reroll", "Repetir", discord.ButtonStyle.primary),
+            ("exclude", "Repetir sem este", discord.ButtonStyle.secondary),
+            ("stop", "Cancelar", discord.ButtonStyle.danger),
+        ):
+            view.add_item(
+                discord.ui.Button(
+                    label=label,
+                    style=style,
+                    custom_id=f"{_PREFIX}:{action}:{message_id}",
+                    disabled=action == "publish" and not can_publish,
+                )
+            )
+        return view
+
+    async def _retire(self, channel, review_id, footer):
+        """Tira os botões de uma revisão que deixou de valer."""
+        try:
+            old = await channel.fetch_message(int(review_id))
+            embed = old.embeds[0] if old.embeds else None
+            if embed is not None:
+                embed.set_footer(text=footer)
+            await old.edit(embed=embed, view=None)
+        except discord.HTTPException:
+            pass
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction):
+        parts = ((interaction.data or {}).get("custom_id") or "").split(":")
+        if len(parts) != 3 or parts[0] != _PREFIX or parts[1] not in _ACTIONS:
+            return
+        action, message_id = parts[1], int(parts[2])
+        await interaction.response.defer()
+        try:
+            await self._handle(interaction, action, message_id)
+        except Exception as error:
+            self._log(
+                f"button {action} on {message_id} failed: "
+                f"{type(error).__name__}: {error}",
+                "ERROR",
+            )
+            await self._whisper(interaction, "Algo correu mal; vê o log do Poliswag.")
+
+    async def _whisper(self, interaction, text):
+        await interaction.followup.send(text, ephemeral=True)
+
+    def _is_mod(self, user):
+        return is_mod(SimpleNamespace(author=user, bot=self.poliswag))
+
+    async def _handle(self, interaction, action, message_id):
+        db = self.poliswag.db
+        rows = await db.get_data_from_database(
+            giveaways.SELECT_SQL, params=(message_id,)
+        )
+        row = rows[0] if rows else None
+        review_id = interaction.message.id
+        if (
+            row is None
+            or not giveaways.in_review(row)
+            or int(row.get("review_message_id") or 0) != review_id
+        ):
+            await interaction.message.edit(view=None)
+            await self._whisper(interaction, "Esta revisão já não está ativa.")
+            return
+        message = await self._message(row)
+        user = interaction.user
+        author_id = message.author.id
+        if action == "publish":
+            allowed = self._is_mod(user) if message.author.bot else user.id == author_id
+            if not allowed:
+                await self._whisper(
+                    interaction,
+                    f"Só <@{author_id}>, que escreveu o anúncio, pode publicar.",
+                )
+                return
+        elif not (self._is_mod(user) or user.id == author_id):
+            await self._whisper(interaction, "Só os mods mexem neste sorteio.")
+            return
+
+        pending = giveaways.entries(row.get("pending_ids"))
+        winners = giveaways.winner_ids(row)
+        if action == "stop":
+            await db.execute_query_to_database(
+                giveaways.STOP_SQL, params=(message_id, review_id)
+            )
+            self._log(f"{user} stopped {giveaways.message_link(row)}")
+            note = (
+                "volta ao vencedor já publicado" if winners else "ninguém foi sorteado"
+            )
+            await self._close(
+                interaction, f"🚫 Cancelado por {user.display_name}: {note}."
+            )
+            return
+
+        if action == "publish":
+            if not pending:
+                await self._whisper(interaction, "Não há ninguém para publicar.")
+                return
+            done = await db.execute_query_to_database(
+                giveaways.PUBLISH_SQL,
+                params=(
+                    giveaways.dump(winners + pending),
+                    message_id,
+                    review_id,
+                    row["pending_ids"],
+                ),
+            )
+            if not done:
+                await self._whisper(interaction, "Esta revisão acabou de mudar.")
+                return
+            self._log(f"{user} published {pending} on {giveaways.message_link(row)}")
+            await self._announce(
+                message, row, pending, int(row.get("participants") or 0), bool(winners)
+            )
+            await self._close(interaction, f"✅ Publicado por {user.display_name}.")
+            return
+
+        # reroll / exclude
+        message, pool, ids, duplicates = await self.entries(row, message)
+        excluded = giveaways.entries(row.get("excluded_ids"))
+        if action == "exclude":
+            excluded = excluded + [p for p in pending if p not in excluded]
+        count = len(pending) or (1 if winners else int(row.get("winners") or 1))
+        new = giveaways.pick(pool, count, exclude=winners + excluded, avoid=pending)
+        if action == "reroll" and pending and set(new) == set(pending):
+            await self._whisper(interaction, "Não há mais ninguém para tirar.")
+            return
+        done = await db.execute_query_to_database(
+            giveaways.REROLL_SQL,
+            params=(
+                giveaways.dump(new),
+                giveaways.dump(excluded),
+                len(pool),
+                message_id,
+                review_id,
+                row["pending_ids"],
+            ),
+        )
+        if not done:
+            await self._whisper(interaction, "Esta revisão acabou de mudar.")
+            return
+        self._log(
+            f"{user} {action} on {giveaways.message_link(row)}: {pending} -> {new}"
+        )
+        row = {
+            **row,
+            "pending_ids": giveaways.dump(new),
+            "excluded_ids": giveaways.dump(excluded),
+        }
+        footer = (
+            f"🚫 {user.display_name} excluiu quem tinha saído e repetiu."
+            if action == "exclude"
+            else f"🔁 Repetido por {user.display_name}."
+        )
+        await interaction.message.edit(
+            embed=self._review_embed(row, message, pool, ids, duplicates, footer),
+            view=self._review_view(row, can_publish=bool(new)),
+        )
+
+    async def _close(self, interaction, footer):
+        embeds = interaction.message.embeds
+        embed = embeds[0] if embeds else None
+        if embed is not None:
+            embed.set_footer(text=footer)
+        await interaction.message.edit(embed=embed, view=None)
 
     async def _announce(self, message, row, won, total, reroll):
-        if not won:
-            text = None
-            embed = status_embed(
-                "🎟️ Sorteio sem participantes",
-                f"Ninguém reagiu com {row['emoji']}, por isso não houve vencedor.",
-            )
-        else:
-            mentions = ", ".join(f"<@{i}>" for i in won)
-            text = f"🎉 {mentions}"
-            title = "🔁 Novo vencedor do sorteio" if reroll else "🎉 Sorteio terminado!"
-            embed = status_embed(
-                title,
-                f"Parabéns {mentions}! "
-                f"{'Ganhaste' if len(won) == 1 else 'Ganharam'} o sorteio "
-                f"({total} {'participante' if total == 1 else 'participantes'}).\n"
-                f"Vais receber o prémio de <@{message.author.id}>.",
-            )
+        mentions = ", ".join(giveaways.show(w) for w in won)
+        pings = " ".join(f"<@{w}>" for w in won if isinstance(w, int))
+        giver = int(row["created_by"]) if message.author.bot else message.author.id
+        title = "🔁 Novo vencedor do sorteio" if reroll else "🎉 Sorteio terminado!"
+        embed = status_embed(
+            title,
+            f"Parabéns {mentions}! "
+            f"{'Ganhaste' if len(won) == 1 else 'Ganharam'} o sorteio "
+            f"({_plural(total, 'participante', 'participantes')}).\n"
+            f"Vais receber o prémio de <@{giver}>.",
+        )
         await message.reply(
-            content=text,
+            content=f"🎉 {pings}" if pings else None,
             embed=embed,
             allowed_mentions=discord.AllowedMentions(
                 users=True, everyone=False, roles=False, replied_user=False
             ),
         )
 
-    async def _tell_creator(self, row, won, total, reroll):
-        creator_id = int(row["created_by"])
-        try:
-            user = self.poliswag.get_user(creator_id) or await self.poliswag.fetch_user(
-                creator_id
-            )
-            lines = [
-                f"[Anúncio]({giveaways.message_link(row)}) · {total} participantes."
-            ]
-            if won:
-                lines.append("Vencedor: " + ", ".join(f"<@{i}> (`{i}`)" for i in won))
-                lines.append(
-                    "Se não responder, `!sorteio repetir` tira outro (sem repetir "
-                    "quem já ganhou)."
-                )
-            else:
-                lines.append("Sem participantes: ninguém ganhou.")
-            await user.send(
-                embed=status_embed(
-                    "🔁 Sorteio repetido" if reroll else "🎟️ Sorteio feito",
-                    "\n".join(lines),
-                )
-            )
-        except discord.HTTPException as error:
-            self._log(f"creator DM failed: {error}", "ERROR")
-
     # --- commands --------------------------------------------------------
 
-    async def _target(self, ctx, text, statuses=("open",)):
+    async def _target(self, ctx, text, wanted, latest=False, quiet=False):
         """A linha visada: link no texto, a mensagem a que se responde, ou o
-        único sorteio aberto."""
-        parsed = giveaways.parse_link(text)
+        único sorteio ativo. `wanted(row)` diz que linhas servem; com
+        `latest`, entre várias fica a mais recente."""
+        links = giveaways.parse_links(text)
         reference = getattr(ctx.message, "reference", None)
-        message_id = (
-            parsed[1]
-            if parsed
-            else getattr(reference, "message_id", None) if reference else None
-        )
+        candidates = [m for _, m in links]
+        if reference and reference.message_id:
+            candidates.append(reference.message_id)
         db = self.poliswag.db
-        if message_id:
+        for message_id in candidates:
             rows = await db.get_data_from_database(
                 giveaways.SELECT_SQL, params=(int(message_id),)
             )
-            row = rows[0] if rows else None
-            if row is None or row["status"] not in statuses:
-                await ctx.send(embed=status_embed("❌ Sorteio não encontrado", _USAGE))
+            if rows:
+                if wanted(rows[0]):
+                    return rows[0]
+                if not quiet:
+                    await ctx.send(
+                        embed=status_embed("❌ Este sorteio não serve aqui", _USAGE)
+                    )
                 return None
-            return row
-        rows = await db.get_data_from_database(giveaways.OPEN_SQL)
-        if "drawn" in statuses and not rows:
-            rows = await db.get_data_from_database(
-                "SELECT * FROM giveaway WHERE status = 'drawn' "
-                "ORDER BY drawn_at DESC LIMIT 1"
-            )
-        if len(rows or []) != 1:
+        rows = [
+            r
+            for r in await db.get_data_from_database(giveaways.RECENT_SQL) or []
+            if wanted(r)
+        ]
+        if len(rows) == 1 or (rows and latest):
+            return rows[0]
+        if not quiet:
             await ctx.send(
                 embed=status_embed(
-                    "❓ Qual sorteio?",
+                    "❓ Qual sorteio?" if rows else "❌ Sorteio não encontrado",
                     "Indica o link da mensagem ou responde ao anúncio.\n\n" + _USAGE,
                 )
             )
-            return None
-        return rows[0]
+        return None
 
     @commands.group(
         name="sorteio",
@@ -235,9 +525,7 @@ class Giveaways(commands.Cog):
         else:
             channel_id, message_id = reference.channel_id, reference.message_id
         try:
-            channel = self.poliswag.get_channel(
-                channel_id
-            ) or await self.poliswag.fetch_channel(channel_id)
+            channel = await self._channel(channel_id)
             message = await channel.fetch_message(message_id)
         except discord.HTTPException:
             await ctx.send(
@@ -289,102 +577,320 @@ class Giveaways(commands.Cog):
             f"{ctx.author} registered {message.jump_url} emoji {emoji} at {draw_at}"
         )
         when = giveaways.unix(draw_at)
+        publisher = "os mods" if message.author.bot else f"<@{message.author.id}>"
         await ctx.send(
             embed=status_embed(
                 "🎟️ Sorteio registado",
                 f"[Anúncio]({message.jump_url}) · entra quem reagir com {emoji}.\n"
                 f"Sorteio: <t:{when}:F> (<t:{when}:R>) · "
-                f"{winners} {'vencedor' if winners == 1 else 'vencedores'}.\n"
+                f"{_plural(winners, 'vencedor', 'vencedores')}.\n"
                 + (
                     "Já reagi com o emoji, por isso entrar é um clique."
                     if reacted
                     else "Não consegui reagir com o emoji (o bot não o tem?)."
                 )
-                + "\nNão entram bots, nem tu, nem quem escreveu o anúncio.",
-            )
+                + "\nNão entram bots, nem tu, nem quem escreveu o anúncio.\n"
+                "Quem esteve no Campfire: `!sorteio campfire` com as capturas.\n"
+                "O resultado vem para a moderação; nada é anunciado sem "
+                f"{publisher} carregar em Publicar.",
+            ),
+            allowed_mentions=_NO_PINGS,
         )
 
     async def _list(self, ctx):
-        rows = await self.poliswag.db.get_data_from_database(giveaways.OPEN_SQL)
+        rows = await self.poliswag.db.get_data_from_database(giveaways.RECENT_SQL)
         if not rows:
-            await ctx.send(embed=status_embed("🎟️ Sem sorteios abertos", _USAGE))
+            await ctx.send(embed=status_embed("🎟️ Sem sorteios ativos", _USAGE))
             return
         lines = [
-            f"[Anúncio]({giveaways.message_link(r)}) · {r['emoji']} · "
-            f"<t:{giveaways.unix(r['draw_at'])}:R>"
+            f"[Anúncio]({giveaways.message_link(r)}) · {r['emoji']} · {_state(r)}"
             for r in rows
         ]
         await ctx.send(
-            embed=status_embed(
-                "🎟️ Sorteios abertos", "\n".join(lines) + "\n\n" + _USAGE
-            )
+            embed=status_embed("🎟️ Sorteios", "\n".join(lines) + "\n\n" + _USAGE),
+            allowed_mentions=_NO_PINGS,
         )
 
     @sorteio.command(name="estado", brief="Quantos participantes tem o sorteio")
     async def estado(self, ctx, *, texto: str = ""):
-        row = await self._target(ctx, texto, statuses=("open", "drawn"))
+        row = await self._target(
+            ctx, texto, lambda r: r["status"] in ("open", "drawn"), latest=True
+        )
         if row is None:
             return
-        _, ids = await self.participants(row)
-        when = giveaways.unix(row["draw_at"])
+        _, pool, ids, duplicates = await self.entries(row)
         lines = [
             f"[Anúncio]({giveaways.message_link(row)}) · {row['emoji']}",
-            f"**{len(ids)}** {'participante' if len(ids) == 1 else 'participantes'}"
-            " neste momento.",
-        ]
-        if row["status"] == "open":
-            lines.append(f"Sorteio <t:{when}:F> (<t:{when}:R>).")
-        else:
-            won = giveaways.winner_ids(row)
-            lines.append(
-                "Já sorteado. Vencedor(es): "
-                + (", ".join(f"<@{i}>" for i in won) or "ninguém")
+            f"**{len(pool)}** {'participante' if len(pool) == 1 else 'participantes'}"
+            f" neste momento: {len(ids)} pela reação, {len(pool) - len(ids)} do "
+            "Campfire"
+            + (
+                f" ({len(duplicates)} do Campfire também reagiram)"
+                if duplicates
+                else ""
             )
-        await ctx.send(embed=status_embed("🎟️ Estado do sorteio", "\n".join(lines)))
+            + ".",
+            _state(row),
+        ]
+        await ctx.send(
+            embed=status_embed("🎟️ Estado do sorteio", "\n".join(lines)),
+            allowed_mentions=_NO_PINGS,
+        )
 
     @sorteio.command(name="sortear", brief="Sorteia já, sem esperar pela hora")
     async def sortear(self, ctx, *, texto: str = ""):
-        row = await self._target(ctx, texto)
+        row = await self._target(ctx, texto, lambda r: r["status"] == "open")
         if row is None:
             return
-        won = await self.draw(row)
-        if won is None:
+        drawn = await self.start_review(row)
+        if drawn is None:
             await ctx.send(embed=status_embed("ℹ️ Este sorteio já foi feito"))
         else:
             await ctx.send(
-                embed=status_embed("✅ Sorteio feito", "Vê o resultado no anúncio.")
+                embed=status_embed(
+                    "✅ Sorteio feito", "O resultado está na moderação, por publicar."
+                )
             )
 
-    @sorteio.command(name="repetir", brief="Tira um novo vencedor (sem repetir)")
-    async def repetir(self, ctx, *, texto: str = ""):
-        row = await self._target(ctx, texto, statuses=("drawn",))
+    @sorteio.command(
+        name="reroll",
+        aliases=["repetir"],
+        brief="Tira um novo vencedor e manda-o para revisão",
+    )
+    async def reroll(self, ctx, *, texto: str = ""):
+        row = await self._target(
+            ctx, texto, lambda r: r["status"] == "drawn", latest=True
+        )
         if row is None:
             return
-        won = await self.draw(row, reroll=True)
-        if not won:
+        drawn = await self.start_review(row, reroll=giveaways.in_review(row))
+        if drawn is None:
+            await ctx.send(embed=status_embed("ℹ️ O sorteio mudou entretanto"))
+        elif not drawn:
             await ctx.send(
                 embed=status_embed(
                     "ℹ️ Sem novo vencedor",
-                    "Já não há participantes que ainda não tenham ganho.",
+                    "Já não há participantes que não tenham ganho ou sido "
+                    "excluídos. A revisão está na moderação.",
                 )
             )
         else:
             await ctx.send(
-                embed=status_embed("✅ Novo vencedor", "Vê o resultado no anúncio.")
+                embed=status_embed(
+                    "✅ Novo vencedor tirado",
+                    "Está na moderação, por publicar.",
+                )
             )
 
-    @sorteio.command(name="cancelar", brief="Cancela um sorteio aberto")
+    @sorteio.command(name="cancelar", brief="Cancela um sorteio aberto ou em revisão")
     async def cancelar(self, ctx, *, texto: str = ""):
-        row = await self._target(ctx, texto)
+        row = await self._target(
+            ctx,
+            texto,
+            lambda r: r["status"] == "open" or giveaways.in_review(r),
+        )
         if row is None:
             return
-        await self.poliswag.db.execute_query_to_database(
-            giveaways.CANCEL_SQL, params=(int(row["message_id"]),)
-        )
+        if row["status"] == "open":
+            await self.poliswag.db.execute_query_to_database(
+                giveaways.CANCEL_SQL, params=(int(row["message_id"]),)
+            )
+        else:
+            await self.poliswag.db.execute_query_to_database(
+                giveaways.STOP_SQL,
+                params=(int(row["message_id"]), row.get("review_message_id")),
+            )
+            channel = await self._mod_channel()
+            if channel is not None and row.get("review_message_id"):
+                await self._retire(
+                    channel,
+                    row["review_message_id"],
+                    f"🚫 Cancelado por {ctx.author.display_name}.",
+                )
         self._log(f"{ctx.author} cancelled {giveaways.message_link(row)}")
         await ctx.send(
-            embed=status_embed("🚫 Sorteio cancelado", "Ninguém vai ser sorteado.")
+            embed=status_embed(
+                "🚫 Sorteio cancelado",
+                (
+                    "Volta ao vencedor já publicado."
+                    if giveaways.winner_ids(row)
+                    else "Ninguém vai ser sorteado."
+                ),
+            )
         )
+
+    @sorteio.command(name="campfire", brief="Junta os nomes do Campfire ao sorteio")
+    async def campfire_names(self, ctx, *, texto: str = ""):
+        db = self.poliswag.db
+        row = await self._target(
+            ctx,
+            texto,
+            lambda r: r["status"] == "open" or giveaways.in_review(r),
+            quiet=True,
+        )
+        if texto.strip().lower().startswith("limpar"):
+            if row is None:
+                await ctx.send(embed=status_embed("❌ Sorteio não encontrado", _USAGE))
+                return
+            await db.execute_query_to_database(
+                giveaways.CAMPFIRE_SQL, params=(None, int(row["message_id"]))
+            )
+            await ctx.send(embed=status_embed("🧹 Nomes do Campfire retirados"))
+            return
+        images, problems = await self._images(ctx, texto, row)
+        if not images:
+            await ctx.send(
+                embed=status_embed(
+                    "❌ Sem capturas",
+                    "\n".join(problems)
+                    or "Anexa as capturas do Campfire ao comando, responde à "
+                    "mensagem que as tem, ou junta o link dela.",
+                )
+            )
+            return
+        try:
+            async with ctx.typing():
+                read = await campfire.read_names(images)
+        except campfire.CampfireError as error:
+            self._log(f"campfire read failed: {error}", "ERROR")
+            await ctx.send(
+                embed=status_embed("❌ Não consegui ler as capturas", str(error))
+            )
+            return
+        new = giveaways.merge_names(read)
+        lines = [
+            f"Li **{len(new)}** {'conta' if len(new) == 1 else 'contas'} em "
+            f"{_plural(len(images), 'captura', 'capturas')}"
+            + (f" ({len(read) - len(new)} repetidas)" if len(read) > len(new) else "")
+            + "."
+        ]
+        lines += problems
+        names = new
+        if row is not None:
+            before = giveaways.entries(row.get("campfire_names"))
+            names = giveaways.merge_names(before, new)
+            await db.execute_query_to_database(
+                giveaways.CAMPFIRE_SQL,
+                params=(giveaways.dump(names), int(row["message_id"])),
+            )
+            row = {**row, "campfire_names": giveaways.dump(names)}
+            _, pool, ids, duplicates = await self.entries(row)
+            lines.append(
+                f"[Sorteio]({giveaways.message_link(row)}): "
+                f"{len(names)} do Campfire"
+                + (f" ({len(names) - len(before)} novos)" if before else "")
+                + f", {len(ids)} pela reação"
+                + (f", {len(duplicates)} nos dois" if duplicates else "")
+                + f" → **{_plural(len(pool), 'participante', 'participantes')}**."
+            )
+            if giveaways.in_review(row):
+                lines.append(
+                    "Já está em revisão: usa Repetir (ou `!sorteio reroll`) para "
+                    "sortear com estes nomes."
+                )
+            self._log(
+                f"{ctx.author} added {len(new)} campfire names to "
+                f"{giveaways.message_link(row)} ({len(names)} in all)"
+            )
+        else:
+            lines.append(
+                "Não encontrei um sorteio ativo para os juntar (indica o link do "
+                "anúncio): esta lista não ficou guardada."
+            )
+        listing = "\n".join(f"{i}. {n}" for i, n in enumerate(names, 1))
+        body = "\n".join(lines)
+        if len(body) + len(listing) + 2 <= 4000:
+            await ctx.send(
+                embed=status_embed("🔥 Campfire", body + "\n\n" + listing),
+                allowed_mentions=_NO_PINGS,
+            )
+        else:
+            await ctx.send(
+                embed=status_embed(
+                    "🔥 Campfire", body + "\n\nLista completa em anexo."
+                ),
+                file=discord.File(io.BytesIO(listing.encode()), "campfire.txt"),
+                allowed_mentions=_NO_PINGS,
+            )
+
+    async def _images(self, ctx, texto, row):
+        """As capturas: anexos do comando, da mensagem a que responde e das
+        mensagens nos links (menos a do próprio sorteio)."""
+        sources = [ctx.message]
+        reference = getattr(ctx.message, "reference", None)
+        skip = {int(row["message_id"])} if row else set()
+        wanted = []
+        if reference and reference.message_id and reference.message_id not in skip:
+            wanted.append((reference.channel_id, reference.message_id))
+        wanted += [(c, m) for c, m in giveaways.parse_links(texto) if m not in skip]
+        problems = []
+        for channel_id, message_id in wanted:
+            try:
+                channel = await self._channel(channel_id)
+                sources.append(await channel.fetch_message(message_id))
+            except discord.HTTPException:
+                problems.append(f"Não consegui abrir a mensagem {message_id}.")
+        images = []
+        for source in sources:
+            for attachment in getattr(source, "attachments", []) or []:
+                media_type = _media_type(attachment)
+                if media_type is None:
+                    continue
+                if attachment.size > campfire.MAX_IMAGE_BYTES:
+                    problems.append(f"{attachment.filename} passa dos 5 MB.")
+                    continue
+                if len(images) >= campfire.MAX_IMAGES:
+                    problems.append(
+                        f"Só leio {campfire.MAX_IMAGES} capturas de cada vez."
+                    )
+                    break
+                images.append((await attachment.read(), media_type))
+        return images, problems
+
+
+def _names_of(user):
+    """Os nomes por que alguém aparece no Discord (alcunha, nome global e de
+    utilizador), sem repetições."""
+    names = [
+        getattr(user, "nick", None),
+        getattr(user, "global_name", None),
+        getattr(user, "display_name", None),
+        getattr(user, "name", None),
+    ]
+    return list(dict.fromkeys(n for n in names if isinstance(n, str) and n))
+
+
+def _media_type(attachment):
+    media_type = (attachment.content_type or "").split(";")[0].strip().lower()
+    if media_type in campfire.MEDIA_TYPES:
+        return media_type
+    guessed = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }.get(Path(attachment.filename or "").suffix.lower())
+    return guessed
+
+
+def _describe(entry):
+    if isinstance(entry, int):
+        return f"<@{entry}> (`{entry}`)"
+    return giveaways.show(entry) + " · não está no Discord, contacta-o no jogo"
+
+
+def _state(row):
+    if row["status"] == "open":
+        when = giveaways.unix(row["draw_at"])
+        return f"sorteio <t:{when}:R>"
+    if giveaways.in_review(row):
+        pending = giveaways.entries(row.get("pending_ids"))
+        return "em revisão na moderação: " + (
+            ", ".join(map(giveaways.show, pending)) or "ninguém"
+        )
+    won = giveaways.winner_ids(row)
+    return "publicado: " + (", ".join(map(giveaways.show, won)) or "ninguém")
 
 
 async def setup(poliswag):

@@ -37,6 +37,9 @@ POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; depl
 MBWAY_DETAILS  (free text `!mbway` sends by DM; empty points at the Revolut link)
 OWNER_DM_DEFAULT  (hermes|claude, default hermes; read from the .env file itself at boot, see agents.md)
 HERMISWAG_API_URL, HERMISWAG_API_KEY  (public agent; unset URL disables it, see agents.md)
+ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID, CAMPFIRE_MODEL  (`!sorteio campfire` reads screenshots with
+  the Messages API; the key is the same user key Hermiswag uses, so it needs the workspace header;
+  default model claude-sonnet-5-5; unset key makes the command say so)
 SCANNER_CARD_FILE, SCANNER_GAME_VERSION_FILE  (scanner card and last game build, under logs/)
 POKEMON_NAME_FILE, ITEM_NAME_FILE  (JSON name maps in data/)
 MASTERFILE_ENDPOINT, TRANSLATIONFILE_ENDPOINT
