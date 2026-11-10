@@ -503,3 +503,119 @@ class TestReboot:
         device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
         assert await device_manager.reboot() is False
         device_manager.poliswag.utility.log_to_file.assert_called_once()
+
+
+class TestWifiLinkOk:
+    def _prime(self, device_manager, mocker):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+
+    async def test_up_when_connected_and_gateway_answers(self, device_manager, mocker):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(return_value=("UP", "", 0))
+        assert await device_manager.wifi_link_ok() is True
+        command = device_manager.run.await_args.args[1]
+        assert "Wifi is connected" in command and "ping" in command
+
+    async def test_down_when_associated_but_gateway_silent(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(return_value=("DOWN", "", 0))
+        assert await device_manager.wifi_link_ok() is False
+
+    async def test_none_when_adb_unreachable(self, device_manager, mocker):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager.wifi_link_ok() is None
+        device_manager.run = AsyncMock(return_value=("", "err", 1))
+        assert await device_manager.wifi_link_ok() is None
+
+
+class TestEnsureWifi:
+    """Wi-Fi watchdog: heals a wedged link with a radio toggle, never reboots."""
+
+    def _prime(self, device_manager, mocker, link):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+        mocker.patch.object(
+            device_manager, "wifi_link_ok", new=AsyncMock(return_value=link)
+        )
+        device_manager._notify = AsyncMock()
+        device_manager._heal_wifi = AsyncMock(return_value=True)
+
+    async def test_no_adb_device_does_nothing(self, device_manager, mocker):
+        mocker.patch.object(Config, "ADB_DEVICE", "")
+        device_manager.wifi_link_ok = AsyncMock()
+        await device_manager.ensure_wifi()
+        device_manager.wifi_link_ok.assert_not_called()
+
+    async def test_unreachable_phone_is_left_to_alert_if_offline(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker, None)
+        await device_manager.ensure_wifi()
+        device_manager._heal_wifi.assert_not_called()
+        device_manager._notify.assert_not_called()
+
+    async def test_healthy_link_resets_the_streak(self, device_manager, mocker):
+        self._prime(device_manager, mocker, True)
+        device_manager._wifi_dead_streak = 2
+        device_manager._wifi_heal_announced = True
+        await device_manager.ensure_wifi()
+        assert device_manager._wifi_dead_streak == 0
+        assert device_manager._wifi_heal_announced is False
+        device_manager._heal_wifi.assert_not_called()
+
+    async def test_heals_after_wifi_dead_after_consecutive_checks(
+        self, device_manager, mocker
+    ):
+        self._prime(device_manager, mocker, False)
+        for _ in range(device_manager.WIFI_DEAD_AFTER - 1):
+            await device_manager.ensure_wifi()
+        device_manager._heal_wifi.assert_not_called()
+        await device_manager.ensure_wifi()
+        device_manager._heal_wifi.assert_awaited_once()
+        device_manager._notify.assert_awaited_once()
+        assert "Wi-Fi" in device_manager._notify.await_args.args[0]
+
+    async def test_notifies_once_per_episode(self, device_manager, mocker):
+        self._prime(device_manager, mocker, False)
+        for _ in range(device_manager.WIFI_DEAD_AFTER):
+            await device_manager.ensure_wifi()
+        for _ in range(device_manager.WIFI_DEAD_AFTER):
+            await device_manager.ensure_wifi()
+        assert device_manager._heal_wifi.await_count == 2
+        device_manager._notify.assert_awaited_once()
+
+    async def test_never_reboots(self, device_manager, mocker):
+        self._prime(device_manager, mocker, False)
+        device_manager.reboot = AsyncMock()
+        for _ in range(device_manager.WIFI_DEAD_AFTER + 2):
+            await device_manager.ensure_wifi()
+        device_manager.reboot.assert_not_called()
+
+
+class TestHealWifi:
+    def _prime(self, device_manager, mocker):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+        mocker.patch("modules.device_manager.asyncio.sleep", new=AsyncMock())
+
+    async def test_toggles_the_radio_as_root(self, device_manager, mocker):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        device_manager.wifi_link_ok = AsyncMock(return_value=True)
+        assert await device_manager._heal_wifi() is True
+        commands = [call.args[1] for call in device_manager.run.await_args_list]
+        assert any("svc wifi disable" in c for c in commands)
+        assert any("svc wifi enable" in c for c in commands)
+        assert all("su -c" in c for c in commands)
+
+    async def test_reports_failure_when_link_stays_down(self, device_manager, mocker):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(return_value=("", "", 0))
+        device_manager.wifi_link_ok = AsyncMock(return_value=False)
+        assert await device_manager._heal_wifi() is False
+
+    async def test_adb_failure_returns_false(self, device_manager, mocker):
+        self._prime(device_manager, mocker)
+        device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
+        assert await device_manager._heal_wifi() is False

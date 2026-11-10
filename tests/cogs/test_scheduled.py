@@ -1166,10 +1166,12 @@ class TestCheckWorkers:
             return_value=workers_status
         )
         cog.poliswag.device_manager.alert_if_offline = AsyncMock()
+        cog.poliswag.device_manager.ensure_wifi = AsyncMock()
         await cog._check_workers()
         cog.poliswag.scanner_status.rename_voice_channels.assert_awaited_once_with(
             workers_status
         )
+        cog.poliswag.device_manager.ensure_wifi.assert_awaited_once()
 
 
 class TestUpdateLureStatus:
