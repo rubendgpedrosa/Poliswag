@@ -33,6 +33,8 @@ ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
 PORACLE_API_URL, PORACLE_API_SECRET
 POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNATCH_JOBS_KEY_FILE
   (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
+POLISNATCH_STATUS_URL (default https://polisnatch.pogoleiria.pt/v1/game/status; read with the same submit key,
+  skipped when there is no key), POLISNATCH_UPDATE_STATE_FILE (default logs/polisnatch-update-state.json)
 POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
 MBWAY_DETAILS  (free text `!mbway` sends by DM; empty points at the Revolut link)
 OWNER_DM_DEFAULT  (hermes|claude, default hermes; read from the .env file itself at boot, see agents.md)

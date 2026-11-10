@@ -12,7 +12,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 
-from modules import scan_areas, tracking_health
+from modules import polisnatch_api, scan_areas, tracking_health
 from modules.config import Config
 from modules.embeds import build_embed, status_embed
 from modules.event_images import usable_image
@@ -485,11 +485,23 @@ class Scheduled(commands.Cog):
 
     async def _check_polisnatch_update(self):
         url = getattr(
-            Config, "POLISNATCH_STATUS_URL", "http://192.168.1.242:9300/v1/game/status"
+            Config,
+            "POLISNATCH_STATUS_URL",
+            "https://polisnatch.pogoleiria.pt/v1/game/status",
         )
+        # The endpoint takes the jobs submit key and nothing else. Without a key
+        # there is nothing to ask: a keyless request only counts as a failed
+        # login on the server, and those throttle the jobs API for this host.
+        key = polisnatch_api.read_key()
+        if not key:
+            return
         try:
             session = get_session()
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(
+                url,
+                headers=polisnatch_api.auth_headers(key),
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
                 if resp.status != 200:
                     return
                 data = await resp.json()
@@ -523,21 +535,11 @@ class Scheduled(commands.Cog):
         lab_verified = "✅ Sim" if data.get("lab_verified") else "⏳ Pendente"
         msg_detail = data.get("message", "")
 
-        offsets_info = ""
-        if "offsets" in data:
-            o = data["offsets"]
-            vt = o.get("vtableRva")
-            gt = o.get("getterRva")
-            st = o.get("setterRva")
-            offsets_info = (
-                f"\n• **Offsets:** vtable `{vt}`, getter `{gt}`, setter `{st}`"
-            )
-
         text = (
             f"🔔 **PoliSnatch: Nova Atualização do Pokémon GO detectada (`{version}`)**\n\n"
             f"• **Biblioteca Nativa:** Alterada (`libNianticLabsPlugin.so`)\n"
             f"• **SHA-256:** `{sha_short}`\n"
-            f"• **Estado:** `{status}`{offsets_info}\n"
+            f"• **Estado:** `{status}`\n"
             f"• **Validação Lab (.223):** {lab_verified}\n"
             f"• **Proteção:** O telemóvel de produção (`.222`) **NÃO** foi tocado.\n\n"
             f"Detalhes: {msg_detail}"
