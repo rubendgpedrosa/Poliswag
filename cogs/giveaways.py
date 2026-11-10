@@ -10,12 +10,15 @@ registou), e não anuncia nada: põe uma mensagem de revisão no canal de
 moderação, sem prazo, com quatro botões:
 
 - Publicar: responde ao anúncio com o vencedor. Só quem escreveu o anúncio o
-  pode fazer (os mods, se foi o Poliswag a escrevê-lo).
+  pode fazer (os mods, se foi o Poliswag a escrevê-lo). Há sempre uma só
+  resposta pública: ao publicar um reroll, a anterior é apagada.
 - Repetir: tira outro nome; quem saiu pode voltar a sair numa próxima vez.
 - Repetir sem este: tira outro e exclui quem saiu (já tem o prémio).
 - Cancelar: para tudo.
 
-`!sorteio reroll` abre uma nova revisão depois de publicado.
+`!sorteio reroll` abre uma nova revisão depois de publicado, para substituir
+um vencedor que já tinha o prémio ou não apareceu; o público só vê o anúncio
+novo.
 """
 
 import io
@@ -182,14 +185,18 @@ class Giveaways(commands.Cog):
 
     # --- review ----------------------------------------------------------
 
-    async def start_review(self, row, reroll=False):
+    async def start_review(self, row, reroll=False, replacing=None):
         """Tira o(s) nome(s) e põe a revisão na moderação. De `open` (o
-        sorteio), de publicado ou de uma revisão (`reroll`). Devolve quem
-        saiu, [] sem ninguém, ou None se outro pedido já mudou a linha."""
+        sorteio), de publicado (`replacing`: os vencedores a substituir) ou de
+        uma revisão (`reroll`, que mantém quem estava a ser substituído).
+        Devolve quem saiu, [] sem ninguém, ou None se outro pedido já mudou a
+        linha."""
         message, pool, ids, duplicates = await self.entries(row)
         winners = giveaways.winner_ids(row)
+        if replacing is None:
+            replacing = giveaways.entries(row.get("replacing_ids"))
         exclude = winners + giveaways.entries(row.get("excluded_ids"))
-        count = 1 if winners else int(row.get("winners") or 1)
+        count = len(replacing) or (1 if winners else int(row.get("winners") or 1))
         avoid = giveaways.entries(row.get("pending_ids")) if reroll else ()
         pending = giveaways.pick(pool, count, exclude=exclude, avoid=avoid)
         from_status, from_review = (
@@ -201,6 +208,7 @@ class Giveaways(commands.Cog):
             giveaways.REVIEW_SQL,
             params=(
                 giveaways.dump(pending),
+                giveaways.dump(replacing),
                 len(pool),
                 int(row["message_id"]),
                 from_status,
@@ -215,6 +223,7 @@ class Giveaways(commands.Cog):
             "status": "drawn",
             "awaiting_review": 1,
             "pending_ids": giveaways.dump(pending),
+            "replacing_ids": giveaways.dump(replacing),
             "participants": len(pool),
             "review_message_id": None,
         }
@@ -263,8 +272,16 @@ class Giveaways(commands.Cog):
             lines.append(f"\n**{label}:** " + ", ".join(map(_describe, pending)))
         else:
             lines.append("\n**Ninguém para sortear** (sem participantes novos).")
-        if winners:
-            lines.append("Já publicado: " + ", ".join(map(giveaways.show, winners)))
+        replacing = giveaways.entries(row.get("replacing_ids"))
+        if replacing:
+            lines.append(
+                "A substituir: "
+                + ", ".join(map(giveaways.show, replacing))
+                + " (sai dos vencedores e fica excluído ao publicar)"
+            )
+        staying = [w for w in winners if w not in replacing]
+        if staying:
+            lines.append("Já publicado: " + ", ".join(map(giveaways.show, staying)))
         if excluded:
             lines.append("Excluídos: " + ", ".join(map(giveaways.show, excluded)))
         publisher = (
@@ -274,8 +291,15 @@ class Giveaways(commands.Cog):
         )
         lines.append(
             f"\n**Publicar** responde ao anúncio com o vencedor; só {publisher} "
-            "pode publicar. **Repetir** tira outro nome; **Repetir sem este** "
-            "também o exclui (já tem o prémio). Nada é publicado sem um clique."
+            "pode publicar"
+            + (
+                ", e a resposta anterior no anúncio é apagada, por isso o canal "
+                "não mostra o reroll"
+                if winners
+                else ""
+            )
+            + ". **Repetir** tira outro nome; **Repetir sem este** também o "
+            "exclui (já tem o prémio). Nada é publicado sem um clique."
         )
         title = "🔁 Novo vencedor: confirmar" if winners else "🎟️ Sorteio: confirmar"
         embed = status_embed(title, "\n".join(lines))
@@ -386,10 +410,15 @@ class Giveaways(commands.Cog):
             if not pending:
                 await self._whisper(interaction, "Não há ninguém para publicar.")
                 return
+            replacing = giveaways.entries(row.get("replacing_ids"))
+            current = [w for w in winners if w not in replacing] + pending
+            excluded = giveaways.entries(row.get("excluded_ids"))
+            excluded += [r for r in replacing if r not in excluded]
             done = await db.execute_query_to_database(
                 giveaways.PUBLISH_SQL,
                 params=(
-                    giveaways.dump(winners + pending),
+                    giveaways.dump(current),
+                    giveaways.dump(excluded),
                     message_id,
                     review_id,
                     row["pending_ids"],
@@ -398,9 +427,12 @@ class Giveaways(commands.Cog):
             if not done:
                 await self._whisper(interaction, "Esta revisão acabou de mudar.")
                 return
-            self._log(f"{user} published {pending} on {giveaways.message_link(row)}")
+            self._log(
+                f"{user} published {pending} on {giveaways.message_link(row)}"
+                + (f" replacing {replacing}" if replacing else "")
+            )
             await self._announce(
-                message, row, pending, int(row.get("participants") or 0), bool(winners)
+                message, row, current, pending, int(row.get("participants") or 0)
             )
             await self._close(interaction, f"✅ Publicado por {user.display_name}.")
             return
@@ -454,25 +486,38 @@ class Giveaways(commands.Cog):
             embed.set_footer(text=footer)
         await interaction.message.edit(embed=embed, view=None)
 
-    async def _announce(self, message, row, won, total, reroll):
-        mentions = ", ".join(giveaways.show(w) for w in won)
-        pings = " ".join(f"<@{w}>" for w in won if isinstance(w, int))
+    async def _announce(self, message, row, current, new, total):
+        """A única resposta pública: apaga a anterior (se houver) e responde ao
+        anúncio com os vencedores atuais, pingando só os novos. Um reroll fica
+        assim igual a um primeiro sorteio para quem está no canal."""
+        old_reply = row.get("announcement_reply_id")
+        if old_reply:
+            try:
+                old = await message.channel.fetch_message(int(old_reply))
+                await old.delete()
+            except discord.HTTPException as error:
+                self._log(f"old winner reply {old_reply} not deleted: {error}", "ERROR")
+        mentions = ", ".join(giveaways.show(w) for w in current)
+        pings = " ".join(f"<@{w}>" for w in new if isinstance(w, int))
         giver = int(row["created_by"]) if message.author.bot else message.author.id
-        title = "🔁 Novo vencedor do sorteio" if reroll else "🎉 Sorteio terminado!"
         embed = status_embed(
-            title,
+            "🎉 Sorteio terminado!",
             f"Parabéns {mentions}! "
-            f"{'Ganhaste' if len(won) == 1 else 'Ganharam'} o sorteio "
+            f"{'Ganhaste' if len(current) == 1 else 'Ganharam'} o sorteio "
             f"({_plural(total, 'participante', 'participantes')}).\n"
             f"Vais receber o prémio de <@{giver}>.",
         )
-        await message.reply(
+        reply = await message.reply(
             content=f"🎉 {pings}" if pings else None,
             embed=embed,
             allowed_mentions=discord.AllowedMentions(
                 users=True, everyone=False, roles=False, replied_user=False
             ),
         )
+        await self.poliswag.db.execute_query_to_database(
+            giveaways.REPLY_SQL, params=(reply.id, int(row["message_id"]))
+        )
+        return reply
 
     # --- commands --------------------------------------------------------
 
@@ -709,12 +754,30 @@ class Giveaways(commands.Cog):
         brief="Tira um novo vencedor e manda-o para revisão",
     )
     async def reroll(self, ctx, *, texto: str = ""):
+        """Depois de publicado: substitui um vencedor (o único, ou o indicado
+        com @menção ou nome do Campfire) por outro nome, em nova revisão."""
         row = await self._target(
             ctx, texto, lambda r: r["status"] == "drawn", latest=True
         )
         if row is None:
             return
-        drawn = await self.start_review(row, reroll=giveaways.in_review(row))
+        replacing = None
+        if not giveaways.in_review(row):
+            replacing = _who_to_replace(ctx, texto, giveaways.winner_ids(row))
+            if replacing is None:
+                won = ", ".join(map(giveaways.show, giveaways.winner_ids(row)))
+                await ctx.send(
+                    embed=status_embed(
+                        "❓ Quem substituir?",
+                        f"Este sorteio tem vários vencedores ({won}). Indica qual: "
+                        "`!sorteio reroll <link> @pessoa` (ou o nome do Campfire).",
+                    ),
+                    allowed_mentions=_NO_PINGS,
+                )
+                return
+        drawn = await self.start_review(
+            row, reroll=giveaways.in_review(row), replacing=replacing
+        )
         if drawn is None:
             await ctx.send(embed=status_embed("ℹ️ O sorteio mudou entretanto"))
         elif not drawn:
@@ -729,7 +792,8 @@ class Giveaways(commands.Cog):
             await ctx.send(
                 embed=status_embed(
                     "✅ Novo vencedor tirado",
-                    "Está na moderação, por publicar.",
+                    "Está na moderação, por publicar. Ao publicar, a resposta "
+                    "antiga no anúncio é apagada e fica só a nova.",
                 )
             )
 
@@ -909,6 +973,24 @@ def _names_of(user):
         getattr(user, "name", None),
     ]
     return list(dict.fromkeys(n for n in names if isinstance(n, str) and n))
+
+
+def _who_to_replace(ctx, texto, winners):
+    """Os vencedores publicados que um reroll substitui: o único que há, ou os
+    indicados por @menção ou nome do Campfire. None quando não se sabe."""
+    if not winners:
+        return []
+    mentioned = [u.id for u in getattr(ctx.message, "mentions", []) or []]
+    words = giveaways.name_key(giveaways._LINK.sub("", texto or ""))
+    chosen = [
+        w
+        for w in winners
+        if (isinstance(w, int) and w in mentioned)
+        or (isinstance(w, str) and giveaways.name_key(w) in words)
+    ]
+    if chosen:
+        return chosen
+    return list(winners) if len(winners) == 1 else None
 
 
 def _media_type(attachment):
