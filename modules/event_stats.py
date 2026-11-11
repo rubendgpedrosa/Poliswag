@@ -240,7 +240,7 @@ class EventStats(LoggingMixin):
             query += f" AND pokemon_id IN ({', '.join(['%s'] * len(pokemon_ids))})"
             params.extend(pokemon_ids)
         query += " GROUP BY area"
-        rows = await self.poliswag.quest_search.db.get_data_from_database(
+        rows = await self.poliswag.scanner_db.get_data_from_database(
             query, params=tuple(params)
         )
         return {row["area"]: int(row["total"]) for row in rows}
@@ -251,7 +251,7 @@ class EventStats(LoggingMixin):
         if not names:
             return []
         placeholders = ", ".join(["%s"] * len(names))
-        rows = await self.poliswag.quest_search.db.get_data_from_database(
+        rows = await self.poliswag.scanner_db.get_data_from_database(
             "SELECT area, level, pokemon_id, SUM(count) AS total FROM raid_stats "
             f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders}) "
             "GROUP BY area, level, pokemon_id",
@@ -361,7 +361,7 @@ class EventStats(LoggingMixin):
             return None
         placeholders = ", ".join(["%s"] * len(names))
         level_marks = ", ".join(["%s"] * len(levels))
-        rows = await self.poliswag.quest_search.db.get_data_from_database(
+        rows = await self.poliswag.scanner_db.get_data_from_database(
             "SELECT area, level, pokemon_id, date, SUM(count) AS total FROM raid_stats "
             f"WHERE date BETWEEN %s AND %s AND area IN ({placeholders}) "
             f"AND level IN ({level_marks}) GROUP BY area, level, pokemon_id, date",
@@ -519,7 +519,7 @@ class EventStats(LoggingMixin):
         than presented as an exact event-window count.
         """
         placeholders = ", ".join(["%s"] * len(pokemon_ids))
-        rows = await self.poliswag.quest_search.db.get_data_from_database(
+        rows = await self.poliswag.scanner_db.get_data_from_database(
             "SELECT COALESCE(SUM(count), 0) AS shinies, "
             "COALESCE(SUM(total), 0) AS encounters "
             "FROM pokemon_shiny_stats "

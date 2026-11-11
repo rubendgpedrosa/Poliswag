@@ -14,7 +14,7 @@ def cog(monkeypatch):
     bot = MagicMock()
     bot.user.id = 456
     bot.db = AsyncMock()
-    bot.quest_search.db = AsyncMock()
+    bot.scanner_db = AsyncMock()
     bot.quest_search.pokemon_name_map = {
         "149": "Dragonite",
         "42": "Golbat",
@@ -79,7 +79,7 @@ async def test_untagged_literal_quoted_and_other_user_tags_do_nothing(cog, conte
     cog.public.model.line.assert_not_awaited()
     cog.public.map_context.snapshot.assert_not_awaited()
     cog.poliswag.db.get_data_from_database.assert_not_awaited()
-    cog.poliswag.quest_search.db.get_data_from_database.assert_not_awaited()
+    cog.poliswag.scanner_db.get_data_from_database.assert_not_awaited()
     cog.poliswag.get_cog.assert_not_called()
 
 
@@ -138,7 +138,7 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
 
 def test_public_map_context_only_gets_query_interface_and_public_name_copy(cog):
     map_context = cog.public.map_context
-    assert map_context.db is cog.poliswag.quest_search.db
+    assert map_context.db is cog.poliswag.scanner_db
     assert map_context._by_id == {149: "Dragonite", 42: "Golbat", 1: "Bulbasaur"}
     assert not hasattr(map_context, "poliswag")
     assert not hasattr(map_context, "config")
@@ -390,7 +390,7 @@ def _reply_to(author_id, *, content="Olá!", embeds=(), guild=True, text="e o Ku
 
 
 def test_reply_to_a_poliswag_answer_counts_like_a_tag():
-    from cogs.mentions import replied_bot_message
+    from modules.mention_rules import replied_bot_message
 
     assert replied_bot_message(_reply_to(42), 42) is not None
     assert replied_bot_message(_reply_to(7), 42) is None  # a member's message
