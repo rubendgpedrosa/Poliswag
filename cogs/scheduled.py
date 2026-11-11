@@ -130,8 +130,12 @@ def _step_line(step, now) -> str:
             f"{_seconds(step.last_duration or 0)} · "
             f"há {_seconds(now - step.last_started)}"
         )
-    icon = "🔴" if step.overdue else "🟠" if step.last_error else "🟢"
+    icon = (
+        "🔴" if step.overdue else "🟠" if step.last_error or step.blocked_by else "🟢"
+    )
     notes = []
+    if step.blocked_by:
+        notes.append(f"à espera de {step.blocked_by}")
     if step.every:
         minutes = round(step.every / 60)
         notes.append(f"de {minutes} em {minutes} min")
@@ -203,7 +207,11 @@ class Scheduled(commands.Cog):
                 # steps before them have just written.
                 Step("shiny_odds", lambda: poliswag.shiny_odds.tick()),
                 Step("shiny_availability", lambda: poliswag.shiny_availability.tick()),
-                Step("shiny_alerts", lambda: poliswag.shiny_alerts.tick()),
+                Step(
+                    "shiny_alerts",
+                    lambda: poliswag.shiny_alerts.tick(),
+                    depends_on=("shiny_odds", "shiny_availability"),
+                ),
             ],
             "display": [
                 Step(
@@ -219,7 +227,12 @@ class Scheduled(commands.Cog):
                 # run every 15 or every 20 minutes by a few milliseconds'
                 # chance. A new event's post renders one image per event.
                 Step("events_fetch", lambda: poliswag.event_manager.fetch_events()),
-                Step("events", lambda: self._check_events(), budget=120),
+                Step(
+                    "events",
+                    lambda: self._check_events(),
+                    budget=120,
+                    depends_on=("events_fetch",),
+                ),
                 # A forced update comes with days of notice; once a minute
                 # was 1,440 requests a day to Niantic and half the error log.
                 Step(

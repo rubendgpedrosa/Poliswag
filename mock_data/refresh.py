@@ -5,6 +5,7 @@ Run via: python mock_data/refresh.py
 Or:      make mock-data
 """
 
+import argparse
 import json
 import time
 from pathlib import Path
@@ -116,6 +117,10 @@ def refresh_account_status() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=Path, default=ROOT)
+    ROOT = parser.parse_args().output_dir
+    ROOT.mkdir(parents=True, exist_ok=True)
     print("Refreshing mock_data/ timestamps...")
     refresh_scanner_status()
     refresh_device_status()

@@ -47,7 +47,8 @@ make up                  # ENV=DEVELOPMENT by default, PRODUCTION via .env
 | `make logs` | Follow the container logs |
 | `make test` | Run `pytest` inside the container |
 | `make test-local` | Run `pytest` without Docker (`pip install -r requirements-dev.txt` first) |
-| `make check` | All quality gates: format, lint, tests |
+| `make test-sql` | Run all three SQL suites against temporary local MariaDB containers |
+| `make check` | Format, lint and tests; SQL suites require `make test-sql` |
 | `make format` / `make format-check` | `black`, writing or checking |
 | `make lint` | All pre-commit hooks |
 | `make dead-code` | `vulture` scan |
@@ -65,7 +66,9 @@ from `mock_data/`. `PRODUCTION` uses the live database and real endpoints.
 
 `make test` runs the suite in Docker and `make test-local` runs it without. Unit tests never
 open a real database connection. The SQL suites under `tests/integration/` are opt-in and run
-against a throwaway MariaDB; CI runs them on every push. How the isolation works is in
+against throwaway MariaDB containers. Run `make test-sql` locally (requires Docker and the
+Python development dependencies); CI runs the same runner on every push. Tests generate mock
+responses in a per-session temporary directory and do not rewrite tracked fixtures. How the isolation works is in
 [docs/context/conventions.md](docs/context/conventions.md).
 
 ## PoliSnatch

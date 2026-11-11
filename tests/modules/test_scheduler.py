@@ -295,3 +295,90 @@ class TestCancelRunning:
         with pytest.raises(asyncio.CancelledError):
             await step._task
         assert not step.running and not step.overdue
+
+
+async def test_dependencies_wait_across_overrun_and_do_not_block_other_work(runner):
+    release = asyncio.Event()
+    calls = []
+
+    async def producer():
+        calls.append("producer")
+        await release.wait()
+
+    async def consumer():
+        calls.append("consumer")
+
+    unrelated = AsyncMock()
+    upstream = Step("upstream", producer, budget=0.01)
+    reader = Step("reader", consumer, depends_on=("upstream",))
+    runner.add_loop("loop", [upstream, reader, Step("other", unrelated)])
+    await runner.run_pass("loop")
+    await runner.run_pass("loop")
+    assert calls == ["producer"]
+    assert reader.blocked_by == "upstream"
+    assert unrelated.await_count == 2
+    release.set()
+    await upstream._task
+    await runner.run_pass("loop")
+    assert calls == ["producer", "consumer"]
+    await runner.run_pass("loop")
+    assert calls == ["producer", "consumer", "producer", "consumer"]
+
+
+async def test_dependency_failure_recovers_without_stopping_other_steps(runner):
+    upstream = Step("upstream", AsyncMock(side_effect=[RuntimeError("outage"), None]))
+    reader = Step("reader", AsyncMock(), depends_on=("upstream",))
+    other = AsyncMock()
+    runner.add_loop("loop", [upstream, reader, Step("other", other)])
+    await runner.run_pass("loop")
+    assert upstream.failures == 1 and reader.blocked_by == "upstream"
+    reader.run.assert_not_awaited()
+    await runner.run_pass("loop")
+    reader.run.assert_awaited_once()
+    assert other.await_count == 2
+
+
+async def test_reader_overrun_prevents_producer_overlap(runner):
+    release = asyncio.Event()
+    producer = AsyncMock()
+
+    async def reader_work():
+        await release.wait()
+
+    reader = Step("reader", reader_work, budget=0.01, depends_on=("producer",))
+    runner.add_loop("loop", [Step("producer", producer), reader])
+    await runner.run_pass("loop")
+    await runner.run_pass("loop")
+    assert producer.await_count == 1
+    release.set()
+    await reader._task
+    await runner.run_pass("loop")
+    assert producer.await_count == 2
+
+
+async def test_multiple_readers_both_get_late_result_without_starving(runner):
+    release = asyncio.Event()
+
+    async def produce():
+        await release.wait()
+
+    upstream = Step("upstream", produce, budget=0.01)
+    first, second = AsyncMock(), AsyncMock()
+    runner.add_loop(
+        "loop",
+        [
+            upstream,
+            Step("first", first, depends_on=("upstream",)),
+            Step("second", second, depends_on=("upstream",)),
+        ],
+    )
+    await runner.run_pass("loop")
+    release.set()
+    await upstream._task
+    await runner.run_pass("loop")
+    assert upstream.runs == 1
+    first.assert_awaited_once()
+    second.assert_awaited_once()
+    await runner.run_pass("loop")
+    assert upstream.runs == 2
+    assert first.await_count == second.await_count == 2
