@@ -693,3 +693,104 @@ class TestTransactions:
             await dc.execute_transaction([("UPDATE t SET x=1", None)])
         conn.rollback.assert_called_once()
         assert refresh.call_count == 1
+
+
+class TestUnit:
+    """unit(work): a connection of its own, committed, rolled back, closed."""
+
+    @staticmethod
+    def _connector(mocker, connection):
+        dc = DatabaseConnector.__new__(DatabaseConnector)
+        dc.database = "pogoleiria"
+        opened = mocker.patch(
+            "modules.database_connector.connect", return_value=connection
+        )
+        return dc, opened
+
+    async def test_runs_the_work_and_returns_its_result(self, mocker):
+        connection = MagicMock()
+        dc, opened = self._connector(mocker, connection)
+        seen = []
+
+        def work(db, first, second):
+            seen.append((db, first, second))
+            return "rows"
+
+        assert await dc.unit(work, 1, 2) == "rows"
+        assert seen == [(connection, 1, 2)]
+        opened.assert_called_once_with(
+            "pogoleiria", read_timeout=5, dict_rows=True, autocommit=False
+        )
+
+    async def test_commits_then_closes_when_the_work_returns(self, mocker):
+        connection = MagicMock()
+        dc, _ = self._connector(mocker, connection)
+        await dc.unit(lambda db: None)
+        connection.commit.assert_called_once()
+        connection.rollback.assert_not_called()
+        connection.close.assert_called_once()
+
+    async def test_rolls_back_and_closes_when_the_work_raises(self, mocker):
+        connection = MagicMock()
+        dc, _ = self._connector(mocker, connection)
+
+        def work(db):
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await dc.unit(work)
+        connection.commit.assert_not_called()
+        connection.rollback.assert_called_once()
+        connection.close.assert_called_once()
+
+    async def test_a_failed_commit_rolls_back_and_raises(self, mocker):
+        connection = MagicMock()
+        connection.commit.side_effect = pymysql.MySQLError(2013, "lost")
+        dc, _ = self._connector(mocker, connection)
+        with pytest.raises(pymysql.MySQLError):
+            await dc.unit(lambda db: None)
+        connection.rollback.assert_called_once()
+        connection.close.assert_called_once()
+
+    async def test_autocommit_leaves_commit_and_rollback_to_the_server(self, mocker):
+        connection = MagicMock()
+        dc, opened = self._connector(mocker, connection)
+        await dc.unit(lambda db: None, autocommit=True)
+        assert opened.call_args.kwargs["autocommit"] is True
+        connection.commit.assert_not_called()
+        connection.close.assert_called_once()
+
+    async def test_the_caller_can_ask_for_a_longer_read_and_plain_rows(self, mocker):
+        connection = MagicMock()
+        dc, opened = self._connector(mocker, connection)
+        await dc.unit(lambda db: None, read_timeout=15, dict_rows=False)
+        opened.assert_called_once_with(
+            "pogoleiria", read_timeout=15, dict_rows=False, autocommit=False
+        )
+
+    async def test_a_failed_rollback_or_close_does_not_hide_the_error(self, mocker):
+        connection = MagicMock()
+        connection.rollback.side_effect = RuntimeError("rollback failed")
+        connection.close.side_effect = RuntimeError("close failed")
+        dc, _ = self._connector(mocker, connection)
+
+        def work(db):
+            raise ValueError("the real one")
+
+        with pytest.raises(ValueError, match="the real one"):
+            await dc.unit(work)
+
+    async def test_the_work_runs_off_the_event_loop(self, mocker):
+        import threading
+
+        connection = MagicMock()
+        dc, _ = self._connector(mocker, connection)
+        loop_thread = threading.get_ident()
+        assert await dc.unit(lambda db: threading.get_ident()) != loop_thread
+
+    async def test_it_does_not_touch_the_shared_connection(self, mocker):
+        connection = MagicMock()
+        dc, _ = self._connector(mocker, connection)
+        dc.db = MagicMock()
+        await dc.unit(lambda db: None)
+        dc.db.cursor.assert_not_called()
