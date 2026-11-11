@@ -1,4 +1,4 @@
-"""scripts/deploy_check.sh, run for real against a fake `docker` on PATH."""
+"""Run deploy_check.sh with fake Docker and a controlled shell clock."""
 
 import os
 import subprocess
@@ -27,6 +27,25 @@ exit 0
 """
 
 
+# Keep the first poll inside the deadline regardless of machine load. Only the
+# polling sleep advances this clock; date's timestamp parsing stays real.
+FAKE_DATE = """#!/usr/bin/env bash
+if [ "$1" = +%s ]; then
+  if [ -f "$FAKE_CLOCK_STARTED" ] && [ "${FAKE_POLL_DELAY:-0}" != 0 ]; then
+    /bin/sleep "$FAKE_POLL_DELAY"
+  fi
+  touch "$FAKE_CLOCK_STARTED"
+  cat "$FAKE_CLOCK"
+else
+  exec /bin/date "$@"
+fi
+"""
+FAKE_SLEEP = """#!/usr/bin/env bash
+now=$(cat "$FAKE_CLOCK")
+echo "$((now + $1))" > "$FAKE_CLOCK"
+"""
+
+
 @pytest.fixture
 def run(tmp_path):
     fake_bin = tmp_path / "bin"
@@ -34,10 +53,26 @@ def run(tmp_path):
     docker = fake_bin / "docker"
     docker.write_text(FAKE_DOCKER)
     docker.chmod(0o755)
+    for name, content in (("date", FAKE_DATE), ("sleep", FAKE_SLEEP)):
+        executable = fake_bin / name
+        executable.write_text(content)
+        executable.chmod(0o755)
+    clock = tmp_path / "clock"
     heartbeat = tmp_path / "heartbeat"
 
-    def _run(*, started_ago=30, beat_ago=None, restarts=0, running="true", name="bot"):
+    def _run(
+        *,
+        started_ago=30,
+        beat_ago=None,
+        restarts=0,
+        running="true",
+        name="bot",
+        poll_delay=0,
+    ):
         now = time.time()
+        clock.write_text(str(int(now)))
+        clock_started = tmp_path / "clock-started"
+        clock_started.unlink(missing_ok=True)
         if beat_ago is not None:
             heartbeat.write_text("x")
             os.utime(heartbeat, (now - beat_ago, now - beat_ago))
@@ -47,6 +82,9 @@ def run(tmp_path):
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "HEARTBEAT_FILE": str(heartbeat),
             "DEPLOY_WAIT_SECONDS": "1",
+            "FAKE_CLOCK": str(clock),
+            "FAKE_CLOCK_STARTED": str(clock_started),
+            "FAKE_POLL_DELAY": str(poll_delay),
             "FAKE_NAME": "bot",
             "FAKE_RESTARTS": str(restarts),
             "FAKE_RUNNING": running,
@@ -85,7 +123,8 @@ def test_no_heartbeat_file_at_all_fails_after_the_wait(run):
 
 def test_a_restart_by_docker_is_a_crash_on_start(run):
     # Even with a fresh heartbeat: the count says the bot fell over first.
-    done = run(started_ago=30, beat_ago=5, restarts=3)
+    # Simulate scheduling stalls longer than the one-second deadline.
+    done = run(started_ago=30, beat_ago=5, restarts=3, poll_delay=1.2)
     assert done.returncode == 1
     assert "crashed while starting" in done.stderr and "3 time(s)" in done.stderr
     assert "the fake container log" in done.stderr
