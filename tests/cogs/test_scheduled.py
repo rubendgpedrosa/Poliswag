@@ -13,30 +13,13 @@ many private helpers. The strategy:
 """
 
 import datetime as real_datetime
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
 
-from cogs.scheduled import (
-    Scheduled,
-    _duration,
-    _event_extras,
-    _event_heading,
-    _group_error_entries,
-    _type_label,
-    setup,
-)
-from modules.event_stats import Summary
+from cogs.scheduled import Scheduled, _group_error_entries, setup
 from modules.permissions import is_mod
-from modules.stat_card import StatCard
-
-SUMMARY = Summary(
-    headline="🐾 **5** spawns · Gible",
-    areas=(("📍 Leiria", "3 spawns\n💯 1 100IV"), ("📍 Marinha Grande", "sem dados")),
-    note="Totais diários de 07/04 · incluem atividade fora do horário do evento.",
-)
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -53,7 +36,7 @@ def _no_real_side_effects(monkeypatch, tmp_path):
 
     # Cards check their picture over HTTP; tests/modules/test_event_images.py
     # covers that. Here every image is taken as it is.
-    monkeypatch.setattr("cogs.scheduled.usable_image", image_as_is)
+    monkeypatch.setattr("modules.event_notices.usable_image", image_as_is)
     monkeypatch.setattr("cogs.scheduled.ShinyAvailability.tick", AsyncMock())
 
 
@@ -190,14 +173,16 @@ class TestWeeklyDigestCmd:
 
     async def test_guild_deletes_message_and_sends(self, cog):
         ctx = make_ctx()
-        cog._send_weekly_digest = AsyncMock(return_value=True)
+        cog._event_notices.send_weekly_digest = AsyncMock(return_value=True)
         await Scheduled.weeklydigestcmd.callback(cog, ctx)
         ctx.message.delete.assert_awaited_once()
-        cog._send_weekly_digest.assert_awaited_once_with(channel=ctx.channel)
+        cog._event_notices.send_weekly_digest.assert_awaited_once_with(
+            channel=ctx.channel
+        )
 
     async def test_dm_skips_delete(self, cog):
         ctx = make_ctx(dm=True)
-        cog._send_weekly_digest = AsyncMock(return_value=True)
+        cog._event_notices.send_weekly_digest = AsyncMock(return_value=True)
         await Scheduled.weeklydigestcmd.callback(cog, ctx)
         ctx.message.delete.assert_not_called()
 
@@ -237,11 +222,11 @@ class TestTestEventCmd:
                 "ended": [{"name": "B"}],
             }
         )
-        cog._send_event_change_notifications = AsyncMock()
+        cog._event_notices.send_change_notifications = AsyncMock()
         await Scheduled.testeventcmd.callback(cog, ctx)
         embed = ctx.channel.send.call_args_list[0].kwargs["embed"]
         assert "agora" in embed.description
-        cog._send_event_change_notifications.assert_awaited_once()
+        cog._event_notices.send_change_notifications.assert_awaited_once()
 
     async def test_guild_channel_deletes_message(self, cog):
         ctx = make_ctx(dm=False)
@@ -875,420 +860,17 @@ class TestCheckEvents:
         cog.poliswag.event_manager.check_current_events_changes = AsyncMock(
             return_value=None
         )
-        cog._send_event_change_notifications = AsyncMock()
+        cog._event_notices.send_change_notifications = AsyncMock()
         await cog._check_events()
-        cog._send_event_change_notifications.assert_not_called()
+        cog._event_notices.send_change_notifications.assert_not_called()
 
     async def test_with_changes_calls_notifications(self, cog):
         cog.poliswag.event_manager.check_current_events_changes = AsyncMock(
             return_value={"started": [], "ended": []}
         )
-        cog._send_event_change_notifications = AsyncMock()
+        cog._event_notices.send_change_notifications = AsyncMock()
         await cog._check_events()
-        cog._send_event_change_notifications.assert_awaited_once()
-
-
-# --- _send_event_change_notifications ----------------------------------------
-
-
-class TestSendEventChangeNotifications:
-    async def test_ended_then_started(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        event = {
-            "event_type": "Community Day",
-            "name": "Test",
-            "end": "2026-04-07 20:00:00",
-            "image": None,
-        }
-        changed = {"ended": [event], "started": [event]}
-        cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
-        await cog._send_event_change_notifications(channel, changed)
-        # One message per batch: the header with its cards as embeds.
-        calls = channel.send.await_args_list
-        assert len(calls) == 2
-        assert calls[0].args == ("**Eventos que terminaram**",)
-        assert len(calls[0].kwargs["embeds"]) == 1
-        assert calls[1].args == ("**Novos eventos**",)
-        assert len(calls[1].kwargs["embeds"]) == 1
-
-    async def test_ended_without_stats_gets_a_card_like_new_events(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        gbl = {
-            "event_type": "go-battle-league",
-            "name": "Great League",
-            "end": "2026-04-07 20:00:00",
-            "image": "https://example.test/gbl.jpg",
-        }
-        cd = {
-            "event_type": "community-day",
-            "name": "Gible Community Day",
-            "end": "2026-04-07 20:00:00",
-            "image": None,
-        }
-        cog.poliswag.event_stats.get_summary = AsyncMock(
-            side_effect=lambda event: SUMMARY if event is cd else None
-        )
-        cog.poliswag.event_manager.format_end_time = MagicMock(
-            side_effect=lambda end, verb="Termina": f"{verb} às 20:00"
-        )
-        await cog._send_event_change_notifications(
-            channel, {"ended": [gbl, cd], "started": []}
-        )
-        calls = channel.send.await_args_list
-        assert len(calls) == 1
-        # The same shape as "Novos eventos": the header, then a card per event.
-        assert calls[0].args == ("**Eventos que terminaram**",)
-        plain, card = calls[0].kwargs["embeds"]
-        assert "Great League" in plain.title
-        assert plain.description == "Terminou às 20:00"
-        assert plain.thumbnail.url == "https://example.test/gbl.jpg"
-        assert card.description == SUMMARY.headline
-        assert "Gible" in card.title
-
-    async def test_more_than_ten_ended_cards_continue_in_another_message(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        events = [
-            {"event_type": "research", "name": f"R{i}", "end": "2026-04-07 20:00:00"}
-            for i in range(12)
-        ]
-        cog.poliswag.event_stats.get_summary = AsyncMock(return_value=None)
-        await cog._send_event_change_notifications(
-            channel, {"ended": events, "started": []}
-        )
-        calls = channel.send.await_args_list
-        assert [len(c.kwargs["embeds"]) for c in calls] == [10, 2]
-        assert calls[0].args == ("**Eventos que terminaram**",)
-        assert calls[1].args == ()
-
-    # "Super Mega Raid Day" and "Staraptor Super Mega Raid Day": one event
-    # under two names, one card.
-    async def test_identical_stats_are_one_card(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        a = {
-            "event_type": "raid-day",
-            "name": "Super Mega Raid Day",
-            "end": "2026-04-07 17:00:00",
-        }
-        b = {**a, "name": "Staraptor Super Mega Raid Day"}
-        cog.poliswag.event_stats.get_summary = AsyncMock(return_value=SUMMARY)
-        await cog._send_event_change_notifications(
-            channel, {"ended": [a, b], "started": []}
-        )
-        [call] = channel.send.await_args_list
-        assert len(call.kwargs["embeds"]) == 1
-
-    async def test_more_than_ten_cards_continue_in_another_message(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        events = [
-            {"event_type": "event", "name": f"E{i}", "end": "2026-04-07 20:00:00"}
-            for i in range(12)
-        ]
-        await cog._send_event_change_notifications(
-            channel, {"ended": [], "started": events}
-        )
-        calls = channel.send.await_args_list
-        assert [len(c.kwargs["embeds"]) for c in calls] == [10, 2]
-        assert calls[0].args == ("**Novos eventos**",)
-        assert calls[1].args == ()
-
-    async def test_empty_lists_send_nothing(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        await cog._send_event_change_notifications(
-            channel, {"ended": [], "started": []}
-        )
-        channel.send.assert_not_called()
-
-
-# --- _build_event_embed -------------------------------------------------------
-
-
-class TestEndedBoard:
-    EVENT = {
-        "event_type": "raid-battles",
-        "name": "Mega Sableye in Mega Raids",
-        "end": "2026-11-08 22:00:00",
-        "image": "http://img",
-        "extra_data": '{"heading": "Raid Battles"}',
-    }
-    CARD = StatCard(kicker="Raids Mega", hero=297, hero_unit="raids", subject="Sableye")
-
-    async def test_one_image_per_event_like_the_embeds(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        gbl = {**self.EVENT, "name": "Great League", "extra_data": None}
-        cog.poliswag.event_stats.get_summary = AsyncMock(
-            side_effect=lambda e: (
-                Summary("h", (), "n", self.CARD) if e is self.EVENT else None
-            )
-        )
-        cog.poliswag.event_manager.format_end_time = MagicMock(
-            return_value="Terminou às 22:00"
-        )
-        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
-            return_value=b"png"
-        )
-        await cog._send_event_change_notifications(
-            channel, {"ended": [self.EVENT, gbl], "started": []}, acknowledge=True
-        )
-        first, second = channel.send.await_args_list
-        # The post's title on the first message, as before; no embeds.
-        assert first.args == ("**Eventos que terminaram**",)
-        assert second.args == (None,)
-        assert [c.kwargs["file"].filename for c in (first, second)] == [
-            "evento-terminado-1.png",
-            "evento-terminado-2.png",
-        ]
-        assert all("embeds" not in c.kwargs for c in (first, second))
-        renders = cog.poliswag.image_generator.generate_stat_board.await_args_list
-        # Each image is one bare panel: no board heading.
-        assert [c.args[1] for c in renders] == ["", ""]
-        [stats], [plain] = (c.args[0] for c in renders)
-        # The game image and name on every panel; stats where there are some.
-        assert (stats.title, stats.image, stats.hero) == (
-            self.EVENT["name"],
-            "http://img",
-            297,
-        )
-        assert (plain.title, plain.hero, plain.kicker, plain.ended) == (
-            "Great League",
-            None,
-            "Evento",
-            "Terminou às 22:00",
-        )
-        assert cog.poliswag.event_manager.mark_event_notified.await_count == 2
-
-    async def test_a_failed_render_falls_back_to_the_text_cards(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        cog.poliswag.event_stats.get_summary = AsyncMock(
-            return_value=Summary(
-                SUMMARY.headline, SUMMARY.areas, SUMMARY.note, self.CARD
-            )
-        )
-        cog.poliswag.image_generator.generate_stat_board = AsyncMock(return_value=None)
-        await cog._send_event_change_notifications(
-            channel, {"ended": [self.EVENT], "started": []}
-        )
-        [call] = channel.send.await_args_list
-        assert call.args == ("**Eventos que terminaram**",)
-        [embed] = call.kwargs["embeds"]
-        assert embed.description == SUMMARY.headline
-
-    async def test_one_failed_render_sends_the_whole_post_as_text(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        events = [{**self.EVENT, "name": f"E{i}"} for i in range(3)]
-        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
-            side_effect=[b"png", None, b"png"]
-        )
-        await cog._send_event_change_notifications(
-            channel, {"ended": events, "started": []}
-        )
-        [call] = channel.send.await_args_list
-        assert call.args == ("**Eventos que terminaram**",)
-        assert len(call.kwargs["embeds"]) == 3
-
-    def test_heading_comes_from_scrapedduck(self):
-        assert _event_heading(self.EVENT) == "Raid Battles"
-        assert _event_heading({"extra_data": "not json"}) == "Evento"
-
-
-class TestStartedBoard:
-    CD = {
-        "event_type": "community-day",
-        "name": "Pawniard Community Day",
-        "start": "2026-11-15 14:00:00",
-        "end": "2026-11-15 17:00:00",
-        "image": "http://cd.jpg",
-        "extra_data": json.dumps(
-            {
-                "heading": "Community Day",
-                "extraData": {
-                    "communityday": {
-                        "spawns": [{"name": "Pawniard", "image": "http://624.png"}],
-                        "shinies": [{"name": "Pawniard", "image": "http://624s.png"}],
-                        "bonuses": [{"text": "3-hour Incense"}, {"text": ""}],
-                    }
-                },
-            }
-        ),
-    }
-    RAIDS = {
-        "event_type": "raid-battles",
-        "name": "Mega Metagross in Mega Raids",
-        "start": "2026-11-24 10:00:00",
-        "end": "2026-12-01 22:00:00",
-        "image": None,
-        "extra_data": json.dumps(
-            {
-                "heading": "Raid Battles",
-                "extraData": {
-                    "raidbattles": {
-                        "bosses": [
-                            {
-                                "name": "Mega Metagross",
-                                "image": "http://m.png",
-                                "canBeShiny": True,
-                            }
-                        ]
-                    }
-                },
-            }
-        ),
-    }
-
-    async def test_a_one_day_event_shows_its_hours(self, cog):
-        panel = await cog._started_panel(self.CD)
-        assert panel.hero is None and panel.kicker == "Community Day"
-        assert panel.chips == (("Horário", "14:00 – 17:00"), ("Duração", "3 h"))
-        assert panel.pokemon == (("Pawniard", "http://624.png", True),)
-        assert panel.bonuses == ("3-hour Incense",)
-        assert panel.image == "http://cd.jpg"
-
-    async def test_a_longer_event_shows_until_when(self, cog):
-        panel = await cog._started_panel(self.RAIDS)
-        assert panel.chips == (("Até", "Ter 01/12 · 22:00"), ("Duração", "8 dias"))
-        assert panel.pokemon == (("Mega Metagross", "http://m.png", True),)
-        assert panel.image == ""
-
-    async def test_new_events_one_image_each(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        cog.poliswag.image_generator.generate_stat_board = AsyncMock(
-            return_value=b"png"
-        )
-        await cog._send_event_change_notifications(
-            channel, {"ended": [], "started": [self.CD, self.RAIDS]}, acknowledge=True
-        )
-        first, second = channel.send.await_args_list
-        assert first.args == ("**Novos eventos**",)
-        assert [c.kwargs["file"].filename for c in (first, second)] == [
-            "novo-evento-1.png",
-            "novo-evento-2.png",
-        ]
-        acked = cog.poliswag.event_manager.mark_event_notified.await_args_list
-        assert [c.kwargs["is_end"] for c in acked] == [False, False]
-
-    @pytest.mark.parametrize(
-        "minutes,text",
-        [
-            (60, "1 h"),
-            (210, "3 h 30 min"),
-            (45, "45 min"),
-            (24 * 60, "1 dia"),
-            (7 * 24 * 60, "7 dias"),
-        ],
-    )
-    def test_duration(self, minutes, text):
-        assert _duration(real_datetime.timedelta(minutes=minutes)) == text
-
-    def test_extras_without_scrapedduck_data(self):
-        assert _event_extras({"extra_data": None}) == ((), ())
-
-
-class TestWeekBoard:
-    async def test_the_week_is_one_image(self, cog):
-        channel = MagicMock()
-        channel.send = AsyncMock()
-        cog.poliswag.event_manager.get_weekly_events = AsyncMock(
-            return_value=[
-                {
-                    "name": "Raid Hour",
-                    "event_type": "raid-hour",
-                    "start": "2099-01-01 18:00:00",
-                    "end": "2099-01-01 19:00:00",
-                    "image": "http://rh.jpg",
-                },
-                {
-                    "name": "Great League",
-                    "event_type": "go-battle-league",
-                    "start": "2099-01-01 18:00:00",
-                    "end": "2099-01-08 19:00:00",
-                },
-            ]
-        )
-        cog.poliswag.image_generator.generate_week_board = AsyncMock(
-            return_value=b"png"
-        )
-        assert await cog._send_weekly_digest(channel=channel) is True
-        [call] = channel.send.await_args_list
-        assert call.kwargs["file"].filename == "eventos-da-semana.png"
-        events, _now = cog.poliswag.image_generator.generate_week_board.await_args.args
-        # GO Battle League stays out, as in the text calendar.
-        assert [(e.title, e.kicker, e.image) for e in events] == [
-            ("Raid Hour", "Raid Hour", "http://rh.jpg")
-        ]
-
-    @pytest.mark.parametrize(
-        "event_type,label",
-        [
-            ("raid-hour", "Raid Hour"),
-            ("pokemon-spotlight-hour", "Spotlight Hour"),
-            ("go-pass", "GO Pass"),
-            ("season", "Temporada"),
-            ("", "Evento"),
-        ],
-    )
-    def test_type_labels(self, event_type, label):
-        assert _type_label(event_type) == label
-
-
-class TestBuildEventEmbed:
-    async def test_ended_event_lays_the_stats_out_in_columns(self, cog):
-        event = {
-            "event_type": "Community Day",
-            "name": "Test",
-            "end": "2026-04-07 20:00:00",
-            "image": None,
-        }
-        embed = await cog._build_event_embed(event, is_ended=True, summary=SUMMARY)
-        assert isinstance(embed, discord.Embed)
-        assert "Test" in embed.title
-        # The headline on top, one column per area side by side, the caveat
-        # small at the bottom: one line per area was too dense to read.
-        assert embed.description == SUMMARY.headline
-        assert [(f.name, f.value, f.inline) for f in embed.fields] == [
-            ("📍 Leiria", "3 spawns\n💯 1 100IV", True),
-            ("📍 Marinha Grande", "sem dados", True),
-        ]
-        assert embed.footer.text == SUMMARY.note
-        cog.poliswag.event_manager.format_end_time.assert_not_called()
-
-    async def test_ended_event_without_stats_says_when_it_ended(self, cog):
-        event = {
-            "event_type": "Community Day",
-            "name": "Test",
-            "end": "2026-04-07 20:00:00",
-            "image": None,
-        }
-        cog.poliswag.event_manager.format_end_time = MagicMock(
-            return_value="Terminou às 20:00"
-        )
-        embed = await cog._build_event_embed(event, is_ended=True)
-        assert embed.description == "Terminou às 20:00"
-        assert cog.poliswag.event_manager.format_end_time.call_args.kwargs == {
-            "verb": "Terminou"
-        }
-
-    async def test_started_event_with_image(self, cog):
-        event = {
-            "event_type": "Community Day",
-            "name": "Test",
-            "end": "2026-04-07 20:00:00",
-            "image": "http://img",
-        }
-        embed = await cog._build_event_embed(event, is_ended=False)
-        assert embed.thumbnail.url == "http://img"
-        cog.poliswag.event_manager.format_end_time.assert_called_once_with(
-            real_datetime.datetime(2026, 4, 7, 20, 0)
-        )
-        cog.poliswag.event_stats.get_summary.assert_not_called()
+        cog._event_notices.send_change_notifications.assert_awaited_once()
 
 
 # --- _check_workers -----------------------------------------------------------
@@ -1349,168 +931,46 @@ class TestUpdateAccountsDisplay:
         cog.poliswag.account_monitor.update_channel_accounts_stats.assert_awaited_once()
 
 
-# --- _send_weekly_digest ------------------------------------------------------
-
-
-class TestSendWeeklyDigest:
-    async def test_no_events_returns_false(self, cog):
-        cog.poliswag.event_manager.get_weekly_events.return_value = []
-        assert (await cog._send_weekly_digest()) is False
-
-    async def test_filters_battle_and_league(self, cog):
-        cog.poliswag.event_manager.get_weekly_events.return_value = [
-            {
-                "event_type": "Go Battle League",
-                "name": "GBL",
-                "start": "2026-04-07 00:00:00",
-                "end": "2026-04-07 23:59:00",
-            },
-            {
-                "event_type": "PvP League",
-                "name": "PVP",
-                "start": "2026-04-07 00:00:00",
-                "end": "2026-04-07 23:59:00",
-            },
-        ]
-        assert (await cog._send_weekly_digest()) is False
-        cog.poliswag.CONVIVIO_CHANNEL.send.assert_not_called()
-
-    async def test_ongoing_and_upcoming_send_embed(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 12, 0)
-        past = now - real_datetime.timedelta(hours=1)
-        future = now + real_datetime.timedelta(days=1, hours=2)
-        future_end = future + real_datetime.timedelta(hours=3)
-        cog.poliswag.event_manager.get_weekly_events.return_value = [
-            {
-                "event_type": "Community Day",
-                "name": "Ongoing",
-                "start": past.strftime("%Y-%m-%d %H:%M:%S"),
-                "end": (now + real_datetime.timedelta(hours=2)).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-            },
-            {
-                "event_type": "Spotlight Hour",
-                "name": "Upcoming",
-                "start": future.strftime("%Y-%m-%d %H:%M:%S"),
-                "end": future_end.strftime("%Y-%m-%d %H:%M:%S"),
-            },
-        ]
-        with patch("cogs.scheduled.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = now
-            mock_dt.datetime.strptime = real_datetime.datetime.strptime
-            mock_dt.timedelta = real_datetime.timedelta
-            result = await cog._send_weekly_digest()
-        assert result is True
-        cog.poliswag.CONVIVIO_CHANNEL.send.assert_awaited_once()
-
-    async def test_today_upcoming_uses_hoje_label(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 9, 0)
-        future_today = now + real_datetime.timedelta(hours=6)
-        cog.poliswag.event_manager.get_weekly_events.return_value = [
-            {
-                "event_type": "Raid Hour",
-                "name": "Tonight",
-                "start": future_today.strftime("%Y-%m-%d %H:%M:%S"),
-                "end": (future_today + real_datetime.timedelta(hours=1)).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-            }
-        ]
-        with patch("cogs.scheduled.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = now
-            mock_dt.datetime.strptime = real_datetime.datetime.strptime
-            mock_dt.timedelta = real_datetime.timedelta
-            await cog._send_weekly_digest()
-        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args.kwargs["embed"]
-        assert "**Hoje " in embed.description
-
-    async def test_explicit_channel_overrides_default(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 12, 0)
-        cog.poliswag.event_manager.get_weekly_events.return_value = [
-            {
-                "event_type": "Community Day",
-                "name": "X",
-                "start": (now - real_datetime.timedelta(hours=1)).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-                "end": (now + real_datetime.timedelta(hours=1)).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-            }
-        ]
-        override = MagicMock()
-        override.send = AsyncMock()
-        with patch("cogs.scheduled.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = now
-            mock_dt.datetime.strptime = real_datetime.datetime.strptime
-            mock_dt.timedelta = real_datetime.timedelta
-            await cog._send_weekly_digest(channel=override)
-        override.send.assert_awaited_once()
-        cog.poliswag.CONVIVIO_CHANNEL.send.assert_not_called()
-
-    async def test_multi_day_event_end_uses_date_prefix(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 12, 0)
-        start = now + real_datetime.timedelta(days=1)
-        end = start + real_datetime.timedelta(days=2)
-        cog.poliswag.event_manager.get_weekly_events.return_value = [
-            {
-                "event_type": "Community Day",
-                "name": "MultiDay",
-                "start": start.strftime("%Y-%m-%d %H:%M:%S"),
-                "end": end.strftime("%Y-%m-%d %H:%M:%S"),
-            }
-        ]
-        with patch("cogs.scheduled.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = now
-            mock_dt.datetime.strptime = real_datetime.datetime.strptime
-            mock_dt.timedelta = real_datetime.timedelta
-            await cog._send_weekly_digest()
-        embed = cog.poliswag.CONVIVIO_CHANNEL.send.call_args.kwargs["embed"]
-        # Multi-day end formatted as "dd/mm HH:MM" not just "HH:MM"
-        assert end.strftime("%d/%m") in embed.description
-
-
 # --- _check_weekly_digest -----------------------------------------------------
 
 
 class TestCheckWeeklyDigest:
     async def test_non_monday_skips(self, cog):
         tue = real_datetime.datetime(2026, 4, 7, 10, 0)  # Tuesday
-        cog._send_weekly_digest = AsyncMock()
+        cog._event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = tue
             await cog._check_weekly_digest()
-        cog._send_weekly_digest.assert_not_called()
+        cog._event_notices.send_weekly_digest.assert_not_called()
 
     async def test_monday_before_9am_skips(self, cog):
         early_mon = real_datetime.datetime(2026, 4, 6, 8, 59)
         cog._last_weekly_digest_monday = None
-        cog._send_weekly_digest = AsyncMock()
+        cog._event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = early_mon
             await cog._check_weekly_digest()
-        cog._send_weekly_digest.assert_not_called()
+        cog._event_notices.send_weekly_digest.assert_not_called()
 
     async def test_monday_same_day_skips(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = mon.date()
-        cog._send_weekly_digest = AsyncMock()
+        cog._event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
-        cog._send_weekly_digest.assert_not_called()
+        cog._event_notices.send_weekly_digest.assert_not_called()
 
     async def test_new_monday_after_9am_sends_and_persists(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = None
-        cog._send_weekly_digest = AsyncMock()
+        cog._event_notices.send_weekly_digest = AsyncMock()
         cog._save_digest_date = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
         cog._save_digest_date.assert_called_once_with(mon.date())
-        cog._send_weekly_digest.assert_awaited_once()
+        cog._event_notices.send_weekly_digest.assert_awaited_once()
         assert cog._last_weekly_digest_monday == mon.date()
 
 
@@ -1893,119 +1353,14 @@ class TestRefreshMasterfileData:
         assert cog._pokemon_names_synced is False
 
 
-class TestEventDeliveryFailures:
-    @staticmethod
-    def events(count=12):
-        return [
-            {
-                "name": f"Event {i}",
-                "event_type": "event",
-                "start": "2026-09-26 10:00:00",
-                "end": "2026-09-26 18:00:00",
-            }
-            for i in range(count)
-        ]
-
-    async def test_failed_first_send_leaves_all_events_retryable(self, cog):
-        channel = MagicMock(
-            send=AsyncMock(side_effect=RuntimeError("Discord unavailable"))
-        )
-        with pytest.raises(RuntimeError):
-            await cog._send_event_change_notifications(
-                channel, {"started": self.events(), "ended": []}, acknowledge=True
-            )
-        cog.poliswag.event_manager.mark_event_notified.assert_not_awaited()
-
-    async def test_second_batch_failure_only_acknowledges_first_ten(self, cog):
-        channel = MagicMock(
-            send=AsyncMock(side_effect=[None, RuntimeError("Discord unavailable")])
-        )
-        events = self.events()
-        with pytest.raises(RuntimeError):
-            await cog._send_event_change_notifications(
-                channel, {"started": events, "ended": []}, acknowledge=True
-            )
-        calls = cog.poliswag.event_manager.mark_event_notified.await_args_list
-        assert [c.args[0] for c in calls] == events[:10]
-        assert all(c.kwargs == {"is_end": False} for c in calls)
-
-    async def test_plain_ended_messages_split_without_losing_events(self, cog):
-        events = self.events(20)
-        channel = MagicMock(send=AsyncMock())
-        await cog._send_event_change_notifications(
-            channel, {"started": [], "ended": events}, acknowledge=True
-        )
-        # A card per event, ten per message: every one delivered exactly once.
-        embeds = [e for c in channel.send.await_args_list for e in c.kwargs["embeds"]]
-        assert len(embeds) == len(events)
-        names = [e.title.partition(" ")[2] for e in embeds]  # "<emoji> <name>"
-        assert sorted(names) == sorted(ev["name"] for ev in events)
-        assert [
-            c.args[0]
-            for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
-        ] == events
-
-    async def test_duplicate_summary_acknowledges_both_only_after_delivery(self, cog):
-        events = self.events(2)
-        cog.poliswag.event_stats.get_summary.return_value = SUMMARY
-        channel = MagicMock(send=AsyncMock())
-        await cog._send_event_change_notifications(
-            channel, {"started": [], "ended": events}, acknowledge=True
-        )
-        assert len(channel.send.await_args.kwargs["embeds"]) == 1
-        assert [
-            c.args[0]
-            for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
-        ] == events
-
-    async def test_preview_never_acknowledges(self, cog):
-        channel = MagicMock(send=AsyncMock())
-        await cog._send_event_change_notifications(
-            channel, {"started": self.events(), "ended": []}
-        )
-        cog.poliswag.event_manager.mark_event_notified.assert_not_awaited()
-
-
-async def test_event_batches_respect_total_embed_characters(cog):
-    events = TestEventDeliveryFailures.events(3)
-    embeds = [discord.Embed(title=e["name"], description="x" * 3100) for e in events]
-    channel = MagicMock(send=AsyncMock())
-    await cog._send_event_batches(
-        channel,
-        "**Novos eventos**",
-        embeds,
-        [[e] for e in events],
-        [],
-        is_end=False,
-        acknowledge=True,
-    )
-    assert len(channel.send.await_args_list) == 3
-    assert all(
-        sum(len(e) for e in c.kwargs["embeds"]) <= 6000
-        for c in channel.send.await_args_list
-    )
-    assert all(
-        c.kwargs["allowed_mentions"].everyone is False
-        for c in channel.send.await_args_list
-    )
-    assert [
-        c.args[0]
-        for c in cog.poliswag.event_manager.mark_event_notified.await_args_list
-    ] == events
-
-
-async def test_long_event_name_fits_discord_title(cog):
-    event = {**TestEventDeliveryFailures.events(1)[0], "name": "x" * 255}
-    embed = await cog._build_event_embed(event)
-    assert len(embed.title) == 256
-
-
 class TestTrackingActivityLogs:
     @pytest.mark.asyncio
     async def test_silence_and_resumption_log_once_without_any_notification(self):
         poliswag = _make_poliswag()
         cog = Scheduled(poliswag)
-        old = real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
+        old = real_datetime.datetime.now(real_datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - real_datetime.timedelta(days=5)
         cog._tracking.last_event_at = AsyncMock(return_value=old)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
@@ -2013,7 +1368,9 @@ class TestTrackingActivityLogs:
             await cog._check_tracking_health()
             assert cog._last_tracking_alert_at is not None
             await cog._check_tracking_health()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
+                real_datetime.timezone.utc
+            ).replace(tzinfo=None)
             await cog._check_tracking_health()
             await cog._check_tracking_health()
             notify.assert_not_awaited()
@@ -2031,9 +1388,9 @@ class TestTrackingActivityLogs:
     async def test_persisted_silence_does_not_repeat_or_send_recovery_dm(self):
         poliswag = _make_poliswag()
         cog = Scheduled(poliswag)
-        cog._last_tracking_alert_at = (
-            real_datetime.datetime.utcnow() - real_datetime.timedelta(days=5)
-        )
+        cog._last_tracking_alert_at = real_datetime.datetime.now(
+            real_datetime.timezone.utc
+        ).replace(tzinfo=None) - real_datetime.timedelta(days=5)
         cog._tracking.last_event_at = AsyncMock(return_value=None)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
@@ -2041,7 +1398,9 @@ class TestTrackingActivityLogs:
             await cog._check_tracking_health()
             poliswag.utility.log_to_file.assert_not_called()
             poliswag.db.execute_query_to_database.assert_not_awaited()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.utcnow()
+            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
+                real_datetime.timezone.utc
+            ).replace(tzinfo=None)
             await cog._check_tracking_health()
             notify.assert_not_awaited()
         assert cog._last_tracking_alert_at is None
@@ -2063,7 +1422,7 @@ class TestWeeklyDigestRetryability:
     async def test_first_send_failure_then_retry(self, cog):
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._send_weekly_digest = AsyncMock(
+        cog._event_notices.send_weekly_digest = AsyncMock(
             side_effect=[
                 discord.HTTPException(MagicMock(status=500), "boom"),
                 True,
@@ -2077,28 +1436,28 @@ class TestWeeklyDigestRetryability:
             await cog._check_weekly_digest()
         assert cog._last_weekly_digest_monday == _monday_at_10().date()
         cog._save_digest_date.assert_called_once_with(_monday_at_10().date())
-        assert cog._send_weekly_digest.await_count == 2
+        assert cog._event_notices.send_weekly_digest.await_count == 2
 
     async def test_successful_dedup_does_not_resend(self, cog):
         mon = _monday_at_10()
         cog._last_weekly_digest_monday = mon.date()
-        cog._send_weekly_digest = AsyncMock()
+        cog._event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
-        cog._send_weekly_digest.assert_not_called()
+        cog._event_notices.send_weekly_digest.assert_not_called()
 
     async def test_quiet_day_still_marks_without_retry_spam(self, cog):
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._send_weekly_digest = AsyncMock(return_value=False)
+        cog._event_notices.send_weekly_digest = AsyncMock(return_value=False)
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = _monday_at_10()
             await cog._check_weekly_digest()
             assert cog._last_weekly_digest_monday == _monday_at_10().date()
             cog._save_digest_date.assert_called_once()
             await cog._check_weekly_digest()
-        assert cog._send_weekly_digest.await_count == 1
+        assert cog._event_notices.send_weekly_digest.await_count == 1
 
     async def test_missing_channel_still_marks_without_retry_spam(
         self, cog, monkeypatch
@@ -2117,11 +1476,11 @@ class TestWeeklyDigestRetryability:
                 }
             ]
         )
-        assert (await cog._send_weekly_digest()) is False
+        assert (await cog._event_notices.send_weekly_digest()) is False
         cog.poliswag.utility.log_to_file.assert_called()
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._send_weekly_digest = AsyncMock(return_value=False)
+        cog._event_notices.send_weekly_digest = AsyncMock(return_value=False)
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = _monday_at_10()
             await cog._check_weekly_digest()
@@ -2154,7 +1513,10 @@ class TestWeeklyDigestRetryability:
         )
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        with patch("cogs.scheduled.datetime") as mock_dt:
+        with (
+            patch("cogs.scheduled.datetime") as mock_dt,
+            patch("modules.event_notices.datetime", mock_dt),
+        ):
             mock_dt.datetime.now.return_value = _monday_at_10()
             mock_dt.datetime.strptime = real_datetime.datetime.strptime
             mock_dt.timedelta = real_datetime.timedelta
@@ -2168,45 +1530,6 @@ class TestWeeklyDigestRetryability:
         assert cog.poliswag.CONVIVIO_CHANNEL is recovered
         recovered.send.assert_awaited_once()
         assert recovered.send.call_args.kwargs["allowed_mentions"].everyone is False
-
-
-class TestWeeklyDigestLimits:
-    def _many_events(self, count):
-        base = real_datetime.datetime(2026, 4, 7, 12, 0)
-        events = []
-        for i in range(count):
-            start = base + real_datetime.timedelta(hours=i)
-            end = start + real_datetime.timedelta(hours=3)
-            events.append(
-                {
-                    "event_type": "Community Day",
-                    "name": f"Event-{i:03d}-" + "x" * 80,
-                    "start": start.strftime("%Y-%m-%d %H:%M:%S"),
-                    "end": end.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-            )
-        return events
-
-    async def test_oversized_calendar_splits_preserving_all_entries(self, cog):
-        now = real_datetime.datetime(2026, 4, 7, 12, 0)
-        events = self._many_events(80)
-        cog.poliswag.event_manager.get_weekly_events = AsyncMock(return_value=events)
-        with patch("cogs.scheduled.datetime") as mock_dt:
-            mock_dt.datetime.now.return_value = now
-            mock_dt.datetime.strptime = real_datetime.datetime.strptime
-            mock_dt.timedelta = real_datetime.timedelta
-            result = await cog._send_weekly_digest()
-        assert result is True
-        calls = cog.poliswag.CONVIVIO_CHANNEL.send.await_args_list
-        assert len(calls) > 1
-        for call in calls:
-            embed = call.kwargs["embed"]
-            assert len(embed.description) <= 4096
-            assert len(embed) <= 6000
-            assert call.kwargs["allowed_mentions"].everyone is False
-        combined = "\n".join(c.kwargs["embed"].description for c in calls)
-        for i in range(80):
-            assert f"Event-{i:03d}-" in combined
 
 
 class TestDailyErrorDigestRetryability:
