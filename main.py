@@ -216,6 +216,7 @@ class Poliswag(commands.Bot):
         await apply_migrations(self.db, self.utility.log_to_file)
         # Areas come from the registry plus Dragonite's fences; load them
         # before cogs so the first tick already classifies points correctly.
+        scan_areas.use(self.db)
         await scan_areas.refresh(self.utility.log_to_file)
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")

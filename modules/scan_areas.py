@@ -21,13 +21,11 @@ import logging
 import os
 import tempfile
 import time
-from contextlib import closing
 from pathlib import Path
 
 import aiohttp
 
 from modules.config import Config
-from modules.database_connector import connect
 
 REFRESH_SECONDS = 600
 # After a failed refresh, wait this long before hammering Dragonite again.
@@ -51,6 +49,8 @@ _rows: list[dict] = []
 _fences: dict[str, tuple] = {}
 _loaded_at: float | None = None
 _last_attempt: float | None = None
+# The poliswag database handle the registry is read through (see use()).
+_db = None
 
 
 # ---------------------------------------------------------------------------
@@ -341,9 +341,24 @@ def install(rows, fences) -> None:
     _last_attempt = _loaded_at
 
 
+def use(db) -> None:
+    """Give the module the database handle the registry is read through.
+
+    The bot calls it once in setup_hook with `poliswag.db`; scripts pass a
+    handle of their own. Until then refresh() fails like a failed read.
+    """
+    global _db
+    _db = db
+
+
 def reset() -> None:
-    """Forget the snapshot and its freshness clock."""
-    global _rows, _fences, _loaded_at, _last_attempt
+    """Forget the snapshot, its freshness clock and the database handle.
+
+    Only tests call it; dropping the handle too keeps one test's fake
+    database from leaking into the next.
+    """
+    global _rows, _fences, _loaded_at, _last_attempt, _db
+    _db = None
     _rows = []
     _fences = {}
     _loaded_at = None
@@ -354,11 +369,10 @@ def reset() -> None:
 # Loading
 
 
-def _read_registry() -> list[dict]:
-    with closing(connect(Config.DB_POLISWAG, dict_rows=True)) as db:
-        with db.cursor() as cursor:
-            cursor.execute(_REGISTRY_SQL)
-            return [_normalize_row(row) for row in cursor.fetchall()]
+def _read_registry(connection) -> list[dict]:
+    with connection.cursor() as cursor:
+        cursor.execute(_REGISTRY_SQL)
+        return [_normalize_row(row) for row in cursor.fetchall()]
 
 
 def _cache_path() -> Path:
@@ -509,7 +523,9 @@ async def refresh(log=None) -> bool:
     async with _lock:
         _last_attempt = time.monotonic()
         try:
-            rows = await asyncio.to_thread(_read_registry)
+            if _db is None:
+                raise RuntimeError("no database handle (scan_areas.use was not called)")
+            rows = await _db.unit(_read_registry)
         except Exception as error:
             _log(f"scan_area registry read failed: {error}", "ERROR")
             return False
