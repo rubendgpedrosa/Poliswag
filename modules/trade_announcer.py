@@ -4,13 +4,11 @@ The worker deliberately owns only trade_notice and the polling watermark. The
 web app remains the sole writer of trade_entry.
 """
 
-import asyncio
 from collections import defaultdict
 
 import discord
 
 from modules.config import Config
-from modules.database_connector import connect
 from modules.trade_digest import CATEGORY_LABELS
 
 _CUTOFF_SQL = "UTC_TIMESTAMP() - INTERVAL 90 SECOND"
@@ -35,12 +33,13 @@ class TradeAnnouncer:
         if channel is None:
             channel = await self.poliswag.fetch_channel(Config.TRADES_CHANNEL_ID)
 
-        batch = await asyncio.to_thread(self._read_batch)
+        site_db = self.poliswag.site_db
+        batch = await site_db.unit(self._read_batch)
         if batch["initialise"]:
-            await asyncio.to_thread(self._initialise, batch["cutoff"])
+            await site_db.unit(self._initialise, batch["cutoff"])
             return
         if not batch["connections"]:
-            await asyncio.to_thread(self._advance, batch["cutoff"])
+            await site_db.unit(self._advance, batch["cutoff"])
             return
 
         grouped = defaultdict(list)
@@ -61,112 +60,91 @@ class TradeAnnouncer:
             # Record each group the moment it lands. Recording the whole batch
             # at the end meant one failing group re-announced every group
             # before it on the next tick, and every 60s after that.
-            await asyncio.to_thread(self._record_notices, rows)
+            await site_db.unit(self._record_notices, rows)
         # Only once the whole batch is out: the watermark is a time bound, and
         # moving it past a group that never got sent would drop it for good.
-        await asyncio.to_thread(self._advance_watermark, batch["cutoff"])
+        await site_db.unit(self._advance_watermark, batch["cutoff"])
 
-    def _connect(self):
-        return connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
+    # Each method below is the work of one site_db unit, on that unit's own
+    # connection: the reads and each write stay separate transactions.
+    def _read_batch(self, db):
+        with db.cursor() as cursor:
+            cursor.execute("SELECT " + _CUTOFF_SQL + " AS cutoff")
+            cutoff = cursor.fetchone()["cutoff"]
+            cursor.execute("SELECT last_trade_notice_at FROM poliswag.poliswag")
+            # No settings row at all reads the same as no watermark: set
+            # one and announce nothing, rather than raising every tick.
+            settings = cursor.fetchone()
+            watermark = settings["last_trade_notice_at"] if settings else None
+            if watermark is None:
+                return {"cutoff": cutoff, "initialise": True, "connections": []}
+            cursor.execute(
+                """
+                SELECT DISTINCT h.discord_id AS holder_id, w.discord_id AS wanter_id,
+                       h.pokemon_id, h.form_id, h.costume_id, h.category,
+                       h.created_at AS have_created_at, w.created_at AS want_created_at,
+                       CASE WHEN h.created_at >= w.created_at THEN h.discord_id ELSE w.discord_id END actor_id,
+                       hp.username AS holder_username, hp.display_name AS holder_display_name,
+                       wp.username AS wanter_username, wp.display_name AS wanter_display_name,
+                       pn.name AS pokemon_name, pn.form_name
+                FROM trade_entry h
+                JOIN trade_entry w ON w.list = 'want'
+                  AND (w.pokemon_id = 0 OR w.pokemon_id = h.pokemon_id)
+                  AND (w.form_id = h.form_id OR (w.form_id = 0 AND w.costume_id = 0))
+                  AND (w.costume_id = h.costume_id OR (w.form_id = 0 AND w.costume_id = 0))
+                  AND (w.category = 'normal' OR w.category = h.category)
+                  AND w.discord_id <> h.discord_id
+                JOIN trade_player hp ON hp.discord_id = h.discord_id AND hp.left_at IS NULL
+                JOIN trade_player wp ON wp.discord_id = w.discord_id AND wp.left_at IS NULL
+                LEFT JOIN poliswag.pokemon_catalogue pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id AND pn.costume_id = h.costume_id
+                LEFT JOIN trade_notice n ON n.wanter_id = w.discord_id AND n.holder_id = h.discord_id
+                  AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.costume_id = h.costume_id AND n.category = h.category
+                WHERE h.list = 'have' AND h.created_at <= %s AND w.created_at <= %s
+                  AND GREATEST(h.created_at, w.created_at) > %s
+                  AND n.wanter_id IS NULL
+                ORDER BY GREATEST(h.created_at, w.created_at), w.discord_id,
+                         h.discord_id, h.pokemon_id, h.form_id, h.category
+                """,
+                (cutoff, cutoff, watermark),
+            )
+            return {
+                "cutoff": cutoff,
+                "initialise": False,
+                "connections": list(cursor.fetchall()),
+            }
 
-    def _read_batch(self):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SELECT " + _CUTOFF_SQL + " AS cutoff")
-                cutoff = cursor.fetchone()["cutoff"]
-                cursor.execute("SELECT last_trade_notice_at FROM poliswag.poliswag")
-                # No settings row at all reads the same as no watermark: set
-                # one and announce nothing, rather than raising every tick.
-                settings = cursor.fetchone()
-                watermark = settings["last_trade_notice_at"] if settings else None
-                if watermark is None:
-                    return {"cutoff": cutoff, "initialise": True, "connections": []}
-                cursor.execute(
-                    """
-                    SELECT DISTINCT h.discord_id AS holder_id, w.discord_id AS wanter_id,
-                           h.pokemon_id, h.form_id, h.costume_id, h.category,
-                           h.created_at AS have_created_at, w.created_at AS want_created_at,
-                           CASE WHEN h.created_at >= w.created_at THEN h.discord_id ELSE w.discord_id END actor_id,
-                           hp.username AS holder_username, hp.display_name AS holder_display_name,
-                           wp.username AS wanter_username, wp.display_name AS wanter_display_name,
-                           pn.name AS pokemon_name, pn.form_name
-                    FROM trade_entry h
-                    JOIN trade_entry w ON w.list = 'want'
-                      AND (w.pokemon_id = 0 OR w.pokemon_id = h.pokemon_id)
-                      AND (w.form_id = h.form_id OR (w.form_id = 0 AND w.costume_id = 0))
-                      AND (w.costume_id = h.costume_id OR (w.form_id = 0 AND w.costume_id = 0))
-                      AND (w.category = 'normal' OR w.category = h.category)
-                      AND w.discord_id <> h.discord_id
-                    JOIN trade_player hp ON hp.discord_id = h.discord_id AND hp.left_at IS NULL
-                    JOIN trade_player wp ON wp.discord_id = w.discord_id AND wp.left_at IS NULL
-                    LEFT JOIN poliswag.pokemon_catalogue pn ON pn.pokemon_id = h.pokemon_id AND pn.form_id = h.form_id AND pn.costume_id = h.costume_id
-                    LEFT JOIN trade_notice n ON n.wanter_id = w.discord_id AND n.holder_id = h.discord_id
-                      AND n.pokemon_id = h.pokemon_id AND n.form_id = h.form_id AND n.costume_id = h.costume_id AND n.category = h.category
-                    WHERE h.list = 'have' AND h.created_at <= %s AND w.created_at <= %s
-                      AND GREATEST(h.created_at, w.created_at) > %s
-                      AND n.wanter_id IS NULL
-                    ORDER BY GREATEST(h.created_at, w.created_at), w.discord_id,
-                             h.discord_id, h.pokemon_id, h.form_id, h.category
-                    """,
-                    (cutoff, cutoff, watermark),
-                )
-                return {
-                    "cutoff": cutoff,
-                    "initialise": False,
-                    "connections": list(cursor.fetchall()),
-                }
-        finally:
-            db.rollback()
-            db.close()
+    def _initialise(self, db, cutoff):
+        with db.cursor() as cursor:
+            cursor.execute(
+                "UPDATE poliswag.poliswag SET last_trade_notice_at = %s", (cutoff,)
+            )
 
-    def _initialise(self, cutoff):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE poliswag.poliswag SET last_trade_notice_at = %s", (cutoff,)
-                )
-            db.commit()
-        finally:
-            db.close()
+    def _advance(self, db, cutoff):
+        self._advance_watermark(db, cutoff)
 
-    def _advance(self, cutoff):
-        self._advance_watermark(cutoff)
-
-    def _record_notices(self, rows):
+    def _record_notices(self, db, rows):
         """Mark these connections as announced, so they are never sent twice."""
         if not rows:
             return
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                for row in rows:
-                    cursor.execute(
-                        "INSERT IGNORE INTO trade_notice (wanter_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
-                        (
-                            row["wanter_id"],
-                            row["holder_id"],
-                            row["pokemon_id"],
-                            row["form_id"],
-                            row.get("costume_id", 0),
-                            row["category"],
-                        ),
-                    )
-            db.commit()
-        finally:
-            db.close()
-
-    def _advance_watermark(self, cutoff):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
+        with db.cursor() as cursor:
+            for row in rows:
                 cursor.execute(
-                    "UPDATE poliswag.poliswag SET last_trade_notice_at = %s", (cutoff,)
+                    "INSERT IGNORE INTO trade_notice (wanter_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (
+                        row["wanter_id"],
+                        row["holder_id"],
+                        row["pokemon_id"],
+                        row["form_id"],
+                        row.get("costume_id", 0),
+                        row["category"],
+                    ),
                 )
-            db.commit()
-        finally:
-            db.close()
+
+    def _advance_watermark(self, db, cutoff):
+        with db.cursor() as cursor:
+            cursor.execute(
+                "UPDATE poliswag.poliswag SET last_trade_notice_at = %s", (cutoff,)
+            )
 
     def _message(self, actor_id, rows):
         actor = next(row for row in rows if str(row["actor_id"]) == str(actor_id))

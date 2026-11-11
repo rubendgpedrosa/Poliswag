@@ -19,13 +19,11 @@ Owns trade_dm_notice (who was told about which spare) and
 poliswag.last_trade_dm_at; reads trade_player.trade_dms, the player's switch.
 """
 
-import asyncio
 from collections import defaultdict
 
 import discord
 
 from modules.config import Config
-from modules.database_connector import connect
 from modules.trade_digest import CATEGORY_LABELS
 
 # The site writes a spare and its tick in one transaction; a short delay keeps
@@ -134,9 +132,10 @@ class TradeDM:
         self.poliswag = poliswag
 
     async def tick(self):
-        batch = await asyncio.to_thread(self._read_batch)
+        site_db = self.poliswag.site_db
+        batch = await site_db.unit(self._read_batch)
         if batch["initialise"]:
-            await asyncio.to_thread(self._advance_watermark, batch["cutoff"])
+            await site_db.unit(self._advance_watermark, batch["cutoff"])
             return
 
         by_recipient = defaultdict(list)
@@ -145,7 +144,7 @@ class TradeDM:
         recipients = list(by_recipient.items())
 
         for recipient_id, rows in recipients[:_RECIPIENTS_PER_TICK]:
-            holders = await asyncio.to_thread(self._holders, recipient_id, rows)
+            holders = await site_db.unit(self._holders, recipient_id, rows)
             try:
                 user = self.poliswag.get_user(
                     int(recipient_id)
@@ -163,88 +162,67 @@ class TradeDM:
                 )
             # Recorded the moment it lands, as the announcer does, so one
             # failing recipient can't resend everyone before them.
-            await asyncio.to_thread(self._record_notices, rows)
+            await site_db.unit(self._record_notices, rows)
 
         # Past the cap, the watermark waits: the notices already keep the ones
         # sent from going out twice.
         if len(recipients) <= _RECIPIENTS_PER_TICK:
-            await asyncio.to_thread(self._advance_watermark, batch["cutoff"])
+            await site_db.unit(self._advance_watermark, batch["cutoff"])
 
-    def _connect(self):
-        return connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
+    # Each method below is the work of one site_db unit, on that unit's own
+    # connection: the reads and each write stay separate transactions.
+    def _read_batch(self, db):
+        with db.cursor() as cursor:
+            cursor.execute("SELECT " + _CUTOFF_SQL + " AS cutoff")
+            cutoff = cursor.fetchone()["cutoff"]
+            cursor.execute("SELECT last_trade_dm_at FROM poliswag.poliswag")
+            settings = cursor.fetchone()
+            watermark = settings["last_trade_dm_at"] if settings else None
+            if watermark is None:
+                return {"cutoff": cutoff, "initialise": True, "rows": []}
+            cursor.execute(_NEW_MUTUALS_SQL, (watermark, cutoff))
+            return {
+                "cutoff": cutoff,
+                "initialise": False,
+                "rows": list(cursor.fetchall()),
+            }
 
-    def _read_batch(self):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SELECT " + _CUTOFF_SQL + " AS cutoff")
-                cutoff = cursor.fetchone()["cutoff"]
-                cursor.execute("SELECT last_trade_dm_at FROM poliswag.poliswag")
-                settings = cursor.fetchone()
-                watermark = settings["last_trade_dm_at"] if settings else None
-                if watermark is None:
-                    return {"cutoff": cutoff, "initialise": True, "rows": []}
-                cursor.execute(_NEW_MUTUALS_SQL, (watermark, cutoff))
-                return {
-                    "cutoff": cutoff,
-                    "initialise": False,
-                    "rows": list(cursor.fetchall()),
-                }
-        finally:
-            db.rollback()
-            db.close()
-
-    def _holders(self, recipient_id, rows):
+    def _holders(self, db, recipient_id, rows):
         """Per holder, in order: what they have for the recipient, and what they'd want back."""
         grouped = defaultdict(list)
         for row in rows:
             grouped[str(row["holder_id"])].append(row)
-        db = self._connect()
-        try:
-            out = []
-            with db.cursor() as cursor:
-                for holder_id, gives in grouped.items():
-                    cursor.execute(_GIVE_BACK_SQL, (holder_id, recipient_id))
-                    out.append(
-                        (
-                            holder_id,
-                            gives[0]["holder_name"],
-                            gives,
-                            list(cursor.fetchall()),
-                        )
+        out = []
+        with db.cursor() as cursor:
+            for holder_id, gives in grouped.items():
+                cursor.execute(_GIVE_BACK_SQL, (holder_id, recipient_id))
+                out.append(
+                    (
+                        holder_id,
+                        gives[0]["holder_name"],
+                        gives,
+                        list(cursor.fetchall()),
                     )
-            return out
-        finally:
-            db.rollback()
-            db.close()
-
-    def _record_notices(self, rows):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                for row in rows:
-                    cursor.execute(
-                        "INSERT IGNORE INTO trade_dm_notice (recipient_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
-                        (
-                            row["recipient_id"],
-                            row["holder_id"],
-                            row["pokemon_id"],
-                            row["form_id"],
-                            row.get("costume_id", 0),
-                            row["category"],
-                        ),
-                    )
-            db.commit()
-        finally:
-            db.close()
-
-    def _advance_watermark(self, cutoff):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE poliswag.poliswag SET last_trade_dm_at = %s", (cutoff,)
                 )
-            db.commit()
-        finally:
-            db.close()
+        return out
+
+    def _record_notices(self, db, rows):
+        with db.cursor() as cursor:
+            for row in rows:
+                cursor.execute(
+                    "INSERT IGNORE INTO trade_dm_notice (recipient_id, holder_id, pokemon_id, form_id, costume_id, category) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (
+                        row["recipient_id"],
+                        row["holder_id"],
+                        row["pokemon_id"],
+                        row["form_id"],
+                        row.get("costume_id", 0),
+                        row["category"],
+                    ),
+                )
+
+    def _advance_watermark(self, db, cutoff):
+        with db.cursor() as cursor:
+            cursor.execute(
+                "UPDATE poliswag.poliswag SET last_trade_dm_at = %s", (cutoff,)
+            )

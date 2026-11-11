@@ -12,13 +12,11 @@ Nobody is pinged: this is news, not a summons. The announcer does the tagging,
 because there a specific pair of people have something to do.
 """
 
-import asyncio
 import datetime
 
 import discord
 
 from modules.config import Config
-from modules.database_connector import connect
 from modules.pokemon_sprites import LARGE_SPRITE_BASE, pokemon_sprite_url
 
 DIGEST_HOUR = 9
@@ -209,10 +207,6 @@ def build_digest(rows):
     return embed
 
 
-def _connect_pool():
-    return connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
-
-
 class TradeDigest:
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -236,7 +230,8 @@ class TradeDigest:
         # opened a connection every minute of the day to learn that.
         if now.hour < DIGEST_HOUR or self._done_on == now.date():
             return
-        batch = await asyncio.to_thread(self._read_batch, now)
+        site_db = self.poliswag.site_db
+        batch = await site_db.unit(self._read_batch, now)
         if batch is None:
             # Past the hour and still not due: the watermark is today's.
             self._done_on = now.date()
@@ -249,64 +244,53 @@ class TradeDigest:
                 embed=build_digest(batch["rows"]),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-        await asyncio.to_thread(self._record, batch["cutoff"])
+        await site_db.unit(self._record, batch["cutoff"])
         self._done_on = now.date()
 
-    def _connect(self):
-        return _connect_pool()
-
-    def _read_batch(self, now):
+    # The read and the watermark write are separate site_db units, each on
+    # its own connection, with the post to Discord in between.
+    def _read_batch(self, db, now):
         """Everything added since the last digest, or None if it isn't time.
 
         The first ever run has no watermark: it sets one and posts nothing,
         rather than announcing every list the community has ever written.
         """
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SELECT UTC_TIMESTAMP() AS cutoff")
-                cutoff = cursor.fetchone()["cutoff"]
-                cursor.execute("SELECT last_trade_digest_at FROM poliswag.poliswag")
-                watermark = cursor.fetchone()["last_trade_digest_at"]
-                if not is_due(now, watermark):
-                    return None
-                if watermark is None:
-                    return {"cutoff": cutoff, "rows": []}
-                cursor.execute(_ROWS_SQL, (watermark, cutoff))
-                return {"cutoff": cutoff, "rows": list(cursor.fetchall())}
-        finally:
-            db.rollback()
-            db.close()
+        with db.cursor() as cursor:
+            cursor.execute("SELECT UTC_TIMESTAMP() AS cutoff")
+            cutoff = cursor.fetchone()["cutoff"]
+            cursor.execute("SELECT last_trade_digest_at FROM poliswag.poliswag")
+            watermark = cursor.fetchone()["last_trade_digest_at"]
+            if not is_due(now, watermark):
+                return None
+            if watermark is None:
+                return {"cutoff": cutoff, "rows": []}
+            cursor.execute(_ROWS_SQL, (watermark, cutoff))
+            return {"cutoff": cutoff, "rows": list(cursor.fetchall())}
 
-    def _record(self, cutoff):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE poliswag.poliswag SET last_trade_digest_at = %s", (cutoff,)
-                )
-            db.commit()
-        finally:
-            db.close()
+    def _record(self, db, cutoff):
+        with db.cursor() as cursor:
+            cursor.execute(
+                "UPDATE poliswag.poliswag SET last_trade_digest_at = %s", (cutoff,)
+            )
 
 
-def rows_since(days):
+async def rows_since(site_db, days):
     """The same rows the 09:00 post would use, over a window you choose.
 
     For !resumo, which exists because a silent digest and a broken one look
     identical from the channel. It reads only: the watermark belongs to the
     scheduled run, and a preview must not consume a morning's news.
+    `site_db` is the bot's handle for the site's schema (poliswag.site_db).
     """
-    db = _connect_pool()
-    try:
-        with db.cursor() as cursor:
-            cursor.execute(
-                "SELECT UTC_TIMESTAMP() - INTERVAL %s DAY AS since, UTC_TIMESTAMP() AS cutoff",
-                (days,),
-            )
-            window = cursor.fetchone()
-            cursor.execute(_ROWS_SQL, (window["since"], window["cutoff"]))
-            return list(cursor.fetchall())
-    finally:
-        db.rollback()
-        db.close()
+    return await site_db.unit(_read_rows_since, days)
+
+
+def _read_rows_since(db, days):
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT UTC_TIMESTAMP() - INTERVAL %s DAY AS since, UTC_TIMESTAMP() AS cutoff",
+            (days,),
+        )
+        window = cursor.fetchone()
+        cursor.execute(_ROWS_SQL, (window["since"], window["cutoff"]))
+        return list(cursor.fetchall())

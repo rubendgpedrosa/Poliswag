@@ -3,12 +3,13 @@ closed DMs, the per-tick cap). The matching SQL itself was checked against a
 real schema; here the database is faked."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 
 from modules import trade_dm
 from modules.trade_dm import TradeDM, message
+from tests.fakes import FakeHandle
 
 
 def give(
@@ -57,12 +58,13 @@ def dm(rows, initialise=False):
     user = MagicMock()
     user.send = AsyncMock()
     bot.get_user.return_value = user
+    bot.site_db = FakeHandle()
     sender = TradeDM(bot)
     sender._read_batch = MagicMock(
         return_value={"cutoff": "c", "initialise": initialise, "rows": rows}
     )
     sender._holders = MagicMock(
-        side_effect=lambda _recipient, rs: [
+        side_effect=lambda _db, _recipient, rs: [
             (str(rs[0]["holder_id"]), rs[0]["holder_name"], rs, [])
         ]
     )
@@ -76,7 +78,9 @@ class TestTick:
         sender, user = dm([], initialise=True)
         asyncio.run(sender.tick())
         user.send.assert_not_called()
-        sender._advance_watermark.assert_called_once_with("c")
+        sender._advance_watermark.assert_called_once_with(
+            sender.poliswag.site_db.connection, "c"
+        )
 
     def test_one_dm_per_recipient_recorded_then_watermark(self):
         rows = [
@@ -88,7 +92,9 @@ class TestTick:
         asyncio.run(sender.tick())
         assert user.send.await_count == 2
         assert sender._record_notices.call_count == 2
-        sender._advance_watermark.assert_called_once_with("c")
+        sender._advance_watermark.assert_called_once_with(
+            sender.poliswag.site_db.connection, "c"
+        )
 
     def test_closed_dms_are_recorded_so_they_are_not_retried(self):
         sender, user = dm([give()])
@@ -134,8 +140,7 @@ class TestReadBatch:
     def test_first_run_sets_a_watermark_and_sends_nothing(self):
         sender = TradeDM(MagicMock())
         db, cursor = dm_db(watermark=None)
-        sender._connect = MagicMock(return_value=db)
-        batch = sender._read_batch()
+        batch = sender._read_batch(db)
         assert batch == {
             "cutoff": "2026-10-16 10:00:00",
             "initialise": True,
@@ -146,19 +151,15 @@ class TestReadBatch:
     def test_no_settings_row_reads_like_no_watermark(self):
         sender = TradeDM(MagicMock())
         db, _ = dm_db(watermark="missing")
-        sender._connect = MagicMock(return_value=db)
-        assert sender._read_batch()["initialise"] is True
+        assert sender._read_batch(db)["initialise"] is True
 
     def test_rows_since_the_watermark(self):
         sender = TradeDM(MagicMock())
         db, cursor = dm_db(rows=[give()])
-        sender._connect = MagicMock(return_value=db)
-        batch = sender._read_batch()
+        batch = sender._read_batch(db)
         assert batch["initialise"] is False
         assert batch["rows"] == [give()]
         assert cursor.execute.call_args.args[1] == ("w", "2026-10-16 10:00:00")
-        db.rollback.assert_called_once()
-        db.close.assert_called_once()
 
 
 class TestHolders:
@@ -169,13 +170,12 @@ class TestHolders:
         db = MagicMock()
         cursor = db.cursor.return_value.__enter__.return_value
         cursor.fetchall.side_effect = [[give(133, "Eevee")], []]
-        sender._connect = MagicMock(return_value=db)
         rows = [
             give(holder_id=1),
             give(143, "Snorlax", holder_id=1),
             give(holder_id=7),
         ]
-        holders = sender._holders("2", rows)
+        holders = sender._holders(db, "2", rows)
         assert [
             (holder[0], holder[1], len(holder[2]), len(holder[3])) for holder in holders
         ] == [
@@ -185,8 +185,6 @@ class TestHolders:
         first, second = cursor.execute.call_args_list
         assert first.args[1] == ("1", "2")
         assert second.args[1] == ("7", "2")
-        db.rollback.assert_called_once()
-        db.close.assert_called_once()
 
 
 class TestRecordAndWatermark:
@@ -194,34 +192,50 @@ class TestRecordAndWatermark:
         sender = TradeDM(MagicMock())
         db = MagicMock()
         cursor = db.cursor.return_value.__enter__.return_value
-        sender._connect = MagicMock(return_value=db)
-        sender._record_notices([give(), give(133, "Eevee")])
+        sender._record_notices(db, [give(), give(133, "Eevee")])
         assert cursor.execute.call_count == 2
         first = cursor.execute.call_args_list[0]
         assert "INSERT IGNORE INTO trade_dm_notice" in first.args[0]
         assert first.args[1] == (2, 1, 25, 0, 0, "shiny")
-        db.commit.assert_called_once()
-        db.close.assert_called_once()
 
     def test_the_watermark_advances(self):
         sender = TradeDM(MagicMock())
         db = MagicMock()
         cursor = db.cursor.return_value.__enter__.return_value
-        sender._connect = MagicMock(return_value=db)
-        sender._advance_watermark("2026-10-16 10:00:00")
+        sender._advance_watermark(db, "2026-10-16 10:00:00")
         assert cursor.execute.call_args.args == (
             "UPDATE poliswag.poliswag SET last_trade_dm_at = %s",
             ("2026-10-16 10:00:00",),
         )
-        db.commit.assert_called_once()
-        db.close.assert_called_once()
 
 
-class TestConnect:
-    def test_connect_opens_the_trades_database(self):
-        db = MagicMock()
-        with patch("modules.trade_dm.connect", return_value=db) as connect:
-            assert TradeDM(MagicMock())._connect() is db
-        connect.assert_called_once_with(
-            trade_dm.Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False
-        )
+class TestUnitsOfWork:
+    """Each read and write is its own unit on the site's handle.
+
+    The old connect(DB_POGOLEIRIA, dict_rows=True, autocommit=False) is the
+    unit's default, so no unit asks for different options: dict rows, and a
+    transaction committed when the work returns.
+    """
+
+    def test_read_holders_record_then_watermark_each_in_its_own_unit(self):
+        bot = MagicMock()
+        bot.site_db = handle = FakeHandle()
+        user = MagicMock()
+        user.send = AsyncMock()
+        bot.get_user.return_value = user
+        handle.cursor.fetchone.side_effect = [
+            {"cutoff": "c"},
+            {"last_trade_dm_at": "w"},
+        ]
+        handle.cursor.fetchall.side_effect = [[give()], []]
+        asyncio.run(TradeDM(bot).tick())
+        assert [work.__name__ for work, _args, _options in handle.units] == [
+            "_read_batch",
+            "_holders",
+            "_record_notices",
+            "_advance_watermark",
+        ]
+        assert all(options == {} for _work, _args, options in handle.units)
+        assert handle.units[1][1] == ("2", [give()])
+        assert handle.units[-1][1] == ("c",)
+        user.send.assert_awaited_once()

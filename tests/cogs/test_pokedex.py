@@ -288,7 +288,9 @@ def digest_row(**patch):
 
 async def test_resumo_dms_the_digest(cog, monkeypatch):
     author = member()
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [digest_row()])
+    monkeypatch.setattr(
+        "cogs.pokedex.rows_since", AsyncMock(return_value=[digest_row()])
+    )
 
     await cog.resumo.callback(cog, ctx_for(author), 2)
 
@@ -297,9 +299,19 @@ async def test_resumo_dms_the_digest(cog, monkeypatch):
     assert "Poliwag" in embed.fields[0].value
 
 
+async def test_resumo_reads_through_the_sites_handle(cog, poliswag, monkeypatch):
+    # rows_since has no bot of its own: the cog hands it poliswag.site_db.
+    read = AsyncMock(return_value=[])
+    monkeypatch.setattr("cogs.pokedex.rows_since", read)
+
+    await cog.resumo.callback(cog, ctx_for(member()), 3)
+
+    read.assert_awaited_once_with(poliswag.site_db, 3)
+
+
 async def test_resumo_says_so_when_there_is_nothing(cog, monkeypatch):
     author = member()
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    monkeypatch.setattr("cogs.pokedex.rows_since", AsyncMock(return_value=[]))
 
     await cog.resumo.callback(cog, ctx_for(author), 1)
 
@@ -310,7 +322,8 @@ async def test_resumo_says_so_when_there_is_nothing(cog, monkeypatch):
 async def test_resumo_keeps_the_window_sane(cog, monkeypatch):
     asked = []
     monkeypatch.setattr(
-        "cogs.pokedex.rows_since", lambda days: asked.append(days) or []
+        "cogs.pokedex.rows_since",
+        AsyncMock(side_effect=lambda _db, days: asked.append(days) or []),
     )
 
     await cog.resumo.callback(cog, ctx_for(member()), 0)
@@ -323,7 +336,8 @@ async def test_resumo_is_for_members_only(cog, poliswag, monkeypatch):
     poliswag.guilds = [guild_with(456)]
     called = []
     monkeypatch.setattr(
-        "cogs.pokedex.rows_since", lambda days: called.append(days) or []
+        "cogs.pokedex.rows_since",
+        AsyncMock(side_effect=lambda _db, days: called.append(days) or []),
     )
     author = member(123)
     ctx = ctx_for(author, in_guild=False)
@@ -335,7 +349,9 @@ async def test_resumo_is_for_members_only(cog, poliswag, monkeypatch):
 
 
 async def test_resumo_falls_back_to_the_channel_when_dms_are_shut(cog, monkeypatch):
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [digest_row()])
+    monkeypatch.setattr(
+        "cogs.pokedex.rows_since", AsyncMock(return_value=[digest_row()])
+    )
     author = member()
     author.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "no"))
     ctx = ctx_for(author)
@@ -346,7 +362,7 @@ async def test_resumo_falls_back_to_the_channel_when_dms_are_shut(cog, monkeypat
 
 
 async def test_resumo_deletes_the_command_message_in_a_channel(cog, monkeypatch):
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    monkeypatch.setattr("cogs.pokedex.rows_since", AsyncMock(return_value=[]))
     ctx = ctx_for(member())
 
     await cog.resumo.callback(cog, ctx)
@@ -355,7 +371,7 @@ async def test_resumo_deletes_the_command_message_in_a_channel(cog, monkeypatch)
 
 
 async def test_resumo_in_a_dm_deletes_nothing(cog, monkeypatch):
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    monkeypatch.setattr("cogs.pokedex.rows_since", AsyncMock(return_value=[]))
     ctx = ctx_for(member(), in_guild=False)
 
     await cog.resumo.callback(cog, ctx)
@@ -364,7 +380,7 @@ async def test_resumo_in_a_dm_deletes_nothing(cog, monkeypatch):
 
 
 async def test_resumo_still_answers_when_the_delete_is_refused(cog, monkeypatch):
-    monkeypatch.setattr("cogs.pokedex.rows_since", lambda days: [])
+    monkeypatch.setattr("cogs.pokedex.rows_since", AsyncMock(return_value=[]))
     author = member()
     ctx = ctx_for(author)
     ctx.message.delete.side_effect = discord.Forbidden(
