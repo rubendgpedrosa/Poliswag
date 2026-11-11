@@ -70,12 +70,12 @@ against a throwaway MariaDB; CI runs them on every push. How the isolation works
 
 ## PoliSnatch
 
-`!lure` and shiny link resolution send jobs to PoliSnatch over HTTPS; the in-game half
-never runs here. Two settings point at it:
+The scheduler asks PoliSnatch every five minutes whether a new game build needs a
+release; the in-game half never runs here. Two settings point at it:
 
 | Variable | What it is |
 |---|---|
-| `POLISNATCH_JOBS_URL` | The job API base, ending in `/v1/jobs`. Not committed. |
+| `POLISNATCH_STATUS_URL` | The game-status endpoint. Not committed. |
 | `POLISNATCH_JOBS_KEY_FILE` | File holding the submit key, default `/etc/poliswag/secrets/polisnatch-jobs-key`. Read on each call, so a new key needs no restart. |
 
 Without the key those commands answer with a configuration error.

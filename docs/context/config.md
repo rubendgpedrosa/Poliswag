@@ -14,7 +14,7 @@ Host-side scanner update staging and session-protected recovery: [scanner-update
 | Home Assistant | `ALL_DOWN_ENDPOINT` | Webhook when pokemon data goes stale (`map_status`) and when it flows again (`map_restored`) |
 | Home Assistant | `OWNER_ALERT_ENDPOINT` | Generic backup phone notifications (`scripts/notify_owner.py`); Pokémon GO operational alerts use private Discord DMs (`modules/owner_alert.py`, host helper `--discord`). (Whether pogoleiria.pt, the Pokédex, the quest export and the map answer is watched by the home monitoring's probes since 2026-10-04, not by the bot.) Falls back to a DM. The daily error digest stays a DM. |
 | Poracle-NG | `PORACLE_API_URL` + `PORACLE_API_SECRET` | Pokémon alert rule CRUD |
-| PoliSnatch jobs | `POLISNATCH_JOBS_URL` + `POLISNATCH_JOBS_KEY_FILE` | `!lure` submits and polls jobs; the submit key comes from `polisnatch-dist jobs-key`, is read per call and never logged |
+| PoliSnatch status | `POLISNATCH_STATUS_URL` + `POLISNATCH_JOBS_KEY_FILE` | Polled every 5 min for a new game build (owner DM); the submit key comes from `polisnatch-dist jobs-key`, is read per call and never logged |
 | ScrapedDuck | `EVENTS_ENDPOINT` | Event calendar JSON |
 | PokeMiners masterfile | `MASTERFILE_ENDPOINT` | Pokémon/item name translations |
 | Niantic version | `NIANTIC_FORCED_VERSION_ENDPOINT` | Version check |
@@ -27,12 +27,10 @@ QUEST_CHANNEL_ID, CONVIVIO_CHANNEL_ID, MOD_CHANNEL_ID, ACCOUNTS_CHANNEL_ID
 VOICE_CHANNEL_LEIRIA_ID  (combined `STATUS:` scanner channel; var name kept from its old MAPA name)
 EVENT_PANEL_CHANNEL_ID   (announcements channel holding the !eventpanel message)
 EVENTS_ROLE_ID           (permanent Eventos role the panel button grants)
-DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME, DB_DRAGONITE
-SCANNER_CONTAINER_NAME
+DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_POLISWAG, DB_SCANNER_NAME
 ENV=DEVELOPMENT|PRODUCTION  (IS_PRODUCTION = ENV=="PRODUCTION")
 PORACLE_API_URL, PORACLE_API_SECRET
-POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNATCH_JOBS_KEY_FILE
-  (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
+POLISNATCH_JOBS_KEY_FILE (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
 POLISNATCH_STATUS_URL (default https://polisnatch.pogoleiria.pt/v1/game/status; read with the same submit key,
   skipped when there is no key), POLISNATCH_UPDATE_STATE_FILE (default state/polisnatch-update-state.json)
 POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
@@ -54,11 +52,9 @@ LOG_FILE, ERROR_LOG_FILE
 The PoliSnatch submit key (server side: `polisnatch-dist jobs-key`) is read per
 call from `POLISNATCH_JOBS_KEY`, or from `POLISNATCH_JOBS_KEY_FILE` (mode 0600).
 The production container mounts `/etc/poliswag/secrets` read-only for it. With
-neither, nothing is submitted and `!lure` reports the jobs as disabled. The
-same key can mint a jobs-scoped phone token through the server's
-`POST /v1/jobs/token`, which the owner-only, DM-only `!pstoken` command uses;
-treat it as an admin credential. Job ids are stored in `polisnatch_job` (see
-`database.md`) so a restart resumes polling what is still open.
+neither, the status poll is skipped: a keyless request only counts as a failed
+login on the server. It is an admin credential there; the bot uses it for that
+one read.
 
 `MBWAY_DETAILS` is the owner's own number, so it lives only in the protected `.env`
 (and the empty test value in `.env.test`). `!mbway` deletes the command message in a
