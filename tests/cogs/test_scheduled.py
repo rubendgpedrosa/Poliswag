@@ -420,9 +420,9 @@ class TestHundoAlertsStep:
         poliswag.poracle.create_user = AsyncMock()
         poliswag.get_user.return_value.send = AsyncMock()
         alerts = cog.poliswag.hundo_alerts
-        alerts._read_players = MagicMock(side_effect=[rows_before, rows_after])
-        alerts._cleanup = MagicMock(return_value=False)
-        alerts._human = MagicMock(
+        alerts._read_players = AsyncMock(side_effect=[rows_before, rows_after])
+        alerts._cleanup = AsyncMock(return_value=False)
+        alerts._human = AsyncMock(
             return_value={
                 "id": "1",
                 "type": "discord:user",
@@ -431,10 +431,10 @@ class TestHundoAlertsStep:
                 "current_profile_no": 1,
             }
         )
-        alerts._sync_player = MagicMock(return_value=True)
-        alerts._record = MagicMock(return_value=True)
-        alerts._missing_count = MagicMock(return_value=1499)
-        alerts._record_health = MagicMock()
+        alerts._sync_player = AsyncMock(return_value=True)
+        alerts._record = AsyncMock(return_value=True)
+        alerts._missing_count = AsyncMock(return_value=1499)
+        alerts._record_health = AsyncMock()
 
         async def deliver(row, embed):
             await poliswag.get_user.return_value.send(embed=embed)

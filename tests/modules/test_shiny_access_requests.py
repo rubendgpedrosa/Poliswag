@@ -8,7 +8,10 @@ from unittest.mock import MagicMock
 import discord
 import pytest
 
+from modules import database_connector
 from modules import shiny_access_requests as requests
+from modules.config import Config
+from modules.database_connector import DatabaseConnector
 
 STAMP = "20261015120000123456"
 
@@ -27,10 +30,25 @@ def player(**overrides):
 
 @pytest.fixture
 def database(mocker):
+    """The site handle's real unit(), on a mock connection: commit, rollback
+    and close below are what the unit does around decide_request's work."""
     connection = MagicMock()
     cursor = connection.cursor.return_value.__enter__.return_value
-    mocker.patch.object(requests, "connect", return_value=connection)
-    return connection, cursor
+    opened = mocker.patch.object(database_connector, "connect", return_value=connection)
+    site_db = DatabaseConnector.__new__(DatabaseConnector)
+    site_db.database = Config.DB_POGOLEIRIA
+    return connection, cursor, site_db, opened
+
+
+async def test_decision_is_one_unit_on_the_site_schema(database):
+    connection, cursor, site_db, opened = database
+    cursor.fetchone.return_value = player()
+    assert await requests.decide_request(site_db, "123", STAMP, False)
+    # As before: the site schema, dict rows, a transaction (not autocommit).
+    opened.assert_called_once_with(
+        Config.DB_POGOLEIRIA, read_timeout=5, dict_rows=True, autocommit=False
+    )
+    connection.begin.assert_called_once()
 
 
 def test_button_is_timestamp_bound_and_payload_has_no_pings():
@@ -53,13 +71,16 @@ def test_button_is_timestamp_bound_and_payload_has_no_pings():
 @pytest.mark.parametrize(
     "row", [None, player(shiny_access_requested_at="2026-10-15 13:00:00")]
 )
-def test_stale_request_has_no_writes(database, row):
-    connection, cursor = database
+async def test_stale_request_has_no_writes(database, row):
+    connection, cursor, site_db, _ = database
     cursor.fetchone.return_value = row
-    assert requests.decide_request("123", STAMP, True) is False
+    assert await requests.decide_request(site_db, "123", STAMP, True) is False
     assert cursor.execute.call_count == 1
-    connection.commit.assert_not_called()
     connection.rollback.assert_called_once()
+    # The unit commits after the work returns; by then the rollback has left
+    # nothing to commit.
+    names = [name for name, _, _ in connection.method_calls]
+    assert names.index("rollback") < names.index("commit")
     connection.close.assert_called_once()
 
 
@@ -73,10 +94,10 @@ def test_stale_request_has_no_writes(database, row):
         ({"status": "linked"}, 1, True),
     ],
 )
-def test_approval_mirrors_site_queue_rules(database, link, relink, queues):
-    connection, cursor = database
+async def test_approval_mirrors_site_queue_rules(database, link, relink, queues):
+    connection, cursor, site_db, _ = database
     cursor.fetchone.side_effect = [player(shiny_relink=relink), link]
-    assert requests.decide_request("123", STAMP, True)
+    assert await requests.decide_request(site_db, "123", STAMP, True)
     sql = [call.args[0] for call in cursor.execute.call_args_list]
     update = next(statement for statement in sql if "collecting =" in statement)
     assert "FIND_IN_SET('shiny', collecting)" in update
@@ -97,10 +118,10 @@ def test_approval_mirrors_site_queue_rules(database, link, relink, queues):
     connection.close.assert_called_once()
 
 
-def test_rejection_does_not_queue_or_clear_relink(database):
-    connection, cursor = database
+async def test_rejection_does_not_queue_or_clear_relink(database):
+    connection, cursor, site_db, _ = database
     cursor.fetchone.return_value = player(shiny_relink=1)
-    assert requests.decide_request("123", STAMP, False)
+    assert await requests.decide_request(site_db, "123", STAMP, False)
     assert cursor.execute.call_count == 2
     sql = cursor.execute.call_args.args[0]
     assert "shiny_access = 0, shiny_map = 0" in sql
@@ -109,23 +130,23 @@ def test_rejection_does_not_queue_or_clear_relink(database):
     connection.commit.assert_called_once()
 
 
-def test_invalid_friend_code_rolls_back(database):
-    connection, cursor = database
+async def test_invalid_friend_code_rolls_back(database):
+    connection, cursor, site_db, _ = database
     cursor.fetchone.side_effect = [player(friend_code="invalid"), None]
     with pytest.raises(ValueError, match="Código"):
-        requests.decide_request("123", STAMP, True)
+        await requests.decide_request(site_db, "123", STAMP, True)
     assert cursor.execute.call_count == 2
     connection.commit.assert_not_called()
     connection.rollback.assert_called_once()
     connection.close.assert_called_once()
 
 
-def test_queue_failure_rolls_back_access(database):
-    connection, cursor = database
+async def test_queue_failure_rolls_back_access(database):
+    connection, cursor, site_db, _ = database
     cursor.fetchone.side_effect = [player(), None]
     cursor.execute.side_effect = [None, None, None, None, RuntimeError("queue failed")]
     with pytest.raises(RuntimeError, match="queue failed"):
-        requests.decide_request("123", STAMP, True)
+        await requests.decide_request(site_db, "123", STAMP, True)
     connection.rollback.assert_called_once()
     connection.commit.assert_not_called()
 

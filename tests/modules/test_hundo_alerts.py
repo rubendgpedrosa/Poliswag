@@ -2,12 +2,13 @@
 
 import json
 from datetime import datetime
-from unittest.mock import ANY, AsyncMock, MagicMock
+from unittest.mock import ANY, DEFAULT, AsyncMock, MagicMock, call
 
 import discord
 import pytest
 
-from modules import hundo_alerts
+from modules import database_connector, hundo_alerts
+from modules.database_connector import DatabaseConnector
 from modules.hundo_alerts import (
     RULE_COLUMNS,
     TEMPLATE,
@@ -24,21 +25,43 @@ from modules.hundo_alerts import (
 )
 
 
+def handles():
+    """HundoAlerts on real site and Poracle handles. Their unit() opens each
+    connection through modules.database_connector.connect, which the tests
+    replace, so commit, rollback and close are the unit's real ones."""
+    bot = MagicMock()
+    for name, schema in (
+        ("site_db", hundo_alerts.Config.DB_POGOLEIRIA),
+        ("poracle_db", "poracle"),
+    ):
+        handle = DatabaseConnector.__new__(DatabaseConnector)
+        handle.database = schema
+        setattr(bot, name, handle)
+    return HundoAlerts(bot)
+
+
+def opened(schema, *, dict_rows, autocommit=False):
+    """How the unit opened a connection: the old connect() call's options."""
+    return call(schema, read_timeout=5, dict_rows=dict_rows, autocommit=autocommit)
+
+
 @pytest.fixture
 def hundo_db(monkeypatch):
     db = MagicMock()
     cursor = db.cursor.return_value.__enter__.return_value
     connector = MagicMock(return_value=db)
-    monkeypatch.setattr(hundo_alerts, "connect", connector)
+    monkeypatch.setattr(database_connector, "connect", connector)
     return connector, db, cursor
 
 
-def test_read_players_returns_current_settings_and_closes_connection(hundo_db):
+async def test_read_players_returns_current_settings_and_closes_connection(hundo_db):
     connector, db, cursor = hundo_db
     rows = [{"discord_id": 1, "hundo_dms": 0, "hundo_settings_revision": 2}]
     cursor.fetchall.return_value = tuple(rows)
-    assert HundoAlerts(MagicMock())._read_players() == rows
-    connector.assert_called_once_with(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=True)
+    assert await handles()._read_players() == rows
+    assert connector.call_args_list == [
+        opened(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=True)
+    ]
     cursor.execute.assert_called_once_with(hundo_alerts._PLAYERS_SQL)
     assert (
         "p.hundo_dms = 1 OR p.hundo_settings_revision > 0" in hundo_alerts._PLAYERS_SQL
@@ -48,14 +71,12 @@ def test_read_players_returns_current_settings_and_closes_connection(hundo_db):
 
 @pytest.mark.parametrize("delivered", [True, False])
 @pytest.mark.parametrize("affected", [0, 1])
-def test_record_only_acknowledges_current_unhandled_revision(
+async def test_record_only_acknowledges_current_unhandled_revision(
     hundo_db, delivered, affected
 ):
     connector, db, cursor = hundo_db
     cursor.rowcount = affected
-    assert HundoAlerts(MagicMock())._record(123, 7, delivered=delivered) is (
-        affected == 1
-    )
+    assert await handles()._record(123, 7, delivered=delivered) is (affected == 1)
     prefix = "hundo_confirmed" if delivered else "hundo_dm_refused"
     cursor.execute.assert_called_once_with(
         f"UPDATE trade_player SET {prefix}_revision = %s,"
@@ -64,39 +85,37 @@ def test_record_only_acknowledges_current_unhandled_revision(
         " AND GREATEST(hundo_confirmed_revision, hundo_dm_refused_revision) < %s",
         (7, 123, 7, 7),
     )
-    connector.assert_called_once_with(
-        hundo_alerts.Config.DB_POGOLEIRIA, autocommit=True
-    )
+    assert connector.call_args_list == [
+        opened(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=False, autocommit=True)
+    ]
     db.close.assert_called_once()
 
 
-def test_delivery_stores_the_settings_it_confirmed(hundo_db):
+async def test_delivery_stores_the_settings_it_confirmed(hundo_db):
     _, _, cursor = hundo_db
     cursor.rowcount = 1
-    assert HundoAlerts(MagicMock())._record(
-        123, 7, delivered=True, settings=(1, "leiria")
-    )
+    assert await handles()._record(123, 7, delivered=True, settings=(1, "leiria"))
     sql, params = cursor.execute.call_args.args
     assert ", hundo_confirmed_setting = %s WHERE" in sql
     assert params == (7, 1, 123, 7, 7)  # Leiria only = 1
 
 
-def test_refusal_never_touches_the_confirmed_settings(hundo_db):
+async def test_refusal_never_touches_the_confirmed_settings(hundo_db):
     _, _, cursor = hundo_db
-    HundoAlerts(MagicMock())._record(123, 7, delivered=False, settings=(1, "leiria"))
+    await handles()._record(123, 7, delivered=False, settings=(1, "leiria"))
     assert "hundo_confirmed_setting" not in cursor.execute.call_args.args[0]
 
 
 @pytest.mark.parametrize("operation", ["read", "record"])
-def test_database_failure_propagates_and_closes_connection(hundo_db, operation):
+async def test_database_failure_propagates_and_closes_connection(hundo_db, operation):
     _, db, cursor = hundo_db
     cursor.execute.side_effect = RuntimeError("database unavailable")
-    alerts = HundoAlerts(MagicMock())
+    alerts = handles()
     with pytest.raises(RuntimeError, match="database unavailable"):
         if operation == "read":
-            alerts._read_players()
+            await alerts._read_players()
         else:
-            alerts._record(123, 7, delivered=True)
+            await alerts._record(123, 7, delivered=True)
     db.close.assert_called_once()
 
 
@@ -534,13 +553,13 @@ def sender(players):
     bot.get_user.return_value.send = AsyncMock()
     bot.fetch_user = AsyncMock(return_value=bot.get_user.return_value)
     alerts = HundoAlerts(bot)
-    alerts._read_players = MagicMock(return_value=players)
-    alerts._cleanup = MagicMock(return_value=False)
-    alerts._human = MagicMock(return_value=human())
-    alerts._sync_player = MagicMock(return_value=False)
-    alerts._record = MagicMock(return_value=True)
-    alerts._missing_count = MagicMock(return_value=1499)
-    alerts._record_health = MagicMock()
+    alerts._read_players = AsyncMock(return_value=players)
+    alerts._cleanup = AsyncMock(return_value=False)
+    alerts._human = AsyncMock(return_value=human())
+    alerts._sync_player = AsyncMock(return_value=False)
+    alerts._record = AsyncMock(return_value=True)
+    alerts._missing_count = AsyncMock(return_value=1499)
+    alerts._record_health = AsyncMock()
 
     async def deliver(row, embed):
         user = bot.get_user(int(row["discord_id"]))
@@ -679,11 +698,11 @@ def connection(rows=(), rowcount=0):
     return db, cursor
 
 
-def test_record_is_conditional_on_captured_revision(monkeypatch):
+async def test_record_is_conditional_on_captured_revision(monkeypatch):
     db, cursor = connection(rowcount=0)
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(return_value=db))
-    alerts = HundoAlerts(MagicMock())
-    assert not alerts._record(1, 7, delivered=True)
+    monkeypatch.setattr(database_connector, "connect", MagicMock(return_value=db))
+    alerts = handles()
+    assert not await alerts._record(1, 7, delivered=True)
     sql, params = cursor.execute.call_args.args
     assert "hundo_settings_revision = %s" in sql
     assert "GREATEST(hundo_confirmed_revision" in sql
@@ -695,7 +714,9 @@ def test_record_is_conditional_on_captured_revision(monkeypatch):
     "current_kind",
     ["same", "empty", "wrong_iv", "duplicate", "wrong_profile", "wrong_area"],
 )
-def test_real_sync_helper_compares_and_writes_full_rows(monkeypatch, current_kind):
+async def test_real_sync_helper_compares_and_writes_full_rows(
+    monkeypatch, current_kind
+):
     wanted = rule_row(1, 19, 45, areas_json("leiria,marinha"), 2)
     current = {
         "same": [wanted],
@@ -707,9 +728,20 @@ def test_real_sync_helper_compares_and_writes_full_rows(monkeypatch, current_kin
     }[current_kind]
     pogo, read = connection([{"pokemon_id": 19, "form_id": 0}])
     poracle, write = connection(current)
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(side_effect=[pogo, poracle]))
-    alerts = HundoAlerts(MagicMock())
-    assert alerts._sync_player(player(), {19: 45}, 2) is (current_kind != "same")
+    order = []
+    pogo.close.side_effect = lambda: order.append("site closed")
+    poracle.cursor.side_effect = lambda: order.append("poracle used") or DEFAULT
+    connector = MagicMock(side_effect=[pogo, poracle])
+    monkeypatch.setattr(database_connector, "connect", connector)
+    alerts = handles()
+    assert await alerts._sync_player(player(), {19: 45}, 2) is (current_kind != "same")
+    # The site read is its own unit, closed before Poracle's opens; the
+    # Poracle compare/delete/insert is one transaction.
+    assert connector.call_args_list == [
+        opened(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=True),
+        opened("poracle", dict_rows=True),
+    ]
+    assert order == ["site closed", "poracle used"]
     assert read.execute.call_args.args[1] == (1, 1)
     select_sql = write.execute.call_args_list[0].args[0]
     assert all(f"`{column}`" in select_sql for column in RULE_COLUMNS)
@@ -729,31 +761,37 @@ def test_real_sync_helper_compares_and_writes_full_rows(monkeypatch, current_kin
     poracle.close.assert_called_once()
 
 
-def test_empty_wanted_removes_owned_tile_without_inserting(monkeypatch):
+async def test_empty_wanted_removes_owned_tile_without_inserting(monkeypatch):
     pogo, _ = connection([])
     poracle, write = connection([rule_row(1, 19, 45, '["leiria"]', 2)])
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(side_effect=[pogo, poracle]))
-    assert HundoAlerts(MagicMock())._sync_player(player(), {19: 45}, 2)
+    monkeypatch.setattr(
+        database_connector, "connect", MagicMock(side_effect=[pogo, poracle])
+    )
+    assert await handles()._sync_player(player(), {19: 45}, 2)
     write.executemany.assert_not_called()
     assert "DELETE" in write.execute.call_args.args[0]
 
 
-def test_failed_insert_rolls_back_player_transaction(monkeypatch):
+async def test_failed_insert_rolls_back_player_transaction(monkeypatch):
     pogo, _ = connection([{"pokemon_id": 19, "form_id": 0}])
     poracle, write = connection([])
     write.executemany.side_effect = RuntimeError("insert failed")
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(side_effect=[pogo, poracle]))
+    monkeypatch.setattr(
+        database_connector, "connect", MagicMock(side_effect=[pogo, poracle])
+    )
     with pytest.raises(RuntimeError, match="insert failed"):
-        HundoAlerts(MagicMock())._sync_player(player(), {19: 45}, 2)
+        await handles()._sync_player(player(), {19: 45}, 2)
     poracle.rollback.assert_called_once()
     poracle.commit.assert_not_called()
     poracle.close.assert_called_once()
 
 
-def test_cleanup_uses_its_own_transaction(monkeypatch):
+async def test_cleanup_uses_its_own_transaction(monkeypatch):
     db, cursor = connection(rowcount=3)
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(return_value=db))
-    assert HundoAlerts(MagicMock())._cleanup()
+    connector = MagicMock(return_value=db)
+    monkeypatch.setattr(database_connector, "connect", connector)
+    assert await handles()._cleanup()
+    assert connector.call_args_list == [opened("poracle", dict_rows=False)]
     cursor.execute.assert_called_once_with(hundo_alerts._CLEANUP_SQL, (TEMPLATE, 3))
     db.commit.assert_called_once()
     db.rollback.assert_not_called()
@@ -812,12 +850,12 @@ async def test_stopped_user_logging_resets_after_restart():
     bot.poracle.start.assert_not_called()
 
 
-def test_cleanup_failure_rolls_back(monkeypatch):
+async def test_cleanup_failure_rolls_back(monkeypatch):
     db, cursor = connection()
     cursor.execute.side_effect = RuntimeError("DB failed")
-    monkeypatch.setattr(hundo_alerts, "connect", MagicMock(return_value=db))
+    monkeypatch.setattr(database_connector, "connect", MagicMock(return_value=db))
     with pytest.raises(RuntimeError, match="DB failed"):
-        HundoAlerts(MagicMock())._cleanup()
+        await handles()._cleanup()
     db.rollback.assert_called_once()
     db.commit.assert_not_called()
     db.close.assert_called_once()
@@ -1043,10 +1081,13 @@ async def test_uncertain_confirmation_is_not_acknowledged_or_activated():
 class TestRecordHealth:
     """The per-tick health journal write, and its failure tolerance."""
 
-    def test_record_health_writes_revision_state_and_time(self, hundo_db):
-        _, db, cursor = hundo_db
+    async def test_record_health_writes_revision_state_and_time(self, hundo_db):
+        connector, db, cursor = hundo_db
         row = {"discord_id": 1, "hundo_settings_revision": 2}
-        HundoAlerts(MagicMock())._record_health(row, "ready")
+        await handles()._record_health(row, "ready")
+        assert connector.call_args_list == [
+            opened(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=False, autocommit=True)
+        ]
         sql, params = cursor.execute.call_args.args
         assert "hundo_health_revision = %s" in sql
         assert "hundo_health_state = %s" in sql
@@ -1056,7 +1097,7 @@ class TestRecordHealth:
 
     async def test_failed_health_recording_does_not_fail_the_tick(self):
         alerts, _ = sender([player(hundo_settings_revision=2)])
-        alerts._record_health = MagicMock(side_effect=RuntimeError("down"))
+        alerts._record_health = AsyncMock(side_effect=RuntimeError("down"))
         await alerts.tick()  # must not raise
         assert "health recording failed" in str(
             alerts.poliswag.utility.log_to_file.call_args_list
@@ -1086,11 +1127,11 @@ class TestHumanRaces:
 
 
 class TestHumanRead:
-    def test_human_reads_the_poracle_row(self, hundo_db):
+    async def test_human_reads_the_poracle_row(self, hundo_db):
         connector, db, cursor = hundo_db
         cursor.fetchone.return_value = human()
-        assert HundoAlerts(MagicMock())._human(1) == human()
-        connector.assert_called_once_with("poracle", dict_rows=True)
+        assert await handles()._human(1) == human()
+        assert connector.call_args_list == [opened("poracle", dict_rows=True)]
         sql, params = cursor.execute.call_args.args
         assert "FROM humans WHERE id = %s" in sql
         assert params == ("1",)
@@ -1098,11 +1139,14 @@ class TestHumanRead:
 
 
 class TestMissingCount:
-    def test_missing_count_passes_the_costume_setting(self, hundo_db):
-        _, db, cursor = hundo_db
+    async def test_missing_count_passes_the_costume_setting(self, hundo_db):
+        connector, db, cursor = hundo_db
         cursor.fetchone.return_value = {"n": 7}
         row = {"discord_id": 1, "show_costumes": 0}
-        assert HundoAlerts(MagicMock())._missing_count(row) == 7
+        assert await handles()._missing_count(row) == 7
+        assert connector.call_args_list == [
+            opened(hundo_alerts.Config.DB_POGOLEIRIA, dict_rows=True)
+        ]
         sql, params = cursor.execute.call_args.args
         assert "COUNT(*) AS n" in sql
         assert params == (1, 0)

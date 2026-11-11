@@ -9,7 +9,6 @@ import discord
 
 from modules import scan_areas
 from modules.config import Config
-from modules.database_connector import connect
 
 PREFIX = "shiny-access:"
 BUTTON = re.compile(r"^shiny-access:(accept|reject):(\d{1,20}):(\d{20})$")
@@ -163,7 +162,7 @@ def request_payload(row, base_url):
     }
 
 
-def decide_request(discord_id, stamp, accept):
+async def decide_request(site_db, discord_id, stamp, accept):
     """Lock the pending version; commit access, revision and link as one unit.
 
     Return False without writes for departed/resolved/replaced requests.
@@ -173,8 +172,8 @@ def decide_request(discord_id, stamp, accept):
     if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", schema):
         raise ValueError("Invalid Poliswag schema")
     links = f"`{schema}`.shiny_link"
-    connection = connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=False)
-    try:
+
+    def work(connection):
         connection.begin()
         with connection.cursor() as cursor:
             cursor.execute(
@@ -189,6 +188,8 @@ def decide_request(discord_id, stamp, accept):
                 not player
                 or request_stamp(player["shiny_access_requested_at"]) != stamp
             ):
+                # Release the row lock now; the unit's commit that follows
+                # has nothing left to write.
                 connection.rollback()
                 return False
             if accept:
@@ -254,10 +255,8 @@ def decide_request(discord_id, stamp, accept):
                     "WHERE discord_id = %s",
                     (discord_id,),
                 )
-        connection.commit()
         return True
-    except BaseException:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+
+    # One unit on the site's schema: committed when work returns, rolled back
+    # if it raises (including a failed commit, which is never retried).
+    return await site_db.unit(work)
