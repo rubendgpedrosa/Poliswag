@@ -313,11 +313,11 @@ class TestLogFnOptional:
         assert await http_client.fetch_data("scanner_status") is None
 
 
-def test_scanner_status_mock_timestamps_are_recent():
+def test_scanner_status_mock_timestamps_are_recent(_refresh_mock_data_timestamps):
     """Mock data must have last_data within the last hour, or workers appear dead."""
     import time
 
-    with open("mock_data/scanner_status.json") as f:
+    with open(_refresh_mock_data_timestamps / "scanner_status.json") as f:
         data = json.load(f)
     now = int(time.time())
     for area in data.get("areas", []):
@@ -326,5 +326,5 @@ def test_scanner_status_mock_timestamps_are_recent():
                 age = now - worker["last_data"]
                 assert age < 3600, (
                     f"Worker {worker['worker_id']} last_data is {age}s old — "
-                    "run `make mock-data` to refresh timestamps"
+                    "test fixture generation failed"
                 )
