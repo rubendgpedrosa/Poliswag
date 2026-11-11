@@ -1,4 +1,5 @@
 import io
+import json
 import time
 
 import discord
@@ -33,12 +34,18 @@ POOLS = (
     ("levelling", "Levelling", "level_account_status", "level_device_status"),
 )
 
-# The card is redrawn every 60 s, so a single failed update (a connection
-# reset, a Discord 503/504, a render hiccup) heals on the next minute, and the
-# message's "Last updated" relative time already shows when the card is
-# stale. A failure is a WARNING until this many updates in a row have failed
-# (about ten minutes, as for the version check); then it is one ERROR, which
-# reaches the owner's daily error digest.
+# The card's account and device numbers are read every minute, but the image
+# is rendered and uploaded only when one of them changed: until 2026-11-11 it
+# was redrawn and re-uploaded 1,440 times a day whatever it showed. The area
+# footer (spawns per hour) moves a little every minute without saying
+# anything new, so on its own it redraws the card only this often.
+CARD_REFRESH_SECONDS = 300
+
+# A failed update (a connection reset, a Discord 503/504, a render hiccup) is
+# tried again on the next minute, and the message's "Last updated" relative
+# time already shows when the card is stale. A failure is a WARNING until
+# this many updates in a row have failed (about ten minutes); then it is one
+# ERROR, which reaches the owner's daily error digest.
 ACCOUNT_CARD_ERROR_AFTER = 10
 
 
@@ -116,6 +123,11 @@ class AccountMonitor(LoggingMixin):
         # logged when it appears or changes, not on every 60s tick.
         self._partition_warned = {}
         self._card_failures = FailureStreak(ACCOUNT_CARD_ERROR_AFTER)
+        # What the card in the channel shows and when it was drawn
+        # (monotonic); None until this process has drawn it once, so a
+        # restart always redraws.
+        self._card_numbers = None
+        self._card_drawn_at = 0.0
 
     async def get_account_stats(self):
         """Scanning-pool account counts for the status embeds and alerts.
@@ -210,9 +222,13 @@ class AccountMonitor(LoggingMixin):
             return None
         return _worker_counts(device_status.get("devices") or [])["total"]
 
-    async def build_account_card(self):
-        """PNG bytes of the account card (both pools + area footer), or None."""
-        pools = await self.get_pool_stats()
+    async def build_account_card(self, pools=None):
+        """PNG bytes of the account card (both pools + area footer), or None.
+
+        `pools` is get_pool_stats()'s answer when the caller already has it.
+        """
+        if pools is None:
+            pools = await self.get_pool_stats()
         area_performance = (
             await self.poliswag.scanner_status.get_iv_verification_by_area()
         )
@@ -226,9 +242,11 @@ class AccountMonitor(LoggingMixin):
 
         Rendered as Discord timestamp markup rather than a preformatted
         string so every reader sees it in their own timezone, and the
-        relative half keeps counting up between ticks -- that is what
+        relative half keeps counting up between updates -- that is what
         makes a stalled card obvious, since an image that stops being
-        refreshed otherwise looks identical to a fresh one.
+        refreshed otherwise looks identical to a fresh one. The card is
+        redrawn at least every CARD_REFRESH_SECONDS, so a time much older
+        than that means it has stalled.
         """
         updated_at = int(time.time())
         return f"Last updated: <t:{updated_at}:f> (<t:{updated_at}:R>)"
@@ -243,7 +261,17 @@ class AccountMonitor(LoggingMixin):
                         self._accounts_message = message
                         break
 
-            image_bytes = await self.build_account_card()
+            pools = await self.get_pool_stats()
+            numbers = json.dumps(pools, sort_keys=True, default=str)
+            now = time.monotonic()
+            if (
+                self._accounts_message is not None
+                and numbers == self._card_numbers
+                and now - self._card_drawn_at < CARD_REFRESH_SECONDS
+            ):
+                return
+
+            image_bytes = await self.build_account_card(pools)
 
             if not image_bytes:
                 # The renderer has already logged why; only count it here.
@@ -267,7 +295,7 @@ class AccountMonitor(LoggingMixin):
                     await self._accounts_message.edit(
                         content=content, embed=None, attachments=[discord_file]
                     )
-                    self._card_failures.reset()
+                    self._card_drawn(numbers, now)
                     return
                 except discord.NotFound:
                     # Message was deleted out from under us — fall through to
@@ -277,10 +305,17 @@ class AccountMonitor(LoggingMixin):
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
                 content=content, file=discord_file
             )
-            self._card_failures.reset()
+            self._card_drawn(numbers, now)
 
         except Exception as e:
             self._card_failed(e)
+
+    def _card_drawn(self, numbers, now):
+        """Discord took the card: remember what it shows. A failed update
+        never reaches here, so it is tried again on the next minute."""
+        self._card_numbers = numbers
+        self._card_drawn_at = now
+        self._card_failures.reset()
 
     def _card_failed(self, error):
         """WARNING per failed update (none when the renderer already logged

@@ -19,7 +19,7 @@ DB_NAME := $(shell grep -s '^DB_NAME=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' 
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down logs run stop test test-local mock-data watch check migrate reload install-hooks lint format format-check dead-code
+.PHONY: all help up down logs run stop test test-local mock-data watch check migrate deploy reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -76,11 +76,15 @@ dead-code: ## Check for dead code with vulture inside the container (CI-equivale
 	@echo "Running vulture inside $(CONTAINER_NAME) container..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) vulture . --min-confidence 70
 
-reload: ## Reload the Python script inside the container (logs are kept for the daily error digest)
-	@echo "Reloading Poliswag application..."
-	docker compose -f $(DOCKER_COMPOSE_FILE) restart poliswag
-	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f --tail=20
-	@echo "Poliswag application reloaded."
+deploy: ## Ship this checkout: rebuild the image, restart the bot, wait for its scheduler
+	@echo "Deploying Poliswag in $(ENV) environment..."
+	docker compose -f $(DOCKER_COMPOSE_FILE) up -d --build --force-recreate --no-deps poliswag
+	@scripts/deploy_check.sh $(CONTAINER_NAME)
+
+# A plain `docker compose restart` runs the new code on the old image: the
+# code is bind-mounted, the dependencies are not (2026-11-10: a new package in
+# requirements.txt, eleven crashes in eighty seconds).
+reload: deploy ## Same as deploy
 
 install-hooks: ## Install pre-commit hooks
 	python3 -m pip install pre-commit --break-system-packages

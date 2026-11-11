@@ -42,7 +42,8 @@ make up                  # ENV=DEVELOPMENT by default, PRODUCTION via .env
 | `make watch` | Like `make up`, restarting the bot on every saved `.py` file |
 | `make down` | Stop and remove containers and volumes |
 | `make stop` | Stop without removing |
-| `make reload` | Restart the bot (keeps log files) |
+| `make deploy` | Ship the checkout: rebuild the image, restart the bot and wait for its scheduler; fails with the log if the bot does not come up |
+| `make reload` | Same as `make deploy` (a plain restart would run new code on the old image) |
 | `make logs` | Follow the container logs |
 | `make test` | Run `pytest` inside the container |
 | `make test-local` | Run `pytest` without Docker (`pip install -r requirements-dev.txt` first) |

@@ -11,7 +11,7 @@ Full command table. The core `docs/context.md` keeps only the auth summary.
 | `accounts.py` | `!accounts` | `MY_ID` only (`cog_check`) |
 | `container_manager.py` | `!container start\|stop\|recreate\|autorecreate on\|off`, `!status`, `!device status\|restartapp\|logcat [lines]\|autoreboot on\|off\|reboot` (ADB) | `MY_ID` only |
 | `moderation.py` | Listeners: `on_interaction` (role buttons), `on_message_delete`, trap channel (see `moderation.md`) | — |
-| `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`; `@tasks.loop` every minute (version/quest-scan/events/workers/accounts/weekly-digest + 30-min safety-net quest export; the daily "erro(s) novo(s)" digest is DMed to `MY_ID` since 2026-09-26) | admin-only |
+| `scheduled.py` | `!weeklydigest`, `!testevent HH:MM`, `!ticks` (every scheduler step: last duration, age, failures); four one-minute loops, health / alerts / display / chores, 22 steps in all (list and rules in `conventions.md` → Scheduler; the daily "erro(s) novo(s)" digest is DMed to `MY_ID` since 2026-09-26) | admin-only |
 | `lures.py` | `!lures`, `!uselure USERNAME NUMERO`, `!lure [LAT,LON] [tipo]`, `!pstoken EMAIL [workers] [nome]` | admin-only (`cog_check`); `!pstoken` is owner-only and DM-only |
 | `webstats.py` | `!stats` / `!webstats`, `!stats export [7d\|30d\|Nd\|all]`, `!stats novocodigo` — answers by DM | `MY_ID` only (`cog_check`) |
 | `pokedex.py` | `!pokedex` / `!trades` / `!trocas` (DM login code), `!resumo [dias]` (trade digest preview) | Members; DM-capable (own membership check) |
