@@ -10,16 +10,16 @@ expired it after a day. The page queries the database on load now, so there is
 nothing left to publish and one URL is worth keeping.
 """
 
-import asyncio
 import hashlib
 import secrets
 
 from modules.config import Config
-from modules.database_connector import connect
 
 
 class WebStatsAccess:
-    def __init__(self, base_url=None):
+    def __init__(self, site_db, base_url=None):
+        # The bot's handle for the site's schema (poliswag.site_db).
+        self.db = site_db
         self.base_url = base_url or Config.WEBSTATS_URL
 
     async def current_or_issue(self):
@@ -29,7 +29,8 @@ class WebStatsAccess:
         the link exists somewhere in the owner's DMs and this returns None
         rather than inventing a second one.
         """
-        existing = await asyncio.to_thread(self._count)
+        # Tuple rows, as before: the count is read by position.
+        existing = await self.db.unit(self._count, dict_rows=False)
         if existing:
             return None
         return await self.rotate()
@@ -38,31 +39,19 @@ class WebStatsAccess:
         """A new link, and the end of every previous one."""
         token = secrets.token_hex(32)
         digest = hashlib.sha256(token.encode()).hexdigest()
-        await asyncio.to_thread(self._replace, digest)
+        await self.db.unit(self._replace, digest, dict_rows=False)
         return f"{self.base_url}/{token}"
 
-    def _connect(self):
-        return connect(Config.DB_POGOLEIRIA)
+    def _count(self, db):
+        with db.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM webstats_access")
+            return int((cursor.fetchone() or [0])[0])
 
-    def _count(self):
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM webstats_access")
-                return int((cursor.fetchone() or [0])[0])
-        finally:
-            db.close()
-
-    def _replace(self, digest):
-        # One statement pair in one transaction: a crash between them would
-        # otherwise leave no working link at all.
-        db = self._connect()
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("DELETE FROM webstats_access")
-                cursor.execute(
-                    "INSERT INTO webstats_access (token_hash) VALUES (%s)", (digest,)
-                )
-            db.commit()
-        finally:
-            db.close()
+    def _replace(self, db, digest):
+        # One statement pair in one unit, so one transaction: a crash between
+        # them would otherwise leave no working link at all.
+        with db.cursor() as cursor:
+            cursor.execute("DELETE FROM webstats_access")
+            cursor.execute(
+                "INSERT INTO webstats_access (token_hash) VALUES (%s)", (digest,)
+            )

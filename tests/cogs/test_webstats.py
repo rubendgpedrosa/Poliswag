@@ -55,6 +55,12 @@ def _my_id():
         yield config
 
 
+def test_the_link_store_reads_the_sites_schema():
+    # WebStatsAccess has no bot of its own: the cog hands it poliswag.site_db.
+    poliswag = MagicMock()
+    assert WebStats(poliswag).access.db is poliswag.site_db
+
+
 class TestCogCheck:
     def test_my_id_passes(self, cog):
         assert cog.cog_check(make_ctx()) is True
@@ -315,7 +321,7 @@ class TestExportFailures:
 
 class TestDegradedSnapshot:
     async def test_a_dead_trades_figure_costs_a_line_not_the_report(self, cog):
-        stats = TradeStats()
+        stats = TradeStats(MagicMock())
         stats.collect = AsyncMock(side_effect=RuntimeError("down"))
         stats.collect_hundo = AsyncMock(
             return_value={"active": 1, "leiria": 1, "marinha": 0}
@@ -330,7 +336,7 @@ class TestDegradedSnapshot:
         ctx.send.assert_not_awaited()
 
     async def test_a_dead_hundo_figure_costs_a_line_not_the_report(self, cog):
-        stats = TradeStats()
+        stats = TradeStats(MagicMock())
         stats.collect = AsyncMock(return_value={"entries": 5, "users": 2})
         stats.collect_hundo = AsyncMock(side_effect=RuntimeError("down"))
         cog.trade_stats = stats
