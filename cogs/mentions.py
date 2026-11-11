@@ -105,15 +105,17 @@ class Mentions(commands.Cog):
                 return False
         text = re.sub(pattern, "", message.content).strip()
         if ctx.guild is None and is_owner(ctx):
-            agents = self.poliswag.get_cog("Agents")
+            # The owner's private conversation. The Claude/Codex job queue
+            # that also answered here went on 2026-11-11.
+            hermes = self.poliswag.get_cog("Hermes")
             if not text:
                 await self.respond(ctx, _GREETING)
-            elif agents is None:
+            elif hermes is None:
                 await self.respond(
                     ctx, "Estou aqui, mas não consigo iniciar o pedido agora."
                 )
             else:
-                await agents.submit_natural_request(ctx, text)
+                await hermes.handle(ctx, text)
             return True
         # Never permit conversational DMs, webhooks, or a forged author identity.
         if ctx.guild is None:

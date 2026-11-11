@@ -11,15 +11,11 @@ _COG_DISPLAY_NAMES = {
     "Accounts": "👤 Contas",
     "Tracker": "🔔 Tracking",
     "EventExclusion": "📅 Eventos",
-    "ContainerManagerCog": "🖥️ Scanner (admin)",
     "Moderation": "🛡️ Moderação",
-    "Notifications": "📣 Notificações",
     "Scheduled": "⏰ Agendados (admin)",
-    "Lures": "🌸 Lures",
     "WebStats": "📊 Estatísticas (admin)",
     "Announcements": "📢 Anúncios (admin)",
     "Giveaways": "🎟️ Sorteios (admin)",
-    "Agents": "🤖 Agentes (dono)",
     "SpawnHistory": "📈 Histórico de spawns (dono)",
     "Support": "💚 Apoio",
 }
@@ -32,11 +28,9 @@ _GENERIC_DETAIL = "Não encontrei nenhum comando ou categoria pública com esse 
 # Cogs whose cog_check is MY_ID only; single commands use permissions.owner_only.
 _OWNER_COGS = frozenset(
     {
-        "ContainerManagerCog",
         "WebStats",
         "EventPanel",
         "Accounts",
-        "Agents",
         "SpawnHistory",
     }
 )
@@ -50,8 +44,6 @@ _MOD_TOPICS = {
     "Tracker": "Quests",
     "EventExclusion": "Eventos",
     "Scheduled": "Eventos",
-    "Notifications": "Alertas",
-    "Lures": "Lures",
     "Announcements": "Anúncios",
     "Giveaways": "Anúncios",
 }
