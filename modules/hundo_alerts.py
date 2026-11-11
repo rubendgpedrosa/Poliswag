@@ -8,17 +8,14 @@ Settings revisions identify confirmation attempts; timestamps are audit data
 only. Spec: /root/docs-archive/Poliswag/superpowers/specs/2026-09-24-pokedex-100iv-alerts-design.md
 """
 
-import asyncio
 import json
 import time
 from collections import Counter
-from contextlib import closing
 
 import discord
 
 from modules import scan_areas
 from modules.config import Config
-from modules.database_connector import connect
 from modules.hundo_confirmation import send_once
 
 TEMPLATE = "pokedex-100iv"
@@ -397,7 +394,7 @@ class HundoAlerts:
 
     async def _cleanup_rules(self):
         try:
-            changed = await asyncio.to_thread(self._cleanup)
+            changed = await self._cleanup()
             self._reload_pending |= changed
             if changed:
                 # Someone's rules were deleted; don't trust any "unchanged".
@@ -428,7 +425,7 @@ class HundoAlerts:
             await self._cleanup_rules()
             # Publish removals before potentially slow Discord sends/rebuilds.
             await self._reload_if_pending()
-            players = await asyncio.to_thread(self._read_players)
+            players = await self._read_players()
             pending_revisions = {
                 r["discord_id"]: r["hundo_settings_revision"]
                 for r in players
@@ -447,8 +444,7 @@ class HundoAlerts:
                         continue  # still inside the quiet period
                     if settled_back(row):
                         # Undone before its DM: acknowledge without one.
-                        await asyncio.to_thread(
-                            self._record,
+                        await self._record(
                             row["discord_id"],
                             row["hundo_settings_revision"],
                             delivered=True,
@@ -461,7 +457,7 @@ class HundoAlerts:
                     self._log(f"confirmation for {row['discord_id']} failed: {exc}")
 
             # Do not turn a stale in-memory snapshot into an active player.
-            players = await asyncio.to_thread(self._read_players)
+            players = await self._read_players()
             masterfile = getattr(self.poliswag.quest_search, "masterfile_data", None)
             pokemon = (masterfile or {}).get("pokemon")
             if not pokemon:
@@ -493,12 +489,12 @@ class HundoAlerts:
                     if state == "ready" and not reachable:
                         state = "unavailable"
                     try:
-                        await asyncio.to_thread(self._record_health, row, state)
+                        await self._record_health(row, state)
                     except Exception as exc:
                         self._log(f"health recording failed: {exc}")
 
-    def _record_health(self, row, state):
-        with closing(connect(Config.DB_POGOLEIRIA, autocommit=True)) as db:
+    async def _record_health(self, row, state):
+        def work(db):
             with db.cursor() as cursor:
                 cursor.execute(
                     "UPDATE trade_player SET hundo_health_revision = %s, "
@@ -512,12 +508,14 @@ class HundoAlerts:
                     ),
                 )
 
+        await self.poliswag.site_db.unit(work, dict_rows=False, autocommit=True)
+
     async def _sync_active(self, row, forms, masterfile_date=None):
         """One player's rules; a failure here leaves other players alone."""
         discord_id = row["discord_id"]
         self._health[discord_id] = "error"
         try:
-            human = await asyncio.to_thread(self._human, discord_id)
+            human = await self._human(discord_id)
             if human is None:
                 self._synced.pop(discord_id, None)
                 await self.poliswag.poracle.create_user(
@@ -525,7 +523,7 @@ class HundoAlerts:
                     row["display_name"],
                     area=areas_json(row["hundo_areas"]),
                 )
-                human = await asyncio.to_thread(self._human, discord_id)
+                human = await self._human(discord_id)
                 if human is None:
                     raise RuntimeError("Created human not visible yet")
             if human["type"] != "discord:user":
@@ -544,9 +542,7 @@ class HundoAlerts:
                 self._health[discord_id] = "ready"
                 return
             self._synced.pop(discord_id, None)
-            changed = await asyncio.to_thread(
-                self._sync_player, row, forms, human["current_profile_no"]
-            )
+            changed = await self._sync_player(row, forms, human["current_profile_no"])
             self._reload_pending |= changed
             self._synced[discord_id] = (signature, _monotonic())
             self._health[discord_id] = "ready"
@@ -569,7 +565,7 @@ class HundoAlerts:
             missing = None
             if row["hundo_dms"] == 1:
                 try:
-                    missing = await asyncio.to_thread(self._missing_count, row)
+                    missing = await self._missing_count(row)
                 except Exception as exc:
                     # The count is a nicety; the confirmation goes without it.
                     self._log(f"missing count for {discord_id} failed: {exc}")
@@ -583,8 +579,7 @@ class HundoAlerts:
                 delivered = False
             outcome = (revision, delivered, (row["hundo_dms"], row["hundo_areas"]))
             self._pending_records[discord_id] = outcome
-        await asyncio.to_thread(
-            self._record,
+        await self._record(
             discord_id,
             revision,
             delivered=outcome[1],
@@ -597,9 +592,10 @@ class HundoAlerts:
     async def _deliver_confirmation(self, row, embed):
         return await send_once(self.poliswag, row, embed)
 
-    def _missing_count(self, row):
+    async def _missing_count(self, row):
         """Missing 100IV tiles, as the Pokédex counts them (costumes per setting)."""
-        with closing(connect(Config.DB_POGOLEIRIA, dict_rows=True)) as db:
+
+        def work(db):
             with db.cursor() as cursor:
                 cursor.execute(
                     f"SELECT COUNT(*) AS n FROM ({_MISSING_SQL}) missing",
@@ -607,14 +603,19 @@ class HundoAlerts:
                 )
                 return int(cursor.fetchone()["n"])
 
-    def _read_players(self):
+        return await self.poliswag.site_db.unit(work)
+
+    async def _read_players(self):
         """Read current settings, including switched-off players needing a DM."""
-        with closing(connect(Config.DB_POGOLEIRIA, dict_rows=True)) as db:
+
+        def work(db):
             with db.cursor() as cursor:
                 cursor.execute(_PLAYERS_SQL)
                 return list(cursor.fetchall())
 
-    def _record(self, discord_id, revision, *, delivered, settings=None):
+        return await self.poliswag.site_db.unit(work)
+
+    async def _record(self, discord_id, revision, *, delivered, settings=None):
         """Record an outcome only for the current, not-yet-acknowledged revision.
 
         A delivery also stores the setting it confirmed (`settings` =
@@ -629,7 +630,8 @@ class HundoAlerts:
         if delivered and settings is not None:
             snapshot = ", hundo_confirmed_setting = %s"
             params = (setting_code(*settings),)
-        with closing(connect(Config.DB_POGOLEIRIA, autocommit=True)) as db:
+
+        def work(db):
             with db.cursor() as cursor:
                 cursor.execute(
                     f"UPDATE trade_player SET {prefix}_revision = %s,"
@@ -641,8 +643,10 @@ class HundoAlerts:
                 )
                 return cursor.rowcount == 1
 
-    def _human(self, discord_id):
-        with closing(connect("poracle", dict_rows=True)) as db:
+        return await self.poliswag.site_db.unit(work, dict_rows=False, autocommit=True)
+
+    async def _human(self, discord_id):
+        def work(db):
             with db.cursor() as cursor:
                 cursor.execute(
                     "SELECT id, type, enabled, admin_disable, current_profile_no"
@@ -651,56 +655,61 @@ class HundoAlerts:
                 )
                 return cursor.fetchone()
 
-    def _cleanup(self):
-        mask = scan_areas.setting_code(scan_areas.active_keys())
-        with closing(connect("poracle", autocommit=False)) as db:
-            try:
-                with db.cursor() as cursor:
-                    cursor.execute(_CLEANUP_SQL, (TEMPLATE, mask))
-                    changed = cursor.rowcount > 0
-                db.commit()
-                return changed
-            except Exception:
-                db.rollback()
-                raise
+        return await self.poliswag.poracle_db.unit(work)
 
-    def _sync_player(self, row, forms, profile_no):
+    async def _cleanup(self):
+        mask = scan_areas.setting_code(scan_areas.active_keys())
+
+        def work(db):
+            with db.cursor() as cursor:
+                cursor.execute(_CLEANUP_SQL, (TEMPLATE, mask))
+                return cursor.rowcount > 0
+
+        # Its own transaction: committed when work returns, rolled back if
+        # the DELETE or the commit fails.
+        return await self.poliswag.poracle_db.unit(work, dict_rows=False)
+
+    async def _sync_player(self, row, forms, profile_no):
         """Replace the player's rules in one transaction when any differ.
 
         A player who opts out meanwhile loses them in the tick's final cleanup.
         """
         discord_id = str(row["discord_id"])
-        with closing(connect(Config.DB_POGOLEIRIA, dict_rows=True)) as pogo:
-            with pogo.cursor() as read:
+
+        def read_tiles(db):
+            with db.cursor() as read:
                 read.execute(_MISSING_SQL, (row["discord_id"], row["show_costumes"]))
-                tiles = [(r["pokemon_id"], r["form_id"]) for r in read.fetchall()]
+                return [(r["pokemon_id"], r["form_id"]) for r in read.fetchall()]
+
+        # The site read was always finished and closed before Poracle was
+        # opened, so it is its own unit; only the Poracle side is one
+        # transaction (compare, delete, insert).
+        tiles = await self.poliswag.site_db.unit(read_tiles)
         areas = areas_json(row["hundo_areas"])
         wanted = [
             rule_row(discord_id, pokemon_id, form, areas, profile_no)
             for pokemon_id, form in sorted(wanted_rules(tiles, forms))
         ]
         columns = ", ".join(f"`{column}`" for column in RULE_COLUMNS)
-        with closing(connect("poracle", dict_rows=True, autocommit=False)) as db:
-            try:
-                with db.cursor() as cursor:
+
+        def replace(db):
+            with db.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT {columns} FROM monsters WHERE id = %s AND template = %s",
+                    (discord_id, TEMPLATE),
+                )
+                changed = not rules_equal(cursor.fetchall(), wanted)
+                if changed:
                     cursor.execute(
-                        f"SELECT {columns} FROM monsters WHERE id = %s AND template = %s",
+                        "DELETE FROM monsters WHERE id = %s AND template = %s",
                         (discord_id, TEMPLATE),
                     )
-                    changed = not rules_equal(cursor.fetchall(), wanted)
-                    if changed:
-                        cursor.execute(
-                            "DELETE FROM monsters WHERE id = %s AND template = %s",
-                            (discord_id, TEMPLATE),
+                    if wanted:
+                        marks = ", ".join(["%s"] * len(RULE_COLUMNS))
+                        cursor.executemany(
+                            f"INSERT INTO monsters ({columns}) VALUES ({marks})",
+                            [tuple(r[c] for c in RULE_COLUMNS) for r in wanted],
                         )
-                        if wanted:
-                            marks = ", ".join(["%s"] * len(RULE_COLUMNS))
-                            cursor.executemany(
-                                f"INSERT INTO monsters ({columns}) VALUES ({marks})",
-                                [tuple(r[c] for c in RULE_COLUMNS) for r in wanted],
-                            )
-                db.commit()
                 return changed
-            except Exception:
-                db.rollback()
-                raise
+
+        return await self.poliswag.poracle_db.unit(replace)
