@@ -17,7 +17,7 @@ Repo-level: [`../README.md`](../README.md) (setup, `make` targets, commands, pro
 | [`modules.md`](context/modules.md) | a module's behaviour, limits or rationale |
 | [`cogs.md`](context/cogs.md) | a command's syntax, auth or behaviour |
 | [`config.md`](context/config.md) | endpoints, env vars, dev vs prod |
-| [`conventions.md`](context/conventions.md) | permissions/`!help`, `!notify` refs, migrations, scheduler, copy |
+| [`conventions.md`](context/conventions.md) | permissions/`!help`, state, migrations, scheduler, copy |
 | [`database.md`](context/database.md) | table columns, or reading scanner/Dragonite/Poracle tables |
 | [`quests.md`](context/quests.md) | quest commands, the `quests.json` export contract, quest maps |
 | [`trades.md`](context/trades.md) | `!pokedex` codes, the digest, trade DMs/announcer, shared trade tables |

@@ -19,14 +19,12 @@ from modules.event_stats import EventStats
 from modules.help_command import EmbedHelpCommand
 from modules.http_client import close_session
 from modules.image_generator import ImageGenerator
-from modules.lure_manager import LureManager
 from modules.lure_watcher import LureWatcher
 from modules.mega_exporter import MegaExporter
 from modules.mention_rules import directed_mention, replied_bot_message
 from modules.migrations import apply_migrations
 from modules.page_view_stats import PageViewStats
 from modules.permissions import is_owner
-from modules.polisnatch_api import using_default_url
 from modules.poracle_client import PoracleClient
 from modules.quest_exporter import QuestExporter
 from modules.quest_search import QuestSearch
@@ -73,7 +71,6 @@ class Poliswag(commands.Bot):
         self.account_monitor = AccountMonitor(self)
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
-        self.lure_manager = LureManager(self)
         self.page_view_stats = PageViewStats(self)
         self.trade_player_store = TradePlayerStore()
         self.trade_stats = TradeStats()
@@ -99,9 +96,9 @@ class Poliswag(commands.Bot):
         """Drop a DM we don't answer before it ever reaches a command.
 
         A global check would be the obvious place for this, but a failed
-        check raises CheckFailure, and ContainerManagerCog answers that
-        with "não tens autorização" — which tells a stranger the command
-        exists. Returning before invoke() says nothing at all.
+        check raises CheckFailure, and a cog's own error handler may answer
+        that with "não tens autorização" — which tells a stranger the
+        command exists. Returning before invoke() says nothing at all.
         """
         if message.author.bot or message.webhook_id is not None:
             return
@@ -182,14 +179,6 @@ class Poliswag(commands.Bot):
         await super().close()
 
     async def setup_hook(self):
-        if using_default_url():
-            # A stale built-in default failed silently after the 27 Oct host
-            # split; say so once at startup instead of on a broken !lure.
-            LOGGER.warning(
-                "POLISNATCH_JOBS_URL is unset; using the built-in default %s. "
-                "Set it in .env so a moved job API cannot fail silently.",
-                Config.POLISNATCH_JOBS_URL,
-            )
         if not Config.PRIVATE_NAMES:
             LOGGER.warning(
                 "POLISWAG_PRIVATE_NAMES is unset; model replies that name the "
@@ -204,11 +193,8 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.accounts")
         await self.load_extension("cogs.tracker")
         await self.load_extension("cogs.event")
-        await self.load_extension("cogs.container_manager")
         await self.load_extension("cogs.moderation")
-        await self.load_extension("cogs.notifications")
         await self.load_extension("cogs.scheduled")
-        await self.load_extension("cogs.lures")
         await self.load_extension("cogs.webstats")
         await self.load_extension("cogs.pokedex")
         await self.load_extension("cogs.event_panel")
@@ -217,7 +203,6 @@ class Poliswag(commands.Bot):
         await self.load_extension("cogs.shiny")
         await self.load_extension("cogs.shiny_access_requests")
         await self.load_extension("cogs.spawn_history")
-        await self.load_extension("cogs.agents")
         await self.load_extension("cogs.hermes")
         await self.load_extension("cogs.claude_chat")
         await self.load_extension("cogs.mentions")

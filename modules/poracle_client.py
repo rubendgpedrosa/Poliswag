@@ -72,19 +72,6 @@ class PoracleClient(LoggingMixin):
 
     # ---- Humans (channels and users) -----------------------------------------
 
-    async def get_human(self, human_id: str | int) -> dict | None:
-        try:
-            return await self._request("GET", f"/api/humans/one/{human_id}")
-        except PoracleError:
-            return None
-
-    async def create_channel(self, channel_id: str | int, name: str) -> dict:
-        return await self._request(
-            "POST",
-            "/api/humans",
-            json={"id": str(channel_id), "name": name, "type": "discord:channel"},
-        )
-
     async def create_user(self, user_id: str | int, name: str, *, area: str) -> dict:
         """Create a Discord user with its initial area as a JSON-array string.
 
@@ -100,47 +87,6 @@ class PoracleClient(LoggingMixin):
                 "type": "discord:user",
                 "area": area,
             },
-        )
-
-    async def start(self, human_id: str | int, *, silent: bool = True) -> None:
-        await self._request(
-            "POST",
-            f"/api/humans/{human_id}/start",
-            params={"silent": "true"} if silent else None,
-        )
-
-    async def stop(self, human_id: str | int, *, silent: bool = True) -> None:
-        await self._request(
-            "POST",
-            f"/api/humans/{human_id}/stop",
-            params={"silent": "true"} if silent else None,
-        )
-
-    async def list_pokemon_tracking(self, human_id: str | int) -> list[dict]:
-        data = await self._request("GET", f"/api/tracking/pokemon/{human_id}")
-        if isinstance(data, dict):
-            rules = data.get("pokemon", [])
-            return rules if isinstance(rules, list) else []
-        return data if isinstance(data, list) else []
-
-    async def add_pokemon_tracking(
-        self, human_id: str | int, rules: list[dict] | dict, *, silent: bool = True
-    ) -> dict | list:
-        body = rules if isinstance(rules, list) else [rules]
-        return await self._request(
-            "POST",
-            f"/api/tracking/pokemon/{human_id}",
-            json=body,
-            params={"silent": "true"} if silent else None,
-        )
-
-    async def delete_pokemon_tracking_uid(
-        self, human_id: str | int, uid: str | int, *, silent: bool = True
-    ) -> None:
-        await self._request(
-            "DELETE",
-            f"/api/tracking/pokemon/{human_id}/byUid/{uid}",
-            params={"silent": "true"} if silent else None,
         )
 
     # ---- Misc ---------------------------------------------------------------

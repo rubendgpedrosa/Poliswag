@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from modules.cached_bool_setting import CachedBoolSetting
+from modules.cached_bool_setting import MAX_AGE_SECONDS, CachedBoolSetting
 
 
 def _setting(**kwargs):
@@ -54,22 +54,46 @@ class TestGet:
         )
 
 
-class TestSet:
-    async def test_set_updates_cache_without_a_read(self):
-        setting, poliswag = _setting()
+class TestTheColumnIsTheSwitch:
+    """No command sets it any more: a change made in SQL has to be noticed."""
 
-        await setting.set(False)
-
-        assert await setting.get() is False
-        poliswag.db.get_data_from_database.assert_not_called()
-
-    async def test_failed_write_does_not_update_cache(self):
+    async def test_a_changed_column_is_read_again_after_five_minutes(self, mocker):
+        clock = mocker.patch("modules.cached_bool_setting.time.monotonic")
+        clock.return_value = 1000.0
         setting, poliswag = _setting()
         poliswag.db.get_data_from_database.return_value = [{"some_flag": 1}]
-        poliswag.db.execute_query_to_database.side_effect = Exception("db down")
-
-        await setting.set(False)
-
-        # write failed, so the next read still goes to the DB
         assert await setting.get() is True
-        poliswag.db.get_data_from_database.assert_called_once()
+
+        poliswag.db.get_data_from_database.return_value = [{"some_flag": 0}]
+        clock.return_value += MAX_AGE_SECONDS - 1
+        assert await setting.get() is True  # still the cached value
+        clock.return_value += 1
+        assert await setting.get() is False
+        assert poliswag.db.get_data_from_database.call_count == 2
+
+    async def test_a_failed_reread_keeps_the_last_value(self, mocker):
+        clock = mocker.patch("modules.cached_bool_setting.time.monotonic")
+        clock.return_value = 1000.0
+        setting, poliswag = _setting()
+        poliswag.db.get_data_from_database.return_value = [{"some_flag": 0}]
+        assert await setting.get() is False
+
+        # The database is down: a switch that was off must not come back on.
+        poliswag.db.get_data_from_database.side_effect = Exception("db down")
+        clock.return_value += MAX_AGE_SECONDS
+        assert await setting.get() is False
+        poliswag.utility.log_to_file.assert_not_called()
+
+    async def test_and_is_tried_again_on_the_next_call(self, mocker):
+        clock = mocker.patch("modules.cached_bool_setting.time.monotonic")
+        clock.return_value = 1000.0
+        setting, poliswag = _setting()
+        poliswag.db.get_data_from_database.return_value = [{"some_flag": 1}]
+        await setting.get()
+        poliswag.db.get_data_from_database.side_effect = [
+            Exception("db down"),
+            [{"some_flag": 0}],
+        ]
+        clock.return_value += MAX_AGE_SECONDS
+        assert await setting.get() is True
+        assert await setting.get() is False

@@ -1,7 +1,6 @@
 """Structured owner replies shared by the bot and the host worker."""
 
 import json
-import re
 
 from modules.agent_artifacts import MAX_ATTACHMENTS
 
@@ -21,14 +20,6 @@ REPLY_SCHEMA = {
     "required": ["outcome", "kind", "reply", "details", "attachments"],
     "additionalProperties": False,
 }
-
-
-def short_sentence(text):
-    text = str(text).strip().split("\n", 1)[0]
-    text = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
-    if len(text) > 280:
-        text = text[:277].rsplit(" ", 1)[0] + "…"
-    return text
 
 
 def parse_reply(value):

@@ -32,7 +32,6 @@ _TEST_ENV_DEFAULTS = {
     "SHINY_EVENT_DIGESTS_ENABLED": "false",
     "TRADES_CHANNEL_ID": "0",
     "TRAP_CHANNEL_ID": "0",
-    "DB_DRAGONITE": "dragonite",
     "POKEDEX_URL": "https://pogoleiria.pt/pokedex",
     "WEBSTATS_URL": "https://pogoleiria.pt/webstats",
     "ADB_DEVICE": "",

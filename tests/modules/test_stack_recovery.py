@@ -58,27 +58,6 @@ class TestAutoRecreateEnabledCache:
 
         assert sr.poliswag.db.get_data_from_database.call_count == 2
 
-    async def test_set_updates_cache_without_a_read(self):
-        sr = _make_stack_recovery()
-
-        await sr.set_auto_recreate_enabled(False)
-
-        assert await sr.get_auto_recreate_enabled() is False
-        sr.poliswag.db.get_data_from_database.assert_not_called()
-
-    async def test_failed_write_does_not_update_cache(self):
-        sr = _make_stack_recovery()
-        sr.poliswag.db.get_data_from_database.return_value = [
-            {"auto_recreate_enabled": 1}
-        ]
-        sr.poliswag.db.execute_query_to_database.side_effect = Exception("db down")
-
-        await sr.set_auto_recreate_enabled(False)
-
-        # setter failed to persist, so the next read still goes to the DB
-        assert await sr.get_auto_recreate_enabled() is True
-        sr.poliswag.db.get_data_from_database.assert_called_once()
-
 
 # observe() inputs for each situation: (all_red, workers in rotom-ng)
 SCANNING = (False, 16)

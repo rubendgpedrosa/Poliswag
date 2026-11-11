@@ -119,33 +119,21 @@ disables calls). It implements the Runs API subset `HermesClient` uses and runs 
 and from the always-on Remote Control session. Claude runs without permission prompts, so no
 approval cards appear. Tests: `tests/cogs/test_claude_chat.py`.
 
-## Explicit Claude/Codex jobs
+## Explicit Claude/Codex jobs (removed 2026-11-11)
 
-`cogs/agents.py` accepts tagged requests from `MY_ID` in DMs only. Owner jobs remain
-**read-only**: they answer and propose diffs but never edit code.
-`scripts/agent_worker.py` runs on CT 105 using the existing Claude Code / Codex
-CLI login. `openai` aliases `codex`. These are separate jobs, not turns in the
-Hermes conversation.
+`cogs/agents.py` took tagged owner requests (`@Poliswag codex …`, `answer <id> …`)
+and the commands `!self`, `!jobs`, `!job` and `!cancel`. It ran 22 jobs between
+11 and 19 October 2026 and none after the owner moved to the Hermes and Claude
+DM conversations, so the cog, its database bridge (`modules/agent_database.py`)
+and its delivery rules (`modules/agent_destination.py`) are gone. A tagged
+owner DM now goes straight to the Hermes conversation (`cogs/mentions.py`).
 
-- `!self`: capabilities, command count, executor availability and scanner health.
-- `!jobs`: latest ten tasks; `!job <id>`: state/full report; `!cancel <id>`: cancel.
-- `@Poliswag codex <question>`, `@Poliswag ask claude <question>` and legacy
-  `code <provider> <question>` select the old worker explicitly. Natural forms
-  beginning `use Codex …` / `usa Claude …` also work. Merely mentioning a
-  provider (such as “How does Codex work?”) stays in Hermes.
-- `@Poliswag answer <id> <response>` resumes a named blocked task. A tagged
-  owner DM resumes the sole waiting task in that origin before starting
-  default Hermes chat; multiple waiting jobs prompt for the task ID. Explicit
-  provider requests retain their existing parser priority. Plain owner DMs
-  enter Hermes directly and do not resume legacy jobs.
-
-Jobs retain provider, worktree, original request and decisions. Origin and
-explicit delivery overrides remain separate. Results return to the stored
-origin unless explicitly directed via `send via DM` / `envia por DM`, or an
-unambiguous `send to #channel` / `envia para <#id>` reference. Continuations
-retain their original destination; `!job` stays private. Missing legacy
-destination metadata keeps DM delivery. These commands never start or resume
-jobs without a tag.
+What stays: the host worker (`scripts/agent_worker.py`, `poliswag-agent.service`)
+and the queue (`modules/agent_jobs.py`), because the public path falls back to
+them when Hermiswag does not answer (`conversation_model.py`, queue
+`logs/agent-jobs/public`). The worker's owner-job half described under
+"Execution and boundaries" is dormant: nothing in the bot queues, serves or
+delivers an owner job any more.
 
 ## Public mentions
 
@@ -395,8 +383,8 @@ systemctl enable --now poliswag-agent.service
 docker restart poliswag
 ```
 
-Check `systemctl status poliswag-agent` / `journalctl -u poliswag-agent`, then
-`!self`. Disable with `systemctl disable --now poliswag-agent`. Artifacts have
+Check `systemctl status poliswag-agent` / `journalctl -u poliswag-agent`.
+Disable with `systemctl disable --now poliswag-agent`. Artifacts have
 no automatic retention deletion: remove reviewed worktrees with
 `git worktree remove <path>` and delete the corresponding job directory.
 

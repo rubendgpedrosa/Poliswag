@@ -1,10 +1,24 @@
-class CachedBoolSetting:
-    """A boolean flag persisted as a single column in the `poliswag` table.
+import time
 
-    Cached in memory after the first successful read and updated on every
-    write, so it never goes stale but avoids a DB round trip on every
-    scheduler tick. A read failure fails open to `default` without caching,
-    so a transient DB error is retried on the next read.
+# How long a value read from the database is trusted. The switches had
+# Discord commands until 2026-11-11 (`!container autorecreate`, `!device
+# autoreboot`); now the column itself is the switch, so a change made in SQL
+# has to be noticed without a restart.
+MAX_AGE_SECONDS = 300
+
+
+class CachedBoolSetting:
+    """A boolean flag kept in one column of the `poliswag` table.
+
+    Read at most once every MAX_AGE_SECONDS, so the scheduler does not pay a
+    database round trip on every pass and a change to the column takes effect
+    within five minutes:
+
+        UPDATE poliswag SET auto_recreate_enabled = 0;
+
+    A read that fails returns the value last read, or `default` when there
+    is none yet, and is tried again on the next call. The column name goes
+    into the SQL as text, so pass only a fixed name.
     """
 
     def __init__(self, poliswag, column: str, *, default: bool = True):
@@ -12,32 +26,25 @@ class CachedBoolSetting:
         self._column = column
         self._default = default
         self._cached: bool | None = None
+        self._read_at = 0.0
 
     async def get(self) -> bool:
-        if self._cached is not None:
+        now = time.monotonic()
+        if self._cached is not None and now - self._read_at < MAX_AGE_SECONDS:
             return self._cached
         try:
             rows = await self.poliswag.db.get_data_from_database(
                 f"SELECT {self._column} FROM poliswag LIMIT 1"
             )
             self._cached = bool(rows[0][self._column]) if rows else self._default
+            self._read_at = now
             return self._cached
         except Exception as e:
+            if self._cached is not None:
+                return self._cached
             default_label = "enabled" if self._default else "disabled"
             self.poliswag.utility.log_to_file(
                 f"Failed to read {self._column}, defaulting to {default_label}: {e}",
                 "ERROR",
             )
             return self._default
-
-    async def set(self, value: bool) -> None:
-        try:
-            await self.poliswag.db.execute_query_to_database(
-                f"UPDATE poliswag SET {self._column} = %s",
-                params=(1 if value else 0,),
-            )
-            self._cached = value
-        except Exception as e:
-            self.poliswag.utility.log_to_file(
-                f"Failed to persist {self._column}: {e}", "ERROR"
-            )

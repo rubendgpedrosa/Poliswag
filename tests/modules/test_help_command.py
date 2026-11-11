@@ -185,11 +185,11 @@ class TestSendBotHelp:
     async def test_mod_permissive_filter_never_lists_owner_entries(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         cmd = _fake_command("secret", brief="x", checks=[is_owner])
-        cmd.cog_name = "Agents"
+        cmd.cog_name = "WebStats"
         hc.context.author.id = 111
         hc.filter_commands = AsyncMock(return_value=[cmd])
 
-        await hc.send_bot_help({_fake_cog("Agents"): [cmd]})
+        await hc.send_bot_help({_fake_cog("WebStats"): [cmd]})
 
         embed = _send(hc)
         assert "secret" not in str(embed.fields)
@@ -226,30 +226,30 @@ class TestSendBotHelp:
 
 class TestSendCogHelp:
     async def test_one_field_per_command_with_help_text(self, hc):
-        cog = _fake_cog("Lures")
+        cog = _fake_cog("Giveaways")
         cog.get_commands.return_value = [
-            _fake_command("lures", brief="Lista lures", help="Ajuda completa")
+            _fake_command("sorteio", brief="Sorteia", help="Ajuda completa")
         ]
         hc.filter_commands = AsyncMock(side_effect=lambda cmds, **kw: list(cmds))
 
         await hc.send_cog_help(cog)
 
         embed = hc.context.channel.send.call_args.kwargs["embed"]
-        assert embed.title == "🌸 Lures"
-        assert embed.fields[0].name == "!lures"
+        assert embed.title == "🎟️ Sorteios (admin)"
+        assert embed.fields[0].name == "!sorteio"
         assert embed.fields[0].value == "Ajuda completa"
 
     async def test_falls_back_to_brief_when_no_help_text(self, hc):
-        cog = _fake_cog("Lures")
+        cog = _fake_cog("Giveaways")
         cog.get_commands.return_value = [
-            _fake_command("uselure", brief="Ajusta lures", help=None)
+            _fake_command("sorteio", brief="Sorteia", help=None)
         ]
         hc.filter_commands = AsyncMock(side_effect=lambda cmds, **kw: list(cmds))
 
         await hc.send_cog_help(cog)
 
         embed = hc.context.channel.send.call_args.kwargs["embed"]
-        assert embed.fields[0].value == "Ajusta lures"
+        assert embed.fields[0].value == "Sorteia"
 
 
 class TestSendGroupHelp:
@@ -274,7 +274,7 @@ class TestSendGroupHelp:
 
     async def test_falls_back_to_placeholder_when_no_help_or_brief(self, hc):
         group = MagicMock()
-        group.qualified_name = "container"
+        group.qualified_name = "spawnhistory"
         group.help = None
         group.brief = None
         group.commands = []
@@ -424,7 +424,7 @@ class TestDetailedPermissionGating:
         assert "Gere o dispositivo" not in (embed.description or "")
 
     async def test_nonowner_cog_detail_is_generic_without_label(self, hc):
-        cog = _fake_cog("Agents")
+        cog = _fake_cog("WebStats")
         cog.get_commands.return_value = [_fake_command("ask", help="Privado")]
         hc.filter_commands = AsyncMock(return_value=[])
 
@@ -432,13 +432,13 @@ class TestDetailedPermissionGating:
 
         embed = _send(hc)
         assert "Não encontrei" in embed.title
-        assert "Agentes" not in embed.title
+        assert "Estatísticas" not in embed.title
         assert all("ask" not in field.name for field in embed.fields)
 
     async def test_owner_cog_detail_is_sent_to_owner_dm_not_guild(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         hc.context.author.id = 999
-        cog = _fake_cog("Agents")
+        cog = _fake_cog("WebStats")
         command = _fake_command("ask", help="Pergunta privada")
         command.cog = cog
         cog.get_commands.return_value = [command]
@@ -447,14 +447,14 @@ class TestDetailedPermissionGating:
         await hc.send_cog_help(cog)
 
         embed = _send_dm(hc)
-        assert embed.title == "🤖 Agentes (dono)"
+        assert embed.title == "📊 Estatísticas (admin)"
         assert embed.fields[0].name == "!ask"
         hc.context.channel.send.assert_not_awaited()
 
     async def test_owner_group_detail_is_sent_to_owner_dm_not_guild(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         hc.context.author.id = 999
-        cog = _fake_cog("ContainerManagerCog")
+        cog = _fake_cog("SpawnHistory")
         group = _fake_command("device", help="Gere o dispositivo")
         group.cog = cog
         group.commands = [_fake_command("device status", help="Verifica")]
@@ -471,7 +471,7 @@ class TestDetailedPermissionGating:
     async def test_owner_nested_leaf_under_owner_parent_is_dm_private(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         hc.context.author.id = 999
-        cog = _fake_cog("ContainerManagerCog")
+        cog = _fake_cog("SpawnHistory")
         parent = _fake_command("device", help="Gere")
         parent.cog = cog
         parent.can_run = AsyncMock(return_value=True)
@@ -489,7 +489,7 @@ class TestDetailedPermissionGating:
         mocker.patch.object(Config, "MY_ID", 999)
         hc.context.author.id = 999
         command = _fake_command("code", help="Edita código")
-        command.cog = _fake_cog("Agents")
+        command.cog = _fake_cog("WebStats")
         hc.get_command_signature = MagicMock(return_value="!code")
 
         await hc.send_command_help(command)
@@ -506,7 +506,7 @@ class TestDetailedPermissionGating:
             side_effect=discord.Forbidden(MagicMock(status=403), "Forbidden")
         )
         command = _fake_command("code", help="Edita código")
-        command.cog = _fake_cog("Agents")
+        command.cog = _fake_cog("WebStats")
         hc.get_command_signature = MagicMock(return_value="!code")
 
         await hc.send_command_help(command)
@@ -527,7 +527,7 @@ class TestDetailedPermissionGating:
         hc.context.author.id = 999
         hc.context.guild = None
         command = _fake_command("code", help="Edita código")
-        command.cog = _fake_cog("Agents")
+        command.cog = _fake_cog("WebStats")
         hc.get_command_signature = MagicMock(return_value="!code")
 
         await hc.send_command_help(command)
@@ -546,7 +546,7 @@ class _FakeBot:
         return True
 
     def get_cog(self, name):
-        return self._cog if name == "Agents" else None
+        return self._cog if name == "WebStats" else None
 
 
 def _callback_context(bot, author_id, *, guild="guild", display_name=None):
@@ -572,7 +572,7 @@ def _owner_command():
     return code
 
 
-class _AgentsCog(commands.Cog, name="Agents"):
+class _RealOwnerCog(commands.Cog, name="WebStats"):
     def __init__(self, bot):
         self.bot = bot
         self.ask.cog = self
@@ -627,47 +627,47 @@ class TestRealCommandCallback:
         assert _send_dm(hc).title == "📖 !code"
         ctx.channel.send.assert_not_awaited()
 
-    async def test_member_agents_cog_is_generic(self, hc, mocker):
+    async def test_member_owner_cog_is_generic(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         bot = _FakeBot()
-        cog = _AgentsCog(bot)
+        cog = _RealOwnerCog(bot)
         bot._cog = cog
         ctx = _callback_context(bot, 555)
-        await self._run(hc, ctx, "Agents")
+        await self._run(hc, ctx, "WebStats")
         embed = _send(hc)
         assert "Não encontrei" in embed.title
-        assert "Agentes" not in embed.title
+        assert "Estatísticas" not in embed.title
         assert all("ask" not in field.name for field in embed.fields)
 
-    async def test_mod_agents_cog_is_generic(self, hc, mocker):
+    async def test_mod_owner_cog_is_generic(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         bot = _FakeBot(admins=("111",))
-        cog = _AgentsCog(bot)
+        cog = _RealOwnerCog(bot)
         bot._cog = cog
         ctx = _callback_context(bot, 111)
-        await self._run(hc, ctx, "Agents")
+        await self._run(hc, ctx, "WebStats")
         assert "Não encontrei" in _send(hc).title
-        assert "Agentes" not in _send(hc).title
+        assert "Estatísticas" not in _send(hc).title
 
-    async def test_nonowner_agents_cog_in_dm_is_generic(self, hc, mocker):
+    async def test_nonowner_owner_cog_in_dm_is_generic(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         bot = _FakeBot()
-        cog = _AgentsCog(bot)
+        cog = _RealOwnerCog(bot)
         bot._cog = cog
         ctx = _callback_context(bot, 555, guild=None)
-        await self._run(hc, ctx, "Agents")
+        await self._run(hc, ctx, "WebStats")
         assert "Não encontrei" in _send(hc).title
-        assert "Agentes" not in _send(hc).title
+        assert "Estatísticas" not in _send(hc).title
 
-    async def test_owner_agents_cog_is_positive_in_dm(self, hc, mocker):
+    async def test_owner_cog_is_positive_in_dm(self, hc, mocker):
         mocker.patch.object(Config, "MY_ID", 999)
         bot = _FakeBot()
-        cog = _AgentsCog(bot)
+        cog = _RealOwnerCog(bot)
         bot._cog = cog
         ctx = _callback_context(bot, 999)
-        await self._run(hc, ctx, "Agents")
+        await self._run(hc, ctx, "WebStats")
         embed = _send_dm(hc)
-        assert embed.title == "🤖 Agentes (dono)"
+        assert embed.title == "📊 Estatísticas (admin)"
         assert embed.fields[0].name == "!ask"
         ctx.channel.send.assert_not_awaited()
 
