@@ -6,7 +6,6 @@ import discord
 from discord.ext import commands
 
 from cogs.event_panel import EventPanelView
-from cogs.mentions import directed_mention, replied_bot_message
 from modules import scan_areas
 from modules.account_guard import AccountGuard
 from modules.account_monitor import AccountMonitor
@@ -23,6 +22,7 @@ from modules.image_generator import ImageGenerator
 from modules.lure_manager import LureManager
 from modules.lure_watcher import LureWatcher
 from modules.mega_exporter import MegaExporter
+from modules.mention_rules import directed_mention, replied_bot_message
 from modules.migrations import apply_migrations
 from modules.page_view_stats import PageViewStats
 from modules.permissions import is_owner
@@ -57,6 +57,9 @@ class Poliswag(commands.Bot):
         )
 
         self.db = DatabaseConnector()
+        # The scanner's own database (Golbat), read-only for the bot. Its one
+        # connection is shared by everything that reads the map.
+        self.scanner_db = DatabaseConnector(Config.DB_SCANNER_NAME)
         self.role_manager = RoleManager()
         self.utility = Utility(self)
         self.scanner_status = ScannerStatus(self)

@@ -11,7 +11,7 @@ class LureWatcher(LoggingMixin):
     async def count_active_lures(self):
         """Current count of pokestops with an active lure right now."""
         try:
-            rows = await self.poliswag.quest_search.db.get_data_from_database(
+            rows = await self.poliswag.scanner_db.get_data_from_database(
                 "SELECT COUNT(*) AS active FROM pokestop "
                 "WHERE lure_expire_timestamp > UNIX_TIMESTAMP()"
             )

@@ -292,7 +292,7 @@ class ScannerStatus(LoggingMixin):
     async def _get_seconds_since_last_pokemon(self) -> int | None:
         """Return how many seconds have passed since the newest pokemon row was updated."""
         try:
-            rows = await self.poliswag.quest_search.db.get_data_from_database(
+            rows = await self.poliswag.scanner_db.get_data_from_database(
                 "SELECT UNIX_TIMESTAMP() - MAX(updated) AS seconds_ago FROM pokemon"
             )
             if rows and rows[0]["seconds_ago"] is not None:
@@ -311,7 +311,7 @@ class ScannerStatus(LoggingMixin):
             return None
         placeholders = ", ".join(["%s"] * len(names))
         try:
-            rows = await self.poliswag.quest_search.db.get_data_from_database(
+            rows = await self.poliswag.scanner_db.get_data_from_database(
                 "SELECT COALESCE(SUM(totMon), 0) AS total, "
                 "COALESCE(SUM(ivMon), 0) AS iv, "
                 "COALESCE(SUM(unverifiedEnc), 0) AS unverified "
@@ -351,7 +351,7 @@ class ScannerStatus(LoggingMixin):
             return {}
         placeholders = ", ".join(["%s"] * len(names))
         try:
-            rows = await self.poliswag.quest_search.db.get_data_from_database(
+            rows = await self.poliswag.scanner_db.get_data_from_database(
                 "SELECT area, COALESCE(SUM(totMon), 0) AS total, "
                 "COALESCE(SUM(ivMon), 0) AS iv "
                 "FROM pokemon_area_stats "
@@ -582,7 +582,7 @@ class ScannerStatus(LoggingMixin):
             areas = scan_areas.active_areas()
             if not areas:
                 return None
-            db = self.poliswag.quest_search.db
+            db = self.poliswag.scanner_db
             counted = {
                 row["area_key"]: await self._count_area(db, row) for row in areas
             }

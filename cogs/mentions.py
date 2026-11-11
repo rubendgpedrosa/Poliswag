@@ -41,54 +41,13 @@ from modules.hermiswag_proactive import (
     confirmed_reply,
     utcnow,
 )
+from modules.mention_rules import directed_mention, replied_bot_message
 from modules.permissions import is_owner
 from modules.public_conversation import MentionLimiter, PublicConversation, safe_reply
 from modules.public_dumps import PublicDumps, dump_request
 from modules.public_map_context import PublicMapContext
 
 _GREETING = "Olá! Estou aqui — diz-me o que precisas. 🐸"
-
-
-def directed_mention(content, bot_id):
-    """Only a visible, unescaped bot tag counts; ignore code/quoted literals."""
-    if not isinstance(content, str):
-        return False
-    visible = re.sub(r"```.*?```", " ", content, flags=re.S)
-    visible = re.sub(r"```.*", " ", visible, flags=re.S)
-    visible = re.sub(r"`[^`\n]*`", " ", visible)
-    lines = []
-    in_block_quote = False
-    for line in visible.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith(">>>"):
-            in_block_quote = True
-            continue
-        if in_block_quote or stripped.startswith(">"):
-            continue
-        lines.append(line)
-    visible = "\n".join(lines)
-    return bool(re.search(rf"(?<!\\)<@!?{bot_id}>", visible))
-
-
-def replied_bot_message(message, bot_id):
-    """The Poliswag chat message this guild message replies to, or None.
-
-    Replying to one of Poliswag's conversational answers counts like a tag
-    (owner, 2026-11-09). Only plain-text answers count: replying to an embed
-    or a file (event boards, scanner cards, CSV lists, giveaway results) is
-    talk between members, not a question for the bot. Commands never count.
-    """
-    if bot_id is None or getattr(message, "guild", None) is None:
-        return None
-    if (message.content or "").lstrip().startswith("!"):
-        return None
-    reference = getattr(message, "reference", None)
-    replied = getattr(reference, "resolved", None) if reference else None
-    if not isinstance(replied, discord.Message):
-        return None
-    if replied.author.id != bot_id or replied.embeds or replied.attachments:
-        return None
-    return replied if (replied.content or "").strip() else None
 
 
 def named_mentions(text, message):
@@ -126,11 +85,11 @@ class Mentions(commands.Cog):
         self.followup_handled = set()
         self.public = PublicConversation(
             poliswag.db,
-            quest_search.db,
+            poliswag.scanner_db,
             ConversationModel(Config.AGENT_JOBS_DIR, self.hermiswag),
-            PublicMapContext(quest_search.db, pokemon_names),
+            PublicMapContext(poliswag.scanner_db, pokemon_names),
         )
-        self.dumps = PublicDumps(quest_search.db, self.public.map_context)
+        self.dumps = PublicDumps(poliswag.scanner_db, self.public.map_context)
         self.limiter = MentionLimiter()
 
     async def handle(self, ctx):

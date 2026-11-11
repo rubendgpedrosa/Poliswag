@@ -434,7 +434,7 @@ class TestExport:
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
-        qs.db = AsyncMock()
+        poliswag.scanner_db = AsyncMock()
         qs.translationfile_data = {"data": {"quest_catch_pokemon": "Catch {0} Pokémon"}}
         qs.masterfile_data = {
             "pokemon": {"25": {"name": "Pikachu"}, "150": "Mewtwo"},
@@ -488,7 +488,7 @@ class TestExport:
                 else standard_rows
             )
 
-        qs.db.get_data_from_database.side_effect = fake_get_data
+        poliswag.scanner_db.get_data_from_database.side_effect = fake_get_data
 
         output = tmp_path / "quests.json"
         exporter = QuestExporter(poliswag=poliswag)
@@ -547,7 +547,7 @@ class TestExport:
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
-        qs.db = AsyncMock()
+        poliswag.scanner_db = AsyncMock()
         qs.translationfile_data = {"data": {}}
         qs.masterfile_data = {"pokemon": {}, "items": {}}
 
@@ -555,7 +555,7 @@ class TestExport:
             # Only the first scanner field set contains rows.
             return [] if "alternative_quest_reward_type" in query else rows
 
-        qs.db.get_data_from_database.side_effect = fake_get_data
+        poliswag.scanner_db.get_data_from_database.side_effect = fake_get_data
 
         exporter = QuestExporter(poliswag=poliswag)
         exporter.output_path = str(tmp_path / "quests.json")
@@ -597,7 +597,7 @@ class TestExport:
         source = self._row("Fonte", 500)
         other = self._row("Praça", 500)
         exporter = self._make_exporter(tmp_path, [source])
-        exporter.poliswag.quest_search.db.get_data_from_database.side_effect = (
+        exporter.poliswag.scanner_db.get_data_from_database.side_effect = (
             lambda query: (
                 [dict(source), other]
                 if "alternative_quest_reward_type" in query
@@ -648,10 +648,10 @@ class TestExport:
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
-        qs.db = AsyncMock()
+        poliswag.scanner_db = AsyncMock()
         qs.translationfile_data = None
         qs.masterfile_data = None
-        qs.db.get_data_from_database.return_value = []
+        poliswag.scanner_db.get_data_from_database.return_value = []
 
         output = tmp_path / "quests.json"
         exporter = QuestExporter(poliswag=poliswag)
@@ -690,14 +690,14 @@ class TestRewardSpeciesSeparation:
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
-        qs.db = AsyncMock()
+        poliswag.scanner_db = AsyncMock()
         qs.translationfile_data = {"data": {}}
         qs.masterfile_data = {"pokemon": {}, "items": {}}
 
         def fake_get_data(query):
             return [] if "alternative_quest_reward_type" in query else rows
 
-        qs.db.get_data_from_database.side_effect = fake_get_data
+        poliswag.scanner_db.get_data_from_database.side_effect = fake_get_data
         exporter = QuestExporter(poliswag=poliswag)
         exporter.output_path = str(tmp_path / "quests.json")
         return exporter
@@ -830,14 +830,14 @@ class TestPayloadRecovery:
 
         poliswag = MagicMock()
         qs = poliswag.quest_search
-        qs.db = AsyncMock()
+        poliswag.scanner_db = AsyncMock()
         qs.translationfile_data = {"data": {}}
         qs.masterfile_data = {"pokemon": {}, "items": {}}
 
         def fake_get_data(query):
             return [] if "alternative_quest_reward_type" in query else rows
 
-        qs.db.get_data_from_database.side_effect = fake_get_data
+        poliswag.scanner_db.get_data_from_database.side_effect = fake_get_data
         exporter = QuestExporter(poliswag=poliswag)
         exporter.output_path = str(tmp_path / "quests.json")
         return exporter

@@ -23,7 +23,7 @@ def scanner_status(mocker):
     poliswag.stack_recovery.observe = AsyncMock()
     poliswag.account_monitor.connected_worker_count = AsyncMock(return_value=16)
     poliswag.db = AsyncMock()
-    poliswag.quest_search.db = AsyncMock()
+    poliswag.scanner_db = AsyncMock()
     return ScannerStatus(poliswag=poliswag)
 
 
@@ -645,30 +645,30 @@ class TestGetVoiceChannel:
 
 class TestGetSecondsSinceLastPokemon:
     async def test_returns_seconds_from_db(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"seconds_ago": 42}
         ]
         assert await scanner_status._get_seconds_since_last_pokemon() == 42
 
     async def test_returns_none_when_table_empty(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"seconds_ago": None}
         ]
         assert await scanner_status._get_seconds_since_last_pokemon() is None
 
     async def test_returns_none_on_db_error(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+        scanner_status.poliswag.scanner_db.get_data_from_database.side_effect = (
             RuntimeError("db gone")
         )
         assert await scanner_status._get_seconds_since_last_pokemon() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_queries_correct_column(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"seconds_ago": 5}
         ]
         await scanner_status._get_seconds_since_last_pokemon()
-        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+        sql = scanner_status.poliswag.scanner_db.get_data_from_database.call_args.args[
             0
         ]
         assert "MAX(updated)" in sql
@@ -678,46 +678,44 @@ class TestGetSecondsSinceLastPokemon:
 
 class TestGetIvVerificationStats:
     async def test_returns_totals_from_db(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"total": 100, "iv": 90, "unverified": 10}
         ]
         result = await scanner_status._get_iv_verification_stats()
         assert result == {"total": 100, "iv": 90, "unverified": 10}
 
     async def test_returns_none_when_no_rows(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = []
         assert await scanner_status._get_iv_verification_stats() is None
 
     async def test_returns_none_when_total_is_zero(self, scanner_status):
         # No scanning activity in the window -- e.g. right after a restart.
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"total": 0, "iv": 0, "unverified": 0}
         ]
         assert await scanner_status._get_iv_verification_stats() is None
 
     async def test_returns_none_on_db_error(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+        scanner_status.poliswag.scanner_db.get_data_from_database.side_effect = (
             RuntimeError("db gone")
         )
         assert await scanner_status._get_iv_verification_stats() is None
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_uses_requested_minutes_window(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"total": 1, "iv": 1, "unverified": 0}
         ]
         await scanner_status._get_iv_verification_stats(minutes=30)
-        call_args = (
-            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
-        )
+        call_args = scanner_status.poliswag.scanner_db.get_data_from_database.call_args
         assert call_args.kwargs["params"] == (30 * 60, "Leiria", "MarinhaGrande")
 
     async def test_queries_correct_table_and_areas(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"total": 1, "iv": 1, "unverified": 0}
         ]
         await scanner_status._get_iv_verification_stats()
-        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+        sql = scanner_status.poliswag.scanner_db.get_data_from_database.call_args.args[
             0
         ]
         assert "pokemon_area_stats" in sql
@@ -726,7 +724,7 @@ class TestGetIvVerificationStats:
 
 class TestGetIvVerificationByArea:
     async def test_returns_dict_keyed_by_area(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"area": "Leiria", "total": 300, "iv": 297},
             {"area": "MarinhaGrande", "total": 100, "iv": 100},
         ]
@@ -737,7 +735,7 @@ class TestGetIvVerificationByArea:
         }
 
     async def test_omits_areas_with_no_activity(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"area": "Leiria", "total": 300, "iv": 297},
             {"area": "MarinhaGrande", "total": 0, "iv": 0},
         ]
@@ -745,38 +743,34 @@ class TestGetIvVerificationByArea:
         assert result == {"Leiria": {"total": 300, "iv": 297}}
 
     async def test_empty_dict_when_no_rows(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = []
         assert await scanner_status.get_iv_verification_by_area() == {}
 
     async def test_empty_dict_on_db_error(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+        scanner_status.poliswag.scanner_db.get_data_from_database.side_effect = (
             RuntimeError("db gone")
         )
         assert await scanner_status.get_iv_verification_by_area() == {}
         scanner_status.poliswag.utility.log_to_file.assert_called_once()
 
     async def test_uses_requested_minutes_window(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = []
         await scanner_status.get_iv_verification_by_area(minutes=30)
-        call_args = (
-            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
-        )
+        call_args = scanner_status.poliswag.scanner_db.get_data_from_database.call_args
         assert call_args.kwargs["params"] == (30 * 60, "Leiria", "MarinhaGrande")
 
     async def test_defaults_to_one_hour_window(self, scanner_status):
         # The account card labels this figure "spawns/h" -- the default
         # window and that label have to agree.
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = []
         await scanner_status.get_iv_verification_by_area()
-        call_args = (
-            scanner_status.poliswag.quest_search.db.get_data_from_database.call_args
-        )
+        call_args = scanner_status.poliswag.scanner_db.get_data_from_database.call_args
         assert call_args.kwargs["params"] == (60 * 60, "Leiria", "MarinhaGrande")
 
     async def test_queries_correct_table_and_groups_by_area(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = []
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = []
         await scanner_status.get_iv_verification_by_area()
-        sql = scanner_status.poliswag.quest_search.db.get_data_from_database.call_args.args[
+        sql = scanner_status.poliswag.scanner_db.get_data_from_database.call_args.args[
             0
         ]
         assert "pokemon_area_stats" in sql
@@ -1347,7 +1341,7 @@ class TestIsQuestScanningComplete:
 
     async def test_returns_none_on_exception(self, scanner_status, mocker):
         self._prime(scanner_status, mocker)
-        scanner_status.poliswag.quest_search.db.get_data_from_database.side_effect = (
+        scanner_status.poliswag.scanner_db.get_data_from_database.side_effect = (
             RuntimeError("db error")
         )
         assert await scanner_status.is_quest_scanning_complete() is None
@@ -1560,12 +1554,12 @@ class TestQuestPlateauHelpers:
         # _build_progress_embed's Decimal + float math. Counts must be ints.
         from decimal import Decimal
 
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"lat": 39.7, "lon": -8.8, "scanned": Decimal("1")} for _ in range(330)
         ]
         area = {"area_key": "leiria"}
         count, total = await scanner_status._count_area(
-            scanner_status.poliswag.quest_search.db, area
+            scanner_status.poliswag.scanner_db, area
         )
         assert count == 330 and total == 330
         assert type(count) is int and type(total) is int
@@ -1579,13 +1573,13 @@ class TestQuestPlateauHelpers:
         assert scanner_status._coverage_pct(10, -1) == 0
 
     async def test_count_area_counts_all_stops_and_quested_ones(self, scanner_status):
-        scanner_status.poliswag.quest_search.db.get_data_from_database.return_value = [
+        scanner_status.poliswag.scanner_db.get_data_from_database.return_value = [
             {"lat": 39.7, "lon": -8.8, "scanned": 1},
             {"lat": 39.7, "lon": -8.8, "scanned": 0},
             {"lat": 39.7, "lon": -8.8, "scanned": 1},
         ]
         assert await scanner_status._count_area(
-            scanner_status.poliswag.quest_search.db, {"area_key": "leiria"}
+            scanner_status.poliswag.scanner_db, {"area_key": "leiria"}
         ) == (2, 3)
 
     async def test_record_completion_resets_without_writing(self, scanner_status):

@@ -9,7 +9,6 @@ import requests
 
 from modules import scan_areas
 from modules.config import Config
-from modules.database_connector import DatabaseConnector
 from modules.embeds import status_embed
 
 HTTP_TIMEOUT_SECONDS = 15
@@ -119,7 +118,7 @@ def _quest_fields(quest: dict) -> dict:
 class QuestSearch:
     def __init__(self, poliswag):
         self.poliswag = poliswag
-        self.db = DatabaseConnector(Config.DB_SCANNER_NAME)
+        self.db = poliswag.scanner_db
         self.POKEMON_NAME_FILE = Config.POKEMON_NAME_FILE
         self.ITEM_NAME_FILE = Config.ITEM_NAME_FILE
         self.UI_ICONS_URL = Config.UI_ICONS_URL
