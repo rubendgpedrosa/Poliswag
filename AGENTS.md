@@ -10,6 +10,7 @@ Rules that apply to every agent here:
 - Prefer direct exploration over dispatching subagents for codebase review.
 - Automated notices go out as embeds; user-facing copy is European Portuguese.
 - A pre-commit run that gets interrupted reverts unstaged files; recover from `~/.cache/pre-commit/patch*`.
+- Ship a change with `make deploy` (rebuilds the image, restarts the bot, waits for the scheduler and fails with the log if it does not come up). Never `docker restart poliswag` after a code change: the code is bind-mounted, the dependencies are in the image.
 - Sister project: the site at `/root/PoGoLeiria` (its own `AGENTS.md` and `docs/context.md`).
 
 ## What does not belong here
