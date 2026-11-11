@@ -123,8 +123,8 @@ class Config:
     ENV = os.environ.get("ENV", "DEV")
     IS_PRODUCTION = ENV == "PRODUCTION"
 
-    # Touched after every scheduler tick; scripts/watchdog.sh on the host
-    # restarts the container when it goes stale (logs/ is bind-mounted).
+    # Written after every pass of each scheduler loop; scripts/watchdog.sh on
+    # the host restarts the container when it goes stale (bind-mounted).
     HEARTBEAT_FILE = os.environ.get("HEARTBEAT_FILE", "logs/heartbeat")
     AGENT_JOBS_DIR = os.environ.get("AGENT_JOBS_DIR", "logs/agent-jobs")
 

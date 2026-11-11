@@ -20,6 +20,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
 | `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
 | `account_guard.py` | Alert-only guard: fake-ban bursts and mass login failures from the scanner logs → owner DM saying what it would pause. |
+| `scheduler.py` | `StepRunner`: the scheduler's steps, each with an interval and a wait budget; never cancels a run; the heartbeat's time. |
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` / `quest_exporter.py` / `quest_map.py` | Quest lookup (only future expiry is live), `quests.json` export, map PNGs. See `quests.md`. |
 | `scan_areas.py` | The area registry and its Dragonite fences: `active_areas()`, `area_for(lat, lon)`, labels/roles/bit codes; point-in-polygon, 10 min cache, last good fences on disk. See `database.md`. |
@@ -32,12 +33,12 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `account_monitor.py` / `lure_manager.py` / `lure_watcher.py` | Dragonite account image; free accounts + `account_lure` budget; live lure count for presence. |
 | `poracle_client.py` | Async Poracle-NG REST client; `PoracleError` on failure. |
 | `tracker_store.py` / `role_manager.py` / `mega_exporter.py` | `tracked_quest_reward` CRUD; legacy role panel; mega sprites. |
-| `hermes_client.py` / `public_conversation.py` / `conversation_model.py` / `permissions.py` / `help_command.py` / `dm_policy.py` | Public tag replies (Codex Luna low + public map data), audiences/help gating, DM policy. See `agents.md`. |
+| `hermes_client.py` / `public_conversation.py` / `conversation_model.py` / `permissions.py` / `help_command.py` / `dm_policy.py` | Public tag replies (Hermiswag first; the agent worker's Codex Luna low as fallback; public map data), audiences/help gating, DM policy. See `agents.md`. |
 | `page_view_stats.py` / `trade_stats.py` / `tracking_health.py` / `migrations.py` | Landing analytics, trade aggregates, traffic-silence log, startup migrations. |
 | `image_generator.py` / `embeds.py` / `utility.py` / `locale_pt.py` | imgkit cards, embed builders, logging/Lisbon time, PT date names. |
 
 ## Cogs (`cogs/`) — full command table in `context/cogs.md`
-One cog per area; `scheduled.py` ticks every minute. Auth: **mods** for tracker/event/notifications/scheduled/lures/announcements and `!scan`/`!exportquests`; **owner only** for accounts, container, webstats, event_panel, shiny, agents, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), `!mbway` is member-facing and answers by DM only, shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: the owner uses one persistent private Hermes conversation in DMs (plain text or a visible bot tag). Explicit tagged Claude/Codex jobs and blocked-job replies in owner DMs retain the read-only worker path. All tagged guild members, including the owner, get public game answers with cooldowns; non-owner conversational DMs stay silent. See `agents.md`.
+One cog per area; `scheduled.py` runs four one-minute loops (health, alerts, display, chores; `conventions.md` → Scheduler). Auth: **mods** for tracker/event/notifications/scheduled/lures/announcements and `!scan`/`!exportquests`; **owner only** for accounts, container, webstats, event_panel, shiny, agents, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), `!mbway` is member-facing and answers by DM only, shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: the owner uses one persistent private Hermes conversation in DMs (plain text or a visible bot tag). Explicit tagged Claude/Codex jobs and blocked-job replies in owner DMs retain the read-only worker path. All tagged guild members, including the owner, get public game answers with cooldowns; non-owner conversational DMs stay silent. See `agents.md`.
 
 ## Databases — detail in `context/database.md`
 - **poliswag** (read/write): scan state, events, quests, shiny, trades, 100IV. Schema = `migrations/*.sql`.
