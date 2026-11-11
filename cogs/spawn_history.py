@@ -113,7 +113,7 @@ class SpawnHistory(commands.Cog):
     @history.command(name="image", brief="Envia a leaderboard visual por DM ao dono")
     @owner_only()
     async def image_report(self, ctx):
-        await self.leaderboard.send()
+        await self.leaderboard.send(owner_dm=True)
 
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):

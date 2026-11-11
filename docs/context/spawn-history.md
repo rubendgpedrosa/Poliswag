@@ -45,13 +45,15 @@ Golbat still retains, but does not imply complete coverage before capture starts
   leaderboard computed from the archive. Both commands accept 1–48 hours.
 - `!spawnhistory image`: renders the 24-hour leaderboard and DMs only `MY_ID`.
 
-## Daily owner leaderboard
+## Daily leaderboard
 
 `SHINY_LEADERBOARD_ENABLED=1` enables a separate, one-minute task in the
 SpawnHistory cog. At or after 09:00 Europe/Lisbon, `modules/shiny_leaderboard.py`
 calculates the preceding 24 hours, renders a PNG with the bundled PoGoLeiria
-mark and fonts, and sends it directly through Poliswag to `MY_ID`. No agent,
-LLM or image-generation API is invoked. Discord avatars come from community
+mark and fonts, and sends it to `CONVIVIO_CHANNEL_ID`. It also requires the
+site's `SHINY_MAP_ENABLED` switch to be enabled; when predictions are off, the
+automatic report does not run. The optional shundo board goes to `MY_ID`.
+No agent, LLM or image-generation API is invoked. Discord avatars come from community
 profiles; failed downloads fall back to initials.
 
 `poliswag.last_shiny_leaderboard_date` persists successful delivery across
@@ -65,14 +67,10 @@ still cover every trainer in the aggregate; the JSON report remains complete.
 Incomplete coverage leaves the JSON full-window averages unavailable. The image
 shows recorded totals divided by the requested hours, marked with an asterisk
 and a warning that missing history may underestimate the rate. The overall
-image rate also divides by trainer count. Stale collection is identified in the DM. Reports are predictions, not catches.
+image rate also divides by trainer count. Stale collection is identified in the message. Reports are predictions, not catches.
 
-For owner agent requests, the private `poliswag_db.spawn_history_report` MCP tool
-provides the same aggregate report, without transmitting raw player IDs or
-requiring hundreds of paginated SQL reads. Its `hours` argument defaults to 24.
-Claude/Codex are instructed to use this instead of the filtered `shiny_alert`
-table. The tool is served only for a verified owner's running job, like the
-existing read-only query bridge; public jobs do not receive it.
+The former owner-job `poliswag_db.spawn_history_report` MCP bridge was removed
+with the owner-job worker. Use the owner commands above for this report.
 
 ## Report semantics
 

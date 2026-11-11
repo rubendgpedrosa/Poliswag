@@ -90,3 +90,33 @@ async def test_an_invalid_period_never_opens_a_connection(cog, monkeypatch, comm
     with pytest.raises(ValueError, match="entre 1 e 48"):
         await getattr(cog, command).callback(cog, ctx, 49)
     assert cog.poliswag.db.units == []
+
+
+async def test_manual_image_only_sends_to_owner(cog, monkeypatch):
+    owner = MagicMock(send=AsyncMock())
+    cog.poliswag.get_user.return_value = None
+    cog.poliswag.fetch_user = AsyncMock(return_value=owner)
+    cog.leaderboard.avatars = AsyncMock(return_value={})
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock())
+    monkeypatch.setattr(
+        "modules.spawn_history.leaderboard",
+        AsyncMock(
+            return_value={"metadata": {"available": True, "complete_window": True}}
+        ),
+    )
+    monkeypatch.setattr("modules.shiny_leaderboard.render_report", lambda *args: b"png")
+    ctx = MagicMock(send=AsyncMock())
+    await cog.image_report.callback(cog, ctx)
+    cog.poliswag.get_user.assert_called_once_with(123)
+    cog.poliswag.fetch_user.assert_awaited_once_with(123)
+    cog.poliswag.get_channel.assert_not_called()
+    owner.send.assert_awaited_once()
+    ctx.send.assert_not_awaited()
+
+
+async def test_image_errors_are_reported_without_private_details(cog):
+    ctx = MagicMock(send=AsyncMock())
+    await cog.cog_command_error(ctx, RuntimeError("private details"))
+    assert ctx.send.call_args.args[0] == "Não consegui ler o histórico de spawns."
+    await cog.cog_command_error(ctx, ValueError("A recolha ainda não começou."))
+    assert ctx.send.call_args.args[0] == "A recolha ainda não começou."

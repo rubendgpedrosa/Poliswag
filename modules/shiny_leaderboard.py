@@ -433,16 +433,21 @@ class ShinyLeaderboard:
 
         return dict(await asyncio.gather(*(fetch(row) for row in rows)))
 
-    async def send(self, data=None):
+    async def send(self, data=None, *, owner_dm=False):
         await scan_areas.ensure()
         if data is None:
             data = await spawn_history.leaderboard(self.poliswag.db, 24)
         if not data["metadata"].get("available"):
             raise ValueError("A recolha ainda não começou.")
         png = await asyncio.to_thread(render_report, data, await self.avatars())
-        channel = self.poliswag.get_channel(
-            Config.CONVIVIO_CHANNEL_ID
-        ) or await self.poliswag.fetch_channel(Config.CONVIVIO_CHANNEL_ID)
+        if owner_dm:
+            channel = self.poliswag.get_user(
+                Config.MY_ID
+            ) or await self.poliswag.fetch_user(Config.MY_ID)
+        else:
+            channel = self.poliswag.get_channel(
+                Config.CONVIVIO_CHANNEL_ID
+            ) or await self.poliswag.fetch_channel(Config.CONVIVIO_CHANNEL_ID)
         partial = not data["metadata"]["complete_window"]
         content = "Leaderboard shiny sem filtros pessoais. " + (
             "Histórico parcial; a imagem indica a cobertura e a base da média."
