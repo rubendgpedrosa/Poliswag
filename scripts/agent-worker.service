@@ -1,5 +1,5 @@
 [Unit]
-Description=Poliswag owner-requested Claude and Codex jobs
+Description=Poliswag public tag replies with Claude or Codex (Hermiswag fallback)
 After=network-online.target
 Wants=network-online.target
 
@@ -11,6 +11,7 @@ Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 # try to read it (python-dotenv would raise PermissionError on open).
 Environment=PYTHON_DOTENV_DISABLED=1
 EnvironmentFile=/etc/poliswag-agent.conf
+# --owner-id is no longer used; the worker still accepts it.
 ExecStart=/usr/bin/python3 /root/Poliswag/scripts/agent_worker.py --owner-id ${POLISWAG_AGENT_OWNER_ID}
 Restart=on-failure
 RestartSec=5
@@ -31,7 +32,7 @@ NoNewPrivileges=true
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_SETFCAP
 RestrictSUIDSGID=true
 BindReadOnlyPaths=/root/Poliswag /root/.local
-BindPaths=/root/worktrees/poliswag-agent /root/Poliswag/.git /root/Poliswag/logs/agent-jobs
+BindPaths=/root/Poliswag/logs/agent-jobs
 BindPaths=/root/.claude /root/.codex /root/.cache
 BindPaths=-/root/.claude.json
 InaccessiblePaths=/root/Poliswag/.env /var/run/docker.sock

@@ -1,17 +1,15 @@
 import json
-import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
 import pytest
 
-from modules.agent_jobs import AgentJobs, write_json
+import scripts.agent_worker as agent_worker
+from modules.agent_jobs import write_json
 from scripts.agent_worker import (
     Worker,
     agent_environment,
-    command_for,
     public_claude_command,
     public_claude_environment,
     public_claude_reply,
@@ -22,172 +20,24 @@ from scripts.agent_worker import (
 
 @pytest.fixture
 def worker(tmp_path):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
-    (repo / "README.md").write_text("original\n")
-    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo),
-            "-c",
-            "user.name=Tests",
-            "-c",
-            "user.email=tests@example.com",
-            "commit",
-            "-m",
-            "initial",
-        ],
-        check=True,
-        capture_output=True,
-    )
+    # Each test replaces the fake CLI's body with what it needs to check.
     fake = tmp_path / "fake-agent"
-    fake.write_text(
-        f"#!{sys.executable}\n"
-        "import json, pathlib, sys, time\n"
-        "prompt = sys.stdin.read()\n"
-        "if 'SLEEP' in prompt: time.sleep(20)\n"
-        "if 'EDIT' in prompt: pathlib.Path('README.md').write_text('changed')\n"
-        "reply = {'outcome': 'done', 'kind': 'code', 'reply': 'finished', 'details': ''}\n"
-        "if 'ARTIFACT' in prompt:\n"
-        "    reply['attachments'] = ['leaderboard.png']\n"
-        "    if 'MISSING_ARTIFACT' not in prompt:\n"
-        "        pathlib.Path('leaderboard.png').write_bytes(b'image bytes')\n"
-        "if 'BLOCK' in prompt:\n"
-        "    if 'Decisions supplied' not in prompt:\n"
-        "        pathlib.Path('progress.txt').write_text('partial')\n"
-        "        reply.update(outcome='needs_input', reply='Qual cidade devo usar?')\n"
-        "    else:\n"
-        "        assert pathlib.Path('progress.txt').read_text() == 'partial'\n"
-        "        assert 'Leiria' in prompt\n"
-        "        pathlib.Path('progress.txt').write_text('finished')\n"
-        "if '-o' in sys.argv:\n"
-        "    pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).write_text(json.dumps(reply))\n"
-        "print(json.dumps({'structured_output': reply, 'is_error': 'FAIL' in prompt}))\n"
-    )
+    fake.write_text(f"#!{sys.executable}\n")
     fake.chmod(0o700)
     runner = Worker(
         queue=tmp_path / "queue",
-        repo=repo,
-        worktrees=tmp_path / "worktrees",
-        owner_id=123,
         timeout=2,
         binaries={"claude": str(fake), "codex": str(fake)},
     )
-    runner.jobs.root.mkdir()
+    runner.root.mkdir()
     runner.heartbeat()
     return runner
 
 
-def job(worker, prompt="hello", **changes):
-    return worker.jobs.submit(
-        owner_id=123, provider="claude", prompt=prompt, context=changes
-    )
-
-
-def test_job_runs_in_throwaway_worktree_without_touching_live_tree(worker):
-    request = job(worker, "EDIT")
-    worker.run_job(request)
-    result = worker.jobs.get(request["id"], 123)
-    assert result["state"] == "completed"
-    assert Path(result["worktree"]).joinpath("README.md").read_text() == "changed"
-    assert (worker.repo / "README.md").read_text() == "original\n"
-    assert (
-        worker.jobs.directory(request["id"]) / "answer.txt"
-    ).read_text() == "finished"
-
-
-def test_nonzero_payload_error_is_failure_even_with_exit_zero(worker):
-    request = job(worker, "FAIL")
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
-
-
-@pytest.mark.parametrize("provider", ["claude", "codex"])
-def test_completed_job_stages_image_before_publishing_completion(worker, provider):
-    request = worker.jobs.submit(
-        owner_id=123,
-        provider=provider,
-        prompt="ARTIFACT",
-        context={},
-        destination={"type": "channel", "channel_id": 789, "guild_id": 321},
-    )
-    worker.run_job(request)
-    result = worker.jobs.get(request["id"], 123)
-    assert result["state"] == "completed"
-    assert result["destination"] == request["destination"]
-    artifact = result["artifacts"][0]
-    assert artifact["filename"] == "leaderboard.png"
-    assert (
-        worker.jobs.directory(request["id"]) / artifact["path"]
-    ).read_bytes() == b"image bytes"
-
-
-def test_missing_declared_image_is_a_failure_not_a_false_completion(worker):
-    request = job(worker, "MISSING_ARTIFACT")
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
-
-
-def test_cancel_queued_job_does_not_start_agent(worker):
-    request = job(worker)
-    worker.jobs.cancel(request["id"], 123)
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "cancelled"
-    assert not worker.worktrees.exists()
-
-
-def test_timeout_stops_agent_and_preserves_worktree(worker):
-    request = job(worker, "SLEEP")
-    worker.timeout = 0.05
-    started = time.monotonic()
-    worker.run_job(request)
-    result = worker.jobs.get(request["id"], 123)
-    assert result["state"] == "failed"
-    assert time.monotonic() - started < 5
-    assert Path(result["worktree"]).exists()
-
-
-def test_cancellation_stops_running_process(worker):
-    request = job(worker, "SLEEP")
-    timer = threading.Timer(0.2, worker.jobs.cancel, args=(request["id"], 123))
-    timer.start()
-    try:
-        worker.run_job(request)
-    finally:
-        timer.join()
-    result = worker.jobs.get(request["id"], 123)
-    assert result["state"] == "cancelled"
-    assert Path(result["worktree"]).exists()
-
-
-def test_restart_marks_running_job_interrupted_without_replay(worker):
-    request = job(worker)
-    write_json(
-        worker.jobs.directory(request["id"]) / "result.json", {"state": "running"}
-    )
-    worker.recover()
-    result = AgentJobs(worker.jobs.root).get(request["id"], 123)
-    assert result["state"] == "interrupted"
-    assert not worker.worktrees.exists()
-
-
-def test_code_mode_request_is_refused(worker):
-    request = job(worker)
-    request["mode"] = "code"
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
-    assert not worker.worktrees.exists()
-
-
-def test_forged_owner_cannot_execute(worker):
-    request = job(worker)
-    request["owner_id"] = "999"
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
-    assert not worker.worktrees.exists()
+def only_public_queue_touched(worker):
+    """A public job writes nothing outside the public queue: no worktree,
+    no other job directory, no copy of the status elsewhere."""
+    return [path.name for path in worker.root.iterdir()] == ["public"]
 
 
 def test_bot_credentials_do_not_enter_agent_environment(monkeypatch):
@@ -198,21 +48,6 @@ def test_bot_credentials_do_not_enter_agent_environment(monkeypatch):
         not {"DISCORD_API_KEY", "DB_PASSWORD", "CODEX_THREAD_ID"}
         & agent_environment().keys()
     )
-
-
-def test_owner_jobs_are_always_read_only(tmp_path):
-    binaries = {"claude": "claude", "codex": "codex"}
-    request = {"provider": "codex", "mode": "code"}
-    cmd = command_for(request, binaries, tmp_path, tmp_path / "answer.txt")
-    assert cmd[cmd.index("--sandbox") + 1] == "read-only"
-    assert "mcp_servers.poliswag_db.args=" in " ".join(cmd)
-    request.update(provider="claude")
-    cmd = command_for(request, binaries, tmp_path, tmp_path / "answer.txt")
-    tools = cmd[cmd.index("--tools") + 1]
-    assert "Bash" not in tools and "Edit" not in tools and "Write" not in tools
-    servers = json.loads(cmd[cmd.index("--mcp-config") + 1])["mcpServers"]
-    assert servers["poliswag_db"]["args"][1] == str(tmp_path.resolve())
-    assert "mcp__poliswag_db__query" in cmd[cmd.index("--allowedTools") + 1]
 
 
 def test_public_command_always_uses_codex_luna_low_without_shell(tmp_path):
@@ -259,8 +94,7 @@ def test_public_job_runs_codex_in_empty_directory_without_owner_worktree(worker)
     result = worker.public_jobs.get(request["id"], 0)
     assert result["state"] == "completed"
     assert json.loads(result["reply"]) == {"reply": "Olá! Sou o Poliswag."}
-    assert not worker.worktrees.exists()
-    assert worker.jobs.list(123) == []
+    assert only_public_queue_touched(worker)
 
 
 def test_public_job_passes_question_and_snapshot_as_untrusted_data(worker):
@@ -373,7 +207,7 @@ def test_public_queue_cannot_escalate_to_owner_agent(worker, field, value):
     request[field] = value
     worker.run_public_job(request)
     assert worker.public_jobs.get(request["id"], 0)["state"] == "failed"
-    assert not worker.worktrees.exists()
+    assert only_public_queue_touched(worker)
 
 
 def test_cancelled_or_expired_public_job_does_not_run(worker):
@@ -397,48 +231,7 @@ def test_restart_interrupts_public_jobs_without_owner_dm(worker):
     )
     worker.recover()
     assert worker.public_jobs.get(request["id"], 0)["state"] == "interrupted"
-    assert worker.jobs.list(123) == []
-
-
-@pytest.mark.parametrize("provider", ["claude", "codex"])
-def test_blocking_decision_resumes_existing_worktree(worker, provider):
-    request = worker.jobs.submit(
-        owner_id=123, provider=provider, prompt="BLOCK", context={}
-    )
-    worker.run_job(request)
-    blocked = worker.jobs.get(request["id"], 123)
-    assert blocked["state"] == "waiting_input"
-    assert blocked["reply"] == "Qual cidade devo usar?"
-    workspace = Path(blocked["worktree"])
-    assert (workspace / "progress.txt").read_text() == "partial"
-    # Polling must not rerun a blocked task or mark it completed.
-    worker.run_job(blocked)
-    worker.recover()
-    assert worker.jobs.get(request["id"], 123)["state"] == "waiting_input"
-    resumed = worker.jobs.resume(request["id"], 123, "Leiria")
-    worker.run_job(resumed)
-    final = worker.jobs.get(request["id"], 123)
-    assert final["state"] == "completed" and final["revision"] == 1
-    assert final["worktree"] == blocked["worktree"]
-    assert (workspace / "progress.txt").read_text() == "finished"
-
-
-def test_waiting_task_can_be_cancelled_without_rerunning(worker):
-    request = job(worker, "BLOCK")
-    worker.run_job(request)
-    worker.jobs.cancel(request["id"], 123)
-    worker.run_job(worker.jobs.get(request["id"], 123))
-    assert worker.jobs.get(request["id"], 123)["state"] == "cancelled"
-
-
-def test_malformed_agent_output_never_becomes_completion(worker):
-    fake = Path(worker.binaries["claude"])
-    fake.write_text(
-        f'#!{sys.executable}\nimport json\nprint(json.dumps({{"result":"Still working, shall I continue?"}}))\n'
-    )
-    request = job(worker)
-    worker.run_job(request)
-    assert worker.jobs.get(request["id"], 123)["state"] == "failed"
+    assert only_public_queue_touched(worker)
 
 
 def test_public_claude_command_is_sonnet_medium_with_web_search_only(tmp_path):
@@ -514,3 +307,26 @@ def test_public_key_is_used_only_for_public_claude_runs(monkeypatch):
     assert owner.get("CLAUDE_CODE_OAUTH_TOKEN") == "owner-login"
     assert "public-key" not in owner.values()
     assert not any(k.startswith("POLISWAG_PUBLIC") for k in owner)
+
+
+def test_heartbeat_reports_what_the_bot_reads(worker):
+    status = worker.public_jobs.worker_status()
+    assert status["online"] and status["active"] is None
+    assert status["providers"] == {"claude": True, "codex": True}
+
+
+def test_starts_with_the_installed_units_command_line(monkeypatch, tmp_path):
+    # poliswag-agent.service runs: agent_worker.py --owner-id <id>
+    started = []
+    monkeypatch.setattr(
+        Worker, "run", lambda self: started.append((self.root, self.timeout))
+    )
+    monkeypatch.setattr(agent_worker.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(agent_worker.os, "umask", lambda _: 0o022)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent_worker.py", "--owner-id", "123", "--queue", str(tmp_path / "q")],
+    )
+    agent_worker.main()
+    assert started == [(tmp_path / "q", 1200)]
