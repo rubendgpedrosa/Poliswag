@@ -794,3 +794,20 @@ class TestUnit:
         dc.db = MagicMock()
         await dc.unit(lambda db: None)
         dc.db.cursor.assert_not_called()
+
+
+class TestFakeHandle:
+    """tests/fakes.py: what the other tests lean on."""
+
+    async def test_unit_runs_the_work_on_its_connection_and_records_it(self):
+        from tests.fakes import FakeHandle
+
+        handle = FakeHandle()
+        handle.cursor.fetchone.return_value = {"n": 3}
+
+        def work(connection, factor):
+            with connection.cursor() as cursor:
+                return cursor.fetchone()["n"] * factor
+
+        assert await handle.unit(work, 2, read_timeout=15) == 6
+        assert handle.units == [(work, (2,), {"read_timeout": 15})]

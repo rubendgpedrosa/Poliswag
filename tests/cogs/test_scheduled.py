@@ -37,6 +37,7 @@ from modules.tracking_health import TrackingHealth
 from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
+from tests.fakes import FakeHandle
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -105,6 +106,8 @@ def _make_poliswag():
     poliswag.scanner_status.rename_voice_channels = AsyncMock()
     poliswag.account_monitor.update_channel_accounts_stats = AsyncMock()
     poliswag.account_guard.tick = AsyncMock()
+    poliswag.site_db = FakeHandle()
+    poliswag.poracle_db = FakeHandle()
     # The services the scheduler runs are built by the bot (main.py). Real
     # ones here too, so a pass exercises them the way production does.
     poliswag.event_notices = EventNotices(poliswag)
