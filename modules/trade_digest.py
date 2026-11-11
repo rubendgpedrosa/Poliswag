@@ -217,6 +217,9 @@ class TradeDigest:
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self._disabled_logged = False
+        # The day today's digest is known to be out (None after a restart:
+        # the database is asked once).
+        self._done_on = None
 
     async def tick(self, now):
         if not Config.TRADES_CHANNEL_ID:
@@ -228,8 +231,15 @@ class TradeDigest:
             return
         self._disabled_logged = False
 
+        # Due once a day: nothing to ask the database before DIGEST_HOUR, nor
+        # again once today's post is known to be out. Until 2026-11-11 this
+        # opened a connection every minute of the day to learn that.
+        if now.hour < DIGEST_HOUR or self._done_on == now.date():
+            return
         batch = await asyncio.to_thread(self._read_batch, now)
         if batch is None:
+            # Past the hour and still not due: the watermark is today's.
+            self._done_on = now.date()
             return
         if batch["rows"]:
             channel = self.poliswag.get_channel(Config.TRADES_CHANNEL_ID)
@@ -240,6 +250,7 @@ class TradeDigest:
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         await asyncio.to_thread(self._record, batch["cutoff"])
+        self._done_on = now.date()
 
     def _connect(self):
         return _connect_pool()

@@ -299,6 +299,56 @@ class TestTick:
         channel.send.assert_not_awaited()
         sender._record.assert_not_called()
 
+    def test_before_nine_the_database_is_not_asked(self):
+        sender, _channel = digest_sender()
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            for minute in range(0, 60, 10):
+                asyncio.run(sender.tick(datetime(2026, 10, 16, 8, minute)))
+        sender._read_batch.assert_not_called()
+
+    def test_after_the_post_the_database_is_left_alone_for_the_day(self):
+        sender, channel = digest_sender()
+        sender._read_batch.return_value = {"cutoff": "c", "rows": [row()]}
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 0)))
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 1)))
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 23, 59)))
+        sender._read_batch.assert_called_once()
+        channel.send.assert_awaited_once()
+
+    def test_a_restart_after_the_post_asks_once_and_then_stays_quiet(self):
+        # The watermark is today's, so _read_batch says "not due".
+        sender, channel = digest_sender()
+        sender._read_batch.return_value = None
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 10, 0)))
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 10, 1)))
+        sender._read_batch.assert_called_once()
+        channel.send.assert_not_awaited()
+
+    def test_the_next_morning_it_asks_again(self):
+        sender, channel = digest_sender()
+        sender._read_batch.return_value = {"cutoff": "c", "rows": [row()]}
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 0)))
+            asyncio.run(sender.tick(datetime(2026, 10, 17, 8, 59)))
+            asyncio.run(sender.tick(datetime(2026, 10, 17, 9, 0)))
+        assert sender._read_batch.call_count == 2
+        assert channel.send.await_count == 2
+
+    def test_a_failed_send_is_tried_again_next_minute(self):
+        sender, channel = digest_sender()
+        sender._read_batch.return_value = {"cutoff": "c", "rows": [row()]}
+        channel.send.side_effect = [RuntimeError("discord"), None]
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            try:
+                asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 0)))
+            except RuntimeError:
+                pass
+            asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 1)))
+        assert sender._read_batch.call_count == 2
+        sender._record.assert_called_once_with("c")
+
 
 def batch_db(cutoff="2026-10-16 10:00:00", watermark=None, rows=None):
     db = MagicMock()
