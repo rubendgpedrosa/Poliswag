@@ -37,23 +37,20 @@ class EventManager:
 
         response = await fetch_data("events", log_fn=self.poliswag.utility.log_to_file)
         if response is None:
-            self.poliswag.utility.log_to_file(
-                "Failed to fetch events from API", "ERROR"
-            )
-            return
+            raise RuntimeError("Failed to fetch events from API")
 
         try:
             self.events = (
                 json.loads(response) if isinstance(response, str) else response
             )
             if await self.process_and_store_events() is False:
-                return
+                raise RuntimeError(
+                    "Event ingestion incomplete; retaining stored calendar"
+                )
             await self.prune_old_events()
             self._last_events_fetch = now
         except Exception as e:
-            self.poliswag.utility.log_to_file(
-                f"Error processing events: {str(e)}", "ERROR"
-            )
+            raise RuntimeError(f"Error processing events: {e}") from e
 
     async def prune_old_events(self):
         await self.poliswag.db.execute_query_to_database(

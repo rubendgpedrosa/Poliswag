@@ -45,3 +45,16 @@ The weekly calendar is chunked at line boundaries within Discord's 4096-char des
 - Live audit found six duplicated source IDs; the current feed reconciled the three future ones (Buddy Trek and Halloween I/II) to 10:00 starts, removing obsolete midnight revisions. Historical IDs absent from the feed were left alone. The pre-deploy snapshot (`logs/event-audit-before-20260926103317.json`, 194 rows) was deleted on 2026-11-09. Lisbon Safari's existing delivery marker was preserved.
 - Event batches respect both ten embeds and 6000 combined embed characters, disable mentions, and cap titles at 256 characters. Successful batches alone receive delivery markers.
 - Validation for this audit: 238 targeted Python tests, 12 real MariaDB lifecycle/rollback tests and 2 website/MariaDB integration tests; lint and diff checks passed. Live bot restarted and refreshed successfully.
+
+### Scheduler dependencies and ingestion failures
+
+Event checks wait for the latest event fetch to finish successfully; a fetch that
+runs past its budget keeps running, without holding unrelated chores. A failed
+fetch, invalid feed, storage error or partial ingestion is recorded as a failure
+in `!ticks`, and retries on the next pass without advancing the 15-minute cache.
+A partial ingestion may have written valid rows, but skips future-row cleanup and
+retention pruning; existing rows are retained. A successful cached fetch represents
+the last complete ingestion. The same dependency rule keeps shiny alerts behind
+odds and availability. Producers wait while their dependent is still running,
+and an overrun's completed result is offered to the dependent before another
+producer run begins. `!ticks` names the dependency a step is waiting for.

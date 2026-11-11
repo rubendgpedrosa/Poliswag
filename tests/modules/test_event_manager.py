@@ -198,13 +198,9 @@ class TestFetchEvents:
         mocker.patch(
             "modules.event_manager.fetch_data", new=AsyncMock(return_value=None)
         )
-        await em.fetch_events()
+        with pytest.raises(RuntimeError, match="Failed to fetch events"):
+            await em.fetch_events()
         assert em.events is None
-        em.poliswag.utility.log_to_file.assert_called_once()
-        assert (
-            em.poliswag.utility.log_to_file.call_args.args[0]
-            == "Failed to fetch events from API"
-        )
 
     async def test_json_string_response_is_parsed(self, em, mocker):
         mocker.patch(
@@ -232,10 +228,8 @@ class TestFetchEvents:
             "modules.event_manager.fetch_data",
             new=AsyncMock(return_value="not-json}"),
         )
-        await em.fetch_events()
-        # The json.loads raised; error logged.
-        log_calls = [c.args[0] for c in em.poliswag.utility.log_to_file.call_args_list]
-        assert any("Error processing events" in m for m in log_calls)
+        with pytest.raises(RuntimeError, match="Error processing events"):
+            await em.fetch_events()
 
 
 class TestPruneOldEvents:
@@ -632,8 +626,9 @@ async def test_bad_feed_preserves_calendar_and_retries_next_tick(em, mocker, pay
     fetch = mocker.patch(
         "modules.event_manager.fetch_data", new=AsyncMock(return_value=payload)
     )
-    await em.fetch_events()
-    await em.fetch_events()
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            await em.fetch_events()
     assert fetch.await_count == 2
     em.poliswag.db.execute_query_to_database.assert_not_awaited()
     assert em._last_events_fetch == 0
@@ -643,8 +638,9 @@ async def test_network_failure_does_not_start_fifteen_minute_cache(em, mocker):
     fetch = mocker.patch(
         "modules.event_manager.fetch_data", new=AsyncMock(return_value=None)
     )
-    await em.fetch_events()
-    await em.fetch_events()
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            await em.fetch_events()
     assert fetch.await_count == 2
 
 
@@ -678,3 +674,28 @@ async def test_conflicting_source_identity_cannot_move_event_back_and_forth(em):
         await em.process_and_store_events()
     em.poliswag.db.execute_query_to_database.assert_not_awaited()
     em.poliswag.db.execute_transaction.assert_not_awaited()
+
+
+async def test_partial_ingestion_is_reported_and_retries_without_cleanup(em, mocker):
+    payload = [
+        {"name": "Bad", "start": "2026-10-01T10:00:00", "end": "2026-10-01T20:00:00"},
+        {"name": "Good", "start": "2026-10-01T10:00:00", "end": "2026-10-01T20:00:00"},
+    ]
+    fetch = mocker.patch(
+        "modules.event_manager.fetch_data", new=AsyncMock(return_value=payload)
+    )
+    em.poliswag.db.execute_query_to_database.side_effect = [
+        RuntimeError("DB unavailable"),
+        None,
+        None,
+        None,
+        None,
+    ]
+    em.poliswag.db.get_data_from_database.return_value = []
+    with pytest.raises(RuntimeError, match="ingestion incomplete"):
+        await em.fetch_events()
+    assert em._last_events_fetch == 0
+    em.poliswag.db.get_data_from_database.assert_not_awaited()
+    await em.fetch_events()
+    assert fetch.await_count == 2
+    assert em._last_events_fetch > 0
