@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -7,12 +7,11 @@ from modules.trade_player_store import TradePlayerStore
 
 @pytest.fixture
 def store():
-    with patch("modules.trade_player_store.DatabaseConnector") as connector:
-        connector.return_value = MagicMock(
-            get_data_from_database=AsyncMock(return_value=[]),
-            execute_query_to_database=AsyncMock(return_value=1),
-        )
-        yield TradePlayerStore()
+    site_db = MagicMock(
+        get_data_from_database=AsyncMock(return_value=[]),
+        execute_query_to_database=AsyncMock(return_value=1),
+    )
+    return TradePlayerStore(site_db)
 
 
 def sql_of(mock):
@@ -23,12 +22,9 @@ def params_of(mock):
     return mock.call_args[1]["params"]
 
 
-async def test_connects_to_the_pogoleiria_schema():
-    from modules.config import Config
-
-    with patch("modules.trade_player_store.DatabaseConnector") as connector:
-        TradePlayerStore()
-    connector.assert_called_once_with(Config.DB_POGOLEIRIA)
+def test_uses_the_handle_it_is_given():
+    site_db = MagicMock()
+    assert TradePlayerStore(site_db).db is site_db
 
 
 async def test_upsert_writes_identity_code_and_clears_left_at(store):
