@@ -7,12 +7,15 @@ import pytest
 
 from cogs.spawn_history import SpawnHistory
 from modules.permissions import is_owner
+from tests.fakes import FakeHandle
 
 
 @pytest.fixture
 def cog(monkeypatch):
     monkeypatch.setattr("modules.config.Config.MY_ID", 123)
-    return SpawnHistory(MagicMock())
+    poliswag = MagicMock()
+    poliswag.db = FakeHandle()
+    return SpawnHistory(poliswag)
 
 
 def test_all_history_commands_are_owner_only(cog):
@@ -29,6 +32,12 @@ async def test_collection_recovers_from_failure(cog, monkeypatch):
     await cog.collect.coro(cog)
     assert capture.call_count == 2
     assert "secret" not in cog.poliswag.utility.log_to_file.call_args.args[0]
+    # Each capture is a unit of its own (its own connection) with the
+    # collector's 15 s read timeout.
+    assert cog.poliswag.db.units == [
+        (capture, (), {"read_timeout": 15}),
+        (capture, (), {"read_timeout": 15}),
+    ]
 
 
 async def test_export_sends_valid_json_file_to_request_channel(cog, monkeypatch):
@@ -37,7 +46,9 @@ async def test_export_sends_valid_json_file_to_request_channel(cog, monkeypatch)
         "spawns": [{"encounter_id": "18446744073709551614"}],
     }
     output = io.BytesIO(gzip.compress(json.dumps(body).encode()))
-    monkeypatch.setattr("modules.spawn_history.export_json", lambda hours: output)
+    monkeypatch.setattr(
+        "modules.spawn_history.export_json", lambda connection, hours: output
+    )
     captured = []
 
     async def send(*args, **kwargs):
@@ -48,3 +59,34 @@ async def test_export_sends_valid_json_file_to_request_channel(cog, monkeypatch)
     ctx = MagicMock(send=AsyncMock(side_effect=send))
     await cog.export.callback(cog, ctx, 24)
     assert captured == [body] and output.closed
+    assert cog.poliswag.db.units[0][1:] == ((24,), {"read_timeout": 15})
+
+
+async def test_status_reads_through_a_unit(cog, monkeypatch):
+    status = MagicMock(return_value={"available": False})
+    monkeypatch.setattr("modules.spawn_history.status", status)
+    ctx = MagicMock(send=AsyncMock())
+    await cog.history.callback(cog, ctx, 6)
+    status.assert_called_once_with(cog.poliswag.db.connection, 6)
+    assert cog.poliswag.db.units == [(status, (6,), {"read_timeout": 15})]
+    assert ctx.send.call_args.args[0] == "A recolha ainda não começou."
+
+
+async def test_leaderboard_reads_through_a_unit(cog, monkeypatch):
+    data = {"metadata": {"note": "nota"}, "trainers": []}
+    board = MagicMock(return_value=data)
+    monkeypatch.setattr("modules.spawn_history.leaderboard", board)
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
+    ctx = MagicMock(send=AsyncMock())
+    await cog.report.callback(cog, ctx, 12)
+    assert cog.poliswag.db.units == [(board, (12,), {"read_timeout": 15})]
+    assert ctx.send.call_args.args[0] == "nota"
+
+
+@pytest.mark.parametrize("command", ["history", "export", "report"])
+async def test_an_invalid_period_never_opens_a_connection(cog, monkeypatch, command):
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
+    ctx = MagicMock(send=AsyncMock())
+    with pytest.raises(ValueError, match="entre 1 e 48"):
+        await getattr(cog, command).callback(cog, ctx, 49)
+    assert cog.poliswag.db.units == []

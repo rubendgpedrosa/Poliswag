@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from modules import scan_areas
+from tests.fakes import FakeHandle
 
 GEO = Path(__file__).parent.parent / "fixtures" / "geo"
 
@@ -215,10 +216,18 @@ def _rows():
     return [*TWO_AREAS, MOITA_ROW]
 
 
+def _registry(rows):
+    """Hand the module a fake poliswag handle whose registry read returns rows."""
+    handle = FakeHandle()
+    handle.cursor.fetchall.return_value = rows
+    scan_areas.use(handle)
+    return handle
+
+
 async def test_refresh_reads_the_registry_and_dragonite_then_caches(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setattr(scan_areas, "_read_registry", _rows)
+    _registry(_rows())
     monkeypatch.setattr(
         scan_areas.Config, "SCAN_AREA_CACHE", str(tmp_path / "areas.json")
     )
@@ -240,7 +249,7 @@ async def test_refresh_reads_the_registry_and_dragonite_then_caches(
 
 
 async def test_dragonite_failure_falls_back_to_the_disk_cache(monkeypatch, tmp_path):
-    monkeypatch.setattr(scan_areas, "_read_registry", _rows)
+    _registry(_rows())
     cache = tmp_path / "areas.json"
     monkeypatch.setattr(scan_areas.Config, "SCAN_AREA_CACHE", str(cache))
     # A previous good fetch left the cache on disk.
@@ -259,7 +268,7 @@ async def test_dragonite_failure_falls_back_to_the_disk_cache(monkeypatch, tmp_p
 async def test_dragonite_failure_without_a_cache_keeps_classification_empty(
     monkeypatch, tmp_path
 ):
-    monkeypatch.setattr(scan_areas, "_read_registry", _rows)
+    _registry(_rows())
     monkeypatch.setattr(scan_areas.Config, "SCAN_AREA_CACHE", str(tmp_path / "no.json"))
 
     async def fail(rows):
@@ -274,12 +283,48 @@ async def test_dragonite_failure_without_a_cache_keeps_classification_empty(
 async def test_registry_read_failure_keeps_the_previous_snapshot(monkeypatch):
     scan_areas.install(TWO_AREAS, TWO_FENCES)
 
-    def fail():
-        raise RuntimeError("db down")
-
-    monkeypatch.setattr(scan_areas, "_read_registry", fail)
+    _registry(_rows()).cursor.execute.side_effect = RuntimeError("db down")
     assert await scan_areas.refresh() is False
     assert scan_areas.area_for(*LEIRIA_POINT) == "leiria"
+
+
+async def test_the_registry_is_one_unit_on_the_given_handle(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        scan_areas.Config, "SCAN_AREA_CACHE", str(tmp_path / "areas.json")
+    )
+
+    async def fetch(rows):
+        return {}
+
+    monkeypatch.setattr(scan_areas, "_fetch_fences", fetch)
+    handle = _registry(_rows())
+    assert await scan_areas.refresh() is True
+    # Same options as the old connect(DB_POLISWAG, dict_rows=True): dict rows,
+    # a 5 s read timeout, no autocommit; all three are unit()'s defaults.
+    assert handle.units == [(scan_areas._read_registry, (), {})]
+    handle.cursor.execute.assert_called_once_with(scan_areas._REGISTRY_SQL)
+    assert scan_areas.active_keys() == ["leiria", "marinha", "moita"]
+
+
+async def test_without_a_handle_refresh_fails_like_a_failed_read():
+    scan_areas.install(TWO_AREAS, TWO_FENCES)
+    scan_areas.use(None)
+    log = MagicMock()
+    assert await scan_areas.refresh(log) is False
+    message, level = log.call_args.args
+    assert message.startswith("scan_area registry read failed:")
+    assert level == "ERROR"
+    # The previous snapshot is kept.
+    assert scan_areas.area_for(*LEIRIA_POINT) == "leiria"
+
+
+def test_reset_drops_the_handle_but_install_keeps_it():
+    handle = FakeHandle()
+    scan_areas.use(handle)
+    scan_areas.install(TWO_AREAS, TWO_FENCES)
+    assert scan_areas._db is handle
+    scan_areas.reset()
+    assert scan_areas._db is None
 
 
 async def test_dragonite_listing_and_detail_are_parsed(monkeypatch):
@@ -312,7 +357,7 @@ async def test_dragonite_listing_and_detail_are_parsed(monkeypatch):
 async def test_ensure_refreshes_at_most_every_ten_minutes(monkeypatch, tmp_path):
     calls = []
 
-    monkeypatch.setattr(scan_areas, "_read_registry", _rows)
+    _registry(_rows())
     monkeypatch.setattr(
         scan_areas.Config, "SCAN_AREA_CACHE", str(tmp_path / "areas.json")
     )

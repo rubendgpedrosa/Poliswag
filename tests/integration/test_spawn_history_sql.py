@@ -4,6 +4,7 @@ Run inside the bot with SPAWN_HISTORY_SQL_TEST_HOST pointing to the throwaway
 container, whose root password is `disposable`. Never runs on production.
 """
 
+import asyncio
 import gzip
 import json
 import os
@@ -13,8 +14,9 @@ from pathlib import Path
 import pymysql
 import pytest
 
-from modules import spawn_history
+from modules import database_connector, spawn_history
 from modules.config import Config
+from modules.database_connector import DatabaseConnector
 from modules.database_connector import connect as configured_connect
 from modules.migrations import split_statements
 
@@ -113,8 +115,20 @@ def disposable(monkeypatch):
             cursor.execute("SET timestamp=%s", (clock["now"],))
         return connection
 
-    monkeypatch.setattr(spawn_history, "connect", timed_connect)
+    # unit() opens its connections through database_connector.connect.
+    monkeypatch.setattr(database_connector, "connect", timed_connect)
     return clock
+
+
+def unit(work, *args):
+    """Run work as the bot does: one real unit of work on the poliswag schema.
+
+    The handle is built without __init__, which would also open the shared
+    connection these checks do not use.
+    """
+    db = DatabaseConnector.__new__(DatabaseConnector)
+    db.database = Config.DB_POLISWAG
+    return asyncio.run(db.unit(work, *args, read_timeout=15))
 
 
 def add_spawn(clock, encounter="18446744073709551614", pokemon_id=25, **changes):
@@ -137,9 +151,9 @@ def add_spawn(clock, encounter="18446744073709551614", pokemon_id=25, **changes)
 def test_captures_all_spawns_without_players_and_deduplicates(disposable):
     add_spawn(disposable)
     add_spawn(disposable, "123", 999, seen_type="nearby_stop")
-    spawn_history.capture()
+    unit(spawn_history.capture)
     disposable["now"] += 30
-    spawn_history.capture()
+    unit(spawn_history.capture)
     rows = sql("SELECT * FROM spawn_history ORDER BY pokemon_id")
     assert (
         len(rows) == 2
@@ -153,34 +167,34 @@ def test_captures_all_spawns_without_players_and_deduplicates(disposable):
 
 def test_late_ivs_and_metadata_preserve_first_captured_odds(disposable):
     add_spawn(disposable)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     disposable["now"] += 30
     sql("INSERT INTO shiny_rate VALUES (25,25,'auto','2099-01-01')")
     sql(
         "UPDATE pokemon SET atk_iv=15,def_iv=15,sta_iv=15,cp=400,seen_type='encounter'",
         database="spawn_scanner_disposable",
     )
-    spawn_history.capture()
+    unit(spawn_history.capture)
     row = sql("SELECT * FROM spawn_history")[0]
     assert (row["atk_iv"], row["def_iv"], row["sta_iv"]) == (15, 15, 15)
     assert row["cp"] == 400 and row["seen_type"] == "encounter"
     assert row["shiny_odds"] == 512 and row["odds_source"] == "base"
     sql("UPDATE pokemon SET atk_iv=NULL,cp=NULL", database="spawn_scanner_disposable")
-    spawn_history.capture()
+    unit(spawn_history.capture)
     row = sql("SELECT * FROM spawn_history")[0]
     assert row["atk_iv"] == 15 and row["cp"] == 400
 
 
 def test_corrected_species_refreshes_prediction_metadata(disposable):
     add_spawn(disposable, pokemon_id=999, atk_iv=15, def_iv=15, sta_iv=15, cp=400)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     disposable["now"] += 30
     sql("INSERT INTO shiny_rate VALUES (25,25,'manual','2099-01-01')")
     sql(
         "UPDATE pokemon SET pokemon_id=25,atk_iv=NULL,def_iv=NULL,sta_iv=NULL,cp=NULL",
         database="spawn_scanner_disposable",
     )
-    spawn_history.capture()
+    unit(spawn_history.capture)
     row = sql("SELECT * FROM spawn_history")[0]
     assert row["shiny_eligible"] == 1 and row["shiny_odds"] == 25
     assert (row["atk_iv"], row["def_iv"], row["sta_iv"], row["cp"]) == (
@@ -197,35 +211,35 @@ def test_corrected_species_refreshes_prediction_metadata(disposable):
 
 def test_archived_spawn_survives_source_purge_and_expires_after_48h(disposable):
     add_spawn(disposable)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     started = disposable["now"]
     sql("DELETE FROM pokemon", database="spawn_scanner_disposable")
     disposable["now"] += 30
-    spawn_history.capture()
+    unit(spawn_history.capture)
     assert len(sql("SELECT * FROM spawn_history")) == 1
     disposable["now"] += 48 * 3600
-    spawn_history.capture()
+    unit(spawn_history.capture)
     assert sql("SELECT * FROM spawn_history") == []
     assert sql("SELECT started_at FROM spawn_history_state")[0]["started_at"] == started
 
 
 def test_gaps_are_recorded_once_and_block_hourly_averages(disposable):
     add_spawn(disposable)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     first = disposable["now"]
     disposable["now"] += 120
-    spawn_history.capture()
-    spawn_history.capture()
+    unit(spawn_history.capture)
+    unit(spawn_history.capture)
     assert sql("SELECT * FROM spawn_history_gap") == [
         {"started_at": first, "ended_at": disposable["now"]}
     ]
-    data = spawn_history.status(1)
+    data = unit(spawn_history.status, 1)
     assert not data["complete_window"] and len(data["gaps"]) == 1
 
 
 def test_failed_capture_rolls_back_checkpoint_and_recovers(disposable, monkeypatch):
     add_spawn(disposable)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     previous = disposable["now"]
     disposable["now"] += 120
     original = spawn_history.capture_sql
@@ -233,21 +247,21 @@ def test_failed_capture_rolls_back_checkpoint_and_recovers(disposable, monkeypat
         spawn_history, "capture_sql", lambda: "SELECT %s,%s,%s,%s,%s FROM missing"
     )
     with pytest.raises(pymysql.MySQLError):
-        spawn_history.capture()
+        unit(spawn_history.capture)
     assert (
         sql("SELECT last_capture_at FROM spawn_history_state")[0]["last_capture_at"]
         == previous
     )
     assert sql("SELECT * FROM spawn_history_gap") == []
     monkeypatch.setattr(spawn_history, "capture_sql", original)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     assert len(sql("SELECT * FROM spawn_history_gap")) == 1
 
 
 def test_json_export_is_valid_exact_and_marks_partial_history(disposable):
     add_spawn(disposable)
-    spawn_history.capture()
-    with spawn_history.export_json(24) as output:
+    unit(spawn_history.capture)
+    with unit(spawn_history.export_json, 24) as output:
         data = json.loads(gzip.decompress(output.read()))
     assert data["schema_version"] == 1 and not data["metadata"]["complete_window"]
     assert data["spawns"][0]["encounter_id"] == "18446744073709551614"
@@ -262,17 +276,17 @@ def test_report_ignores_preferences_and_exposes_only_aggregates(
     add_spawn(disposable, atk_iv=15, def_iv=15, sta_iv=15)
     add_spawn(disposable, "123", lon=-9.0)
     add_spawn(disposable, "456", 999)
-    spawn_history.capture()
+    unit(spawn_history.capture)
     sql("INSERT INTO shiny_link VALUES (1,'Trainer','0123456789abcdef','linked')")
     sql("INSERT INTO pogoleiria.trade_player (discord_id) VALUES (1)")
     monkeypatch.setattr(spawn_history, "shiny_draw", lambda *args: 0.0)
-    report = spawn_history.leaderboard(24)
+    report = unit(spawn_history.leaderboard, 24)
     row = report["trainers"][0]
     assert row["predicted_shinies"] == 2 and report["eligible_spawns"] == 2
     assert row["areas"] == {"leiria": 1, "marinha": 1} and row["hundo_shinies"] == 1
     assert row["shinies_per_hour"] is None and "player_id" not in row
     sql("UPDATE spawn_history_state SET started_at=last_capture_at-86400")
-    report = spawn_history.leaderboard(24)
+    report = unit(spawn_history.leaderboard, 24)
     assert report["metadata"]["complete_window"]
     assert report["trainers"][0]["shinies_per_hour"] == round(2 / 24, 3)
 
@@ -283,7 +297,7 @@ def test_expired_rate_falls_back_and_live_rate_is_retained(disposable):
     sql(
         "INSERT INTO shiny_rate VALUES (25,25,'auto','2099-01-01'),(4,64,'auto','2000-01-01')"
     )
-    spawn_history.capture()
+    unit(spawn_history.capture)
     rows = {r["pokemon_id"]: r for r in sql("SELECT * FROM spawn_history")}
     assert rows[25]["shiny_odds"] == 25 and rows[25]["odds_source"] == "auto"
     assert rows[4]["shiny_odds"] == 512 and rows[4]["odds_source"] == "base"
