@@ -26,10 +26,6 @@ class DeviceManager(LoggingMixin):
     WIFI_HEAL_SETTLE = 20  # seconds to wait after the toggle before re-checking
 
     POGO_PACKAGE = "com.nianticlabs.pokemongo"
-    POGO_ACTIVITY = (
-        "com.nianticlabs.pokemongo/"
-        "com.nianticproject.holoholo.libholoholo.unity.UnityMainActivity"
-    )
 
     # PoliSnatch is the MITM since 2026-10-31 (Aegis retired): its loader
     # injects the release into a fresh game process and reconnects by
@@ -78,9 +74,6 @@ class DeviceManager(LoggingMixin):
 
     async def get_auto_reboot_enabled(self) -> bool:
         return await self._auto_reboot_setting.get()
-
-    async def set_auto_reboot_enabled(self, value: bool) -> None:
-        await self._auto_reboot_setting.set(value)
 
     async def _adb(self, *args, timeout: int = 15) -> tuple[str, str, int]:
         """Run a raw ``adb`` invocation. Returns (stdout, stderr, returncode).
@@ -155,62 +148,6 @@ class DeviceManager(LoggingMixin):
             await self._recover_session(device)
 
         return await self._adb("-s", device, *args, timeout=timeout)
-
-    async def get_model(self) -> str | None:
-        """Return the device model string, or None on failure."""
-        try:
-            stdout, _, rc = await self.run(
-                "shell", "getprop", "ro.product.model", timeout=8
-            )
-            return stdout if rc == 0 and stdout else None
-        except RuntimeError as e:
-            self._log(f"Could not read device model: {e}")
-            return None
-
-    async def logcat_filtered(self, lines: int = 10) -> str:
-        """Return the last `lines` logcat entries that mention aegis or poke.
-
-        Runs grep on the device side so the entire circular buffer is searched,
-        not just a fixed recent window.
-        """
-        cmd = f"logcat -d | grep -iE 'aegis|poke' | tail -{lines}"
-        try:
-            stdout, stderr, rc = await self.run("shell", cmd, timeout=25)
-        except RuntimeError as e:
-            self._log(f"logcat fetch failed: {e}")
-            return f"Erro: {e}"
-
-        output = stdout or stderr or ""
-        return output if output else "(sem linhas com 'aegis' ou 'poke')"
-
-    async def reboot(self) -> bool:
-        """Send adb reboot. Returns True if the command was accepted."""
-        try:
-            _, _, rc = await self.run("reboot", timeout=10)
-            return rc == 0
-        except RuntimeError as e:
-            self._log(f"Reboot command failed: {e}")
-            return False
-
-    async def restart_app(self) -> bool:
-        """Force-stop and relaunch Pokémon GO. Much lighter than a reboot.
-
-        Aegis re-injects when the game starts, so a plain activity launch is
-        enough to bring the MITM worker back after an app-level wedge.
-        """
-        try:
-            _, _, rc = await self.run(
-                "shell", "am", "force-stop", self.POGO_PACKAGE, timeout=15
-            )
-            if rc != 0:
-                return False
-            _, _, rc = await self.run(
-                "shell", "am", "start", "-n", self.POGO_ACTIVITY, timeout=15
-            )
-            return rc == 0
-        except RuntimeError as e:
-            self._log(f"App restart failed: {e}")
-            return False
 
     async def restart_scanner_apps(self) -> bool:
         """The phone rung for PoliSnatch: put the game in front, or start the

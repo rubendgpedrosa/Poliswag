@@ -23,14 +23,9 @@ def sm():
 
 
 class TestInit:
-    def test_sets_poliswag_and_container_name_from_config(self, mocker):
-        mocker.patch(
-            "modules.scanner_manager.Config.SCANNER_CONTAINER_NAME", "scanner-1"
-        )
+    def test_keeps_the_bot(self):
         poliswag = MagicMock()
-        s = ScannerManager(poliswag=poliswag)
-        assert s.poliswag is poliswag
-        assert s.SCANNER_CONTAINER_NAME == "scanner-1"
+        assert ScannerManager(poliswag=poliswag).poliswag is poliswag
 
 
 class TestUpdateLastScannedDate:
@@ -89,66 +84,3 @@ class TestIsDayChange:
         args, kwargs = sm.poliswag.db.get_data_from_database.call_args
         assert "last_scanned_date < %s" in args[0]
         assert kwargs["params"] == ("2024-01-02T00:00:00",)
-
-
-class TestChangeScannerStatus:
-    def test_raises_when_env_var_missing(self, sm):
-        sm.SCANNER_CONTAINER_NAME = None
-        with pytest.raises(ValueError, match="SCANNER_CONTAINER_NAME"):
-            sm.change_scanner_status("start")
-
-    def test_raises_when_env_var_empty_string(self, sm):
-        sm.SCANNER_CONTAINER_NAME = ""
-        with pytest.raises(ValueError, match="SCANNER_CONTAINER_NAME"):
-            sm.change_scanner_status("start")
-
-    def test_start_calls_container_start(self, sm, mocker):
-        sm.SCANNER_CONTAINER_NAME = "scanner"
-        container = MagicMock()
-        client = MagicMock()
-        client.containers.get.return_value = container
-        mocker.patch("modules.scanner_manager.docker.from_env", return_value=client)
-        sm.change_scanner_status("start")
-        container.start.assert_called_once()
-        client.close.assert_called_once()
-
-    def test_stop_calls_container_stop(self, sm, mocker):
-        sm.SCANNER_CONTAINER_NAME = "scanner"
-        container = MagicMock()
-        client = MagicMock()
-        client.containers.get.return_value = container
-        mocker.patch("modules.scanner_manager.docker.from_env", return_value=client)
-        sm.change_scanner_status("stop")
-        container.stop.assert_called_once()
-        client.close.assert_called_once()
-
-    def test_invalid_action_raises(self, sm, mocker):
-        sm.SCANNER_CONTAINER_NAME = "scanner"
-        client = MagicMock()
-        client.containers.get.return_value = MagicMock()
-        mocker.patch("modules.scanner_manager.docker.from_env", return_value=client)
-        with pytest.raises(ValueError, match="Invalid action"):
-            sm.change_scanner_status("restart")
-        client.close.assert_called_once()
-
-    def test_container_not_found_raised_as_exception(self, sm, mocker):
-        import docker as docker_mod
-
-        sm.SCANNER_CONTAINER_NAME = "scanner"
-        client = MagicMock()
-        client.containers.get.side_effect = docker_mod.errors.NotFound("nope")
-        mocker.patch("modules.scanner_manager.docker.from_env", return_value=client)
-        with pytest.raises(Exception, match="not found"):
-            sm.change_scanner_status("start")
-        client.close.assert_called_once()
-
-    def test_api_error_raised_as_exception(self, sm, mocker):
-        import docker as docker_mod
-
-        sm.SCANNER_CONTAINER_NAME = "scanner"
-        client = MagicMock()
-        client.containers.get.side_effect = docker_mod.errors.APIError("boom")
-        mocker.patch("modules.scanner_manager.docker.from_env", return_value=client)
-        with pytest.raises(Exception, match="Docker API error"):
-            sm.change_scanner_status("start")
-        client.close.assert_called_once()

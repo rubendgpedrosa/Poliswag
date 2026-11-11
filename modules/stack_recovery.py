@@ -119,9 +119,6 @@ class StackRecovery(LoggingMixin):
     async def get_auto_recreate_enabled(self) -> bool:
         return await self._auto_recreate_setting.get()
 
-    async def set_auto_recreate_enabled(self, value: bool) -> None:
-        await self._auto_recreate_setting.set(value)
-
     async def observe(self, all_red: bool | None, workers: int | None) -> bool:
         """Advance the recovery ladder one tick.
 

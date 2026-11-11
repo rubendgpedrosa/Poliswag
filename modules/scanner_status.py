@@ -301,35 +301,6 @@ class ScannerStatus(LoggingMixin):
             self._log(f"Error querying last pokemon timestamp: {e}")
         return None
 
-    async def _get_iv_verification_stats(self, minutes: int = 10) -> dict | None:
-        """Scanner throughput/IV-verification over the last `minutes`,
-        across every active area, from golbat's per-minute
-        pokemon_area_stats snapshots. None on a query failure or no rows
-        (e.g. right after a fresh restart before any snapshot has landed)."""
-        names = await self._stats_area_names()
-        if not names:
-            return None
-        placeholders = ", ".join(["%s"] * len(names))
-        try:
-            rows = await self.poliswag.scanner_db.get_data_from_database(
-                "SELECT COALESCE(SUM(totMon), 0) AS total, "
-                "COALESCE(SUM(ivMon), 0) AS iv, "
-                "COALESCE(SUM(unverifiedEnc), 0) AS unverified "
-                "FROM pokemon_area_stats "
-                "WHERE datetime >= UNIX_TIMESTAMP() - %s "
-                f"AND area IN ({placeholders})",
-                params=(minutes * 60, *names),
-            )
-            if rows and int(rows[0]["total"]) > 0:
-                return {
-                    "total": int(rows[0]["total"]),
-                    "iv": int(rows[0]["iv"]),
-                    "unverified": int(rows[0]["unverified"]),
-                }
-        except Exception as e:
-            self._log(f"Error querying IV verification stats: {e}")
-        return None
-
     async def _stats_area_names(self) -> list[str]:
         """Golbat's area names for the active registry areas, in display order."""
         await scan_areas.ensure()
@@ -505,66 +476,6 @@ class ScannerStatus(LoggingMixin):
         if status_indicator == "🔴" and not device_connected:
             status_indicator = "❌"
         return f"STATUS: {status_indicator}"
-
-    async def get_full_status(self) -> dict:
-        """Collect a diagnostic snapshot from all scanner sources.
-
-        Returns a dict with keys:
-          last_pokemon_seconds_ago  int | None
-          devices                   list[dict]   — from Rotom
-          workers                   list[dict]   — from Dragonite
-          accounts                  dict         — from Dragonite account pool
-          iv_verification           dict | None  — scanner throughput, last 10 min
-        """
-        now = time.time()
-
-        seconds_ago = await self._get_seconds_since_last_pokemon()
-        iv_verification = await self._get_iv_verification_stats()
-
-        device_data = await fetch_data("device_status", log_fn=self._log) or {}
-        raw_devices = device_data.get("devices", [])
-        devices = []
-        for d in raw_devices:
-            # RotomNG renamed the device fields to snake_case
-            # (last_seen_at_ms / id / is_connected); fall back to the legacy
-            # Node Rotom names so the bot works against either backend.
-            last_ms = d.get("last_seen_at_ms", d.get("dateLastMessageReceived", 0))
-            last_sec = (now * 1000 - last_ms) / 1000 if last_ms else None
-            devices.append(
-                {
-                    "origin": d.get("origin", d.get("id", d.get("deviceId", "?"))),
-                    "is_alive": d.get("is_connected", d.get("isAlive", False)),
-                    "last_msg_seconds_ago": (
-                        int(last_sec) if last_sec is not None else None
-                    ),
-                }
-            )
-
-        scanner_data = await fetch_data("scanner_status", log_fn=self._log) or {}
-        workers = []
-        for area in scanner_data.get("areas", []):
-            for wm in area.get("worker_managers", []):
-                for w in wm.get("workers", []):
-                    last_data = w.get("last_data")
-                    age = int(now - last_data) if last_data else None
-                    workers.append(
-                        {
-                            "worker_id": w.get("worker_id", "?"),
-                            "area": area.get("name", "?"),
-                            "status": w.get("connection_status", "?"),
-                            "last_data_seconds_ago": age,
-                        }
-                    )
-
-        accounts = await self.poliswag.account_monitor.get_account_stats()
-
-        return {
-            "last_pokemon_seconds_ago": seconds_ago,
-            "devices": devices,
-            "workers": workers,
-            "accounts": accounts,
-            "iv_verification": iv_verification,
-        }
 
     async def is_quest_scanning_complete(self):
         if time.time() - self._plateau_reset_at < self.PLATEAU_RESET_QUIET_PERIOD:
