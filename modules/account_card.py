@@ -199,6 +199,28 @@ def _status(pools):
     return "success", "Healthy"
 
 
+def headline(pools):
+    """What a reader would act on, as a value to compare between updates.
+
+    The status in words and, per pool, whether its numbers are there, which
+    devices are connected and how many workers they bring. A change here is
+    drawn at once; the counts alone (one account leaving cooldown, a worker
+    between two accounts) change most minutes and wait for the periodic
+    drawing.
+    """
+    lines = []
+    for pool in pools:
+        device = pool.get("device")
+        if device is not None:
+            device = (
+                bool(device.get("connected")),
+                tuple(device.get("names") or ()),
+                (device.get("workers") or {}).get("total") or 0,
+            )
+        lines.append((pool["key"], pool.get("accounts") is None, device))
+    return _status(pools), tuple(lines)
+
+
 def area_lines(area_performance):
     lines = []
     for row in scan_areas.active_areas():
