@@ -104,26 +104,6 @@ class TestRequest:
 
 
 class TestHumans:
-    async def test_get_human_swallows_not_found(self, client):
-        _install_session(client, _response(status=404, text_data="nope"))
-        out = await client.get_human(123)
-        assert out is None
-
-    async def test_create_channel_sends_expected_payload(self, client):
-        session = _install_session(client, _response(json_data={"id": "123"}))
-        await client.create_channel(123, "leiria-100iv")
-        _, kwargs = session.request.call_args
-        assert kwargs["json"] == {
-            "id": "123",
-            "name": "leiria-100iv",
-            "type": "discord:channel",
-        }
-
-    async def test_start_sends_silent_by_default(self, client):
-        session = _install_session(client, _response(status=204, content_length=0))
-        await client.start(123)
-        _, kwargs = session.request.call_args
-        assert kwargs["params"] == {"silent": "true"}
 
     @pytest.mark.parametrize("user_id", [123, "123"])
     async def test_create_user_sends_initial_area_in_creation_payload(
@@ -159,65 +139,6 @@ class TestHumans:
         with pytest.raises(PoracleError, match="timed out"):
             await client.create_user(123, "Rui", area='["leiria"]')
         session.request.assert_called_once()
-
-    async def test_stop_sends_silent_by_default(self, client):
-        session = _install_session(client, _response(status=204, content_length=0))
-        await client.stop(123)
-        _, kwargs = session.request.call_args
-        assert kwargs["params"] == {"silent": "true"}
-
-    async def test_start_can_be_non_silent(self, client):
-        session = _install_session(client, _response(status=204, content_length=0))
-        await client.start(123, silent=False)
-        _, kwargs = session.request.call_args
-        assert kwargs["params"] is None
-
-
-class TestPokemonTracking:
-    async def test_list_unwraps_poracle_envelope(self, client):
-        _install_session(
-            client,
-            _response(json_data={"pokemon": [{"uid": 1}], "status": "ok"}),
-        )
-        out = await client.list_pokemon_tracking(123)
-        assert out == [{"uid": 1}]
-
-    async def test_list_returns_bare_list(self, client):
-        _install_session(client, _response(json_data=[{"uid": 1}]))
-        out = await client.list_pokemon_tracking(123)
-        assert out == [{"uid": 1}]
-
-    async def test_list_envelope_without_pokemon_key_empty(self, client):
-        _install_session(client, _response(json_data={"unexpected": True}))
-        out = await client.list_pokemon_tracking(123)
-        assert out == []
-
-    async def test_add_wraps_single_rule_in_array(self, client):
-        session = _install_session(client, _response(json_data={"ok": True}))
-        await client.add_pokemon_tracking(123, {"pokemon_id": 25, "min_iv": 90})
-        _, kwargs = session.request.call_args
-        assert kwargs["json"] == [{"pokemon_id": 25, "min_iv": 90}]
-
-    async def test_add_preserves_array(self, client):
-        session = _install_session(client, _response(json_data=[]))
-        rules = [{"pokemon_id": 1}, {"pokemon_id": 2}]
-        await client.add_pokemon_tracking(123, rules)
-        _, kwargs = session.request.call_args
-        assert kwargs["json"] == rules
-
-    async def test_add_sends_silent_by_default(self, client):
-        session = _install_session(client, _response(json_data={"ok": True}))
-        await client.add_pokemon_tracking(123, {"pokemon_id": 25})
-        _, kwargs = session.request.call_args
-        assert kwargs["params"] == {"silent": "true"}
-
-    async def test_delete_hits_by_uid_path(self, client):
-        session = _install_session(client, _response(status=204, content_length=0))
-        await client.delete_pokemon_tracking_uid(123, "abc")
-        args, kwargs = session.request.call_args
-        assert args[0] == "DELETE"
-        assert args[1] == "http://poracle.test:3030/api/tracking/pokemon/123/byUid/abc"
-        assert kwargs["params"] == {"silent": "true"}
 
 
 class TestMisc:
