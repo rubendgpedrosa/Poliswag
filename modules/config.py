@@ -34,16 +34,11 @@ class Config:
     # Discord
     DISCORD_API_KEY = os.environ.get("DISCORD_API_KEY")
     ADMIN_USERS_IDS = os.environ.get("ADMIN_USERS_IDS", "").split(",")
-    # PoliSnatch's job API (link resolver + lure placement). The defaults match
-    # modules/polisnatch_api.py, kept literal here so config.py stays importable
-    # on its own (tests/test_conftest_guard.py imports a lone copy). The submit
-    # key is read per call from POLISNATCH_JOBS_KEY or the file below, so
+    # PoliSnatch's game-status endpoint, polled for a new game build
+    # (cogs/scheduled.py). The submit key it authenticates with is read per
+    # call by modules/polisnatch_api.py (POLISNATCH_JOBS_KEY or its file), so
     # rotating it needs no restart, and it is never logged. The production
     # container mounts /etc/poliswag/secrets read-only (docker-compose.prod.yaml).
-    POLISNATCH_JOBS_URL = os.environ.get(
-        "POLISNATCH_JOBS_URL", "https://polisnatch.pogoleiria.pt/v1/jobs"
-    )
-    POLISNATCH_JOBS_KEY = os.environ.get("POLISNATCH_JOBS_KEY", "")
     POLISNATCH_STATUS_URL = os.environ.get(
         "POLISNATCH_STATUS_URL", "https://polisnatch.pogoleiria.pt/v1/game/status"
     )
@@ -105,7 +100,6 @@ class Config:
     DB_PASSWORD = os.environ.get("DB_PASSWORD")
     DB_POLISWAG = os.environ.get("DB_POLISWAG")
     DB_SCANNER_NAME = os.environ.get("DB_SCANNER_NAME")
-    DB_DRAGONITE = os.environ.get("DB_DRAGONITE", "dragonite")
     # The landing app's analytics schema, read by modules/page_view_stats.py.
     # Deliberately not in _REQUIRED_ENV_VARS: the default is correct and an
     # unreachable analytics schema must not stop the bot booting.
@@ -118,7 +112,6 @@ class Config:
     WEBSTATS_URL = os.environ.get("WEBSTATS_URL", "https://pogoleiria.pt/webstats")
 
     # Scanner / infrastructure
-    SCANNER_CONTAINER_NAME = os.environ.get("SCANNER_CONTAINER_NAME")
     ADB_DEVICE = os.environ.get("ADB_DEVICE", "")  # e.g. "192.168.1.222:5555"
     UNOWNHASH_COMPOSE_FILE = os.environ.get(
         "UNOWNHASH_COMPOSE_FILE", "/root/unonwhash/docker-compose.yml"
