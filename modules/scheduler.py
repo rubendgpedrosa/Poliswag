@@ -39,6 +39,7 @@ class Step:
     run: Callable[[], Awaitable[None]]
     every: float = 0
     budget: float = DEFAULT_BUDGET
+    depends_on: tuple[str, ...] = ()
     runs: int = 0
     failures: int = 0
     overruns: int = 0
@@ -51,6 +52,9 @@ class Step:
     overdue: bool = False
     _task: asyncio.Task | None = field(default=None, repr=False)
     _next_due: float = field(default=0, repr=False)
+    _successes: int = field(default=0, repr=False)
+    _seen: dict[str, int] = field(default_factory=dict, repr=False)
+    blocked_by: str = ""
 
     @property
     def running(self) -> bool:
@@ -68,12 +72,46 @@ class StepRunner:
         self._passed: dict[str, float] = {}
 
     def add_loop(self, name: str, steps: list[Step]) -> None:
-        self.loops[name] = list(steps)
+        steps = list(steps)
+        names = [step.name for step in steps]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate scheduler step")
+        for index, step in enumerate(steps):
+            if any(dep not in names[:index] for dep in step.depends_on):
+                raise ValueError(f"Invalid dependencies for {step.name}")
+        self.loops[name] = steps
         self._passed[name] = self._wall()
 
     async def run_pass(self, name: str) -> None:
         """Offer every step of a loop its turn, in order."""
-        for step in self.loops[name]:
+        steps = self.loops[name]
+        by_name = {step.name: step for step in steps}
+        for step in steps:
+            step.blocked_by = ""
+            for dep_name in step.depends_on:
+                dep = by_name[dep_name]
+                if dep.running or not dep._successes or dep.last_error:
+                    step.blocked_by = dep_name
+                    break
+            if step.blocked_by:
+                continue
+            # Do not rewrite data while a reader is using it. After an
+            # overrun, offer its result to the reader before starting again.
+            readers = [other for other in steps if step.name in other.depends_on]
+            if any(
+                reader.running
+                or (
+                    step._successes > reader._seen.get(step.name, 0)
+                    and not step.last_error
+                )
+                for reader in readers
+            ):
+                continue
+            if not step.running and (
+                not step.every or self._monotonic() >= step._next_due
+            ):
+                for dep_name in step.depends_on:
+                    step._seen[dep_name] = by_name[dep_name]._successes
             await self.run_step(step)
         self._passed[name] = self._wall()
 
@@ -108,6 +146,7 @@ class StepRunner:
         step.last_error = ""
         try:
             await step.run()
+            step._successes += 1
         except Exception as error:
             # One step's bug or bad day never stops the others, least of all
             # the workers step, which feeds the map's self-healing.
