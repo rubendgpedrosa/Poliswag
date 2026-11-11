@@ -17,7 +17,7 @@ MAX_BODY = 256 * 1024
 MAX_STATE = 10000
 RETENTION = 30 * 86400
 STATE_PATH = (
-    Path(__file__).resolve().parent.parent / "logs/monitoring-discord-relay.json"
+    Path(__file__).resolve().parent.parent / "state/monitoring-discord-relay.json"
 )
 
 

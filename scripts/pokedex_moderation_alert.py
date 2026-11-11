@@ -23,8 +23,8 @@ WHERE left_at IS NULL AND shiny_access = 0
 AND shiny_access_requested_at IS NOT NULL
 ORDER BY shiny_access_requested_at, discord_id"""
 
-STATE = Path("/app/logs/pokedex-moderation-alert.json")
-FAILURE_STATE = Path("/app/logs/pokedex-link-failures.json")
+STATE = Path("/app/state/pokedex-moderation-alert.json")
+FAILURE_STATE = Path("/app/state/pokedex-link-failures.json")
 
 
 def failure_sql(player_schema, link_schema):

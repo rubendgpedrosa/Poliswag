@@ -14,7 +14,7 @@ these to the owner's phone. The message names up to five players, gives the tota
 queue count, and includes the /pokedex/procurar approval-page URL. One tag groups
 these notifications. No reminders for unchanged requests.
 
-The watermark is `logs/pokedex-validation-alert.json`, atomically written with
+The watermark is `state/pokedex-validation-alert.json`, atomically written with
 mode 600 after a successful webhook response, retained across container/host
 restarts. Resolved entries are pruned. Delivery failures fail the service and
 retry next minute without advancing the watermark. As with other webhooks, a

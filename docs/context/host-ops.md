@@ -43,7 +43,7 @@ bearer secret lives only in root-owned mode-0600
 Requests are limited to CT107's IP. Never commit the secret.
 
 The relay persists delivered firing/recovery transitions in
-`logs/monitoring-discord-relay.json`, so Grafana reminders and relay restarts
+`state/monitoring-discord-relay.json`, so Grafana reminders and relay restarts
 do not repeat unchanged alerts. Failed deliveries return a retryable error;
 a recovery without a recorded outage is silent. Generic datasource errors
 without a `host` label continue through general home monitoring. Inspect

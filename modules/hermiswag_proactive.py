@@ -6,7 +6,7 @@ minutes (and at most three hours) with no reply gets an answer from
 Hermiswag, as a plain reply: no ping and no "I saw you asked". Hermiswag
 decides whether it really is an open question it can help with; an empty
 reply means "leave it". Every message looked at is remembered in
-logs/hermiswag-proactive.json, so nothing is weighed or answered twice.
+state/hermiswag-proactive.json, so nothing is weighed or answered twice.
 """
 
 import json

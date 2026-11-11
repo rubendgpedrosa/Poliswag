@@ -15,7 +15,7 @@ shiny_access_requested_at FROM trade_player
 WHERE left_at IS NULL AND shiny_access = 0
 AND shiny_access_requested_at IS NOT NULL
 ORDER BY shiny_access_requested_at, discord_id"""
-STATE = Path("/app/logs/pokedex-validation-alert.json")
+STATE = Path("/app/state/pokedex-validation-alert.json")
 
 
 def notify_pending(rows, state_path, send, base_url):

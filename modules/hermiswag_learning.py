@@ -2,7 +2,7 @@
 messages of the community and information channels (never moderation or the
 alert channels), and Hermiswag keeps what is useful in its own memory, under
 the rules in its SOUL.md. State (last message id per channel) lives in
-logs/hermiswag-learning.json, so each message is read once.
+state/hermiswag-learning.json, so each message is read once.
 """
 
 import json

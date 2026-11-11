@@ -18,7 +18,7 @@ their PNG asset. Invalid/non-HTTPS stored avatar URLs are omitted.
 ## Delivery and decisions
 
 `scripts/pokedex_moderation_alert.py` replaces the old owner-DM notifier.
-The separate durable `logs/pokedex-moderation-alert.json` state causes pending
+The separate durable `state/pokedex-moderation-alert.json` state causes pending
 requests previously announced by DM to appear in the moderation channel.
 Each successful post is saved immediately, so a later failed post retries only
 unsent requests. Resolved requests are pruned; a new timestamp is a new request.
@@ -78,7 +78,7 @@ Friend Code itself are never included.
 This flow joins the configured community and bot schemas. It includes approved,
 present members even if they disabled Discord alerts or their map, so a recent
 failure remains visible. Held, revoked and departed accounts are excluded.
-Separate durable state in `logs/pokedex-link-failures.json` records Discord ID,
+Separate durable state in `state/pokedex-link-failures.json` records Discord ID,
 association-request timestamp and resolution timestamp. Each successful post
 is saved immediately; timer retries and restarts do not repeat it, while a newly
 failed attempt is notified again. Resolved failures are pruned. As with access
