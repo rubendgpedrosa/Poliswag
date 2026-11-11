@@ -8,9 +8,11 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Logs
+# Logs and runtime state (bind-mounted at runtime)
 logs/
 *.log
+data/
+state/
 
 # Git / IDE / tooling
 .git/
