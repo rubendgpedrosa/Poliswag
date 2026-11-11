@@ -386,11 +386,10 @@ def reading_bot(channel):
 
 
 async def test_send_reads_the_day_through_one_unit(monkeypatch):
-    from unittest.mock import MagicMock
 
     channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
     bot = reading_bot(channel)
-    board = MagicMock(
+    board = AsyncMock(
         return_value={"metadata": {"available": True, "complete_window": True}}
     )
     monkeypatch.setattr("modules.spawn_history.leaderboard", board)
@@ -399,16 +398,14 @@ async def test_send_reads_the_day_through_one_unit(monkeypatch):
     delivery = ShinyLeaderboard(bot)
     delivery.avatars = AsyncMock(return_value={})
     assert await delivery.send() == "sent"
-    assert bot.db.units == [(board, (24,), {"read_timeout": 15})]
-    board.assert_called_once_with(bot.db.connection, 24)
+    board.assert_awaited_once_with(bot.db, 24)
 
 
 async def test_send_shundo_reads_through_one_unit(monkeypatch):
-    from unittest.mock import MagicMock
 
     channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
     bot = reading_bot(channel)
-    board = MagicMock(
+    board = AsyncMock(
         return_value={
             "metadata": {"available": True, "complete_window": True},
             "trainers": [],
@@ -422,7 +419,7 @@ async def test_send_shundo_reads_through_one_unit(monkeypatch):
     delivery = ShinyLeaderboard(bot)
     delivery.avatars = AsyncMock(return_value={})
     assert await delivery.send_shundo(hours=6) == "sent"
-    assert bot.db.units == [(board, (6,), {"read_timeout": 15})]
+    board.assert_awaited_once_with(bot.db, 6)
 
 
 async def test_send_shundo_refuses_a_bad_period_before_any_connection(monkeypatch):

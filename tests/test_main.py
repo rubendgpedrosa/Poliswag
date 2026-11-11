@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
+import pymysql
 import pytest
 
 from main import Poliswag
@@ -148,3 +149,34 @@ async def test_log_mentions_channel_without_credentials(monkeypatch):
     assert "QUEST_CHANNEL" in logged_text
     assert "DISCORD_API_KEY" not in logged_text
     assert "token" not in logged_text.lower()
+
+
+async def test_bot_starts_when_poracle_is_unavailable_and_recovers(mocker):
+    # Only the three established required schemas connect during construction.
+    from modules.database_connector import DatabaseConnector
+
+    connection = MagicMock()
+    connect_shared = mocker.patch.object(
+        DatabaseConnector, "connect_to_db", return_value=connection
+    )
+    for name in (
+        "RoleManager Utility ScannerStatus ScannerManager ImageGenerator QuestSearch "
+        "EventManager EventStats QuestExporter MegaExporter AccountMonitor PoracleClient "
+        "DeviceManager PageViewStats TradePlayerStore TradeStats LureWatcher StackRecovery "
+        "AccountGuard EventNotices TradeAnnouncer TradeDM TradeDigest HundoAlerts "
+        "ShinyOdds ShinyAvailability ShinyAlerts TrackingHealth"
+    ).split():
+        mocker.patch(f"main.{name}")
+    bot = Poliswag()
+    assert connect_shared.call_count == 3
+    assert bot.poracle_db.db is None
+
+    poracle = MagicMock()
+    connect_unit = mocker.patch(
+        "modules.database_connector.connect",
+        side_effect=[pymysql.MySQLError("poracle unavailable"), poracle],
+    )
+    with pytest.raises(pymysql.MySQLError, match="poracle unavailable"):
+        await bot.poracle_db.unit(lambda conn: None)
+    assert await bot.poracle_db.unit(lambda conn: "recovered") == "recovered"
+    assert connect_unit.call_count == 2

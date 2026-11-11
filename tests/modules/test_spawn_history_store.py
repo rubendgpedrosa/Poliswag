@@ -33,8 +33,7 @@ def test_invalid_period_never_touches_the_connection(hours):
     for function in (
         spawn_history.status,
         spawn_history.export_json,
-        spawn_history.leaderboard,
-        spawn_history.shundo_leaderboard,
+        spawn_history.read_leaderboard,
     ):
         with pytest.raises(ValueError):
             function(connection, hours)
@@ -313,13 +312,17 @@ class TestLeaderboard:
             trainers,
             spawns,
         ]
-        return spawn_history.leaderboard(connection, 1)
+        return spawn_history.build_leaderboard(
+            spawn_history.read_leaderboard(connection, 1), 1
+        )
 
     def test_without_an_archive_there_are_no_trainers(self, monkeypatch):
         connection = MagicMock()
         cursor = connection.cursor.return_value
         cursor.fetchall.return_value = []
-        assert spawn_history.leaderboard(connection, 24) == {
+        assert spawn_history.build_leaderboard(
+            spawn_history.read_leaderboard(connection, 24), 24
+        ) == {
             "metadata": {
                 "available": False,
                 "complete_window": False,
@@ -401,7 +404,9 @@ class TestLeaderboard:
         cursor = connection.cursor.return_value
         cursor.fetchall.side_effect = state_fetches(int(time.time())) + [trainers]
         with pytest.raises(ValueError, match="100"):
-            spawn_history.leaderboard(connection, 1)
+            spawn_history.build_leaderboard(
+                spawn_history.read_leaderboard(connection, 1), 1
+            )
 
     def test_a_trainer_without_a_player_id_is_refused(self, monkeypatch):
         result_trainers = trainer_rows([("ghost", "not-an-id")])
@@ -412,4 +417,33 @@ class TestLeaderboard:
             [],
         ]
         with pytest.raises(ValueError, match="ID"):
-            spawn_history.leaderboard(connection, 1)
+            spawn_history.build_leaderboard(
+                spawn_history.read_leaderboard(connection, 1), 1
+            )
+
+
+async def test_ranking_runs_after_the_snapshot_connection_closes(monkeypatch):
+    import threading
+
+    connection = MagicMock()
+    snapshot = ({"available": True}, [], [])
+    monkeypatch.setattr(spawn_history, "read_leaderboard", lambda db, hours: snapshot)
+    thread = threading.get_ident()
+
+    def rank(rows, hours):
+        connection.commit.assert_called_once()
+        connection.close.assert_called_once()
+        assert threading.get_ident() != thread
+        assert rows is snapshot and hours == 24
+        return {"metadata": rows[0], "trainers": []}
+
+    monkeypatch.setattr(spawn_history, "build_leaderboard", rank)
+    db = DatabaseConnector.__new__(DatabaseConnector)
+    db.database = Config.DB_POLISWAG
+    monkeypatch.setattr(
+        database_connector, "connect", lambda *args, **kwargs: connection
+    )
+    assert await spawn_history.leaderboard(db, 24) == {
+        "metadata": {"available": True},
+        "trainers": [],
+    }

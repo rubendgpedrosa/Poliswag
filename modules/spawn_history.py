@@ -1,12 +1,12 @@
 """Bounded raw history and reproducible unfiltered shiny statistics.
 
-Every public function here takes a database connection as its first argument
-and runs as one unit of work (`poliswag.db.unit(...)`), so the collector and
-each reader get a short-lived connection of their own. Recording needs no
+Database reads run as units of work on short-lived connections. Leaderboard
+ranking runs after its snapshot closes, in a worker thread. Recording needs no
 linked players and never reads notification, collection or area filters.
 The historical odds are estimates captured from shiny_rate, not game guarantees.
 """
 
+import asyncio
 import gzip
 import json
 import tempfile
@@ -220,15 +220,13 @@ def export_json(connection, hours=24):
         raise
 
 
-def leaderboard(connection, hours=24):
-    # The ranking below is CPU work (one SHA-1 per trainer and spawn). It runs
-    # inside the same unit, in its worker thread, so it never blocks the
-    # event loop; the read-only connection just stays open until it is done.
+def read_leaderboard(connection, hours=24):
+    """Read the entire report from one snapshot; do no ranking here."""
     hours_value(hours)
     cursor = reader(connection)
     metadata = window_metadata(cursor, hours)
     if not metadata["available"]:
-        return {"metadata": metadata, "trainers": []}
+        return metadata, [], []
     cursor.execute(
         f"SELECT l.trainer_name, l.player_id FROM shiny_link l "
         f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id=l.discord_id "
@@ -246,7 +244,14 @@ def leaderboard(connection, hours=24):
         "AND (display_pokemon_id IS NULL OR display_pokemon_id IN (0,pokemon_id))",
         (metadata["start_epoch"], metadata["end_epoch"]),
     )
-    spawns = list(cursor.fetchall())
+    return metadata, trainers, list(cursor.fetchall())
+
+
+def build_leaderboard(snapshot, hours):
+    """Rank the fetched rows after their database snapshot has closed."""
+    metadata, trainers, spawns = snapshot
+    if not metadata["available"]:
+        return {"metadata": metadata, "trainers": []}
     area_keys = scan_areas.active_keys()
     rows = []
     for trainer in trainers:
@@ -293,14 +298,20 @@ def leaderboard(connection, hours=24):
     }
 
 
-def shundo_leaderboard(connection, hours=24):
+async def leaderboard(db, hours=24):
+    hours_value(hours)
+    snapshot = await db.unit(read_leaderboard, hours, read_timeout=15)
+    return await asyncio.to_thread(build_leaderboard, snapshot, hours)
+
+
+async def shundo_leaderboard(db, hours=24):
     """The same aggregate, ranked by shiny Pokémon caught at 15/15/15.
 
     A shundo is the combination the community chases: shiny *and* perfect IV.
     The leaderboard already counted those per trainer; this keeps only the
     trainers who have at least one and re-ranks by that count.
     """
-    data = leaderboard(connection, hours)
+    data = await leaderboard(db, hours)
     rows = [
         {**row, "predicted_shinies": row["hundo_shinies"]}
         for row in data["trainers"]

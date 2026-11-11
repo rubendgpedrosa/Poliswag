@@ -58,6 +58,52 @@ class TestInit:
         assert dc.database == "poliswag_db"
 
 
+class TestLazyConnection:
+    async def test_unit_does_not_open_shared_connection_and_recovers(self, mocker):
+        shared = mocker.patch.object(DatabaseConnector, "connect_to_db")
+        connection = MagicMock()
+        connect = mocker.patch(
+            "modules.database_connector.connect",
+            side_effect=[pymysql.MySQLError("unavailable"), connection],
+        )
+        db = DatabaseConnector("poracle", lazy=True)
+        shared.assert_not_called()
+        with pytest.raises(pymysql.MySQLError, match="unavailable"):
+            await db.unit(lambda conn: "unused")
+        assert await db.unit(lambda conn: "recovered") == "recovered"
+        assert connect.call_count == 2
+        assert db.db is None
+        shared.assert_not_called()
+        connection.commit.assert_called_once()
+        connection.close.assert_called_once()
+
+    async def test_shared_connection_retries_initial_failure(self, mocker):
+        connection = MagicMock()
+        connect = mocker.patch.object(
+            DatabaseConnector,
+            "connect_to_db",
+            side_effect=[pymysql.MySQLError("unavailable"), connection],
+        )
+        db = DatabaseConnector("site", lazy=True)
+        with pytest.raises(pymysql.MySQLError, match="unavailable"):
+            await db.execute_query_to_database("UPDATE example SET value = 1")
+        assert db.db is None
+        await db.execute_query_to_database("UPDATE example SET value = 1")
+        assert db.db is connection
+        assert connect.call_count == 2
+        connection.commit.assert_called_once()
+
+    async def test_transaction_opens_lazy_shared_connection(self, mocker):
+        connection = MagicMock()
+        connect = mocker.patch.object(
+            DatabaseConnector, "connect_to_db", return_value=connection
+        )
+        db = DatabaseConnector("site", lazy=True)
+        await db.execute_transaction([("UPDATE example SET value = %s", (1,))])
+        connect.assert_called_once()
+        connection.commit.assert_called_once()
+
+
 class _FakeCursor:
     def __init__(
         self,

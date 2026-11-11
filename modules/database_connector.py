@@ -37,9 +37,10 @@ def connect(database, *, read_timeout=5, dict_rows=False, **extra):
 
 
 class DatabaseConnector:
-    def __init__(self, database=None):
+    def __init__(self, database=None, *, lazy=False):
+        # Optional schemas may defer the shared connection until first use.
         self.database = database or Config.DB_POLISWAG
-        self.db = self.connect_to_db()
+        self.db = None if lazy else self.connect_to_db()
         # pymysql connections are not thread-safe for concurrent use, so every
         # call is serialized. The lock is held until the worker thread
         # actually finishes (see _run_serialized): cancelling the awaiting
@@ -231,6 +232,8 @@ class DatabaseConnector:
         return None
 
     def _execute_query_sync(self, query, fetch, retries, params=None):
+        if self.db is None:
+            self.db = self.connect_to_db()
         # Conservative retry contract (no SQL classification): bounded
         # recovery is allowed ONLY before cursor.execute begins -- a ping or
         # cursor-creation failure means nothing reached the server, so
@@ -322,6 +325,8 @@ class DatabaseConnector:
         raise RuntimeError(f"Exceeded maximum retry attempts: {last_error}")
 
     def _transaction_sync(self, statements):
+        if self.db is None:
+            self.db = self.connect_to_db()
         try:
             self.db.ping(reconnect=True)
         except pymysql.MySQLError as e:
