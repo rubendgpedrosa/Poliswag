@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from modules.agent_jobs import AgentJobs, parse_direct_request, write_json
+from modules.agent_jobs import AgentJobs, write_json
 
 
 @pytest.fixture
@@ -55,23 +55,6 @@ def test_invalid_prompt_never_enqueued(queue, prompt):
     with pytest.raises(ValueError):
         submit(queue, prompt=prompt)
     assert not queue.list(123)
-
-
-@pytest.mark.parametrize(
-    "content, expected",
-    [
-        ("Claude what broke?", ("claude", "what broke?")),
-        ("code openai fix the bug", ("openai", "fix the bug")),
-        ("ask codex explain it", ("codex", "explain it")),
-        ("!code codex explain it", ("codex", "explain it")),
-        ("!codex explain it", ("codex", "explain it")),
-        ("restart the scanner", None),
-        ("claude", None),
-        ("!questleiria", None),
-    ],
-)
-def test_only_explicit_provider_requests_are_routed(content, expected):
-    assert parse_direct_request(content) == expected
 
 
 def waiting_job(queue):

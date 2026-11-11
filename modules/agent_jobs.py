@@ -66,11 +66,11 @@ class AgentJobs:
             raise ValueError(f"O pedido deve ter entre 1 e {MAX_PROMPT} caracteres.")
         worker = self.worker_status()
         if not worker["online"]:
-            raise ValueError("O executor está offline. Consulta `!self`.")
+            raise ValueError("O executor está offline.")
         if not worker.get("providers", {}).get(provider):
             raise ValueError(f"{provider} não está disponível no executor.")
         if sum(j["state"] not in TERMINAL for j in self.list(owner_id)) >= 5:
-            raise ValueError("Já tens 5 tarefas pendentes. Aguarda ou usa `!cancel`.")
+            raise ValueError("Já há 5 tarefas pendentes.")
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         job_id = uuid.uuid4().hex[:12]
         directory = self.directory(job_id)
@@ -146,18 +146,3 @@ class AgentJobs:
         if job["state"] in TERMINAL:
             raise ValueError("Esta tarefa já terminou.")
         (self.directory(job_id) / "cancel").touch(mode=0o600)
-
-
-def parse_direct_request(content):
-    """Explicit provider requests in tagged owner messages; other text is untouched.
-
-    `codex <question>`, `ask codex <question>` and the legacy `code codex <...>`
-    all return (provider, prompt). Every owner request is read-only.
-    """
-    parts = content.strip().removeprefix("!").split(maxsplit=2)
-    if len(parts) >= 2 and parts[0].lower() in PROVIDERS:
-        return parts[0].lower(), content.strip().split(maxsplit=1)[1]
-    if len(parts) == 3 and parts[0].lower() in {"code", "ask"}:
-        if parts[1].lower() in PROVIDERS:
-            return parts[1].lower(), parts[2]
-    return None
