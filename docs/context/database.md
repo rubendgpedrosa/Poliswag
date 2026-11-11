@@ -22,6 +22,6 @@
 
 `pokestop` — lat/lon, quest fields (`quest_type`, `quest_title`, `quest_target`, `quest_reward_type`, `quest_item_id`, `quest_pokemon_id`, `quest_reward_amount`) plus `alternative_quest_*` mirrors for AR quests (generated columns). A stop's area is decided by `modules/scan_areas.py` (the active registry fences), never by a longitude line.
 
-**Poracle DB** — reached by short-lived `connect("poracle")` in `hundo_alerts.py` (its own rules and humans rows). The channel rows that `!notify` managed are Poracle's to manage now.
+**Poracle DB** — `poliswag.poracle_db`, used by `hundo_alerts.py` in units of work (its own rules and humans rows). The channel rows that `!notify` managed are Poracle's to manage now.
 
 **Dragonite DB** — no longer read directly (it was, for the lure commands); account figures come from Dragonite's HTTP API (`account_monitor.py`).

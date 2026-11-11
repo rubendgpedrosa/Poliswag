@@ -16,7 +16,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 
 | Module | Responsibility |
 |--------|---------------|
-| `config.py` / `database_connector.py` | Env config; pymysql wrapper that retries only before execution (never replays a statement); `connect(...)` for short-lived connections. |
+| `config.py` / `database_connector.py` | Env config; the database handle: single statements on a shared connection (retries only before execution, never replays a statement) and `unit(work)` for anything bigger. One handle per schema, built in `main.py`. |
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
 | `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
 | `account_guard.py` | Alert-only guard: fake-ban bursts and mass login failures from the scanner logs → owner DM saying what it would pause. |
