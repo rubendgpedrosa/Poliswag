@@ -73,8 +73,9 @@ class Poliswag(commands.Bot):
         self.scanner_db = DatabaseConnector(Config.DB_SCANNER_NAME)
         # The site's schema: trades, the Pokédex, page views.
         self.site_db = DatabaseConnector(Config.DB_POGOLEIRIA)
-        # Poracle's own schema, for the 100IV rules written straight into it.
-        self.poracle_db = DatabaseConnector("poracle")
+        # Poracle is optional: a missing schema must not prevent bot startup.
+        # Its 100IV rules use independent units of work.
+        self.poracle_db = DatabaseConnector("poracle", lazy=True)
         self.role_manager = RoleManager()
         self.utility = Utility(self)
         self.scanner_status = ScannerStatus(self)
