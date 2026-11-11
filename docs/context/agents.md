@@ -455,7 +455,7 @@ suporte-tecnico) now only marks where learning keeps members' messages only. Eve
 moderation or alert channels) under `LEARN_INSTRUCTIONS`, in the session
 `hermiswag:learning`; Hermiswag keeps what is useful in its own memory
 (`memory_char_limit` 8000). The last message id per channel is in
-`logs/hermiswag-learning.json`; the first run reads the last 100 messages.
+`state/hermiswag-learning.json`; the first run reads the last 100 messages.
 `modules/hermiswag_learning.py` holds the prompt, that state file
 (`LearningState`), `batches` (prompts of at most 12 000 characters, 600 per
 message, oldest first; up to 200 new messages per channel per run) and
@@ -490,7 +490,7 @@ replace the file.
 **Unanswered questions (owner, 2026-11-09).** `Mentions.proactive` runs every
 10 min over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
 message that looks like a question, waited 10 min to 3 h, is not a reply target,
-does not tag Poliswag and was not looked at before (`logs/hermiswag-proactive.json`)
+does not tag Poliswag and was not looked at before (`state/hermiswag-proactive.json`)
 goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
 empty reply means leave it (chat, aimed at a person, or already answered). An
 answer is a plain reply to the message, no ping, screened by `safe_reply`; at most

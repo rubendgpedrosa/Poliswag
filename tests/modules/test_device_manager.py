@@ -619,3 +619,77 @@ class TestHealWifi:
         self._prime(device_manager, mocker)
         device_manager.run = AsyncMock(side_effect=RuntimeError("timeout"))
         assert await device_manager._heal_wifi() is False
+
+
+class TestOfflineEpisodeSurvivesARestart:
+    def _prime(self, device_manager, mocker, *, now, connected=False):
+        mocker.patch.object(Config, "ADB_DEVICE", "1.2.3.4:5555")
+        mocker.patch.object(
+            device_manager,
+            "get_auto_reboot_enabled",
+            new=AsyncMock(return_value=True),
+        )
+        device_manager.poliswag.account_monitor.is_device_connected = AsyncMock(
+            return_value=connected
+        )
+        device_manager.poliswag.MOD_CHANNEL = None
+        device_manager._notify = AsyncMock()
+        mocker.patch("modules.device_manager.time.time", return_value=now)
+        return device_manager
+
+    async def test_the_fifteen_minutes_are_not_counted_again(self, mocker):
+        first = self._prime(DeviceManager(poliswag=MagicMock()), mocker, now=10_000)
+        assert await first.alert_if_offline() is False  # offline since 10 000
+
+        # A restart ten minutes in; five minutes later the alert is due.
+        mocker.patch("modules.device_manager.time.time", return_value=10_600)
+        second = DeviceManager(poliswag=MagicMock())
+        assert second._offline_since == 10_000
+        self._prime(second, mocker, now=10_900)
+        assert await second.alert_if_offline() is True
+
+    async def test_the_mods_still_hear_it_came_back(self, mocker):
+        first = self._prime(DeviceManager(poliswag=MagicMock()), mocker, now=10_000)
+        await first.alert_if_offline()
+        self._prime(first, mocker, now=10_960)
+        assert await first.alert_if_offline() is True  # the mods were told
+
+        mocker.patch("modules.device_manager.time.time", return_value=11_000)
+        second = DeviceManager(poliswag=MagicMock())
+        self._prime(second, mocker, now=11_100, connected=True)
+        await second.alert_if_offline()
+        assert "de volta online" in second._notify.await_args.args[0]
+        assert second._offline_since is None
+
+    async def test_a_phone_that_is_fine_leaves_nothing_behind(self, mocker):
+        first = self._prime(
+            DeviceManager(poliswag=MagicMock()), mocker, now=10_000, connected=True
+        )
+        await first.alert_if_offline()
+        second = DeviceManager(poliswag=MagicMock())
+        assert second._offline_since is None
+        assert second._last_notification_time == 0
+
+    async def test_an_old_episode_is_not_picked_up(self, mocker):
+        first = self._prime(DeviceManager(poliswag=MagicMock()), mocker, now=10_000)
+        await first.alert_if_offline()
+        mocker.patch("modules.device_manager.time.time", return_value=10_000 + 1801)
+        second = DeviceManager(poliswag=MagicMock())
+        assert second._offline_since is None
+
+    async def test_the_wifi_heal_is_announced_once_across_a_restart(self, mocker):
+        first = self._prime(DeviceManager(poliswag=MagicMock()), mocker, now=10_000)
+        first.wifi_link_ok = AsyncMock(return_value=False)
+        first._heal_wifi = AsyncMock(return_value=False)
+        for _ in range(DeviceManager.WIFI_DEAD_AFTER):
+            await first.ensure_wifi()
+        first._notify.assert_awaited_once()
+
+        mocker.patch("modules.device_manager.time.time", return_value=10_060)
+        second = self._prime(DeviceManager(poliswag=MagicMock()), mocker, now=10_060)
+        second.wifi_link_ok = AsyncMock(return_value=False)
+        second._heal_wifi = AsyncMock(return_value=False)
+        for _ in range(DeviceManager.WIFI_DEAD_AFTER):
+            await second.ensure_wifi()
+        second._heal_wifi.assert_awaited_once()
+        second._notify.assert_not_awaited()

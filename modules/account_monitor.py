@@ -1,9 +1,9 @@
 import io
-import json
 import time
 
 import discord
 
+from modules.account_card import headline
 from modules.config import Config
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
@@ -34,11 +34,12 @@ POOLS = (
     ("levelling", "Levelling", "level_account_status", "level_device_status"),
 )
 
-# The card's account and device numbers are read every minute, but the image
-# is rendered and uploaded only when one of them changed: until 2026-11-11 it
-# was redrawn and re-uploaded 1,440 times a day whatever it showed. The area
-# footer (spawns per hour) moves a little every minute without saying
-# anything new, so on its own it redraws the card only this often.
+# The pools are read every minute, but the image is rendered and uploaded
+# only this often: until 2026-11-11 it was redrawn and re-uploaded 1,440 times
+# a day. The counts drift most minutes (a worker between two accounts, one
+# account leaving cooldown) without saying anything new. What a reader would
+# act on is account_card.headline -- the status, a device going on or offline,
+# its workers -- and a change there is drawn at once.
 CARD_REFRESH_SECONDS = 300
 
 # A failed update (a connection reset, a Discord 503/504, a render hiccup) is
@@ -123,10 +124,10 @@ class AccountMonitor(LoggingMixin):
         # logged when it appears or changes, not on every 60s tick.
         self._partition_warned = {}
         self._card_failures = FailureStreak(ACCOUNT_CARD_ERROR_AFTER)
-        # What the card in the channel shows and when it was drawn
+        # The headline of the card in the channel and when it was drawn
         # (monotonic); None until this process has drawn it once, so a
         # restart always redraws.
-        self._card_numbers = None
+        self._card_headline = None
         self._card_drawn_at = 0.0
 
     async def get_account_stats(self):
@@ -245,8 +246,8 @@ class AccountMonitor(LoggingMixin):
         relative half keeps counting up between updates -- that is what
         makes a stalled card obvious, since an image that stops being
         refreshed otherwise looks identical to a fresh one. The card is
-        redrawn at least every CARD_REFRESH_SECONDS, so a time much older
-        than that means it has stalled.
+        redrawn every CARD_REFRESH_SECONDS, so a time much older than that
+        means it has stalled.
         """
         updated_at = int(time.time())
         return f"Last updated: <t:{updated_at}:f> (<t:{updated_at}:R>)"
@@ -262,11 +263,11 @@ class AccountMonitor(LoggingMixin):
                         break
 
             pools = await self.get_pool_stats()
-            numbers = json.dumps(pools, sort_keys=True, default=str)
+            shown = headline(pools)
             now = time.monotonic()
             if (
                 self._accounts_message is not None
-                and numbers == self._card_numbers
+                and shown == self._card_headline
                 and now - self._card_drawn_at < CARD_REFRESH_SECONDS
             ):
                 return
@@ -295,7 +296,7 @@ class AccountMonitor(LoggingMixin):
                     await self._accounts_message.edit(
                         content=content, embed=None, attachments=[discord_file]
                     )
-                    self._card_drawn(numbers, now)
+                    self._card_drawn(shown, now)
                     return
                 except discord.NotFound:
                     # Message was deleted out from under us — fall through to
@@ -305,15 +306,15 @@ class AccountMonitor(LoggingMixin):
             self._accounts_message = await self.poliswag.ACCOUNTS_CHANNEL.send(
                 content=content, file=discord_file
             )
-            self._card_drawn(numbers, now)
+            self._card_drawn(shown, now)
 
         except Exception as e:
             self._card_failed(e)
 
-    def _card_drawn(self, numbers, now):
+    def _card_drawn(self, shown, now):
         """Discord took the card: remember what it shows. A failed update
         never reaches here, so it is tried again on the next minute."""
-        self._card_numbers = numbers
+        self._card_headline = shown
         self._card_drawn_at = now
         self._card_failures.reset()
 

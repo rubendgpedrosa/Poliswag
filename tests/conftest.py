@@ -39,6 +39,7 @@ _TEST_ENV_DEFAULTS = {
     "UNOWNHASH_COMPOSE_FILE": "/root/unonwhash/docker-compose.yml",
     "RECREATE_SERVICES": "dragonite rotom-ng",
     "HEARTBEAT_FILE": "logs/heartbeat",
+    "STATE_DIR": "/tmp/poliswag-test/state",
     "AGENT_JOBS_DIR": "logs/agent-jobs",
     "HERMES_API_URL": "http://hermes.test.invalid",
     "HERMES_API_KEY": "",
@@ -116,6 +117,18 @@ def _refresh_mock_data_timestamps():
         check=True,
         capture_output=True,
     )
+
+
+@pytest.fixture(autouse=True)
+def _own_state_dir(tmp_path, monkeypatch):
+    """An empty state directory for every test (modules/state_store.py).
+
+    The services read what the previous process left there when they are
+    built, so a shared directory would hand one test's map outage to the next.
+    """
+    from modules.config import Config
+
+    monkeypatch.setattr(Config, "STATE_DIR", str(tmp_path / "state"))
 
 
 @pytest.fixture(autouse=True)

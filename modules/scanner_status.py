@@ -10,6 +10,7 @@ from modules.config import Config
 from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
 from modules.owner_alert import notify_owner
+from modules.state_store import StateFile, still_running
 
 
 class ScannerStatus(LoggingMixin):
@@ -43,6 +44,18 @@ class ScannerStatus(LoggingMixin):
         self._map_down_discord_sent = False
         self._map_restored_dashboard_sent = False
         self.ALL_DOWN_REQUEST_COOLDOWN = 900  # 15 minutes
+        # The alert survives a restart: without it a deploy while the map was
+        # down sent "Mapa sem dados" a second time, and one right after the
+        # first alert lost the "Mapa recuperado" that should close it.
+        self._map_state = StateFile("map-alert", self._log)
+        saved = self._map_state.load()
+        if still_running(saved):
+            self.map_down_alerted = bool(saved.get("down_alerted"))
+            self._map_down_discord_sent = bool(saved.get("discord_sent"))
+            self._map_restored_dashboard_sent = bool(
+                saved.get("restored_dashboard_sent")
+            )
+            self.last_all_down_request_time = float(saved.get("last_request_time") or 0)
         self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
 
         # Quest-scan completion is detected by a plateau in the valid-quest count:
@@ -111,6 +124,7 @@ class ScannerStatus(LoggingMixin):
             await self.trigger_all_down_action()
         elif self.map_down_alerted and seconds_since_pokemon is not None:
             await self.trigger_map_restored_action(seconds_since_pokemon)
+        self._remember_map_alert()
 
         # Every active area shares one device and one stack, so a single
         # combined indicator (down workers / total expected workers across all
@@ -163,6 +177,21 @@ class ScannerStatus(LoggingMixin):
                         self._log(f"Rate limited while updating status channel: {e}")
                     else:
                         self._log(f"Error updating status channel: {e}")
+
+    def _remember_map_alert(self) -> None:
+        """Write the open map-down alert down (nothing while there is none)."""
+        if not (self.map_down_alerted or self._map_down_discord_sent):
+            self._map_state.save({})
+            return
+        self._map_state.save(
+            {
+                "down_alerted": self.map_down_alerted,
+                "discord_sent": self._map_down_discord_sent,
+                "restored_dashboard_sent": self._map_restored_dashboard_sent,
+                "last_request_time": self.last_all_down_request_time,
+                "seen_at": time.time(),
+            }
+        )
 
     def _rename_budget_available(self):
         """True while fewer than RENAME_BUDGET renames were attempted in the

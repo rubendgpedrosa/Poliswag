@@ -8,6 +8,7 @@ from modules.config import Config
 from modules.embeds import status_embed
 from modules.logging_mixin import LoggingMixin
 from modules.scanner_notice import post_scanner_status
+from modules.state_store import StateFile, still_running
 
 
 class DeviceManager(LoggingMixin):
@@ -48,6 +49,32 @@ class DeviceManager(LoggingMixin):
         self._version_read_at: float = 0
         self._wifi_dead_streak = 0
         self._wifi_heal_announced = False
+        # The offline episode survives a restart, so the 15 minutes before
+        # the first alert are not counted again and the mods still hear the
+        # phone came back.
+        self._state = StateFile("device", self._log)
+        saved = self._state.load()
+        if still_running(saved):
+            since = saved.get("offline_since")
+            self._offline_since = float(since) if since else None
+            self._last_notification_time = float(
+                saved.get("last_notification_time") or 0
+            )
+            self._wifi_heal_announced = bool(saved.get("wifi_heal_announced"))
+
+    def _remember(self) -> None:
+        """Write the open episode down (nothing while the phone is fine)."""
+        if self._offline_since is None and not self._wifi_heal_announced:
+            self._state.save({})
+            return
+        self._state.save(
+            {
+                "offline_since": self._offline_since,
+                "last_notification_time": self._last_notification_time,
+                "wifi_heal_announced": self._wifi_heal_announced,
+                "seen_at": time.time(),
+            }
+        )
 
     async def get_auto_reboot_enabled(self) -> bool:
         return await self._auto_reboot_setting.get()
@@ -302,6 +329,12 @@ class DeviceManager(LoggingMixin):
         - First alert at OFFLINE_BEFORE_ALERT (15 min).
         - Repeated every 1 h while offline < 6 h, then every 6 h.
         """
+        try:
+            return await self._alert_if_offline()
+        finally:
+            self._remember()
+
+    async def _alert_if_offline(self) -> bool:
         if not Config.ADB_DEVICE or not await self.get_auto_reboot_enabled():
             return False
 
@@ -389,6 +422,12 @@ class DeviceManager(LoggingMixin):
         once per episode and the mod channel hears about it; a reboot is
         never sent automatically. adb-unreachable is not handled here.
         """
+        try:
+            await self._ensure_wifi()
+        finally:
+            self._remember()
+
+    async def _ensure_wifi(self) -> None:
         if not Config.ADB_DEVICE:
             return
         ok = await self.wifi_link_ok()

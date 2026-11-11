@@ -23,6 +23,10 @@ _REQUIRED_ENV_VARS = (
 
 
 class Config:
+    # Small JSON state that has to survive a restart (modules/state_store.py
+    # and the *_STATE / *_FILE paths below). Git-ignored and bind-mounted like
+    # logs/, where these files lived until 2026-11-11.
+    STATE_DIR = os.environ.get("STATE_DIR", "state")
     SHINY_LEADERBOARD_ENABLED = os.environ.get("SHINY_LEADERBOARD_ENABLED", "0") == "1"
     SHUNDO_LEADERBOARD_ENABLED = (
         os.environ.get("SHUNDO_LEADERBOARD_ENABLED", "0") == "1"
@@ -44,7 +48,7 @@ class Config:
         "POLISNATCH_STATUS_URL", "https://polisnatch.pogoleiria.pt/v1/game/status"
     )
     POLISNATCH_UPDATE_STATE_FILE = os.environ.get(
-        "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
+        "POLISNATCH_UPDATE_STATE_FILE", f"{STATE_DIR}/polisnatch-update-state.json"
     )
     MY_ID = int(os.environ.get("MY_ID", "0"))
     # Apoio por MB Way (!mbway). Free text so the owner can change the
@@ -169,16 +173,18 @@ class Config:
         if x.strip().isdigit()
     ]
     HERMISWAG_PROACTIVE_STATE = os.environ.get(
-        "HERMISWAG_PROACTIVE_STATE", "logs/hermiswag-proactive.json"
+        "HERMISWAG_PROACTIVE_STATE", f"{STATE_DIR}/hermiswag-proactive.json"
     )
     # The Pokémon GO build the scanner phone last scanned with (DeviceManager).
     SCANNER_GAME_VERSION_FILE = os.environ.get(
-        "SCANNER_GAME_VERSION_FILE", "logs/scanner-game-version.json"
+        "SCANNER_GAME_VERSION_FILE", f"{STATE_DIR}/scanner-game-version.json"
     )
     # The live scanner card in the mod channel and when the incident began.
-    SCANNER_CARD_FILE = os.environ.get("SCANNER_CARD_FILE", "logs/scanner-card.json")
+    SCANNER_CARD_FILE = os.environ.get(
+        "SCANNER_CARD_FILE", f"{STATE_DIR}/scanner-card.json"
+    )
     HERMISWAG_LEARNING_STATE = os.environ.get(
-        "HERMISWAG_LEARNING_STATE", "logs/hermiswag-learning.json"
+        "HERMISWAG_LEARNING_STATE", f"{STATE_DIR}/hermiswag-learning.json"
     )
     # claude-bridge in CT 109 (owner DMs prefixed `c `); empty key disables calls.
     CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "http://192.168.1.240:8643")

@@ -4,6 +4,7 @@ import discord
 import pytest
 
 from modules.stack_recovery import StackRecovery
+from modules.state_store import EPISODE_MAX_AGE
 
 
 @pytest.fixture
@@ -647,3 +648,102 @@ async def test_phone_rung_is_not_blocked_by_accounts_without_workers(mocker):
     recovery._notify = AsyncMock()
     assert await recovery._sessions_allow_reset(phone_only=True) is True
     assert await recovery._sessions_allow_reset() is False
+
+
+class TestEpisodeSurvivesARestart:
+    """A deploy in the middle of an outage continues the episode."""
+
+    @staticmethod
+    def _broken_phone(sr, mocker):
+        sr.poliswag.MOD_CHANNEL = None
+        sr.poliswag.device_manager.restart_scanner_apps = AsyncMock(return_value=True)
+        sr.poliswag.device_manager.remember_working_version = AsyncMock()
+        sr.poliswag.device_manager.phone_health = AsyncMock(
+            return_value=("broken", "Pokémon GO is not running")
+        )
+        mocker.patch.object(
+            sr, "_sessions_allow_reset", new=AsyncMock(return_value=True)
+        )
+        mocker.patch.object(
+            sr, "get_auto_recreate_enabled", new=AsyncMock(return_value=True)
+        )
+        return sr
+
+    def _new(self, mocker):
+        return self._broken_phone(StackRecovery(poliswag=MagicMock()), mocker)
+
+    async def test_the_ladder_keeps_its_clock_and_its_spent_rungs(self, mocker):
+        mocker.patch("modules.stack_recovery.asyncio.sleep", new=AsyncMock())
+        first = self._new(mocker)
+        _at(mocker, 1000)
+        await first.observe(True, 0)
+        _at(mocker, 1300)
+        assert await first.observe(True, 0) is True  # rung 1: the phone's apps
+        first.poliswag.device_manager.restart_scanner_apps.assert_awaited_once()
+
+        _at(mocker, 1360)
+        second = self._new(mocker)
+        assert second._red_since == 1000
+        assert second._recovery_attempts == 1
+        _at(mocker, 1400)
+        assert await second.observe(True, 0) is False
+        # Rung 1 was spent before the restart: it does not run a second time.
+        second.poliswag.device_manager.restart_scanner_apps.assert_not_awaited()
+
+    async def test_the_recovered_notice_counts_from_the_real_start(self, mocker):
+        first = self._new(mocker)
+        _at(mocker, 1000)
+        await first.observe(True, 0)
+        _at(mocker, 1300)
+        await first.observe(True, 0)
+
+        _at(mocker, 1360)
+        second = self._new(mocker)
+        second._announce_recovered = AsyncMock()
+        _at(mocker, 1600)
+        await second.observe(False, 16)
+        second._announce_recovered.assert_awaited_once_with(600)
+
+    async def test_what_was_already_announced_is_not_said_again(self, mocker):
+        first = self._new(mocker)
+        first.poliswag.device_manager.phone_health = AsyncMock(
+            return_value=("game_updated", "Pokémon GO 0.437.0 instalado")
+        )
+        first._announce_game_update = AsyncMock()
+        _at(mocker, 1000)
+        await first.observe(True, 0)
+        first._announce_game_update.assert_awaited_once()
+
+        _at(mocker, 1060)
+        second = self._new(mocker)
+        second.poliswag.device_manager.phone_health = AsyncMock(
+            return_value=("game_updated", "Pokémon GO 0.437.0 instalado")
+        )
+        second._announce_game_update = AsyncMock()
+        await second.observe(True, 0)
+        second._announce_game_update.assert_not_awaited()
+
+    async def test_an_episode_nobody_saw_for_half_an_hour_starts_afresh(self, mocker):
+        first = self._new(mocker)
+        _at(mocker, 1000)
+        await first.observe(True, 0)
+        _at(mocker, 1300)
+        await first.observe(True, 0)
+
+        # The bot was away for longer than a restart takes: whatever is wrong
+        # now gets the whole ladder, not one with its rungs marked spent.
+        _at(mocker, 1300 + EPISODE_MAX_AGE + 1)
+        second = self._new(mocker)
+        assert second._red_since is None
+        assert second._recovery_attempts == 0
+
+    async def test_a_scanning_map_leaves_nothing_to_pick_up(self, mocker):
+        first = self._new(mocker)
+        _at(mocker, 1000)
+        await first.observe(True, 0)
+        _at(mocker, 1060)
+        await first.observe(False, 16)
+
+        _at(mocker, 1120)
+        second = self._new(mocker)
+        assert second._red_since is None

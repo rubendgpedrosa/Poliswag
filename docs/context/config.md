@@ -34,7 +34,7 @@ PORACLE_API_URL, PORACLE_API_SECRET
 POLISNATCH_JOBS_URL (default https://polisnatch.pogoleiria.pt/v1/jobs), POLISNATCH_JOBS_KEY_FILE
   (default /etc/poliswag/secrets/polisnatch-jobs-key), POLISNATCH_JOBS_KEY (inline fallback)
 POLISNATCH_STATUS_URL (default https://polisnatch.pogoleiria.pt/v1/game/status; read with the same submit key,
-  skipped when there is no key), POLISNATCH_UPDATE_STATE_FILE (default logs/polisnatch-update-state.json)
+  skipped when there is no key), POLISNATCH_UPDATE_STATE_FILE (default state/polisnatch-update-state.json)
 POLISWAG_PRIVATE_NAMES  (comma-separated; names kept out of public replies; deployment only)
 MBWAY_DETAILS  (free text `!mbway` sends by DM; empty points at the Revolut link)
 OWNER_DM_DEFAULT  (hermes|claude, default hermes; read from the .env file itself at boot, see agents.md)
@@ -73,4 +73,5 @@ a plain restart keeps the old environment.
 - `ENV=DEVELOPMENT` → `http_client.fetch_data` returns mock JSON from `mock_data/*.json` for infra endpoints; real HTTP only for `all_down` + `events`. `scanner_status.json`/`device_status.json` are untracked and generated with current timestamps by `python mock_data/refresh.py` (the test session runs it first).
 - `mock_database/init.sql` seeds a full scanner DB for local Docker Compose.
 - `make up` starts dev stack; `docker-compose.prod.yaml` for production.
+- `STATE_DIR` (default `state/`, under the `.:/app` bind mount) holds the JSON state files; see `conventions.md`. Tests get an empty one each (`tests/conftest.py`).
 - **Deploy with `make deploy`**, never `docker restart poliswag`: the code is bind-mounted (`.:/app`) but the dependencies are in the image, so a restart after a change to `requirements.txt` runs new code on the old image and the bot crashes on every start (2026-11-10: eleven restarts in eighty seconds, and nothing alerts on that). `make deploy` rebuilds, recreates the container and runs `scripts/deploy_check.sh`, which waits for the scheduler's heartbeat and fails with the container log if the bot restarted or never passed.

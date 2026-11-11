@@ -14,6 +14,7 @@ from modules.http_client import fetch_data
 from modules.logging_mixin import LoggingMixin
 from modules.owner_alert import notify_owner
 from modules.scanner_notice import post_scanner_status
+from modules.state_store import StateFile, still_running
 
 
 class StackRecovery(LoggingMixin):
@@ -85,6 +86,35 @@ class StackRecovery(LoggingMixin):
         self._auto_recreate_setting = CachedBoolSetting(
             poliswag, "auto_recreate_enabled"
         )
+        # The episode survives a restart: without it a deploy in the middle
+        # of an outage started the ladder again from zero, ran its rungs a
+        # second time and told the mods "em baixo há 5 min" once more.
+        self._state = StateFile("stack-recovery", self._log)
+        saved = self._state.load()
+        if saved.get("red_since") and still_running(saved):
+            self._red_since = float(saved["red_since"])
+            self._recovery_attempts = int(saved.get("attempts") or 0)
+            self._wait_announced = bool(saved.get("wait_announced"))
+            self._session_wait_announced = bool(saved.get("session_wait_announced"))
+            self._game_update_announced = bool(saved.get("game_update_announced"))
+            self._game_update_reason = str(saved.get("game_update_reason") or "")
+
+    def _remember(self) -> None:
+        """Write the episode down (nothing while the map scans)."""
+        if self._red_since is None:
+            self._state.save({})
+            return
+        self._state.save(
+            {
+                "red_since": self._red_since,
+                "attempts": self._recovery_attempts,
+                "wait_announced": self._wait_announced,
+                "session_wait_announced": self._session_wait_announced,
+                "game_update_announced": self._game_update_announced,
+                "game_update_reason": self._game_update_reason,
+                "seen_at": time.time(),
+            }
+        )
 
     async def get_auto_recreate_enabled(self) -> bool:
         return await self._auto_recreate_setting.get()
@@ -99,6 +129,12 @@ class StackRecovery(LoggingMixin):
         didn't answer), ``workers`` the phone's workers in rotom-ng (None when
         it didn't answer). Returns True when a rung ran and succeeded.
         """
+        try:
+            return await self._observe(all_red, workers)
+        finally:
+            self._remember()
+
+    async def _observe(self, all_red: bool | None, workers: int | None) -> bool:
         now = time.time()
         problem = await self._diagnose(all_red, workers)
 

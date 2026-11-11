@@ -20,6 +20,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
 | `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
 | `account_guard.py` | Alert-only guard: fake-ban bursts and mass login failures from the scanner logs → owner DM saying what it would pause. |
+| `state_store.py` | `StateFile`: JSON state in `state/` that survives a restart (recovery ladder, phone offline, map alert, account guard). |
 | `scheduler.py` | `StepRunner`: the scheduler's steps, each with an interval and a wait budget; never cancels a run; the heartbeat's time. |
 | `scanner_manager.py` | docker-py control + `poliswag` scan state; `is_day_change()`. |
 | `quest_search.py` / `quest_exporter.py` / `quest_map.py` | Quest lookup (only future expiry is live), `quests.json` export, map PNGs. See `quests.md`. |

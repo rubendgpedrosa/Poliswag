@@ -416,8 +416,8 @@ class TestUpdateChannelAccountsStats:
                 side_effect=[
                     {"good": 5},
                     {"devices": []},
-                    {"good": 6},
-                    {"devices": []},
+                    {"good": 5},
+                    {"devices": [{"isAlive": True}]},
                 ]
             ),
         )
@@ -462,8 +462,23 @@ class TestUpdateChannelAccountsStats:
         assert account_monitor._accounts_message is new_message
 
 
-class TestAccountCardDrawnOnChange:
-    """The numbers are read every minute; the image is drawn when they move."""
+class TestAccountCardDrawing:
+    """Read every minute; drawn every five, and at once when the headline changes."""
+
+    @staticmethod
+    def _pools(ready=205, cooldown=45, in_use=86, workers=88, connected=True):
+        return [
+            {
+                "key": "scanning",
+                "title": "Scanning",
+                "accounts": {"ready": ready, "cooldown": cooldown, "in_use": in_use},
+                "device": {
+                    "connected": connected,
+                    "names": ["PocoF2Pro"] if connected else [],
+                    "workers": {"total": workers, "in_use": in_use},
+                },
+            }
+        ]
 
     @pytest.fixture
     def card(self, account_monitor, mocker):
@@ -474,7 +489,7 @@ class TestAccountCardDrawnOnChange:
         account_monitor.poliswag.ACCOUNTS_CHANNEL = channel
         account_monitor._accounts_message = message
         account_monitor.build_account_card = AsyncMock(return_value=b"PNG")
-        self.pools = [{"key": "scanning", "accounts": {"ready": 205}, "device": None}]
+        self.pools = self._pools()
         account_monitor.get_pool_stats = AsyncMock(side_effect=lambda: self.pools)
         self.clock = mocker.patch("modules.account_monitor.time.monotonic")
         self.clock.return_value = 1000.0
@@ -485,7 +500,7 @@ class TestAccountCardDrawnOnChange:
         card.build_account_card.assert_awaited_once_with(self.pools)
         card._accounts_message.edit.assert_awaited_once()
 
-    async def test_the_same_numbers_a_minute_later_draw_nothing(self, card):
+    async def test_the_same_card_a_minute_later_draws_nothing(self, card):
         await card.update_channel_accounts_stats()
         self.clock.return_value += 60
         await card.update_channel_accounts_stats()
@@ -493,33 +508,54 @@ class TestAccountCardDrawnOnChange:
         card.build_account_card.assert_awaited_once()
         card._accounts_message.edit.assert_awaited_once()
 
-    async def test_a_changed_number_draws_at_once(self, card):
+    async def test_drifting_counts_wait_for_the_five_minutes(self, card):
+        # One account out of cooldown and a worker between two accounts: the
+        # numbers moved, the card says nothing new.
         await card.update_channel_accounts_stats()
         self.clock.return_value += 60
-        self.pools = [{"key": "scanning", "accounts": {"ready": 204}, "device": None}]
+        self.pools = self._pools(ready=206, cooldown=44, in_use=87)
+        await card.update_channel_accounts_stats()
+        card.build_account_card.assert_awaited_once()
+        self.clock.return_value += CARD_REFRESH_SECONDS - 60
         await card.update_channel_accounts_stats()
         assert card.build_account_card.await_count == 2
-        assert card._accounts_message.edit.await_count == 2
+        card.build_account_card.assert_awaited_with(self.pools)
 
-    async def test_a_device_going_offline_draws_at_once(self, card):
-        self.pools = [
-            {"key": "scanning", "accounts": None, "device": {"connected": True}}
-        ]
-        await card.update_channel_accounts_stats()
-        self.clock.return_value += 60
-        self.pools = [
-            {"key": "scanning", "accounts": None, "device": {"connected": False}}
-        ]
-        await card.update_channel_accounts_stats()
-        assert card.build_account_card.await_count == 2
-
-    async def test_unchanged_numbers_are_redrawn_after_the_refresh_time(self, card):
+    async def test_it_is_redrawn_every_five_minutes_even_unchanged(self, card):
         # The area footer (spawns per hour) is not part of the comparison.
         await card.update_channel_accounts_stats()
         self.clock.return_value += CARD_REFRESH_SECONDS - 1
         await card.update_channel_accounts_stats()
         card.build_account_card.assert_awaited_once()
         self.clock.return_value += 1
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_the_phone_going_offline_draws_at_once(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = self._pools(connected=False)
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_a_changed_worker_count_draws_at_once(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = self._pools(workers=72)
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_running_low_draws_at_once(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = self._pools(ready=40)  # fewer ready than the 88 workers
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_stats_going_missing_draws_at_once(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = [{**self._pools()[0], "accounts": None}]
         await card.update_channel_accounts_stats()
         assert card.build_account_card.await_count == 2
 
@@ -552,7 +588,7 @@ class TestAccountCardDrawnOnChange:
         card.poliswag.ACCOUNTS_CHANNEL.send.assert_awaited_once()
         self.clock.return_value += 60
         await card.update_channel_accounts_stats()
-        # Sent once; the same numbers a minute later draw nothing.
+        # Sent once; the same card a minute later draws nothing.
         card.poliswag.ACCOUNTS_CHANNEL.send.assert_awaited_once()
         card.build_account_card.assert_awaited_once()
 
