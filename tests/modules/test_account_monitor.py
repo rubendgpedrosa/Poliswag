@@ -524,10 +524,11 @@ class TestAccountCardDrawing:
     async def test_it_is_redrawn_every_five_minutes_even_unchanged(self, card):
         # The area footer (spawns per hour) is not part of the comparison.
         await card.update_channel_accounts_stats()
-        self.clock.return_value += CARD_REFRESH_SECONDS - 1
+        self.clock.return_value += CARD_REFRESH_SECONDS - 60
         await card.update_channel_accounts_stats()
         card.build_account_card.assert_awaited_once()
-        self.clock.return_value += 1
+        # The fifth pass lands a few milliseconds either side of 300 s.
+        self.clock.return_value += 60 - 0.01
         await card.update_channel_accounts_stats()
         assert card.build_account_card.await_count == 2
 
