@@ -41,6 +41,10 @@ POOLS = (
 # act on is account_card.headline -- the status, a device going on or offline,
 # its workers -- and a change there is drawn at once.
 CARD_REFRESH_SECONDS = 300
+# The pools are looked at once a minute, give or take a few milliseconds, so
+# "five minutes" is the pass that lands within this of it. Without the slack
+# a pass at 299.99 s skipped the drawing and it came a minute late.
+CARD_REFRESH_SLACK = 30
 
 # A failed update (a connection reset, a Discord 503/504, a render hiccup) is
 # tried again on the next minute, and the message's "Last updated" relative
@@ -268,7 +272,8 @@ class AccountMonitor(LoggingMixin):
             if (
                 self._accounts_message is not None
                 and shown == self._card_headline
-                and now - self._card_drawn_at < CARD_REFRESH_SECONDS
+                and now - self._card_drawn_at
+                < CARD_REFRESH_SECONDS - CARD_REFRESH_SLACK
             ):
                 return
 

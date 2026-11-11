@@ -535,8 +535,10 @@ class TestStepGroups:
     def test_third_party_checks_run_every_five_minutes(self, cog):
         every = {step.name: step.every for step in cog._runner.loops["chores"]}
         assert every["game_version"] == every["polisnatch_update"] == 300
-        assert every["events_fetch"] == every["masterfile"] == 300
+        assert every["masterfile"] == 300
         assert every["tracking_health"] == 900
+        # Paces itself: a 15 min cache, and a retry each pass while it fails.
+        assert every["events_fetch"] == 0
         # Due once a day, and retried each minute until Discord takes them.
         assert every["weekly_digest"] == every["error_digest"] == 0
         assert every["trade_digest"] == 0

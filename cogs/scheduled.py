@@ -231,12 +231,11 @@ class Scheduled(commands.Cog):
             ],
             "chores": [
                 # The fetch stays right before the check that reads what it
-                # stored. A new event's post renders one image per event.
-                Step(
-                    "events_fetch",
-                    lambda: poliswag.event_manager.fetch_events(),
-                    every=300,
-                ),
+                # stored, and paces itself (a 15 min cache, a retry each pass
+                # while ScrapedDuck fails): an interval here as well made it
+                # run every 15 or every 20 minutes by a few milliseconds'
+                # chance. A new event's post renders one image per event.
+                Step("events_fetch", lambda: poliswag.event_manager.fetch_events()),
                 Step("events", lambda: self._check_events(), budget=120),
                 # A forced update comes with days of notice; once a minute
                 # was 1,440 requests a day to Niantic and half the error log.
