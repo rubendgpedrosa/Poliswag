@@ -74,12 +74,12 @@ async def test_status_reads_through_a_unit(cog, monkeypatch):
 
 async def test_leaderboard_reads_through_a_unit(cog, monkeypatch):
     data = {"metadata": {"note": "nota"}, "trainers": []}
-    board = MagicMock(return_value=data)
+    board = AsyncMock(return_value=data)
     monkeypatch.setattr("modules.spawn_history.leaderboard", board)
     monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
     ctx = MagicMock(send=AsyncMock())
     await cog.report.callback(cog, ctx, 12)
-    assert cog.poliswag.db.units == [(board, (12,), {"read_timeout": 15})]
+    board.assert_awaited_once_with(cog.poliswag.db, 12)
     assert ctx.send.call_args.args[0] == "nota"
 
 

@@ -436,9 +436,7 @@ class ShinyLeaderboard:
     async def send(self, data=None):
         await scan_areas.ensure()
         if data is None:
-            data = await self.poliswag.db.unit(
-                spawn_history.leaderboard, 24, read_timeout=15
-            )
+            data = await spawn_history.leaderboard(self.poliswag.db, 24)
         if not data["metadata"].get("available"):
             raise ValueError("A recolha ainda não começou.")
         png = await asyncio.to_thread(render_report, data, await self.avatars())
@@ -471,9 +469,7 @@ class ShinyLeaderboard:
         if data is None:
             # An invalid period is refused before any connection is opened.
             spawn_history.hours_value(hours)
-            data = await self.poliswag.db.unit(
-                spawn_history.shundo_leaderboard, hours, read_timeout=15
-            )
+            data = await spawn_history.shundo_leaderboard(self.poliswag.db, hours)
         if not data["metadata"].get("available"):
             raise ValueError("A recolha ainda não começou.")
         png = await asyncio.to_thread(

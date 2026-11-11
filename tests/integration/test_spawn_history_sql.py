@@ -280,13 +280,17 @@ def test_report_ignores_preferences_and_exposes_only_aggregates(
     sql("INSERT INTO shiny_link VALUES (1,'Trainer','0123456789abcdef','linked')")
     sql("INSERT INTO pogoleiria.trade_player (discord_id) VALUES (1)")
     monkeypatch.setattr(spawn_history, "shiny_draw", lambda *args: 0.0)
-    report = unit(spawn_history.leaderboard, 24)
+    report = spawn_history.build_leaderboard(
+        unit(spawn_history.read_leaderboard, 24), 24
+    )
     row = report["trainers"][0]
     assert row["predicted_shinies"] == 2 and report["eligible_spawns"] == 2
     assert row["areas"] == {"leiria": 1, "marinha": 1} and row["hundo_shinies"] == 1
     assert row["shinies_per_hour"] is None and "player_id" not in row
     sql("UPDATE spawn_history_state SET started_at=last_capture_at-86400")
-    report = unit(spawn_history.leaderboard, 24)
+    report = spawn_history.build_leaderboard(
+        unit(spawn_history.read_leaderboard, 24), 24
+    )
     assert report["metadata"]["complete_window"]
     assert report["trainers"][0]["shinies_per_hour"] == round(2 / 24, 3)
 

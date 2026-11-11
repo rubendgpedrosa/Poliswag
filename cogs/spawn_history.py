@@ -100,9 +100,7 @@ class SpawnHistory(commands.Cog):
     async def report(self, ctx, hours: int = 24):
         await scan_areas.ensure()
         spawn_history.hours_value(hours)
-        data = await self.poliswag.db.unit(
-            spawn_history.leaderboard, hours, read_timeout=15
-        )
+        data = await spawn_history.leaderboard(self.poliswag.db, hours)
         await ctx.send(
             data["metadata"].get("note", "A recolha ainda não começou."),
             file=discord.File(
