@@ -255,3 +255,89 @@ class TestCheckPool:
         )
         await guard.check_pool(at(0))
         notify.assert_not_awaited()
+
+
+class TestAlertsSurviveARestart:
+    def _guard(self, stats=None):
+        poliswag = MagicMock()
+        poliswag.account_monitor.get_account_stats = AsyncMock(return_value=stats)
+        return AccountGuard(poliswag=poliswag)
+
+    async def test_a_low_pool_is_not_alerted_again_by_a_deploy(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        monkeypatch.setattr(ag.time, "time", lambda: at(0))
+        stats = {"ready": 12, "in_use": 87, "cooldown": 200, "disabled": 0}
+        first = self._guard(stats)
+        await first.check_pool(at(0))
+        first._remember()
+        notify.assert_awaited_once()
+
+        monkeypatch.setattr(ag.time, "time", lambda: at(120))
+        second = self._guard(stats)
+        assert second._pool_state == "low"
+        await second.check_pool(at(120))
+        notify.assert_awaited_once()
+
+    async def test_it_still_repeats_after_the_cooldown(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        stats = {"ready": 12, "in_use": 87, "cooldown": 200, "disabled": 0}
+        first = self._guard(stats)
+        await first.check_pool(at(0))
+        first._remember()
+
+        second = self._guard(stats)
+        await second.check_pool(at(ag.COOLDOWN + 1))
+        assert notify.await_count == 2
+
+    async def test_a_worse_level_still_alerts_at_once(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        first = self._guard({"ready": 12, "in_use": 87, "cooldown": 200})
+        await first.check_pool(at(0))
+        first._remember()
+
+        second = self._guard({"ready": 4, "in_use": 87, "cooldown": 208})
+        await second.check_pool(at(60))
+        assert notify.await_count == 2
+
+    def test_a_rule_keeps_its_cooldown(self, monkeypatch):
+        monkeypatch.setattr(ag.time, "time", lambda: at(10))
+        first = self._guard()
+        first._started = at(0)
+        for i in range(3):
+            first.ingest({"dragonite": [problem_line(i)]}, at(i))
+        assert [trip[0] for trip in first.due_trips(at(3))] == ["worker"]
+        first._remember()
+
+        monkeypatch.setattr(ag.time, "time", lambda: at(60))
+        second = self._guard()
+        assert second._last_alert == {("worker", "main", "Leiria_26"): at(3)}
+
+    def test_a_cooldown_that_ran_out_is_not_brought_back(self, monkeypatch):
+        monkeypatch.setattr(ag.time, "time", lambda: at(10))
+        first = self._guard()
+        first._last_alert[("fleet", "main", "")] = at(5)
+        first._remember()
+
+        monkeypatch.setattr(ag.time, "time", lambda: at(5 + ag.COOLDOWN + 1))
+        assert self._guard()._last_alert == {}
+
+    def test_a_damaged_file_is_ignored(self):
+        guard = self._guard()
+        guard._state.path.parent.mkdir(parents=True, exist_ok=True)
+        guard._state.path.write_text(
+            '{"last_alert": {"bad-key": 5, "a|b|c": "x"}, "pool_state": "odd"}'
+        )
+        again = self._guard()
+        assert again._last_alert == {} and again._pool_state is None
+
+    async def test_a_tick_writes_what_it_alerted(self, monkeypatch):
+        notify = AsyncMock(return_value=True)
+        monkeypatch.setattr(ag, "notify_owner", notify)
+        monkeypatch.setattr(ag.Config, "IS_PRODUCTION", True)
+        guard = self._guard({"ready": 12, "in_use": 87, "cooldown": 200})
+        guard._read_new_lines = MagicMock(return_value={})
+        await guard.tick()
+        assert self._guard()._pool_state == "low"

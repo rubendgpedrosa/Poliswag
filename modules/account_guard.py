@@ -41,6 +41,7 @@ from collections import deque
 from modules.config import Config
 from modules.logging_mixin import LoggingMixin
 from modules.owner_alert import notify_owner
+from modules.state_store import StateFile
 
 MODE = "alert"
 
@@ -221,6 +222,32 @@ class AccountGuard(LoggingMixin):
         self._started = None
         self._pool_state = None  # last pool level alerted
         self._pool_alert_at = -1e12
+        # What was already alerted survives a restart: without it every
+        # deploy while the pool was low sent the low-pool DM again, and a
+        # rule could alert twice inside its COOLDOWN.
+        self._state = StateFile("account-guard", self._log)
+        saved = self._state.load()
+        now = time.time()
+        for key, when in (saved.get("last_alert") or {}).items():
+            parts = tuple(str(key).split("|"))
+            if len(parts) == 3 and isinstance(when, (int, float)):
+                if now - when < COOLDOWN:
+                    self._last_alert[parts] = float(when)
+        if saved.get("pool_state") in ("low", "critical"):
+            self._pool_state = saved["pool_state"]
+        if isinstance(saved.get("pool_alert_at"), (int, float)):
+            self._pool_alert_at = float(saved["pool_alert_at"])
+
+    def _remember(self) -> None:
+        self._state.save(
+            {
+                "last_alert": {
+                    "|".join(key): when for key, when in self._last_alert.items()
+                },
+                "pool_state": self._pool_state,
+                "pool_alert_at": self._pool_alert_at,
+            }
+        )
 
     def _read_new_lines(self, since, until):
         """Blocking: timestamped lines per container in [since, until]."""
@@ -291,6 +318,7 @@ class AccountGuard(LoggingMixin):
             )
             await notify_owner(self.poliswag, text, title=title, tag="account_guard")
         await self.check_pool(now)
+        self._remember()
 
     async def check_pool(self, now):
         try:

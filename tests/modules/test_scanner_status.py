@@ -1693,3 +1693,71 @@ class TestMapDiscordAlerts:
         await scanner_status.trigger_map_restored_action(5)
         dashboard.assert_not_awaited()
         discord_alert.assert_not_awaited()
+
+
+class TestMapAlertSurvivesARestart:
+    def _setup(self, scanner_status, mocker, *, seconds_ago=700):
+        TestTriggerAllDownAction()._setup(
+            scanner_status, mocker, seconds_ago=seconds_ago
+        )
+        mocker.patch("modules.scanner_status.Config.IS_PRODUCTION", True)
+        mocker.patch.object(
+            scanner_status, "get_voice_channel", new=AsyncMock(return_value=None)
+        )
+        dashboard = mocker.patch("modules.scanner_status.fetch_data", new=AsyncMock())
+        discord_alert = mocker.patch(
+            "modules.scanner_status.notify_owner", new=AsyncMock(return_value=True)
+        )
+        return dashboard, discord_alert
+
+    @staticmethod
+    def _restarted():
+        poliswag = MagicMock()
+        poliswag.stack_recovery.observe = AsyncMock()
+        poliswag.account_monitor.connected_worker_count = AsyncMock(return_value=16)
+        return ScannerStatus(poliswag=poliswag)
+
+    async def test_the_down_alert_is_not_sent_a_second_time(
+        self, scanner_status, mocker
+    ):
+        _, discord_alert = self._setup(scanner_status, mocker)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        discord_alert.assert_awaited_once()
+
+        second = self._restarted()
+        assert second.map_down_alerted is True
+        assert second._map_down_discord_sent is True
+        self._setup(second, mocker)
+        discord_alert = mocker.patch(
+            "modules.scanner_status.notify_owner", new=AsyncMock(return_value=True)
+        )
+        await second.rename_voice_channels(_ws(0, 0))
+        discord_alert.assert_not_awaited()
+
+    async def test_the_recovery_still_closes_the_alert(self, scanner_status, mocker):
+        self._setup(scanner_status, mocker)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+
+        second = self._restarted()
+        _, discord_alert = self._setup(second, mocker, seconds_ago=5)
+        await second.rename_voice_channels(_ws(0, 0))
+        discord_alert.assert_awaited_once()
+        assert discord_alert.call_args.kwargs["title"] == "Mapa recuperado"
+        # Closed: a third process has nothing to pick up.
+        assert self._restarted().map_down_alerted is False
+
+    async def test_a_map_that_scans_leaves_nothing_behind(self, scanner_status, mocker):
+        self._setup(scanner_status, mocker, seconds_ago=5)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        second = self._restarted()
+        assert second.map_down_alerted is False
+        assert second._map_down_discord_sent is False
+
+    async def test_an_alert_nobody_saw_for_half_an_hour_is_not_picked_up(
+        self, scanner_status, mocker
+    ):
+        self._setup(scanner_status, mocker)
+        await scanner_status.rename_voice_channels(_ws(0, 0))
+        real_now = time.time()
+        mocker.patch("modules.state_store.time.time", return_value=real_now + 1801)
+        assert self._restarted().map_down_alerted is False
