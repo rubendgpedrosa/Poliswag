@@ -4,7 +4,6 @@ import json
 import os
 import re
 import time
-import traceback
 
 import aiohttp
 import discord
@@ -20,6 +19,7 @@ from modules.owner_alert import notify_owner
 from modules.permissions import mods_only
 from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules.pokemon_name_sync import sync_pokemon_names
+from modules.scheduler import Step, StepRunner
 from modules.shiny_alerts import ShinyAlerts
 from modules.shiny_availability import ShinyAvailability
 from modules.shiny_odds import ShinyOdds
@@ -27,11 +27,26 @@ from modules.trade_announcer import TradeAnnouncer
 from modules.trade_digest import TradeDigest
 from modules.trade_dm import TradeDM
 
-# A step that alone outlasts the 60s tick interval delays every step after it
-# and the next tick. Logged as ERROR so the owner's daily error digest sees it: the
-# 2026-09-23 rename stall ran for 5 hours visible only as discord.http
-# warnings on stdout.
-_SLOW_STEP_SECONDS = 60
+# Every loop passes once a minute; a step with `every` skips the passes in
+# between. The steps are grouped by what they must not wait behind:
+#
+# - health: is the map scanning, and the ladder that heals it. Nothing slow
+#   or third-party goes in front of it.
+# - alerts: what members are waiting for, read from our own databases.
+# - display: the account card, a render and an upload that have stalled for
+#   minutes (19 of the 20 slow steps logged from 2026-09-24 to 2026-11-10).
+# - chores: third-party endpoints and the jobs that are due once a day.
+#
+# Each loop starts this many seconds after the bot is ready, so the four do
+# not reach for the database and Discord in the same second.
+_PASS_SECONDS = 60
+_LOOP_OFFSETS = {"health": 0, "alerts": 15, "display": 30, "chores": 45}
+_LOOP_TITLES = {
+    "health": "Saúde do mapa",
+    "alerts": "Alertas",
+    "display": "Painel de contas",
+    "chores": "Tarefas",
+}
 
 
 # The daily error digest: an error.log entry's first line, split into its
@@ -101,6 +116,43 @@ def _error_digest_description(entries, today) -> str:
     return "\n".join(lines)[:_DIGEST_DESCRIPTION_LIMIT]
 
 
+def _seconds(value) -> str:
+    """'0,4 s', '12 s', '3 min', '2 h'."""
+    if value < 10:
+        return f"{value:.1f} s".replace(".", ",")
+    if value < 120:
+        return f"{value:.0f} s"
+    if value < 7200:
+        return f"{value / 60:.0f} min"
+    return f"{value / 3600:.0f} h"
+
+
+def _step_line(step, now) -> str:
+    """One step for `!ticks`: how long its latest run took and when it was."""
+    if step.last_started is None:
+        state = "ainda não correu"
+    elif step.running:
+        state = f"a correr há {_seconds(now - step.last_started)}"
+    else:
+        state = (
+            f"{_seconds(step.last_duration or 0)} · "
+            f"há {_seconds(now - step.last_started)}"
+        )
+    icon = "🔴" if step.overdue else "🟠" if step.last_error else "🟢"
+    notes = []
+    if step.every:
+        minutes = round(step.every / 60)
+        notes.append(f"de {minutes} em {minutes} min")
+    if step.failures:
+        notes.append("1 falha" if step.failures == 1 else f"{step.failures} falhas")
+    if step.overruns:
+        notes.append(f"{step.overruns}× além do tempo")
+    if step.longest >= 10:
+        notes.append(f"máx. {_seconds(step.longest)}")
+    line = f"{icon} `{step.name}` {state}"
+    return f"{line} ({', '.join(notes)})" if notes else line
+
+
 class Scheduled(commands.Cog):
     def __init__(self, poliswag):
         self.poliswag = poliswag
@@ -128,6 +180,94 @@ class Scheduled(commands.Cog):
         self._shiny_odds = ShinyOdds(poliswag)
         self._shiny_availability = ShinyAvailability(poliswag)
         self._event_notices = EventNotices(poliswag)
+        self._runner = StepRunner(
+            lambda message, level: poliswag.utility.log_to_file(message, level)
+        )
+        for name, steps in self._steps().items():
+            self._runner.add_loop(name, steps)
+
+    def _steps(self):
+        """The steps of each loop, in the order a pass offers them.
+
+        `every` is in seconds, for a step that has no reason to run each
+        minute. `budget` is how long the loop waits for a step before going
+        on without it (modules/scheduler.py); the default is one pass. Each
+        step looks its method up when it runs, so replacing one on the cog or
+        on a service takes effect on the next pass.
+        """
+        poliswag = self.poliswag
+        return {
+            "health": [
+                Step("scan_areas", lambda: self._refresh_scan_areas()),
+                # A full recovery recreates the scanner containers (up to
+                # 180 s) and then restarts the phone's apps.
+                Step("workers", lambda: self._check_workers(), budget=300),
+                Step("account_guard", lambda: poliswag.account_guard.tick()),
+            ],
+            "alerts": [
+                # The end of the scan also notifies trackers and exports.
+                Step(
+                    "quest_scan",
+                    lambda: self._check_quest_scan_progress(),
+                    budget=120,
+                ),
+                Step("quest_export", lambda: self._check_quest_export()),
+                Step("lure_presence", lambda: self._update_lure_status()),
+                Step("trade_announcer", lambda: self._trade_announcer.tick()),
+                Step("trade_dm", lambda: self._trade_dm.tick()),
+                Step("hundo_alerts", lambda: self._hundo_alerts.tick()),
+                # The alerts read the odds and the confirmed variants the two
+                # steps before them have just written.
+                Step("shiny_odds", lambda: self._shiny_odds.tick()),
+                Step("shiny_availability", lambda: self._shiny_availability.tick()),
+                Step("shiny_alerts", lambda: self._shiny_alerts.tick()),
+            ],
+            "display": [
+                Step(
+                    "account_card",
+                    lambda: self._update_accounts_display(),
+                    budget=90,
+                ),
+            ],
+            "chores": [
+                # The fetch stays right before the check that reads what it
+                # stored. A new event's post renders one image per event.
+                Step(
+                    "events_fetch",
+                    lambda: poliswag.event_manager.fetch_events(),
+                    every=300,
+                ),
+                Step("events", lambda: self._check_events(), budget=120),
+                # A forced update comes with days of notice; once a minute
+                # was 1,440 requests a day to Niantic and half the error log.
+                Step(
+                    "game_version",
+                    lambda: self._check_version_update(),
+                    every=300,
+                ),
+                Step(
+                    "polisnatch_update",
+                    lambda: self._check_polisnatch_update(),
+                    every=300,
+                ),
+                Step("weekly_digest", lambda: self._check_weekly_digest()),
+                Step("error_digest", lambda: self._check_daily_error_digest()),
+                Step("trade_digest", lambda: self._check_trade_digest()),
+                Step(
+                    "tracking_health",
+                    lambda: self._check_tracking_health(),
+                    every=900,
+                ),
+                # Last: a masterfile reload exports the megas, which fetches
+                # from PokeAPI and has taken over a minute.
+                Step(
+                    "masterfile",
+                    lambda: self._refresh_masterfile_data(),
+                    every=300,
+                    budget=180,
+                ),
+            ],
+        }
 
     async def _load_digest_date(self):
         try:
@@ -182,11 +322,17 @@ class Scheduled(commands.Cog):
         self._last_weekly_digest_monday = await self._load_digest_date()
         self._last_error_digest_at = await self._load_error_digest_at()
         self._last_tracking_alert_at = await self._load_tracking_alert_at()
-        self.scheduled_tasks.start()
+        for loop in self._task_loops():
+            loop.start()
 
     async def cog_unload(self):
-        self.scheduled_tasks.cancel()
+        for loop in self._task_loops():
+            loop.cancel()
+        self._runner.cancel_running()
         print(f"{self.__class__.__name__} unloaded!")
+
+    def _task_loops(self):
+        return (self.health_loop, self.alerts_loop, self.display_loop, self.chores_loop)
 
     @mods_only()
     @commands.command(
@@ -244,6 +390,26 @@ class Scheduled(commands.Cog):
 
         await self._event_notices.send_change_notifications(ctx.channel, changed)
 
+    @mods_only()
+    @commands.command(
+        name="ticks", brief="Estado do agendador: passos e duração (admin)"
+    )
+    async def tickscmd(self, ctx):
+        # No docstring: discord.py would show it as the command's help text.
+        now = time.time()
+        embed = status_embed(
+            "Agendador",
+            "Duração e idade da última execução de cada passo. "
+            "🟠 a última falhou · 🔴 ainda a correr além do tempo previsto.",
+        )
+        for name, steps in self._runner.loops.items():
+            embed.add_field(
+                name=_LOOP_TITLES[name],
+                value="\n".join(_step_line(step, now) for step in steps)[:1024],
+                inline=False,
+            )
+        await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
     async def _refresh_masterfile_data(self):
         await asyncio.to_thread(self.poliswag.quest_search.load_translation_data)
         masterfile_refreshed = await asyncio.to_thread(
@@ -267,82 +433,72 @@ class Scheduled(commands.Cog):
         await sync_pokemon_costumes(self.poliswag.db, masterfile)
         self._pokemon_names_synced = True
 
-    async def _run_tick_step(self, step):
-        """Run one scheduled_tasks step in isolation.
-
-        Each tick's responsibilities are unrelated to one another (version
-        checks, quest scanning, lure status, ...) -- a bug or transient
-        failure in one must not stop the rest from running, especially
-        _check_workers, which feeds StackRecovery's self-healing.
-        """
-        started = time.monotonic()
-        try:
-            await step()
-        except Exception as e:
-            print("CRASH ---", e)
-            traceback.print_exc()
-            self.poliswag.utility.log_to_file(
-                f"{str(e)}\n{traceback.format_exc()}", "CRASH"
-            )
-        finally:
-            elapsed = time.monotonic() - started
-            if elapsed >= _SLOW_STEP_SECONDS:
-                name = getattr(step, "__qualname__", None) or repr(step)
-                self.poliswag.utility.log_to_file(
-                    f"Scheduler step {name} took {elapsed:.0f}s "
-                    f"(tick interval is 60s); later steps waited on it",
-                    "ERROR",
-                )
-
     async def _refresh_scan_areas(self):
         """Keep the registry and Dragonite fences fresh (every ~10 min)."""
         await scan_areas.ensure(self.poliswag.utility.log_to_file)
 
-    @tasks.loop(seconds=60)
-    async def scheduled_tasks(self):
-        for step in (
-            self._refresh_scan_areas,
-            self._refresh_masterfile_data,
-            self.poliswag.event_manager.fetch_events,
-            self._check_version_update,
-            self._check_quest_scan_progress,
-            self._check_quest_export,
-            self._check_events,
-            self._check_workers,
-            self.poliswag.account_guard.tick,
-            self._update_lure_status,
-            self._update_accounts_display,
-            self._check_weekly_digest,
-            self._check_daily_error_digest,
-            self._check_tracking_health,
-            self._trade_announcer.tick,
-            self._trade_dm.tick,
-            self._hundo_alerts.tick,
-            self._shiny_odds.tick,
-            self._shiny_availability.tick,
-            self._shiny_alerts.tick,
-            self._check_trade_digest,
-        ):
-            await self._run_tick_step(step)
+    async def _pass(self, name):
+        """One pass of a loop, then the heartbeat for the host watchdog."""
+        await self._runner.run_pass(name)
         self._write_heartbeat()
 
+    async def _start_after(self, name):
+        await self.poliswag.wait_until_ready()
+        await asyncio.sleep(_LOOP_OFFSETS[name])
+
+    @tasks.loop(seconds=_PASS_SECONDS)
+    async def health_loop(self):
+        await self._pass("health")
+
+    @health_loop.before_loop
+    async def before_health_loop(self):
+        await self._start_after("health")
+
+    @tasks.loop(seconds=_PASS_SECONDS)
+    async def alerts_loop(self):
+        await self._pass("alerts")
+
+    @alerts_loop.before_loop
+    async def before_alerts_loop(self):
+        await self._start_after("alerts")
+
+    @tasks.loop(seconds=_PASS_SECONDS)
+    async def display_loop(self):
+        await self._pass("display")
+
+    @display_loop.before_loop
+    async def before_display_loop(self):
+        await self._start_after("display")
+
+    @tasks.loop(seconds=_PASS_SECONDS)
+    async def chores_loop(self):
+        await self._pass("chores")
+
+    @chores_loop.before_loop
+    async def before_chores_loop(self):
+        await self._start_after("chores")
+
     def _write_heartbeat(self):
-        """Proof for the host watchdog (scripts/watchdog.sh) that ticks still run."""
+        """Tell the host watchdog (scripts/watchdog.sh) the scheduler is alive.
+
+        The file's time is the oldest sign of life among the loops and any
+        step running past its budget (StepRunner.progress_at), so one loop
+        that stops, or one step that hangs for good, lets it go stale even
+        while the other loops keep passing.
+        """
+        progress = self._runner.progress_at()
         try:
             with open(Config.HEARTBEAT_FILE, "w") as f:
                 f.write(
-                    datetime.datetime.now(datetime.timezone.utc)
+                    datetime.datetime.fromtimestamp(progress, datetime.timezone.utc)
                     .replace(tzinfo=None)
                     .isoformat()
                 )
+            os.utime(Config.HEARTBEAT_FILE, (progress, progress))
         except OSError as e:
             self.poliswag.utility.log_to_file(
                 f"Could not write heartbeat: {e}", "ERROR"
             )
-
-    @scheduled_tasks.before_loop
-    async def before_scheduled_tasks(self):
-        await self.poliswag.wait_until_ready()
 
     async def _check_version_update(self):
         new_version = await self.poliswag.utility.get_new_pokemongo_version()
@@ -366,14 +522,9 @@ class Scheduled(commands.Cog):
                     f"Nova versão: {new_version}",
                 )
             )
-        await self._check_polisnatch_update()
 
     async def _check_polisnatch_update(self):
-        url = getattr(
-            Config,
-            "POLISNATCH_STATUS_URL",
-            "https://polisnatch.pogoleiria.pt/v1/game/status",
-        )
+        url = Config.POLISNATCH_STATUS_URL
         # The endpoint takes the jobs submit key and nothing else. Without a key
         # there is nothing to ask: a keyless request only counts as a failed
         # login on the server, and those throttle the jobs API for this host.
@@ -460,9 +611,7 @@ class Scheduled(commands.Cog):
             self._save_polisnatch_update_state(state)
 
     def _load_polisnatch_update_state(self) -> dict:
-        state_file = getattr(
-            Config, "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
-        )
+        state_file = Config.POLISNATCH_UPDATE_STATE_FILE
         if os.path.isfile(state_file):
             try:
                 with open(state_file, "r", encoding="utf-8") as f:
@@ -472,9 +621,7 @@ class Scheduled(commands.Cog):
         return {}
 
     def _save_polisnatch_update_state(self, state: dict) -> None:
-        state_file = getattr(
-            Config, "POLISNATCH_UPDATE_STATE_FILE", "logs/polisnatch-update-state.json"
-        )
+        state_file = Config.POLISNATCH_UPDATE_STATE_FILE
         try:
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             with open(state_file, "w", encoding="utf-8") as f:

@@ -5,8 +5,8 @@ many private helpers. The strategy:
 
 * Construct a Scheduled with a stub poliswag whose ``db.get_data_from_database``
   returns an empty list so ``_load_digest_date`` short-circuits.
-* Avoid starting the real tasks.loop by never calling ``cog_load``; we call
-  ``scheduled_tasks.coro(cog)`` directly when we need to cover it.
+* Avoid starting the real loops by never calling ``cog_load``; ``_tick(cog)``
+  runs one pass of each of them, in order, when a test needs a whole minute.
 * Invoke command callbacks via ``.callback`` and helpers as bound methods.
 * Patch ``datetime`` at the module level with a MagicMock when we need
   deterministic dates (e.g. ``_check_weekly_digest`` must behave as Monday).
@@ -18,8 +18,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.scheduled import Scheduled, _group_error_entries, setup
+from cogs.scheduled import (
+    _LOOP_OFFSETS,
+    Scheduled,
+    _group_error_entries,
+    _seconds,
+    _step_line,
+    setup,
+)
 from modules.permissions import is_mod
+from modules.scheduler import Step
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -92,6 +100,12 @@ def _make_poliswag():
 @pytest.fixture
 def cog():
     return Scheduled(_make_poliswag())
+
+
+async def _tick(cog):
+    """One pass of every loop, in order: a minute of the scheduler."""
+    for name in cog._runner.loops:
+        await cog._pass(name)
 
 
 def make_ctx(author_id="42", dm=False):
@@ -237,7 +251,7 @@ class TestTestEventCmd:
         ctx.message.delete.assert_awaited_once()
 
 
-# --- scheduled_tasks loop (via .coro) ----------------------------------------
+# --- the loops (one pass of each) ---------------------------------------------
 
 
 class TestScheduledTasksLoop:
@@ -251,7 +265,7 @@ class TestScheduledTasksLoop:
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
         cog._check_version_update.assert_awaited_once()
         cog._check_quest_scan_progress.assert_awaited_once()
         cog._check_quest_export.assert_awaited_once()
@@ -272,49 +286,55 @@ class TestScheduledTasksLoop:
         cog._update_accounts_display = AsyncMock()
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
         cog.poliswag.quest_search.generate_pokemon_item_name_map.assert_called_once()
 
-    async def test_each_tick_writes_the_heartbeat(self, cog):
+    async def test_each_pass_writes_the_heartbeat(self, cog):
         from modules.config import Config
 
-        await cog.scheduled_tasks.coro(cog)
+        await cog._pass("health")
         with open(Config.HEARTBEAT_FILE) as f:
             written = real_datetime.datetime.fromisoformat(f.read())
         # Naive UTC with no "+00:00" suffix, as utcnow() wrote it.
         assert written.tzinfo is None
 
+    async def test_heartbeat_is_as_old_as_the_loop_that_stopped_passing(self, cog):
+        import os
+
+        from modules.config import Config
+
+        # The watchdog reads the file's time. Three loops still passing must
+        # not hide a fourth that stopped twenty minutes ago.
+        stalled = real_datetime.datetime.now().timestamp() - 1200
+        cog._runner._passed["alerts"] = stalled
+        await cog._pass("health")
+        assert os.path.getmtime(Config.HEARTBEAT_FILE) == pytest.approx(stalled)
+
     async def test_exception_logged_and_swallowed(self, cog, capsys):
         cog._check_version_update = AsyncMock(side_effect=RuntimeError("boom"))
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
         cog.poliswag.utility.log_to_file.assert_called()
         out = capsys.readouterr().out
         assert "CRASH" in out
 
-    async def test_slow_step_logged_as_error(self, cog, mocker):
-        clock = mocker.patch("cogs.scheduled.time").monotonic
-        clock.side_effect = [0.0, 75.0]
+    async def test_a_step_past_its_budget_does_not_hold_up_the_next(self, cog):
+        import asyncio
 
-        async def slow_step():
-            pass
+        release = asyncio.Event()
 
-        await cog._run_tick_step(slow_step)
-        msg, level = cog.poliswag.utility.log_to_file.call_args.args
-        assert level == "ERROR"
-        assert "slow_step" in msg and "75s" in msg
+        async def stuck():
+            await release.wait()
 
-    async def test_fast_step_not_logged(self, cog, mocker):
-        clock = mocker.patch("cogs.scheduled.time").monotonic
-        clock.side_effect = [0.0, 5.0]
-        await cog._run_tick_step(AsyncMock())
-        cog.poliswag.utility.log_to_file.assert_not_called()
-
-    async def test_slow_failing_step_logs_crash_and_slowness(self, cog, mocker):
-        clock = mocker.patch("cogs.scheduled.time").monotonic
-        clock.side_effect = [0.0, 120.0]
-        await cog._run_tick_step(AsyncMock(side_effect=RuntimeError("boom")))
-        levels = [c.args[1] for c in cog.poliswag.utility.log_to_file.call_args_list]
-        assert levels == ["CRASH", "ERROR"]
+        after = AsyncMock()
+        cog._runner.add_loop(
+            "health", [Step("stuck", stuck, budget=0.01), Step("after", after)]
+        )
+        await cog._pass("health")
+        after.assert_awaited_once()
+        message, level = cog.poliswag.utility.log_to_file.call_args.args
+        assert level == "ERROR" and "stuck" in message
+        release.set()
+        await asyncio.sleep(0)
 
     async def test_one_failing_step_does_not_block_the_rest(self, cog):
         # A failure in an earlier step (e.g. the version check) must not
@@ -331,7 +351,7 @@ class TestScheduledTasksLoop:
         cog._check_weekly_digest = AsyncMock()
         cog._check_daily_error_digest = AsyncMock()
 
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
 
         cog._check_version_update.assert_awaited_once()
         cog._check_workers.assert_awaited_once()
@@ -425,7 +445,7 @@ class TestHundoAlertsStep:
         alerts = self._fake_io(
             cog, [self._player()], [self._player(hundo_confirmed_revision=2)]
         )
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
         alerts._record.assert_called_once_with(
             1, 2, delivered=True, settings=(1, "leiria,marinha")
         )
@@ -442,7 +462,7 @@ class TestHundoAlertsStep:
         cog.poliswag.get_user.return_value.send.side_effect = discord.HTTPException(
             MagicMock(status=503), "unavailable"
         )
-        await cog.scheduled_tasks.coro(cog)
+        await _tick(cog)
         alerts._record.assert_not_called()
         alerts._sync_player.assert_not_called()
         assert alerts._cleanup.call_count == 2
@@ -470,11 +490,136 @@ class TestCheckQuestExport:
         cog.poliswag.quest_exporter.export.assert_awaited_once()
 
 
-class TestBeforeScheduledTasks:
-    async def test_waits_until_ready(self, cog):
+class TestLoopStart:
+    async def test_each_loop_waits_for_ready_then_its_own_offset(self, cog, mocker):
         cog.poliswag.wait_until_ready = AsyncMock()
-        await cog.before_scheduled_tasks()
-        cog.poliswag.wait_until_ready.assert_awaited_once()
+        sleep = mocker.patch("cogs.scheduled.asyncio.sleep", new=AsyncMock())
+        await cog.before_health_loop()
+        await cog.before_alerts_loop()
+        await cog.before_display_loop()
+        await cog.before_chores_loop()
+        assert cog.poliswag.wait_until_ready.await_count == 4
+        assert [call.args[0] for call in sleep.await_args_list] == [
+            _LOOP_OFFSETS[name] for name in ("health", "alerts", "display", "chores")
+        ]
+
+    def test_offsets_spread_the_loops_over_the_minute(self):
+        assert sorted(_LOOP_OFFSETS.values()) == [0, 15, 30, 45]
+
+
+class TestStepGroups:
+    def test_health_is_only_the_map_and_the_account_guard(self, cog):
+        # Nothing slow or third-party may sit in front of the self-healing.
+        assert [step.name for step in cog._runner.loops["health"]] == [
+            "scan_areas",
+            "workers",
+            "account_guard",
+        ]
+
+    def test_the_account_card_has_a_loop_to_itself(self, cog):
+        assert [step.name for step in cog._runner.loops["display"]] == ["account_card"]
+
+    def test_every_step_is_in_exactly_one_loop(self, cog):
+        names = [step.name for steps in cog._runner.loops.values() for step in steps]
+        assert len(names) == len(set(names)) == 22
+
+    def test_alerts_keep_the_order_the_shiny_steps_rely_on(self, cog):
+        names = [step.name for step in cog._runner.loops["alerts"]]
+        assert names.index("quest_scan") < names.index("quest_export")
+        assert names[-3:] == ["shiny_odds", "shiny_availability", "shiny_alerts"]
+
+    def test_events_are_fetched_right_before_they_are_checked(self, cog):
+        names = [step.name for step in cog._runner.loops["chores"]]
+        assert names.index("events") == names.index("events_fetch") + 1
+
+    def test_third_party_checks_run_every_five_minutes(self, cog):
+        every = {step.name: step.every for step in cog._runner.loops["chores"]}
+        assert every["game_version"] == every["polisnatch_update"] == 300
+        assert every["events_fetch"] == every["masterfile"] == 300
+        assert every["tracking_health"] == 900
+        # Due once a day, and retried each minute until Discord takes them.
+        assert every["weekly_digest"] == every["error_digest"] == 0
+        assert every["trade_digest"] == 0
+
+    def test_only_the_workers_step_may_take_five_minutes(self, cog):
+        budgets = {
+            step.name: step.budget
+            for steps in cog._runner.loops.values()
+            for step in steps
+        }
+        assert budgets["workers"] == 300
+        assert max(v for k, v in budgets.items() if k != "workers") == 180
+
+    async def test_a_step_replaced_on_the_cog_is_the_one_that_runs(self, cog):
+        cog._check_workers = AsyncMock()
+        await cog._pass("health")
+        cog._check_workers.assert_awaited_once()
+
+    async def test_the_version_check_no_longer_runs_the_polisnatch_poll(self, cog):
+        cog._check_polisnatch_update = AsyncMock()
+        await cog._check_version_update()
+        cog._check_polisnatch_update.assert_not_awaited()
+
+
+class TestTicksCommand:
+    def test_gated_to_mods(self):
+        assert is_mod in Scheduled.tickscmd.checks
+
+    async def test_lists_every_loop_and_step(self, cog):
+        ctx = make_ctx()
+        ctx.send = AsyncMock()
+        await cog._pass("health")
+        await Scheduled.tickscmd.callback(cog, ctx)
+        embed = ctx.send.await_args.kwargs["embed"]
+        assert [field.name for field in embed.fields] == [
+            "Saúde do mapa",
+            "Alertas",
+            "Painel de contas",
+            "Tarefas",
+        ]
+        assert "`workers`" in embed.fields[0].value
+        assert "ainda não correu" in embed.fields[1].value
+        assert all(len(field.value) <= 1024 for field in embed.fields)
+
+    def test_a_finished_step_shows_duration_and_age(self):
+        step = Step("workers", AsyncMock(), last_started=1000.0, last_duration=1.24)
+        assert _step_line(step, 1042.0) == "🟢 `workers` 1,2 s · há 42 s"
+
+    def test_a_failed_step_is_orange_and_counts_its_failures(self):
+        step = Step(
+            "events",
+            AsyncMock(),
+            last_started=1000.0,
+            last_duration=0.5,
+            last_error="RuntimeError: boom",
+            failures=3,
+        )
+        assert _step_line(step, 1010.0) == "🟠 `events` 0,5 s · há 10 s (3 falhas)"
+
+    def test_an_overdue_step_is_red_with_its_interval_and_overruns(self):
+        step = Step(
+            "masterfile",
+            AsyncMock(),
+            every=300,
+            last_started=1000.0,
+            last_duration=200.0,
+            overdue=True,
+            overruns=1,
+            longest=200.0,
+        )
+        assert _step_line(step, 1100.0) == (
+            "🔴 `masterfile` 3 min · há 100 s "
+            "(de 5 em 5 min, 1× além do tempo, máx. 3 min)"
+        )
+
+    def test_seconds_reads_naturally(self):
+        assert [_seconds(v) for v in (0.42, 9.96, 75, 300, 7200)] == [
+            "0,4 s",
+            "10,0 s",
+            "75 s",
+            "5 min",
+            "2 h",
+        ]
 
 
 # --- _check_version_update ----------------------------------------------------
@@ -1254,18 +1399,34 @@ class TestGroupErrorEntries:
 
 
 class TestLifecycle:
-    async def test_cog_load_starts_loop_and_prints(self, cog, capsys):
-        # Prevent the task from actually running in the background.
-        cog.scheduled_tasks.start = MagicMock()
+    async def test_cog_load_starts_every_loop_and_prints(self, cog, capsys, mocker):
+        # Prevent the tasks from actually running in the background.
+        loops = [MagicMock() for _ in range(4)]
+        mocker.patch.object(cog, "_task_loops", return_value=loops)
         await cog.cog_load()
-        cog.scheduled_tasks.start.assert_called_once()
+        for loop in loops:
+            loop.start.assert_called_once()
         assert "Scheduled loaded" in capsys.readouterr().out
 
-    async def test_cog_unload_cancels_loop_and_prints(self, cog, capsys):
-        cog.scheduled_tasks.cancel = MagicMock()
+    async def test_cog_unload_cancels_loops_and_background_runs(
+        self, cog, capsys, mocker
+    ):
+        loops = [MagicMock() for _ in range(4)]
+        mocker.patch.object(cog, "_task_loops", return_value=loops)
+        cancel_running = mocker.patch.object(cog._runner, "cancel_running")
         await cog.cog_unload()
-        cog.scheduled_tasks.cancel.assert_called_once()
+        for loop in loops:
+            loop.cancel.assert_called_once()
+        cancel_running.assert_called_once()
         assert "Scheduled unloaded" in capsys.readouterr().out
+
+    def test_the_four_loops_are_the_ones_started(self, cog):
+        assert cog._task_loops() == (
+            cog.health_loop,
+            cog.alerts_loop,
+            cog.display_loop,
+            cog.chores_loop,
+        )
 
 
 class TestSetup:

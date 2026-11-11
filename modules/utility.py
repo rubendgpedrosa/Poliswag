@@ -26,11 +26,11 @@ LOG_BACKUP_COUNT = 5
 # the scheduler tick open.
 VERSION_CHECK_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
-# The version check runs on every 60 s scheduler tick and a single timeout
-# heals on the next one, so a network failure is a WARNING until it has
-# lasted this many checks in a row (about ten minutes); then it is logged
-# once as an ERROR, which reaches the owner's daily error digest.
-VERSION_CHECK_ERROR_AFTER = 10
+# The version check runs every five minutes (cogs/scheduled.py) and a single
+# timeout heals on the next one, so a network failure is a WARNING until it
+# has lasted this many checks in a row (about fifteen minutes); then it is
+# logged once as an ERROR, which reaches the owner's daily error digest.
+VERSION_CHECK_ERROR_AFTER = 3
 
 # What a failing request to the endpoint raises: aiohttp errors, the
 # request timeout, and socket-level errors.
