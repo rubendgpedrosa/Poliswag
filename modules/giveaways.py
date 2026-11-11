@@ -42,7 +42,6 @@ INSERT_SQL = (
     "announcement_reply_id = NULL, replacing_ids = NULL"
 )
 SELECT_SQL = "SELECT * FROM giveaway WHERE message_id = %s"
-OPEN_SQL = "SELECT * FROM giveaway WHERE status = 'open' ORDER BY draw_at"
 DUE_SQL = (
     "SELECT * FROM giveaway WHERE status = 'open' AND draw_at <= UTC_TIMESTAMP() "
     "ORDER BY draw_at"
