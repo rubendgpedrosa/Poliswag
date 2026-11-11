@@ -1,6 +1,5 @@
 """Owner access to the independent 48-hour raw spawn recorder."""
 
-import asyncio
 import io
 import json
 
@@ -44,7 +43,9 @@ class SpawnHistory(commands.Cog):
     @tasks.loop(seconds=spawn_history.POLL_SECONDS)
     async def collect(self):
         try:
-            await asyncio.to_thread(spawn_history.capture)
+            # A unit is a connection of its own per capture, so a slow capture
+            # never holds up the bot's shared connection.
+            await self.poliswag.db.unit(spawn_history.capture, read_timeout=15)
         except Exception as error:
             self.poliswag.utility.log_to_file(
                 f"Spawn history capture failed: {type(error).__name__}", "ERROR"
@@ -61,7 +62,9 @@ class SpawnHistory(commands.Cog):
     )
     @owner_only()
     async def history(self, ctx, hours: int = 24):
-        data = await asyncio.to_thread(spawn_history.status, hours)
+        # An invalid period is refused before any connection is opened.
+        spawn_history.hours_value(hours)
+        data = await self.poliswag.db.unit(spawn_history.status, hours, read_timeout=15)
         text = "A recolha ainda não começou."
         if data["available"]:
             text = (
@@ -77,7 +80,10 @@ class SpawnHistory(commands.Cog):
     @history.command(name="export", brief="Exporta os spawns como JSON comprimido")
     @owner_only()
     async def export(self, ctx, hours: int = 24):
-        output = await asyncio.to_thread(spawn_history.export_json, hours)
+        spawn_history.hours_value(hours)
+        output = await self.poliswag.db.unit(
+            spawn_history.export_json, hours, read_timeout=15
+        )
         attachment = discord.File(output, filename=f"spawns-{hours}h.json.gz")
         try:
             await ctx.send(
@@ -93,7 +99,10 @@ class SpawnHistory(commands.Cog):
     @owner_only()
     async def report(self, ctx, hours: int = 24):
         await scan_areas.ensure()
-        data = await asyncio.to_thread(spawn_history.leaderboard, hours)
+        spawn_history.hours_value(hours)
+        data = await self.poliswag.db.unit(
+            spawn_history.leaderboard, hours, read_timeout=15
+        )
         await ctx.send(
             data["metadata"].get("note", "A recolha ainda não começou."),
             file=discord.File(

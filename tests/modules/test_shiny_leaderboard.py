@@ -7,8 +7,10 @@ from zoneinfo import ZoneInfo
 import pytest
 from PIL import Image
 
+from modules import spawn_history
 from modules.config import Config
 from modules.shiny_leaderboard import ShinyLeaderboard, render_report
+from tests.fakes import FakeHandle
 
 
 @pytest.fixture
@@ -369,3 +371,64 @@ def test_the_site_flag_decides(tmp_path, monkeypatch):
 
     site.unlink()
     assert shiny_leaderboard.predictions_enabled() is True
+
+
+def reading_bot(channel):
+    from unittest.mock import Mock
+
+    return SimpleNamespace(
+        db=FakeHandle(),
+        get_user=Mock(return_value=channel),
+        fetch_user=AsyncMock(),
+        get_channel=Mock(return_value=channel),
+        fetch_channel=AsyncMock(),
+    )
+
+
+async def test_send_reads_the_day_through_one_unit(monkeypatch):
+    from unittest.mock import MagicMock
+
+    channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
+    bot = reading_bot(channel)
+    board = MagicMock(
+        return_value={"metadata": {"available": True, "complete_window": True}}
+    )
+    monkeypatch.setattr("modules.spawn_history.leaderboard", board)
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
+    monkeypatch.setattr("modules.shiny_leaderboard.render_report", lambda *a: b"png")
+    delivery = ShinyLeaderboard(bot)
+    delivery.avatars = AsyncMock(return_value={})
+    assert await delivery.send() == "sent"
+    assert bot.db.units == [(board, (24,), {"read_timeout": 15})]
+    board.assert_called_once_with(bot.db.connection, 24)
+
+
+async def test_send_shundo_reads_through_one_unit(monkeypatch):
+    from unittest.mock import MagicMock
+
+    channel = SimpleNamespace(send=AsyncMock(return_value="sent"))
+    bot = reading_bot(channel)
+    board = MagicMock(
+        return_value={
+            "metadata": {"available": True, "complete_window": True},
+            "trainers": [],
+        }
+    )
+    monkeypatch.setattr("modules.spawn_history.shundo_leaderboard", board)
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        "modules.shiny_leaderboard.render_report", lambda *a, **k: b"png"
+    )
+    delivery = ShinyLeaderboard(bot)
+    delivery.avatars = AsyncMock(return_value={})
+    assert await delivery.send_shundo(hours=6) == "sent"
+    assert bot.db.units == [(board, (6,), {"read_timeout": 15})]
+
+
+async def test_send_shundo_refuses_a_bad_period_before_any_connection(monkeypatch):
+    bot = reading_bot(SimpleNamespace(send=AsyncMock()))
+    monkeypatch.setattr("modules.scan_areas.ensure", AsyncMock(return_value=True))
+    delivery = ShinyLeaderboard(bot)
+    with pytest.raises(ValueError, match="entre 1 e 48"):
+        await delivery.send_shundo(hours=spawn_history.RETENTION_HOURS + 1)
+    assert bot.db.units == []
