@@ -118,7 +118,7 @@ def _make_poliswag():
     poliswag.shiny_odds = ShinyOdds(poliswag)
     poliswag.shiny_availability = ShinyAvailability(poliswag)
     poliswag.shiny_alerts = ShinyAlerts(poliswag)
-    poliswag.tracking_health = TrackingHealth()
+    poliswag.tracking_health = TrackingHealth(poliswag.site_db)
     return poliswag
 
 

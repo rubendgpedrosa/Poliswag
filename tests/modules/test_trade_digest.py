@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from modules.config import Config
 from modules.trade_digest import TradeDigest, build_digest, describe, is_due, rows_since
+from tests.fakes import FakeHandle
 
 
 def row(**patch):
@@ -222,27 +223,12 @@ class TestBuildDigest:
         assert len(value) <= 1024
 
 
-class TestConnectionTimeouts:
-    """The digest runs inside the 60s tick; an unbounded read stalls it."""
-
-    def test_connect_sets_timeouts(self):
-        import unittest.mock as mock
-
-        from modules.trade_digest import _connect_pool
-
-        with mock.patch("pymysql.connect") as connect:
-            _connect_pool()
-        kwargs = connect.call_args.kwargs
-        assert kwargs["connect_timeout"]
-        assert kwargs["read_timeout"]
-        assert kwargs["write_timeout"]
-
-
 def digest_sender():
     bot = MagicMock()
     channel = MagicMock()
     channel.send = AsyncMock()
     bot.get_channel.return_value = channel
+    bot.site_db = FakeHandle()
     sender = TradeDigest(bot)
     sender._read_batch = MagicMock()
     sender._record = MagicMock()
@@ -271,7 +257,7 @@ class TestTick:
         assert "embed" in kwargs
         assert kwargs["allowed_mentions"].everyone is False
         assert kwargs["allowed_mentions"].users is False
-        sender._record.assert_called_once_with("c")
+        sender._record.assert_called_once_with(sender.poliswag.site_db.connection, "c")
 
     def test_a_missing_cached_channel_is_fetched(self):
         sender, channel = digest_sender()
@@ -289,7 +275,7 @@ class TestTick:
         with patch.object(Config, "TRADES_CHANNEL_ID", 1):
             asyncio.run(sender.tick(datetime(2026, 10, 16, 10, 0)))
         channel.send.assert_not_awaited()
-        sender._record.assert_called_once_with("c")
+        sender._record.assert_called_once_with(sender.poliswag.site_db.connection, "c")
 
     def test_not_due_returns_before_touching_the_channel(self):
         sender, channel = digest_sender()
@@ -347,7 +333,7 @@ class TestTick:
                 pass
             asyncio.run(sender.tick(datetime(2026, 10, 16, 9, 1)))
         assert sender._read_batch.call_count == 2
-        sender._record.assert_called_once_with("c")
+        sender._record.assert_called_once_with(sender.poliswag.site_db.connection, "c")
 
 
 def batch_db(cutoff="2026-10-16 10:00:00", watermark=None, rows=None):
@@ -365,16 +351,12 @@ class TestReadBatch:
     def test_before_nine_returns_none(self):
         sender = TradeDigest(MagicMock())
         db, _ = batch_db(watermark=datetime(2026, 10, 16, 8, 0))
-        sender._connect = MagicMock(return_value=db)
-        assert sender._read_batch(datetime(2026, 10, 16, 8, 0)) is None
-        db.rollback.assert_called_once()
-        db.close.assert_called_once()
+        assert sender._read_batch(db, datetime(2026, 10, 16, 8, 0)) is None
 
     def test_first_run_sets_a_watermark_and_posts_nothing(self):
         sender = TradeDigest(MagicMock())
         db, cursor = batch_db()
-        sender._connect = MagicMock(return_value=db)
-        batch = sender._read_batch(datetime(2026, 10, 16, 10, 0))
+        batch = sender._read_batch(db, datetime(2026, 10, 16, 10, 0))
         assert batch == {"cutoff": "2026-10-16 10:00:00", "rows": []}
         assert cursor.execute.call_count == 2
 
@@ -382,8 +364,7 @@ class TestReadBatch:
         sender = TradeDigest(MagicMock())
         watermark = datetime(2026, 10, 15, 9, 0)
         db, cursor = batch_db(watermark=watermark, rows=[row()])
-        sender._connect = MagicMock(return_value=db)
-        batch = sender._read_batch(datetime(2026, 10, 16, 10, 0))
+        batch = sender._read_batch(db, datetime(2026, 10, 16, 10, 0))
         assert batch["rows"] == [row()]
         assert cursor.execute.call_args.args[1] == (
             watermark,
@@ -396,41 +377,61 @@ class TestRecord:
         sender = TradeDigest(MagicMock())
         db = MagicMock()
         cursor = db.cursor.return_value.__enter__.return_value
-        sender._connect = MagicMock(return_value=db)
-        sender._record("2026-10-16 10:00:00")
+        sender._record(db, "2026-10-16 10:00:00")
         assert cursor.execute.call_args.args == (
             "UPDATE poliswag.poliswag SET last_trade_digest_at = %s",
             ("2026-10-16 10:00:00",),
         )
-        db.commit.assert_called_once()
-        db.close.assert_called_once()
 
 
 class TestRowsSince:
     """The !resumo preview reads without consuming the morning's news."""
 
     def test_preview_reads_without_recording(self):
-        db = MagicMock()
-        cursor = db.cursor.return_value.__enter__.return_value
+        handle = FakeHandle()
+        cursor = handle.cursor
         cursor.fetchone.return_value = {"since": "s", "cutoff": "c"}
         cursor.fetchall.return_value = [row()]
-        with patch("modules.trade_digest.connect", return_value=db):
-            assert rows_since(3) == [row()]
+        assert asyncio.run(rows_since(handle, 3)) == [row()]
         first, second = cursor.execute.call_args_list
         assert first.args[1] == (3,)
         assert "UPDATE" not in first.args[0]
+        assert "UPDATE" not in second.args[0]
         assert second.args[1] == ("s", "c")
-        db.rollback.assert_called_once()
-        db.commit.assert_not_called()
-        db.close.assert_called_once()
+        # One unit on the handle it was given, with the old connection's
+        # options: dict rows (the defaults).
+        ((_work, args, options),) = handle.units
+        assert args == (3,)
+        assert options == {}
 
 
-class TestConnect:
-    def test_connect_uses_the_shared_pool(self):
-        db = MagicMock()
-        with patch("modules.trade_digest.connect", return_value=db) as connect:
-            assert TradeDigest(MagicMock())._connect() is db
-        connect.assert_called_once()
+class TestUnitsOfWork:
+    """The read and the watermark write are separate units on site_db.
+
+    The old connect(dict_rows=True, autocommit=False) is the unit's default,
+    so neither asks for other options.
+    """
+
+    def test_a_due_morning_reads_posts_then_records(self):
+        bot = MagicMock()
+        bot.site_db = handle = FakeHandle()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        bot.get_channel.return_value = channel
+        handle.cursor.fetchone.side_effect = [
+            {"cutoff": "c"},
+            {"last_trade_digest_at": datetime(2026, 10, 15, 9, 0)},
+        ]
+        handle.cursor.fetchall.return_value = [row()]
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(TradeDigest(bot).tick(datetime(2026, 10, 16, 10, 0)))
+        assert [work.__name__ for work, _args, _options in handle.units] == [
+            "_read_batch",
+            "_record",
+        ]
+        assert all(options == {} for _work, _args, options in handle.units)
+        assert handle.units[1][1] == ("c",)
+        channel.send.assert_awaited_once()
 
 
 class TestLongField:

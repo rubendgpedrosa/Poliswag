@@ -11,8 +11,6 @@ rejoining restores them — including a reconcile on startup for whatever change
 while the bot was down.
 """
 
-import asyncio
-
 import discord
 from discord.ext import commands
 
@@ -159,7 +157,7 @@ class Pokedex(commands.Cog):
 
         # A window, not a watermark: a preview must never eat a morning's news.
         dias = max(1, min(30, dias))
-        rows = await asyncio.to_thread(rows_since, dias)
+        rows = await rows_since(self.poliswag.site_db, dias)
         janela = "no último dia" if dias == 1 else f"nos últimos {dias} dias"
         embed = (
             build_digest(rows)

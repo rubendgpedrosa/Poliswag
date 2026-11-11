@@ -6,6 +6,7 @@ Requires the sibling PoGoLeiria checkout and its installed npm dependencies.
 Never uses production database settings or records.
 """
 
+import asyncio
 import json
 import os
 import subprocess
@@ -21,6 +22,7 @@ import pymysql
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from modules.database_connector import DatabaseConnector  # noqa: E402
 from modules.page_view_report import render_export  # noqa: E402
 from modules.page_view_stats import PageViewStats  # noqa: E402
 
@@ -120,10 +122,20 @@ try:
         DB_PASSWORD="",
         DB_POGOLEIRIA="pogoleiria",
     )
-    with patch("modules.page_view_stats.Config", config):
-        stats = PageViewStats(None)._collect_sync(
-            datetime(2026, 9, 20), datetime(2026, 9, 21), "export"
-        )
+    # The report reads through the bot's site handle, as in production: a
+    # real one, pointed at the disposable server.
+    with patch("modules.page_view_stats.Config", config), patch(
+        "modules.database_connector.Config", config
+    ):
+        site_db = DatabaseConnector("pogoleiria")
+        try:
+            stats = asyncio.run(
+                PageViewStats(SimpleNamespace(site_db=site_db)).collect(
+                    datetime(2026, 9, 20), datetime(2026, 9, 21), "export"
+                )
+            )
+        finally:
+            site_db.db.close()
     assert stats["totals"][0]["sessions"] == 1
     assert stats["totals"][0]["views"] == 2
     assert stats["referrers"] == [{"referrer": "discord.com", "sessions": 1}]

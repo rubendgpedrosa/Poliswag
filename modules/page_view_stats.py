@@ -20,7 +20,6 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from modules.config import Config
-from modules.database_connector import connect
 from modules.logging_mixin import LoggingMixin
 
 _DEFAULT_DAYS = 7
@@ -154,32 +153,26 @@ class PageViewStats(LoggingMixin):
                 and 0 <= (until - cached[1]["as_of"]).total_seconds() < 60
             ):
                 return deepcopy(cached[1])
-            # Connection creation, queries, transaction and close all occur on
-            # one worker thread. No shared PyMySQL connection crosses callers.
-            result = await asyncio.to_thread(self._collect_sync, since, until, detail)
+            # One unit of work: its own connection, opened, queried and closed
+            # on one worker thread, so no shared PyMySQL connection crosses
+            # callers. The report's reads get a longer timeout than the default.
+            result = await self.poliswag.site_db.unit(
+                self._collect_sync, since, until, detail, read_timeout=10
+            )
             if len(self._cache) >= 8:
                 self._cache.pop(next(iter(self._cache)))
             self._cache[key] = (time.monotonic(), deepcopy(result))
             return result
 
-    def _collect_sync(self, since, until, detail):
-        db = connect(Config.DB_POGOLEIRIA, read_timeout=10, dict_rows=True)
-        try:
-            with db.cursor() as cursor:
-                # Per-statement server budget also bounds CPU use after clients
-                # disconnect. This reader targets the existing MariaDB server.
-                cursor.execute("SET SESSION max_statement_time = 8")
-                cursor.execute("SET SESSION time_zone = '+00:00'")
-                cursor.execute(
-                    "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ"
-                )
-                cursor.execute("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY")
-                return self._read(cursor, since, until, detail)
-        finally:
-            try:
-                db.rollback()
-            finally:
-                db.close()
+    def _collect_sync(self, db, since, until, detail):
+        with db.cursor() as cursor:
+            # Per-statement server budget also bounds CPU use after clients
+            # disconnect. This reader targets the existing MariaDB server.
+            cursor.execute("SET SESSION max_statement_time = 8")
+            cursor.execute("SET SESSION time_zone = '+00:00'")
+            cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            cursor.execute("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY")
+            return self._read(cursor, since, until, detail)
 
     def _read(self, cursor, since, until, detail):
         deadline = time.monotonic() + 20

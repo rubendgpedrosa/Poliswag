@@ -90,7 +90,7 @@ class Poliswag(commands.Bot):
         self.device_manager = DeviceManager(self)
         self.page_view_stats = PageViewStats(self)
         self.trade_player_store = TradePlayerStore(self.site_db)
-        self.trade_stats = TradeStats()
+        self.trade_stats = TradeStats(self.site_db)
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
         self.account_guard = AccountGuard(self)
@@ -104,7 +104,7 @@ class Poliswag(commands.Bot):
         self.shiny_odds = ShinyOdds(self)
         self.shiny_availability = ShinyAvailability(self)
         self.shiny_alerts = ShinyAlerts(self)
-        self.tracking_health = TrackingHealth()
+        self.tracking_health = TrackingHealth(self.site_db)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
