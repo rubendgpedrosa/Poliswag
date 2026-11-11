@@ -5,6 +5,7 @@ import pytest
 
 from modules.account_monitor import (
     ACCOUNT_CARD_ERROR_AFTER,
+    CARD_REFRESH_SECONDS,
     OUT_STATUSES,
     AccountMonitor,
     _device_name,
@@ -411,7 +412,14 @@ class TestUpdateChannelAccountsStats:
         existing.author = account_monitor.poliswag.user
         mocker.patch(
             "modules.account_monitor.fetch_data",
-            new=AsyncMock(side_effect=[{"good": 5}, {"devices": []}] * 2),
+            new=AsyncMock(
+                side_effect=[
+                    {"good": 5},
+                    {"devices": []},
+                    {"good": 6},
+                    {"devices": []},
+                ]
+            ),
         )
         account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
             AsyncMock(return_value=b"PNG")
@@ -452,6 +460,109 @@ class TestUpdateChannelAccountsStats:
         channel.history.assert_not_called()
         channel.send.assert_awaited_once()
         assert account_monitor._accounts_message is new_message
+
+
+class TestAccountCardDrawnOnChange:
+    """The numbers are read every minute; the image is drawn when they move."""
+
+    @pytest.fixture
+    def card(self, account_monitor, mocker):
+        message = MagicMock()
+        message.edit = AsyncMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        account_monitor.poliswag.ACCOUNTS_CHANNEL = channel
+        account_monitor._accounts_message = message
+        account_monitor.build_account_card = AsyncMock(return_value=b"PNG")
+        self.pools = [{"key": "scanning", "accounts": {"ready": 205}, "device": None}]
+        account_monitor.get_pool_stats = AsyncMock(side_effect=lambda: self.pools)
+        self.clock = mocker.patch("modules.account_monitor.time.monotonic")
+        self.clock.return_value = 1000.0
+        return account_monitor
+
+    async def test_the_first_update_of_a_process_always_draws(self, card):
+        await card.update_channel_accounts_stats()
+        card.build_account_card.assert_awaited_once_with(self.pools)
+        card._accounts_message.edit.assert_awaited_once()
+
+    async def test_the_same_numbers_a_minute_later_draw_nothing(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        await card.update_channel_accounts_stats()
+        assert card.get_pool_stats.await_count == 2
+        card.build_account_card.assert_awaited_once()
+        card._accounts_message.edit.assert_awaited_once()
+
+    async def test_a_changed_number_draws_at_once(self, card):
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = [{"key": "scanning", "accounts": {"ready": 204}, "device": None}]
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+        assert card._accounts_message.edit.await_count == 2
+
+    async def test_a_device_going_offline_draws_at_once(self, card):
+        self.pools = [
+            {"key": "scanning", "accounts": None, "device": {"connected": True}}
+        ]
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        self.pools = [
+            {"key": "scanning", "accounts": None, "device": {"connected": False}}
+        ]
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_unchanged_numbers_are_redrawn_after_the_refresh_time(self, card):
+        # The area footer (spawns per hour) is not part of the comparison.
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += CARD_REFRESH_SECONDS - 1
+        await card.update_channel_accounts_stats()
+        card.build_account_card.assert_awaited_once()
+        self.clock.return_value += 1
+        await card.update_channel_accounts_stats()
+        assert card.build_account_card.await_count == 2
+
+    async def test_a_failed_render_is_tried_again_next_minute(self, card):
+        card.build_account_card = AsyncMock(side_effect=[None, b"PNG"])
+        await card.update_channel_accounts_stats()
+        card._accounts_message.edit.assert_not_awaited()
+        self.clock.return_value += 60
+        await card.update_channel_accounts_stats()
+        card._accounts_message.edit.assert_awaited_once()
+
+    async def test_a_failed_upload_is_tried_again_next_minute(self, card):
+        card._accounts_message.edit = AsyncMock(
+            side_effect=[
+                discord.HTTPException(MagicMock(status=503, reason=""), "busy"),
+                None,
+            ]
+        )
+        await card.update_channel_accounts_stats()
+        self.clock.return_value += 60
+        await card.update_channel_accounts_stats()
+        assert card._accounts_message.edit.await_count == 2
+        assert card.build_account_card.await_count == 2
+
+    async def test_a_deleted_message_is_sent_again_and_remembered(self, card):
+        card._accounts_message.edit = AsyncMock(
+            side_effect=discord.NotFound(MagicMock(status=404, reason=""), "gone")
+        )
+        await card.update_channel_accounts_stats()
+        card.poliswag.ACCOUNTS_CHANNEL.send.assert_awaited_once()
+        self.clock.return_value += 60
+        await card.update_channel_accounts_stats()
+        # Sent once; the same numbers a minute later draw nothing.
+        card.poliswag.ACCOUNTS_CHANNEL.send.assert_awaited_once()
+        card.build_account_card.assert_awaited_once()
+
+    async def test_the_command_still_fetches_its_own_numbers(self, account_monitor):
+        account_monitor.get_pool_stats = AsyncMock(return_value=[])
+        account_monitor.poliswag.image_generator.generate_image_from_account_stats = (
+            AsyncMock(return_value=b"PNG")
+        )
+        assert await account_monitor.build_account_card() == b"PNG"
+        account_monitor.get_pool_stats.assert_awaited_once()
 
 
 class TestAccountCardFailureLevels:
