@@ -10,13 +10,11 @@ Same two rules as page_view_stats: no `%` in any SQL but `%s`, and UTC only
 rows are written in UTC by the web app).
 """
 
-from modules.config import Config
-from modules.database_connector import DatabaseConnector
-
 
 class TradePlayerStore:
-    def __init__(self):
-        self.db = DatabaseConnector(Config.DB_POGOLEIRIA)
+    def __init__(self, site_db):
+        # The bot's handle for the site's schema (poliswag.site_db).
+        self.db = site_db
 
     async def upsert(self, discord_id, username, display_name, avatar_url, code_hash):
         """Issue (or re-issue) a code. Also refreshes identity and un-leaves.

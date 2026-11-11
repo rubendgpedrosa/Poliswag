@@ -18,14 +18,17 @@ Skipped when HUNDO_SQL_TEST_PORT is unset. Refuses any server without the
 `hundo_disposable` marker schema or with a scanner schema on it.
 """
 
+import asyncio
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pymysql
 import pytest
 
 from modules import hundo_alerts
 from modules.config import Config
+from modules.database_connector import DatabaseConnector
 from modules.hundo_alerts import (
     RULE_COLUMNS,
     TEMPLATE,
@@ -35,6 +38,7 @@ from modules.hundo_alerts import (
     is_active,
     rule_row,
 )
+from modules.hundo_confirmation import _CLAIM, _FINISH, claim, finish
 from modules.migrations import split_statements
 
 # The conftest patches pymysql.connect for every test; keep the real one.
@@ -73,6 +77,31 @@ WHERE discord_id = %s AND left_at IS NULL
 """
 
 FORMS = {19: 45, 132: 0}
+
+run = asyncio.run
+
+
+def _handle(schema):
+    """A real handle for `schema`. unit() opens a real connection of its own
+    for every call; the shared connection __init__ would open is not needed."""
+    handle = DatabaseConnector.__new__(DatabaseConnector)
+    handle.database = schema
+    return handle
+
+
+def _alerts():
+    return HundoAlerts(
+        SimpleNamespace(site_db=_handle("pogoleiria"), poracle_db=_handle("poracle"))
+    )
+
+
+# claim/finish as send_once runs them: autocommit units on the site schema.
+async def _claim(*args):
+    return await _handle("pogoleiria").unit(claim, *args, **_CLAIM)
+
+
+async def _finish(*args):
+    return await _handle("pogoleiria").unit(finish, *args, **_FINISH)
 
 
 def _root(database=None, **extra):
@@ -154,7 +183,7 @@ def activate(discord_id, areas="leiria,marinha"):
     """Opt in through the site's writer, then a delivered confirmation."""
     _run(_SAVE_SQL, (1, areas, discord_id, 1, areas), "pogoleiria")
     revision = settings(discord_id)["hundo_settings_revision"]
-    assert HundoAlerts(None)._record(discord_id, revision, delivered=True)
+    assert run(_alerts()._record(discord_id, revision, delivered=True))
 
 
 def add_human(discord_id, **columns):
@@ -206,9 +235,7 @@ def tick_off(discord_id, pokemon_id, form_id):
 
 def settings(discord_id):
     return next(
-        row
-        for row in HundoAlerts(None)._read_players()
-        if row["discord_id"] == discord_id
+        row for row in run(_alerts()._read_players()) if row["discord_id"] == discord_id
     )
 
 
@@ -288,7 +315,7 @@ def test_outcome_for_a_superseded_revision_is_not_recorded():
     add_player(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
     _run(_SAVE_SQL, (1, "marinha", 1, 1, "marinha"), "pogoleiria")  # during DM
-    assert not HundoAlerts(None)._record(1, 1, delivered=True)
+    assert not run(_alerts()._record(1, 1, delivered=True))
     row = settings(1)
     assert row["hundo_confirmed_revision"] == 0
     assert confirmation_due(row)
@@ -298,13 +325,13 @@ def test_successful_retry_in_the_same_second_activates_after_refusal():
     _migrate()
     add_player(1)
     _run(_SAVE_SQL, (1, "leiria,marinha", 1, 1, "leiria,marinha"), "pogoleiria")
-    alerts = HundoAlerts(None)
-    assert alerts._record(1, 1, delivered=False)
+    alerts = _alerts()
+    assert run(alerts._record(1, 1, delivered=False))
     assert not is_active(settings(1)) and not confirmation_due(settings(1))
     _run(_RETRY_SQL, (1,), "pogoleiria")
     assert confirmation_due(settings(1))
-    assert alerts._record(1, 2, delivered=True)
-    assert not alerts._record(1, 2, delivered=True)  # already acknowledged
+    assert run(alerts._record(1, 2, delivered=True))
+    assert not run(alerts._record(1, 2, delivered=True))  # already acknowledged
     assert is_active(settings(1))
 
 
@@ -325,7 +352,7 @@ def test_missing_tiles_follow_ticks_forms_and_costumes(show_costumes, expected):
     # The change marker counts this player's 100IV ticks only.
     assert settings(1)["hundo_ticks"] == 2 and settings(1)["hundo_ticked_at"]
     MANY = {**FORMS, 1: 163, 25: 0}
-    assert HundoAlerts(None)._sync_player(settings(1), MANY, 2)
+    assert run(_alerts()._sync_player(settings(1), MANY, 2))
     got = rules(1)
     assert [(r["pokemon_id"], r["form"]) for r in got] == expected
     assert all(r["profile_no"] == 2 and r["min_iv"] == 100 for r in got)
@@ -364,19 +391,19 @@ def test_cleanup_removes_only_inactive_players_managed_rules(state):
         _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
     elif state == "refused":
         _run(_RETRY_SQL, (1,), "pogoleiria")
-        HundoAlerts(None)._record(1, 2, delivered=False)
+        run(_alerts()._record(1, 2, delivered=False))
     elif state == "no_human":
         _run("DELETE FROM humans WHERE id = '1'", database="poracle")
     elif state == "stopped":
         _run("UPDATE humans SET enabled = 0 WHERE id = '1'", database="poracle")
     humans, profiles = everything("humans"), everything("profiles")
 
-    assert HundoAlerts(None)._cleanup()
+    assert run(_alerts()._cleanup())
     assert rules(1) == []
     assert len(rules(2)) == 1
     assert len(rules(1, "other")) == 1 and len(rules(1, None)) == 1
     assert everything("humans") == humans and everything("profiles") == profiles
-    assert not HundoAlerts(None)._cleanup()  # nothing left to remove
+    assert not run(_alerts()._cleanup())  # nothing left to remove
 
 
 def test_cleanup_keeps_active_rules_and_removes_all_when_nobody_is_eligible():
@@ -386,10 +413,10 @@ def test_cleanup_keeps_active_rules_and_removes_all_when_nobody_is_eligible():
     add_human(1)
     add_rule(1)
     add_rule(99)  # rules of an id with no trade_player row
-    assert HundoAlerts(None)._cleanup()
+    assert run(_alerts()._cleanup())
     assert len(rules(1)) == 1 and rules(99) == []
     _run("UPDATE pogoleiria.trade_player SET hundo_dms = 0")
-    assert HundoAlerts(None)._cleanup()
+    assert run(_alerts()._cleanup())
     assert rules() == []
 
 
@@ -408,8 +435,8 @@ def test_rebuild_corrects_every_managed_value_then_is_a_no_op(stale):
     add_player(1)
     activate(1, "leiria")
     add_names((19, 0, 0))
-    alerts = HundoAlerts(None)
-    assert alerts._sync_player(settings(1), FORMS, 2)
+    alerts = _alerts()
+    assert run(alerts._sync_player(settings(1), FORMS, 2))
     good = rules(1)
     if stale == "duplicate":
         add_rule(1, override_areas='["leiria"]', profile_no=2)
@@ -420,9 +447,9 @@ def test_rebuild_corrects_every_managed_value_then_is_a_no_op(stale):
             (value,),
             "poracle",
         )
-    assert alerts._sync_player(settings(1), FORMS, 2)
+    assert run(alerts._sync_player(settings(1), FORMS, 2))
     assert rules(1) == good
-    assert not alerts._sync_player(settings(1), FORMS, 2)
+    assert not run(alerts._sync_player(settings(1), FORMS, 2))
 
 
 def test_failed_insert_restores_the_previous_rules():
@@ -432,30 +459,30 @@ def test_failed_insert_restores_the_previous_rules():
     activate(1)
     activate(2)
     add_names((19, 0, 0))
-    alerts = HundoAlerts(None)
-    assert alerts._sync_player(settings(1), FORMS, 1)
+    alerts = _alerts()
+    assert run(alerts._sync_player(settings(1), FORMS, 1))
     before = rules(1)
     # An out-of-range form is refused by MariaDB, after the DELETE ran.
     with pytest.raises(pymysql.err.DataError):
-        alerts._sync_player(settings(1), {19: 2**40}, 1)
+        run(alerts._sync_player(settings(1), {19: 2**40}, 1))
     assert rules(1) == before
     # One player's failure does not undo another's committed change.
-    assert alerts._sync_player(settings(2), FORMS, 1)
+    assert run(alerts._sync_player(settings(2), FORMS, 1))
     with pytest.raises(pymysql.err.DataError):
-        alerts._sync_player(settings(1), {19: 2**40}, 3)
+        run(alerts._sync_player(settings(1), {19: 2**40}, 3))
     assert len(rules(2)) == 1 and rules(1) == before
 
 
 def test_human_lookup_reads_the_poracle_row():
     add_human(1, current_profile_no=3, admin_disable=1)
-    assert HundoAlerts(None)._human(1) == {
+    assert run(_alerts()._human(1)) == {
         "id": "1",
         "type": "discord:user",
         "enabled": 1,
         "admin_disable": 1,
         "current_profile_no": 3,
     }
-    assert HundoAlerts(None)._human(2) is None
+    assert run(_alerts()._human(2)) is None
 
 
 def test_module_connects_to_the_disposable_server():
@@ -467,7 +494,7 @@ def test_a_change_undone_before_its_dm_keeps_the_rules_and_is_settled():
     add_player(1)
     add_human(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
-    assert HundoAlerts(None)._record(1, 1, delivered=True, settings=(1, "leiria"))
+    assert run(_alerts()._record(1, 1, delivered=True, settings=(1, "leiria")))
     add_rule(1)
     # Add Marinha Grande, then take it away again, before any DM.
     _run(_SAVE_SQL, (1, "leiria,marinha", 1, 1, "leiria,marinha"), "pogoleiria")
@@ -476,11 +503,11 @@ def test_a_change_undone_before_its_dm_keeps_the_rules_and_is_settled():
     assert row["hundo_settings_revision"] == 3
     assert row["hundo_confirmed_setting"] == 1  # Leiria only
     assert confirmation_due(row) and hundo_alerts.settled_back(row) and is_active(row)
-    assert not HundoAlerts(None)._cleanup()  # the rules stay
+    assert not run(_alerts()._cleanup())  # the rules stay
     assert len(rules(1)) == 1
     # A real change is pending again: its rules pause until the DM.
     _run(_SAVE_SQL, (1, "leiria,marinha", 1, 1, "leiria,marinha"), "pogoleiria")
-    assert HundoAlerts(None)._cleanup()
+    assert run(_alerts()._cleanup())
     assert rules(1) == []
 
 
@@ -519,22 +546,20 @@ def test_collection_marker_detects_same_second_tile_swap():
 
 
 def test_durable_confirmation_claim_survives_recreation_and_is_exclusive():
-    from modules.hundo_confirmation import claim, finish
-
     _migrate()
     add_player(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
-    owned, notice = claim(1, 1, 123)
+    owned, notice = run(_claim(1, 1, 123))
     assert owned and notice["status"] == "sending"
-    again, same = claim(1, 1, 123)
+    again, same = run(_claim(1, 1, 123))
     assert not again and same["nonce"] == notice["nonce"]
-    finish(1, 1, "sent", 987)
-    assert claim(1, 1, 123)[1]["message_id"] == 987
+    run(_finish(1, 1, "sent", 987))
+    assert run(_claim(1, 1, 123))[1]["message_id"] == 987
     # A late reconciler must never replace a known outcome with uncertain.
-    finish(1, 1, "uncertain")
-    assert claim(1, 1, 123)[1]["status"] == "sent"
+    run(_finish(1, 1, "uncertain"))
+    assert run(_claim(1, 1, 123))[1]["status"] == "sent"
     # A stale settings snapshot cannot claim a new send.
-    assert claim(1, 99, 123) == (False, None)
+    assert run(_claim(1, 99, 123)) == (False, None)
 
 
 def test_health_write_cannot_acknowledge_a_newer_settings_revision():
@@ -543,14 +568,14 @@ def test_health_write_cannot_acknowledge_a_newer_settings_revision():
     activate(1)
     old = settings(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
-    alerts = HundoAlerts(None)
-    alerts._record_health(old, "ready")
+    alerts = _alerts()
+    run(alerts._record_health(old, "ready"))
     _, rows = _run(
         "SELECT hundo_health_revision FROM trade_player WHERE discord_id=1",
         database="pogoleiria",
     )
     assert rows[0]["hundo_health_revision"] == 0
-    alerts._record_health(settings(1), "stopped")
+    run(alerts._record_health(settings(1), "stopped"))
     _, rows = _run(
         "SELECT hundo_health_revision, hundo_health_state, TIMESTAMPDIFF(SECOND, hundo_health_at, UTC_TIMESTAMP(6)) age FROM trade_player WHERE discord_id=1",
         database="pogoleiria",
@@ -560,12 +585,10 @@ def test_health_write_cannot_acknowledge_a_newer_settings_revision():
 
 
 def test_uncertain_confirmation_retry_is_atomic_and_waits_for_inflight_send():
-    from modules.hundo_confirmation import claim
-
     _migrate()
     add_player(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
-    claim(1, 1, 123)
+    run(_claim(1, 1, 123))
     retry = """UPDATE trade_player SET hundo_settings_revision = hundo_settings_revision + 1,
       hundo_settings_at = NOW(6) WHERE discord_id = 1 AND left_at IS NULL
       AND hundo_confirmed_revision < hundo_settings_revision
@@ -584,10 +607,8 @@ def test_uncertain_confirmation_retry_is_atomic_and_waits_for_inflight_send():
 
 @pytest.mark.parametrize("change", ["left_at=NOW()", "collecting='shiny'"])
 def test_confirmation_cannot_claim_after_eligibility_changes(change):
-    from modules.hundo_confirmation import claim
-
     _migrate()
     add_player(1)
     _run(_SAVE_SQL, (1, "leiria", 1, 1, "leiria"), "pogoleiria")
     _run(f"UPDATE trade_player SET {change} WHERE discord_id=1", database="pogoleiria")
-    assert claim(1, 1, 123) == (False, None)
+    assert run(_claim(1, 1, 123)) == (False, None)

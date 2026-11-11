@@ -91,6 +91,56 @@ class DatabaseConnector:
         """
         return await self._run_serialized(self._transaction_sync, statements)
 
+    async def unit(self, work, *args, read_timeout=5, dict_rows=True, autocommit=False):
+        """Run `work(connection, *args)` as one unit of work; return its result.
+
+        For anything that is more than one statement on the shared
+        connection: statements that must be committed together, a read that
+        needs its own timeout, work that should not queue behind the bot's
+        other queries. `work` is a plain synchronous function. It gets a
+        connection of its own, opened here with bounded waits, and runs in a
+        worker thread, so the event loop never waits on the database.
+
+        Unless `autocommit` is set, the connection is committed when `work`
+        returns and rolled back when it raises. It is always closed
+        afterwards: `work` must not keep it, or a cursor from it.
+
+        This is the only way a module gets a connection. Nothing outside this
+        file calls connect() (tests/test_database_access.py).
+        """
+        return await asyncio.to_thread(
+            self._unit_sync, work, args, read_timeout, dict_rows, autocommit
+        )
+
+    def _unit_sync(self, work, args, read_timeout, dict_rows, autocommit):
+        connection = connect(
+            self.database,
+            read_timeout=read_timeout,
+            dict_rows=dict_rows,
+            autocommit=autocommit,
+        )
+        try:
+            result = work(connection, *args)
+            if not autocommit:
+                connection.commit()
+            return result
+        except BaseException:
+            if not autocommit:
+                try:
+                    connection.rollback()
+                except Exception as rollback_error:
+                    logging.error(
+                        f"Rollback failed in unit of work: {rollback_error!r}"
+                    )
+            raise
+        finally:
+            try:
+                connection.close()
+            except Exception as close_error:
+                logging.error(
+                    f"Closing a unit-of-work connection failed: {close_error!r}"
+                )
+
     async def _run_serialized(self, func, *args):
         """Run func(*args) in a worker thread while holding the connection.
 

@@ -8,47 +8,47 @@ uncertain and requires an explicit new revision from the player.
 
 import asyncio
 import hashlib
-from contextlib import closing
 from datetime import timedelta, timezone
 
 import discord
 from discord.http import Route
 
-from modules.config import Config
-from modules.database_connector import connect
+# claim and finish are units of work on the site's schema (bot.site_db): each
+# statement commits on its own (autocommit), so the claim is durable before
+# the send and never waits on a later statement.
+_CLAIM = {"dict_rows": True, "autocommit": True}
+_FINISH = {"dict_rows": False, "autocommit": True}
 
 
-def claim(discord_id, revision, channel_id):
+def claim(db, discord_id, revision, channel_id):
     nonce = hashlib.sha256(f"hundo:{discord_id}:{revision}".encode()).hexdigest()[:24]
-    with closing(connect(Config.DB_POGOLEIRIA, dict_rows=True, autocommit=True)) as db:
-        with db.cursor() as cursor:
-            # Atomic claim, conditional on the settings still being current.
-            cursor.execute(
-                "INSERT IGNORE INTO hundo_confirmation (discord_id, revision, channel_id, nonce) "
-                "SELECT discord_id, %s, %s, %s FROM trade_player "
-                "WHERE discord_id = %s AND hundo_settings_revision = %s AND left_at IS NULL "
-                "AND (hundo_dms = 0 OR FIND_IN_SET('hundo', collecting)) "
-                "AND GREATEST(hundo_confirmed_revision, hundo_dm_refused_revision) < %s",
-                (revision, channel_id, nonce, discord_id, revision, revision),
-            )
-            owned = cursor.rowcount == 1
-            cursor.execute(
-                "SELECT *, TIMESTAMPDIFF(SECOND, started_at, UTC_TIMESTAMP(6)) AS age "
-                "FROM hundo_confirmation WHERE discord_id = %s AND revision = %s",
-                (discord_id, revision),
-            )
-            return owned, cursor.fetchone()
+    with db.cursor() as cursor:
+        # Atomic claim, conditional on the settings still being current.
+        cursor.execute(
+            "INSERT IGNORE INTO hundo_confirmation (discord_id, revision, channel_id, nonce) "
+            "SELECT discord_id, %s, %s, %s FROM trade_player "
+            "WHERE discord_id = %s AND hundo_settings_revision = %s AND left_at IS NULL "
+            "AND (hundo_dms = 0 OR FIND_IN_SET('hundo', collecting)) "
+            "AND GREATEST(hundo_confirmed_revision, hundo_dm_refused_revision) < %s",
+            (revision, channel_id, nonce, discord_id, revision, revision),
+        )
+        owned = cursor.rowcount == 1
+        cursor.execute(
+            "SELECT *, TIMESTAMPDIFF(SECOND, started_at, UTC_TIMESTAMP(6)) AS age "
+            "FROM hundo_confirmation WHERE discord_id = %s AND revision = %s",
+            (discord_id, revision),
+        )
+        return owned, cursor.fetchone()
 
 
-def finish(discord_id, revision, status, message_id=None):
-    with closing(connect(Config.DB_POGOLEIRIA, autocommit=True)) as db:
-        with db.cursor() as cursor:
-            cursor.execute(
-                "UPDATE hundo_confirmation SET status = %s, message_id = COALESCE(%s, message_id) "
-                "WHERE discord_id = %s AND revision = %s "
-                "AND status IN ('sending', 'uncertain')",
-                (status, message_id, discord_id, revision),
-            )
+def finish(db, discord_id, revision, status, message_id=None):
+    with db.cursor() as cursor:
+        cursor.execute(
+            "UPDATE hundo_confirmation SET status = %s, message_id = COALESCE(%s, message_id) "
+            "WHERE discord_id = %s AND revision = %s "
+            "AND status IN ('sending', 'uncertain')",
+            (status, message_id, discord_id, revision),
+        )
 
 
 async def send_once(bot, row, embed):
@@ -56,7 +56,9 @@ async def send_once(bot, row, embed):
     discord_id, revision = row["discord_id"], row["hundo_settings_revision"]
     user = bot.get_user(int(discord_id)) or await bot.fetch_user(int(discord_id))
     channel = await user.create_dm()
-    owned, notice = await asyncio.to_thread(claim, discord_id, revision, channel.id)
+    owned, notice = await bot.site_db.unit(
+        claim, discord_id, revision, channel.id, **_CLAIM
+    )
     if notice is None:
         return None  # settings changed before the claim
     if notice["status"] in ("sent", "refused"):
@@ -78,13 +80,13 @@ async def send_once(bot, row, embed):
                         message.author.id == bot.user.id
                         and str(message.nonce) == notice["nonce"]
                     ):
-                        await asyncio.to_thread(
-                            finish, discord_id, revision, "sent", message.id
+                        await bot.site_db.unit(
+                            finish, discord_id, revision, "sent", message.id, **_FINISH
                         )
                         return True
         except (discord.HTTPException, TimeoutError):
             pass
-        await asyncio.to_thread(finish, discord_id, revision, "uncertain")
+        await bot.site_db.unit(finish, discord_id, revision, "uncertain", **_FINISH)
         return None
     try:
         # Use the bot's authenticated/rate-limited HTTP client. Installed
@@ -100,8 +102,10 @@ async def send_once(bot, row, embed):
                 },
             )
     except (discord.Forbidden, discord.NotFound):
-        await asyncio.to_thread(finish, discord_id, revision, "refused")
+        await bot.site_db.unit(finish, discord_id, revision, "refused", **_FINISH)
         return False
     # Other errors leave 'sending'. Even a timeout can mean Discord accepted it.
-    await asyncio.to_thread(finish, discord_id, revision, "sent", message["id"])
+    await bot.site_db.unit(
+        finish, discord_id, revision, "sent", message["id"], **_FINISH
+    )
     return True

@@ -2,7 +2,8 @@
 
 from datetime import datetime, timedelta
 
-from modules.tracking_health import decide, message
+from modules.tracking_health import TrackingHealth, decide, message
+from tests.fakes import FakeHandle
 
 NOW = datetime(2026, 9, 20, 14, 0)
 
@@ -72,7 +73,7 @@ class TestMessages:
 
 
 class TestWhatCountsAsAlive:
-    def test_only_page_views_count_not_apk_downloads(self, monkeypatch):
+    def test_only_page_views_count_not_apk_downloads(self):
         # /pogoleiria.apk writes download counts to the same table; one must
         # not make a dead page-view beacon look alive.
         from unittest.mock import MagicMock
@@ -83,8 +84,24 @@ class TestWhatCountsAsAlive:
         cursor.fetchone.return_value = (NOW,)
         db = MagicMock()
         db.cursor.return_value.__enter__.return_value = cursor
-        monkeypatch.setattr(tracking_health, "connect", lambda *_, **__: db)
 
-        assert tracking_health.TrackingHealth()._last_event_sync() == NOW
+        assert tracking_health.TrackingHealth(None)._last_event_sync(db) == NOW
         query = cursor.execute.call_args_list[-1].args[0]
         assert "event_name = 'tool_view'" in query
+
+
+class TestUnitOfWork:
+    async def test_one_unit_on_the_handle_with_tuple_rows(self):
+        # The old connect(DB_POGOLEIRIA) gave tuple rows and the row is read
+        # by position, so the unit must ask for them; dict rows are its default.
+        handle = FakeHandle()
+        handle.cursor.fetchone.return_value = (NOW,)
+
+        assert await TrackingHealth(handle).last_event_at() == NOW
+        ((_work, args, options),) = handle.units
+        assert args == ()
+        assert options == {"dict_rows": False}
+        # The session limit is set first, on the unit's own connection.
+        statements = [c.args[0] for c in handle.cursor.execute.call_args_list]
+        assert statements[0] == "SET SESSION max_statement_time = 5"
+        assert len(statements) == 2

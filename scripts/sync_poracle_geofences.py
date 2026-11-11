@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from modules import scan_areas
+from modules.config import Config
+from modules.database_connector import DatabaseConnector
 
 
 def point_count(entry) -> int:
@@ -159,6 +161,12 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
+    # The registry is read through a database handle, as in the bot. A
+    # handle that cannot connect fails like a failed registry read.
+    try:
+        scan_areas.use(DatabaseConnector(Config.DB_POLISWAG))
+    except Exception:
+        raise SystemExit("Não consegui ler o registo scan_area nem os geofences.")
     if not asyncio.run(scan_areas.refresh()):
         raise SystemExit("Não consegui ler o registo scan_area nem os geofences.")
     areas = scan_areas.active_areas()

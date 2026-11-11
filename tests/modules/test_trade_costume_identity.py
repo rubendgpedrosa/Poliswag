@@ -51,7 +51,7 @@ def test_notice_records_the_exact_costume_id():
     cursor = MagicMock()
     db = MagicMock()
     db.cursor.return_value.__enter__.return_value = cursor
-    cog = SimpleNamespace(_connect=lambda: db)
+    cog = SimpleNamespace()
     row = {
         "recipient_id": 2,
         "holder_id": 1,
@@ -60,7 +60,7 @@ def test_notice_records_the_exact_costume_id():
         "costume_id": 1,
         "category": "normal",
     }
-    trade_dm.TradeDM._record_notices(cog, [row])
+    trade_dm.TradeDM._record_notices(cog, db, [row])
     query, params = cursor.execute.call_args.args
     assert "costume_id" in query
     assert params == (2, 1, 25, 0, 1, "normal")
@@ -103,7 +103,7 @@ def test_announcer_keeps_exact_costume_in_notices():
         "costume_id": 2,
         "category": "normal",
     }
-    TradeAnnouncer._record_notices(SimpleNamespace(_connect=lambda: db), [row])
+    TradeAnnouncer._record_notices(SimpleNamespace(), db, [row])
     query, params = cursor.execute.call_args.args
     assert "costume_id" in query
     assert params == (2, 1, 25, 0, 2, "normal")
@@ -163,9 +163,7 @@ def test_legacy_wildcards_and_exact_costumes_agree_with_the_site(
         cursor, connection = MagicMock(), MagicMock()
         connection.cursor.return_value.__enter__.return_value = cursor
         cursor.fetchone.side_effect = [{"cutoff": 1000}, {"last_trade_notice_at": 0}]
-        trade_announcer.TradeAnnouncer._read_batch(
-            SimpleNamespace(_connect=lambda: connection)
-        )
+        trade_announcer.TradeAnnouncer._read_batch(SimpleNamespace(), connection)
         statement, parameters = cursor.execute.call_args.args
         rows = db.execute(statement.replace("%s", "?"), parameters).fetchall()
         assert bool(rows) is matched

@@ -1,7 +1,5 @@
 """Restart-safe moderation for the website's shiny-map access requests."""
 
-import asyncio
-
 import discord
 from discord.ext import commands
 
@@ -47,8 +45,8 @@ class ShinyAccessRequests(commands.Cog):
         action, discord_id, stamp = parsed
         try:
             await scan_areas.ensure()
-            changed = await asyncio.to_thread(
-                decide_request, discord_id, stamp, action == "accept"
+            changed = await decide_request(
+                self.poliswag.site_db, discord_id, stamp, action == "accept"
             )
         except Exception as error:
             self.poliswag.utility.log_to_file(

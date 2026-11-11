@@ -16,7 +16,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 
 | Module | Responsibility |
 |--------|---------------|
-| `config.py` / `database_connector.py` | Env config; pymysql wrapper that retries only before execution (never replays a statement); `connect(...)` for short-lived connections. |
+| `config.py` / `database_connector.py` | Env config; the database handle: single statements on a shared connection (retries only before execution, never replays a statement) and `unit(work)` for anything bigger. One handle per schema, built in `main.py`. |
 | `http_client.py` | `fetch_data(key)`: shared aiohttp session; DEV reads `mock_data/`. |
 | `scanner_status.py` / `stack_recovery.py` / `device_manager.py` | Dragonite/Rotom/Golbat polling, `STATUS:` channel rename, recovery ladder. |
 | `account_guard.py` | Alert-only guard: fake-ban bursts and mass login failures from the scanner logs → owner DM saying what it would pause. |
@@ -39,7 +39,7 @@ Discord bot (`discord.py`) for the **PoGoLeiria** Pokémon GO community (Leiria 
 | `image_generator.py` / `embeds.py` / `utility.py` / `locale_pt.py` | imgkit cards, embed builders, logging/Lisbon time, PT date names. |
 
 ## Cogs (`cogs/`) — full command table in `context/cogs.md`
-One cog per area; `scheduled.py` runs four one-minute loops (health, alerts, display, chores; `conventions.md` → Scheduler). Auth: **mods** for tracker/event/scheduled/announcements/giveaways and `!scan`/`!exportquests`; **owner only** for accounts, webstats, event_panel, shiny, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), `!mbway` is member-facing and answers by DM only, shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: the owner uses one persistent private Hermes conversation in DMs (plain text or a visible bot tag). Explicit tagged Claude/Codex jobs and blocked-job replies in owner DMs retain the read-only worker path. All tagged guild members, including the owner, get public game answers with cooldowns; non-owner conversational DMs stay silent. See `agents.md`.
+One cog per area; `scheduled.py` runs four one-minute loops (health, alerts, display, chores; `conventions.md` → Scheduler). Auth: **mods** for tracker/event/scheduled/announcements/giveaways and `!scan`/`!exportquests`; **owner only** for accounts, webstats, event_panel, shiny, spawn_history; `!pokedex`/`!resumo` are member-facing (DMs), `!mbway` is member-facing and answers by DM only, shiny-map buttons mod/owner in `MOD_CHANNEL_ID`. Mentions run before commands: the owner uses one persistent private Hermes conversation in DMs (plain text or a visible bot tag). The host agent worker only answers public tags, as Hermiswag's fallback. All tagged guild members, including the owner, get public game answers with cooldowns; non-owner conversational DMs stay silent. See `agents.md`.
 
 ## Databases — detail in `context/database.md`
 - **poliswag** (read/write): scan state, events, quests, shiny, trades, 100IV. Schema = `migrations/*.sql`.

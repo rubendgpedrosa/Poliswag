@@ -1,7 +1,9 @@
 """Bounded raw history and reproducible unfiltered shiny statistics.
 
-Collector and readers use separate, short-lived database connections. Recording
-needs no linked players and never reads notification, collection or area filters.
+Every public function here takes a database connection as its first argument
+and runs as one unit of work (`poliswag.db.unit(...)`), so the collector and
+each reader get a short-lived connection of their own. Recording needs no
+linked players and never reads notification, collection or area filters.
 The historical odds are estimates captured from shiny_rate, not game guarantees.
 """
 
@@ -15,7 +17,6 @@ import pymysql
 
 from modules import scan_areas
 from modules.config import Config
-from modules.database_connector import connect
 from modules.shiny_roll import is_player_id, is_shiny_at, shiny_draw
 
 RETENTION_HOURS = 48
@@ -77,49 +78,42 @@ ON DUPLICATE KEY UPDATE
 """
 
 
-def capture():
-    connection = connect(Config.DB_POLISWAG, dict_rows=True, read_timeout=15)
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SET SESSION time_zone = '+00:00'")
-            cursor.execute("SET SESSION max_statement_time=10")
-            cursor.execute("SET SESSION innodb_lock_wait_timeout=5")
-            connection.begin()
-            cursor.execute("SELECT UNIX_TIMESTAMP() AS now_utc")
-            now = int(cursor.fetchone()["now_utc"])
-            cutoff = now - RETENTION_HOURS * 3600
+def capture(connection):
+    """Record one poll; the caller commits it (or rolls it back) as a whole.
+
+    Run it as `db.unit(capture, read_timeout=15)`: capture, cleanup, gap
+    records and the checkpoint must commit together.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SET SESSION time_zone = '+00:00'")
+        cursor.execute("SET SESSION max_statement_time=10")
+        cursor.execute("SET SESSION innodb_lock_wait_timeout=5")
+        connection.begin()
+        cursor.execute("SELECT UNIX_TIMESTAMP() AS now_utc")
+        now = int(cursor.fetchone()["now_utc"])
+        cutoff = now - RETENTION_HOURS * 3600
+        cursor.execute(
+            "INSERT IGNORE INTO spawn_history_state VALUES (1, %s, %s)",
+            (now, now),
+        )
+        cursor.execute(
+            "SELECT last_capture_at FROM spawn_history_state WHERE id=1 FOR UPDATE"
+        )
+        previous = int(cursor.fetchone()["last_capture_at"])
+        if now < previous:
+            raise ValueError("Database clock moved backwards")
+        if now - previous > MAX_POLL_GAP:
             cursor.execute(
-                "INSERT IGNORE INTO spawn_history_state VALUES (1, %s, %s)",
-                (now, now),
+                "INSERT IGNORE INTO spawn_history_gap VALUES (%s, %s)",
+                (previous, now),
             )
-            cursor.execute(
-                "SELECT last_capture_at FROM spawn_history_state WHERE id=1 FOR UPDATE"
-            )
-            previous = int(cursor.fetchone()["last_capture_at"])
-            if now < previous:
-                raise ValueError("Database clock moved backwards")
-            if now - previous > MAX_POLL_GAP:
-                cursor.execute(
-                    "INSERT IGNORE INTO spawn_history_gap VALUES (%s, %s)",
-                    (previous, now),
-                )
-            cursor.execute(capture_sql(), (now, now, now, cutoff, now))
-            cursor.execute(
-                "DELETE FROM spawn_history WHERE first_seen_at < %s", (cutoff,)
-            )
-            cursor.execute(
-                "DELETE FROM spawn_history_gap WHERE ended_at < %s", (cutoff,)
-            )
-            cursor.execute(
-                "UPDATE spawn_history_state SET last_capture_at=%s WHERE id=1", (now,)
-            )
-        connection.commit()
-        return now
-    except BaseException:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+        cursor.execute(capture_sql(), (now, now, now, cutoff, now))
+        cursor.execute("DELETE FROM spawn_history WHERE first_seen_at < %s", (cutoff,))
+        cursor.execute("DELETE FROM spawn_history_gap WHERE ended_at < %s", (cutoff,))
+        cursor.execute(
+            "UPDATE spawn_history_state SET last_capture_at=%s WHERE id=1", (now,)
+        )
+    return now
 
 
 def window_metadata(cursor, hours):
@@ -162,40 +156,34 @@ def window_metadata(cursor, hours):
     }
 
 
-def reader(*, streaming=False):
-    connection = connect(
-        Config.DB_POLISWAG,
-        read_timeout=15,
-        cursorclass=(
-            pymysql.cursors.SSDictCursor if streaming else pymysql.cursors.DictCursor
-        ),
+def reader(connection, *, streaming=False):
+    """A cursor on one consistent, read-only snapshot of the archive.
+
+    The export streams its rows from the server instead of loading 48 hours
+    of spawns into memory, so it asks for a server-side cursor. Readers run as
+    `db.unit(..., read_timeout=15)`, which also closes the connection.
+    """
+    cursor = connection.cursor(
+        pymysql.cursors.SSDictCursor if streaming else pymysql.cursors.DictCursor
     )
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SET SESSION time_zone = '+00:00'")
-        cursor.execute("SET SESSION max_statement_time=10")
-        cursor.execute("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY")
-        return connection, cursor
-    except BaseException:
-        connection.close()
-        raise
+    cursor.execute("SET SESSION time_zone = '+00:00'")
+    cursor.execute("SET SESSION max_statement_time=10")
+    cursor.execute("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY")
+    return cursor
 
 
-def status(hours=24):
+def status(connection, hours=24):
     hours_value(hours)
-    connection, cursor = reader()
-    try:
-        metadata = window_metadata(cursor, hours)
-        cursor.execute("SELECT COUNT(*) AS stored_spawns FROM spawn_history")
-        metadata.update(cursor.fetchone())
-        return metadata
-    finally:
-        connection.close()
+    cursor = reader(connection)
+    metadata = window_metadata(cursor, hours)
+    cursor.execute("SELECT COUNT(*) AS stored_spawns FROM spawn_history")
+    metadata.update(cursor.fetchone())
+    return metadata
 
 
-def export_json(hours=24):
+def export_json(connection, hours=24):
     hours_value(hours)
-    connection, cursor = reader(streaming=True)
+    cursor = reader(connection, streaming=True)
     output = tempfile.SpooledTemporaryFile(max_size=1024 * 1024, mode="w+b")
     try:
         metadata = window_metadata(cursor, hours)
@@ -230,37 +218,35 @@ def export_json(hours=24):
     except BaseException:
         output.close()
         raise
-    finally:
-        connection.close()
 
 
-def leaderboard(hours=24):
+def leaderboard(connection, hours=24):
+    # The ranking below is CPU work (one SHA-1 per trainer and spawn). It runs
+    # inside the same unit, in its worker thread, so it never blocks the
+    # event loop; the read-only connection just stays open until it is done.
     hours_value(hours)
-    connection, cursor = reader()
-    try:
-        metadata = window_metadata(cursor, hours)
-        if not metadata["available"]:
-            return {"metadata": metadata, "trainers": []}
-        cursor.execute(
-            f"SELECT l.trainer_name, l.player_id FROM shiny_link l "
-            f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id=l.discord_id "
-            "WHERE l.status='linked' AND p.shiny_access=1 AND p.shiny_map=1 "
-            "AND p.left_at IS NULL ORDER BY l.trainer_name LIMIT 101"
-        )
-        trainers = list(cursor.fetchall())
-        if len(trainers) > 100:
-            raise ValueError("A leaderboard suporta até 100 treinadores.")
-        cursor.execute(
-            "SELECT encounter_id, pokemon_id, lat, lon, atk_iv, def_iv, sta_iv, shiny_odds "
-            "FROM spawn_history WHERE first_seen_at >= %s AND first_seen_at < %s "
-            "AND shiny_eligible=1 AND seen_type IN ('wild','encounter') "
-            "AND pokemon_id<>132 AND is_ditto=0 AND costume_id<>255 "
-            "AND (display_pokemon_id IS NULL OR display_pokemon_id IN (0,pokemon_id))",
-            (metadata["start_epoch"], metadata["end_epoch"]),
-        )
-        spawns = list(cursor.fetchall())
-    finally:
-        connection.close()
+    cursor = reader(connection)
+    metadata = window_metadata(cursor, hours)
+    if not metadata["available"]:
+        return {"metadata": metadata, "trainers": []}
+    cursor.execute(
+        f"SELECT l.trainer_name, l.player_id FROM shiny_link l "
+        f"JOIN {Config.DB_POGOLEIRIA}.trade_player p ON p.discord_id=l.discord_id "
+        "WHERE l.status='linked' AND p.shiny_access=1 AND p.shiny_map=1 "
+        "AND p.left_at IS NULL ORDER BY l.trainer_name LIMIT 101"
+    )
+    trainers = list(cursor.fetchall())
+    if len(trainers) > 100:
+        raise ValueError("A leaderboard suporta até 100 treinadores.")
+    cursor.execute(
+        "SELECT encounter_id, pokemon_id, lat, lon, atk_iv, def_iv, sta_iv, shiny_odds "
+        "FROM spawn_history WHERE first_seen_at >= %s AND first_seen_at < %s "
+        "AND shiny_eligible=1 AND seen_type IN ('wild','encounter') "
+        "AND pokemon_id<>132 AND is_ditto=0 AND costume_id<>255 "
+        "AND (display_pokemon_id IS NULL OR display_pokemon_id IN (0,pokemon_id))",
+        (metadata["start_epoch"], metadata["end_epoch"]),
+    )
+    spawns = list(cursor.fetchall())
     area_keys = scan_areas.active_keys()
     rows = []
     for trainer in trainers:
@@ -307,14 +293,14 @@ def leaderboard(hours=24):
     }
 
 
-def shundo_leaderboard(hours=24):
+def shundo_leaderboard(connection, hours=24):
     """The same aggregate, ranked by shiny Pokémon caught at 15/15/15.
 
     A shundo is the combination the community chases: shiny *and* perfect IV.
     The leaderboard already counted those per trainer; this keeps only the
     trainers who have at least one and re-ranks by that count.
     """
-    data = leaderboard(hours)
+    data = leaderboard(connection, hours)
     rows = [
         {**row, "predicted_shinies": row["hundo_shinies"]}
         for row in data["trainers"]

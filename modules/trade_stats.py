@@ -1,10 +1,6 @@
 """Small aggregate reader for the shared trades tables."""
 
-import asyncio
-
 from modules import scan_areas
-from modules.config import Config
-from modules.database_connector import connect
 from modules.hundo_alerts import collects_hundo, is_active
 
 # Enough of trade_player for hundo_alerts.is_active, plus area and health.
@@ -22,53 +18,49 @@ _HUNDO_UNHEALTHY = ("stopped", "error", "unavailable")
 class TradeStats:
     """Read trade activity without exposing player identities or Pokémon IDs."""
 
-    async def collect(self, since, until):
-        return await asyncio.to_thread(self._collect_sync, since, until)
+    def __init__(self, site_db):
+        # The bot's handle for the site's schema (poliswag.site_db).
+        self.db = site_db
 
-    def _collect_sync(self, since, until):
-        db = connect(Config.DB_POGOLEIRIA, dict_rows=True)
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SET SESSION max_statement_time = 5")
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) entries,
-                      COUNT(DISTINCT discord_id) users,
-                      SUM(list = 'have') have_entries,
-                      SUM(list = 'want') want_entries,
-                      COUNT(DISTINCT CASE WHEN list = 'have' THEN discord_id END) have_users,
-                      COUNT(DISTINCT CASE WHEN list = 'want' THEN discord_id END) want_users
-                    FROM trade_entry
-                    WHERE created_at >= %s AND created_at < %s
-                    """,
-                    (since, until),
-                )
-                row = cursor.fetchone() or {}
-                return {
-                    "entries": int(row.get("entries") or 0),
-                    "users": int(row.get("users") or 0),
-                    "have_entries": int(row.get("have_entries") or 0),
-                    "want_entries": int(row.get("want_entries") or 0),
-                    "have_users": int(row.get("have_users") or 0),
-                    "want_users": int(row.get("want_users") or 0),
-                }
-        finally:
-            db.close()
+    async def collect(self, since, until):
+        return await self.db.unit(self._collect_sync, since, until)
+
+    def _collect_sync(self, db, since, until):
+        with db.cursor() as cursor:
+            cursor.execute("SET SESSION max_statement_time = 5")
+            cursor.execute(
+                """
+                SELECT COUNT(*) entries,
+                  COUNT(DISTINCT discord_id) users,
+                  SUM(list = 'have') have_entries,
+                  SUM(list = 'want') want_entries,
+                  COUNT(DISTINCT CASE WHEN list = 'have' THEN discord_id END) have_users,
+                  COUNT(DISTINCT CASE WHEN list = 'want' THEN discord_id END) want_users
+                FROM trade_entry
+                WHERE created_at >= %s AND created_at < %s
+                """,
+                (since, until),
+            )
+            row = cursor.fetchone() or {}
+            return {
+                "entries": int(row.get("entries") or 0),
+                "users": int(row.get("users") or 0),
+                "have_entries": int(row.get("have_entries") or 0),
+                "want_entries": int(row.get("want_entries") or 0),
+                "have_users": int(row.get("have_users") or 0),
+                "want_users": int(row.get("want_users") or 0),
+            }
 
     async def collect_hundo(self):
         """Who has 100IV DMs on right now, by the worker's own rule."""
-        return await asyncio.to_thread(self._collect_hundo_sync)
-
-    def _collect_hundo_sync(self):
-        db = connect(Config.DB_POGOLEIRIA, dict_rows=True)
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SET SESSION max_statement_time = 5")
-                cursor.execute(_HUNDO_SQL)
-                rows = list(cursor.fetchall())
-        finally:
-            db.close()
+        rows = await self.db.unit(self._collect_hundo_sync)
         return summarize_hundo(rows)
+
+    def _collect_hundo_sync(self, db):
+        with db.cursor() as cursor:
+            cursor.execute("SET SESSION max_statement_time = 5")
+            cursor.execute(_HUNDO_SQL)
+            return list(cursor.fetchall())
 
 
 def _areas(row):

@@ -128,12 +128,15 @@ DM conversations, so the cog, its database bridge (`modules/agent_database.py`)
 and its delivery rules (`modules/agent_destination.py`) are gone. A tagged
 owner DM now goes straight to the Hermes conversation (`cogs/mentions.py`).
 
-What stays: the host worker (`scripts/agent_worker.py`, `poliswag-agent.service`)
-and the queue (`modules/agent_jobs.py`), because the public path falls back to
-them when Hermiswag does not answer (`conversation_model.py`, queue
-`logs/agent-jobs/public`). The worker's owner-job half described under
-"Execution and boundaries" is dormant: nothing in the bot queues, serves or
-delivers an owner job any more.
+The worker's owner-job half went the same day: the per-job Git worktrees, the
+`poliswag_db` MCP bridge (`scripts/agent_db_mcp.py`), reply parsing
+(`modules/agent_reply.py`), file staging (`modules/agent_artifacts.py`) and the
+`waiting_input`/resume protocol. What stays is the host worker
+(`scripts/agent_worker.py`, `poliswag-agent.service`) and the queue
+(`modules/agent_jobs.py`), because the public path falls back to them when
+Hermiswag does not answer (see "Execution and boundaries"). Old owner job
+directories in `logs/agent-jobs/` and worktrees in
+`/root/worktrees/poliswag-agent/` were left for manual review.
 
 ## Public mentions
 
@@ -186,13 +189,12 @@ Public replies use the host's **Codex CLI, GPT-6 Luna, low reasoning**, or, with
 Sonnet 5.5, medium effort** (web search plus WebFetch limited to `PUBLIC_SOURCES`: Leek Duck, DittoBase, pokemongo.com, Pokémon GO Hub, Pokebattler, PvPoke, Bulbapedia; no settings sources,
 MCP, skills or session; the reply is schema-validated JSON on stdout). Codex is
 the default so an expired Claude login never silences public replies. Codex uses the
-existing CLI login; Claude uses `POLISWAG_PUBLIC_ANTHROPIC_API_KEY` (+ `POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE` for a user-scoped key) from the worker's EnvironmentFile, mapped to `ANTHROPIC_API_KEY` for public runs only, so owner jobs keep their own login. There is no direct Responses API call and no separate API
+existing CLI login; Claude uses `POLISWAG_PUBLIC_ANTHROPIC_API_KEY` (+ `POLISWAG_PUBLIC_ANTHROPIC_WORKSPACE` for a user-scoped key) from the worker's EnvironmentFile, mapped to `ANTHROPIC_API_KEY` for public runs in place of the host's Claude login. There is no direct Responses API call and no separate API
 credential in the bot. `modules/conversation_model.py` submits the sanitized
 question plus a strictly validated public map snapshot to the separate
 `logs/agent-jobs/public/` queue. The queue prompt field still carries a fixed
 topic (greeting/events/statistics/map); the question and snapshot travel in a
-validated context object. Public requests use reserved identity `0`; they never
-appear in owner job listings or DM delivery. The worker validates owner, provider,
+validated context object. Public requests use reserved identity `0`. The worker validates owner, provider,
 mode, topic, question text, snapshot schema/types/sizes again before execution.
 
 `modules/public_map_context.py` supplies the only map data. It receives the
@@ -217,8 +219,7 @@ mascot instruction file, ignores user configuration and project rules,
 disables shell execution, image reading, web search and multi-agent tools,
 and uses a read-only sandbox and ephemeral session. The worker reconstructs the
 prompt as trusted instructions plus serialized untrusted member data; prompt
-injection cannot add tools, permissions or owner context. Owner worktrees and
-runtime snapshots are never passed to it. Generated text may contain numbers,
+injection cannot add tools, permissions or owner context. Generated text may contain numbers,
 accents, line breaks, game terms and public `pogoleiria.pt` links (including
 `/mapa/@...`), but must pass length (about 1800 characters), credential,
 code/backtick, internal-path, mention and foreign-link checks. Calendar facts
@@ -249,144 +250,59 @@ logged by the mention path.
 CLI behavior: [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 and [configuration reference](https://developers.openai.com/codex/config-reference).
 
-Owner replies use regular text containing the LLM's natural answer, preserving
-sentences and paragraphs without a 280-character or one-sentence limit.
-Submission immediately adds a 👀 reaction to the originating message; it does
-not post a canned acknowledgement. Public requests use the same reaction.
-Replies wait for completion or a blocking decision. Answers exceeding the
-2000-character message limit include the full text as an attachment.
-Code reports remain available via
-`!job <id>` as attachments. Statistics, calendars and explicitly requested
-detailed reports retain their useful rows/text, with a file for long reports.
-Owner agents are read-only and cannot create files, so they return an empty
-`attachments` array and put tables in text (long text is sent as a file); the
-staging below stays as a fail-closed path. Generated files are declared in the
-response's `attachments` array as relative worktree paths. Before publishing completion, the worker copies them into the
-shared job directory under `artifacts/<revision>/`; the container does not need
-access to host worktrees. The bot sends these files and any long text report
-together. Missing/invalid files fail staging or delivery instead of silently
-sending only text. Paths must stay inside the worktree (no hidden paths or
-escaping symlinks); supported types are PNG, JPEG, GIF, WebP, PDF, CSV, TXT,
-JSON and SVG. Maximum nine generated files, 8 MiB per file and 24 MiB total.
-Failures get a short generic explanation without publishing raw CLI errors.
-Mentions are disabled on every reply.
+A guild tag that passes the cooldowns is first acknowledged with a 👀 reaction
+(`react_to_request`), never a canned message. Mentions are disabled on every reply.
 
 ## Execution and boundaries
 
-The queue is `logs/agent-jobs/` (`AGENT_JOBS_DIR` inside the bot), shared through
-the existing `/app`/`logs` bind mounts. Each private job directory contains
-`request.json`, `result.json`, structured `response.json`, `answer.txt`, raw
-CLI stdout/stderr, private `database/` MCP requests/results while executing,
-staged output `artifacts/`, and optional `continuation.json`, `cancel` and per-revision
-notification markers. Responses declare `done` or `needs_input` and separate
-the short sentence from full details. Only completion, a blocking question,
-or a terminal failure is delivered automatically. Conversational replies and
-follow-up questions use regular text; request errors and status commands retain embeds. Waiting tasks are not
-rerun by polling or restart recovery; an owner answer atomically queues
-the next revision, and each revision is delivered once. JSON writes use atomic replacement. The worker
-heartbeat expires after 30 seconds. Maximum five outstanding requests per owner;
-one executes at a time, with a 20-minute limit. Systemd caps resources.
+The host worker only runs the public fallback above. Its queue is
+`logs/agent-jobs/public/` (`AGENT_JOBS_DIR` inside the bot, plus `public/`),
+shared through the existing `/app`/`logs` bind mounts. `modules/agent_jobs.py`
+is the queue (`AgentJobs` submit/get/list/cancel/`worker_status`, atomic
+`write_json`), standard library only because the worker imports it outside the
+container. A job directory holds `request.json`, `result.json` (state and the
+JSON reply) and, when the bot gives up, a `cancel` marker; no CLI output is
+kept. The worker writes its heartbeat to `public/worker.json` (`heartbeat`,
+`active`, `providers`), which the bot treats as offline after 30 seconds, and
+holds `worker.lock` in the queue root so only one worker runs. It takes one job
+at a time, oldest first, polling every two seconds.
 
-The job modules: `modules/agent_jobs.py` is the queue (`AgentJobs`
-submit/get/resume/cancel/list, atomic `write_json`, `parse_direct_request`),
-standard library only because `scripts/agent_worker.py` imports it outside the
-container; `cogs/agents.py` and the public worker path (`conversation_model.py`,
-under `public/`) use it too. `modules/agent_reply.py` holds the `REPLY_SCHEMA`
-the worker asks for and `parse_reply`, which rejects any other shape;
-`short_sentence` trims status lines to one sentence (at most 280 characters).
-`modules/agent_artifacts.py` stages the files a reply names (worker) and reads
-them back (cog): relative paths inside the worktree, no dot-prefixed parts, an
-extension allowlist, regular files only, no final symlink, at most 9 files (one
-attachment slot stays for the report), 8 MB each and 24 MB in all.
-`modules/agent_destination.py` (`delivery_reference`) takes the last explicit,
-non-negated delivery directive in the owner's request (DM, `<#id>`, `#name`,
-`canal <name>`), so the agent never chooses a channel itself.
+The CLIs get an environment allowlist without Discord or database credentials
+and run in a fresh temporary directory, never in the repository.
+Cancellation and timeouts terminate the process group. A restart marks
+unfinished jobs `interrupted` without rerunning them.
 
-Every owner job reads a checkout of **committed HEAD**, in a new branch
-`poliswag-agent/<id>` and worktree `/root/worktrees/poliswag-agent/<id>`.
-Uncommitted live-tree changes and production `.env` files are not copied. Tasks
-receive a timestamped snapshot of bot identity, loaded commands, executor status,
-and scanner health counts (no account names/device identifiers). They read the
-repository's `docs/context.md` for architecture.
-
-The supplied systemd unit mounts `/root` as an empty tmpfs and binds back only
-the live source (read-only, production `.env` hidden), `~/.local`, worktrees and
-the agent folders, so other stacks' configs, backups and SSH keys are absent;
-`/var/lib/docker`, `/opt`, `/etc/shadow` and the Docker socket are hidden, and allows writes to worktrees, Git metadata, the private
-queue, and agent authentication/cache folders. Provider credentials remain
-available to the CLIs. Owner jobs are read-only: `AgentJobs.submit` always stores
-mode `ask`, the worker refuses any other mode, Codex runs with `--sandbox
-read-only`, and Claude gets only Read/Grep/Glob, the owner database MCP server,
-no settings sources and `dontAsk` permissions. When the delivery destination is
-a channel, the prompt tells the agent members can read it and forbids
-credentials, account usernames, device/worker identifiers and internal details.
-No runner command deploys, merges, pushes, commits, or restarts the bot. Agent
-instructions forbid those actions as well. Shared Git metadata is writable for worktree registration; this
-review workflow is not a complete security sandbox.
-
-Owner jobs receive the `poliswag_db` stdio MCP server (`scripts/agent_db_mcp.py`).
-Its `list_databases` and `query` tools send private per-job file requests to
-`cogs/agents.py`, which executes them through the bot's production connection.
-Only running jobs belonging to `MY_ID` are served; public jobs receive no MCP
-server. Aliases cover Poliswag, scanner, PoGoLeiria and Poracle. Dragonite
-(scanner accounts, passwords, refresh tokens) is not reachable: the bot's DB
-user can read every schema, so `modules/agent_database.py` refuses SQL that
-names the `dragonite`/`mysql`/`performance_schema`/`sys` schemas, any
-`*account*` identifier, credential/username/Friend Code columns, SQL
-comments, set operations or CTE column lists; `SHOW` and `information_schema`
-are limited to schema discovery (no processlist, binlog, InnoDB or
-query-cache text, which can carry other sessions' token updates). It redacts
-those columns by name (including `table.column`) when `SELECT *` returns them. Table and
-schema blocks are by name and hold; column redaction is best effort. A
-dedicated read-only DB user with grants would be the hard boundary.
-Queries run in a read-only transaction with a 10-second statement limit,
-maximum 500 rows and bounded output. Schema discovery and aggregate queries
-use live data; credentials stay inside the bot. SQL writes and file queries
-are rejected. Cancellation and bridge waits are bounded.
-
-`spawn_history_report` computes the unfiltered shiny leaderboard over 1–48
-hours from the independent raw archive. It returns per-trainer aggregates and
-coverage metadata, with NULL hourly rates for an incomplete window. Owner
-workers are instructed to use it instead of filtered alert counts. It shares
-the private bridge's owner/running-job gate and reads in a consistent read-only
-transaction. See [spawn history](spawn-history.md) for the recorded odds and
-retention semantics.
-
-The worker uses an environment allowlist without Discord or database credentials.
-Cancellation/timeouts terminate the process group. A restart marks unfinished
-jobs `interrupted` without rerunning them. Worktrees and logs remain for review.
-Final result and blocking-question delivery retries across bot restarts in the
-stored destination, with no fallback to a different channel or DM. The delivery
-marker is written only after the complete Discord send succeeds. One failed
-delivery does not block other finished jobs. A crash between sending and marking
-delivery can still produce a duplicate message.
+The supplied unit mounts `/root` as an empty tmpfs and binds back only the live
+source (read-only, production `.env` hidden), `~/.local`, the queue and the
+CLIs' login and cache folders; `/var/lib/docker`, `/opt`, the shadow files and
+the Docker socket are hidden. It keeps SETUID/SETGID/SETFCAP for Codex's
+bubblewrap sandbox; mount and ptrace capabilities are excluded and privilege
+escalation is disabled. The worker still accepts `--owner-id` (and `--repo`,
+`--worktrees`) without using them, so a unit written for the owner jobs starts
+it unchanged.
 
 ## Host installation
 
-Both `claude` and `codex` must be installed and logged in on the host. Check with
-`claude auth status` and `codex login status`. The bot container needs no new
-runtime packages or mounts (Git is installed in the image for worker tests).
-Install `bubblewrap` on the host for Codex's Linux sandbox. The service retains
-only SETUID/SETGID/SETFCAP for the sandbox's user namespace mapping; mount and
-ptrace capabilities are excluded and privilege escalation is disabled.
+Install and log in the Codex CLI (`codex login status`); the Claude CLI is only
+needed with `POLISWAG_PUBLIC_PROVIDER=claude` and then uses
+`POLISWAG_PUBLIC_ANTHROPIC_API_KEY`. The bot container needs nothing extra.
 
 ```sh
 apt-get install -y bubblewrap
-mkdir -p /root/Poliswag/logs/agent-jobs /root/worktrees/poliswag-agent /root/.cache
-chmod 700 /root/Poliswag/logs/agent-jobs /root/worktrees/poliswag-agent
-# Use the same numeric owner ID as MY_ID, without a Discord token:
+mkdir -p /root/Poliswag/logs/agent-jobs /root/.cache
+chmod 700 /root/Poliswag/logs/agent-jobs
+# The unit passes --owner-id from this file; the worker ignores the value.
 printf 'POLISWAG_AGENT_OWNER_ID=YOUR_DISCORD_ID\n' > /etc/poliswag-agent.conf
 chmod 600 /etc/poliswag-agent.conf
 cp scripts/agent-worker.service /etc/systemd/system/poliswag-agent.service
 systemctl daemon-reload
 systemctl enable --now poliswag-agent.service
-docker restart poliswag
 ```
 
 Check `systemctl status poliswag-agent` / `journalctl -u poliswag-agent`.
-Disable with `systemctl disable --now poliswag-agent`. Artifacts have
-no automatic retention deletion: remove reviewed worktrees with
-`git worktree remove <path>` and delete the corresponding job directory.
+Disable with `systemctl disable --now poliswag-agent`; public tags then get the
+local fallback replies when Hermiswag does not answer. Job directories are
+never deleted automatically.
 
 
 ## Hermiswag (public agent, since 2026-11-08)

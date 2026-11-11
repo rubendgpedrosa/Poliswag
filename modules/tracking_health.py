@@ -4,11 +4,7 @@ An absent page view cannot distinguish a quiet site from a broken collector.
 Real service health is monitored independently.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
-
-from modules.config import Config
-from modules.database_connector import connect
 
 # The site is quiet overnight. A full day without recorded page views is
 # useful context, but is not evidence of a service failure.
@@ -18,25 +14,28 @@ SILENT_AFTER = timedelta(hours=24)
 class TrackingHealth:
     """Reads the collector's last receipt. Never writes to the analytics DB."""
 
-    async def last_event_at(self):
-        return await asyncio.to_thread(self._last_event_sync)
+    def __init__(self, site_db):
+        # The bot's handle for the site's schema (poliswag.site_db).
+        self.db = site_db
 
-    def _last_event_sync(self):
-        db = connect(Config.DB_POGOLEIRIA)
-        try:
-            with db.cursor() as cursor:
-                cursor.execute("SET SESSION max_statement_time = 5")
-                # Page views only: /pogoleiria.apk writes its download counts
-                # to the same table; count page-view activity separately.
-                # idx_event_created covers this query.
-                cursor.execute(
-                    "SELECT MAX(created_at) FROM page_view"
-                    " WHERE event_name = 'tool_view'"
-                )
-                row = cursor.fetchone()
-                return row[0] if row else None
-        finally:
-            db.close()
+    async def last_event_at(self):
+        # Tuple rows, as before: the row is read by position.
+        return await self.db.unit(self._last_event_sync, dict_rows=False)
+
+    def _last_event_sync(self, db):
+        with db.cursor() as cursor:
+            # Safe on this connection: a unit's connection is its own and is
+            # closed afterwards, so the limit never reaches another query.
+            cursor.execute("SET SESSION max_statement_time = 5")
+            # Page views only: /pogoleiria.apk writes its download counts
+            # to the same table; count page-view activity separately.
+            # idx_event_created covers this query.
+            cursor.execute(
+                "SELECT MAX(created_at) FROM page_view"
+                " WHERE event_name = 'tool_view'"
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
 
 
 def decide(last_event_at, alerted_at, now=None):

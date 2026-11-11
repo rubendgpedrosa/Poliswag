@@ -16,7 +16,10 @@ def setup(mocker):
     mocker.patch.object(cog_module.Config, "MY_ID", 1)
     mocker.patch.object(cog_module.Config, "MOD_CHANNEL_ID", 321)
     bot = SimpleNamespace(
-        ADMIN_USERS_IDS=["2"], utility=Mock(), user=SimpleNamespace(id=999)
+        ADMIN_USERS_IDS=["2"],
+        utility=Mock(),
+        user=SimpleNamespace(id=999),
+        site_db=object(),
     )
     cog = cog_module.ShinyAccessRequests(bot)
     interaction = SimpleNamespace(
@@ -30,7 +33,9 @@ def setup(mocker):
             embeds=[], edit=AsyncMock(), author=SimpleNamespace(id=999)
         ),
     )
-    decide = mocker.patch.object(cog_module, "decide_request", return_value=True)
+    decide = mocker.patch.object(
+        cog_module, "decide_request", new_callable=AsyncMock, return_value=True
+    )
     return cog, interaction, decide
 
 
@@ -54,7 +59,10 @@ async def test_owner_and_mod_can_decide_and_remove_buttons(setup, user):
     interaction.user.id = user
     await cog.on_interaction(interaction)
     interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
-    decide.assert_called_once_with("123", "20261015120000123456", True)
+    # The decision runs on the site schema's handle.
+    decide.assert_awaited_once_with(
+        cog.poliswag.site_db, "123", "20261015120000123456", True
+    )
     assert interaction.message.edit.call_args.kwargs["view"] is None
     embed = interaction.message.edit.call_args.kwargs["embed"]
     assert not embed.fields

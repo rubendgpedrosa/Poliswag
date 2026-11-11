@@ -1,11 +1,19 @@
 """Poracle geofence export from the scan-area registry."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from scripts import sync_poracle_geofences as sync
+
+
+@pytest.fixture(autouse=True)
+def handle(monkeypatch):
+    """No test here opens a real database connection."""
+    connector = MagicMock()
+    monkeypatch.setattr(sync, "DatabaseConnector", connector)
+    return connector
 
 
 def row(key, order, poracle=None, active=1):
@@ -161,3 +169,27 @@ def test_missing_fences_can_be_allowed(monkeypatch, capsys):
     monkeypatch.setattr(sync.scan_areas, "fences", lambda: {})
     assert sync.main(["--allow-missing"]) == 0
     assert "0 área(s) ativa(s)" in capsys.readouterr().out
+
+
+def test_the_registry_is_read_through_a_poliswag_handle(monkeypatch, handle):
+    seen = []
+
+    async def refresh():
+        seen.append(sync.scan_areas._db)
+        return True
+
+    monkeypatch.setattr(sync.scan_areas, "refresh", refresh)
+    monkeypatch.setattr(sync.scan_areas, "active_areas", lambda: [row("leiria", 1)])
+    monkeypatch.setattr(sync.scan_areas, "fences", lambda: {"leiria": LEIRIA})
+    assert sync.main([]) == 0
+    handle.assert_called_once_with(sync.Config.DB_POLISWAG)
+    assert seen == [handle.return_value]
+
+
+def test_a_database_that_cannot_connect_fails_like_a_failed_read(monkeypatch, handle):
+    handle.side_effect = RuntimeError("down")
+    refresh = AsyncMock(return_value=True)
+    monkeypatch.setattr(sync.scan_areas, "refresh", refresh)
+    with pytest.raises(SystemExit, match="registo scan_area"):
+        sync.main([])
+    refresh.assert_not_awaited()

@@ -15,9 +15,11 @@ from modules.device_manager import DeviceManager
 from modules.dm_policy import may_run_in_dm
 from modules.embeds import status_embed
 from modules.event_manager import EventManager
+from modules.event_notices import EventNotices
 from modules.event_stats import EventStats
 from modules.help_command import EmbedHelpCommand
 from modules.http_client import close_session
+from modules.hundo_alerts import HundoAlerts
 from modules.image_generator import ImageGenerator
 from modules.lure_watcher import LureWatcher
 from modules.mega_exporter import MegaExporter
@@ -31,7 +33,14 @@ from modules.quest_search import QuestSearch
 from modules.role_manager import RoleManager
 from modules.scanner_manager import ScannerManager
 from modules.scanner_status import ScannerStatus
+from modules.shiny_alerts import ShinyAlerts
+from modules.shiny_availability import ShinyAvailability
+from modules.shiny_odds import ShinyOdds
 from modules.stack_recovery import StackRecovery
+from modules.tracking_health import TrackingHealth
+from modules.trade_announcer import TradeAnnouncer
+from modules.trade_digest import TradeDigest
+from modules.trade_dm import TradeDM
 from modules.trade_player_store import TradePlayerStore
 from modules.trade_stats import TradeStats
 from modules.utility import Utility
@@ -54,10 +63,18 @@ class Poliswag(commands.Bot):
             help_command=EmbedHelpCommand(),
         )
 
-        self.db = DatabaseConnector()
-        # The scanner's own database (Golbat), read-only for the bot. Its one
-        # connection is shared by everything that reads the map.
+        # One handle per schema, all built here. A module asks the bot for
+        # the handle it needs and never opens a connection itself: a single
+        # statement goes through get_data_from_database /
+        # execute_query_to_database on the handle's shared connection, and
+        # anything bigger through handle.unit(work).
+        self.db = DatabaseConnector()  # the bot's own schema
+        # The scanner's own database (Golbat), read-only for the bot.
         self.scanner_db = DatabaseConnector(Config.DB_SCANNER_NAME)
+        # The site's schema: trades, the Pokédex, page views.
+        self.site_db = DatabaseConnector(Config.DB_POGOLEIRIA)
+        # Poracle's own schema, for the 100IV rules written straight into it.
+        self.poracle_db = DatabaseConnector("poracle")
         self.role_manager = RoleManager()
         self.utility = Utility(self)
         self.scanner_status = ScannerStatus(self)
@@ -72,11 +89,22 @@ class Poliswag(commands.Bot):
         self.poracle = PoracleClient(self)
         self.device_manager = DeviceManager(self)
         self.page_view_stats = PageViewStats(self)
-        self.trade_player_store = TradePlayerStore()
-        self.trade_stats = TradeStats()
+        self.trade_player_store = TradePlayerStore(self.site_db)
+        self.trade_stats = TradeStats(self.site_db)
         self.lure_watcher = LureWatcher(self)
         self.stack_recovery = StackRecovery(self)
         self.account_guard = AccountGuard(self)
+        # What the scheduler runs (cogs/scheduled.py). Built here with every
+        # other service, so that cog only decides when.
+        self.event_notices = EventNotices(self)
+        self.trade_announcer = TradeAnnouncer(self)
+        self.trade_dm = TradeDM(self)
+        self.trade_digest = TradeDigest(self)
+        self.hundo_alerts = HundoAlerts(self)
+        self.shiny_odds = ShinyOdds(self)
+        self.shiny_availability = ShinyAvailability(self)
+        self.shiny_alerts = ShinyAlerts(self)
+        self.tracking_health = TrackingHealth(self.site_db)
 
         self.QUEST_CHANNEL = None
         self.CONVIVIO_CHANNEL = None
@@ -188,6 +216,7 @@ class Poliswag(commands.Bot):
         await apply_migrations(self.db, self.utility.log_to_file)
         # Areas come from the registry plus Dragonite's fences; load them
         # before cogs so the first tick already classifies points correctly.
+        scan_areas.use(self.db)
         await scan_areas.refresh(self.utility.log_to_file)
         await self.load_extension("cogs.quests")
         await self.load_extension("cogs.accounts")

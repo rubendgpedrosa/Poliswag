@@ -40,7 +40,7 @@ class WebStats(commands.Cog, LoggingMixin):
     def __init__(self, poliswag):
         self.poliswag = poliswag
         self.page_view_stats = poliswag.page_view_stats
-        self.access = WebStatsAccess()
+        self.access = WebStatsAccess(poliswag.site_db)
         self.trade_stats = getattr(poliswag, "trade_stats", None)
 
     async def cog_load(self):

@@ -12,20 +12,12 @@ from discord.ext import commands, tasks
 from modules import polisnatch_api, scan_areas, tracking_health
 from modules.config import Config
 from modules.embeds import build_embed, status_embed
-from modules.event_notices import EventNotices
 from modules.http_client import get_session
-from modules.hundo_alerts import HundoAlerts
 from modules.owner_alert import notify_owner
 from modules.permissions import mods_only
 from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules.scheduler import Step, StepRunner
-from modules.shiny_alerts import ShinyAlerts
-from modules.shiny_availability import ShinyAvailability
-from modules.shiny_odds import ShinyOdds
-from modules.trade_announcer import TradeAnnouncer
-from modules.trade_digest import TradeDigest
-from modules.trade_dm import TradeDM
 
 # Every loop passes once a minute; a step with `every` skips the passes in
 # between. The steps are grouped by what they must not wait behind:
@@ -162,7 +154,6 @@ class Scheduled(commands.Cog):
         self._last_quest_export = None
         self._last_error_digest_at = None
         self._last_lure_status_count = None
-        self._tracking = tracking_health.TrackingHealth()
         self._last_tracking_alert_at = None
         # False until the first successful write to poliswag.pokemon_name.
         # The masterfile is loaded before this cog exists, so without the
@@ -172,14 +163,6 @@ class Scheduled(commands.Cog):
         # first tick never sees a reload, and megas.json waited up to a day
         # after a restart (a fix to the exporter reached the site only then).
         self._megas_exported = False
-        self._trade_announcer = TradeAnnouncer(poliswag)
-        self._trade_digest = TradeDigest(poliswag)
-        self._trade_dm = TradeDM(poliswag)
-        self._hundo_alerts = HundoAlerts(poliswag)
-        self._shiny_alerts = ShinyAlerts(poliswag)
-        self._shiny_odds = ShinyOdds(poliswag)
-        self._shiny_availability = ShinyAvailability(poliswag)
-        self._event_notices = EventNotices(poliswag)
         self._runner = StepRunner(
             lambda message, level: poliswag.utility.log_to_file(message, level)
         )
@@ -213,14 +196,14 @@ class Scheduled(commands.Cog):
                 ),
                 Step("quest_export", lambda: self._check_quest_export()),
                 Step("lure_presence", lambda: self._update_lure_status()),
-                Step("trade_announcer", lambda: self._trade_announcer.tick()),
-                Step("trade_dm", lambda: self._trade_dm.tick()),
-                Step("hundo_alerts", lambda: self._hundo_alerts.tick()),
+                Step("trade_announcer", lambda: poliswag.trade_announcer.tick()),
+                Step("trade_dm", lambda: poliswag.trade_dm.tick()),
+                Step("hundo_alerts", lambda: poliswag.hundo_alerts.tick()),
                 # The alerts read the odds and the confirmed variants the two
                 # steps before them have just written.
-                Step("shiny_odds", lambda: self._shiny_odds.tick()),
-                Step("shiny_availability", lambda: self._shiny_availability.tick()),
-                Step("shiny_alerts", lambda: self._shiny_alerts.tick()),
+                Step("shiny_odds", lambda: poliswag.shiny_odds.tick()),
+                Step("shiny_availability", lambda: poliswag.shiny_availability.tick()),
+                Step("shiny_alerts", lambda: poliswag.shiny_alerts.tick()),
             ],
             "display": [
                 Step(
@@ -340,7 +323,7 @@ class Scheduled(commands.Cog):
     async def weeklydigestcmd(self, ctx):
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
-        await self._event_notices.send_weekly_digest(channel=ctx.channel)
+        await self.poliswag.event_notices.send_weekly_digest(channel=ctx.channel)
 
     @mods_only()
     @commands.command(
@@ -387,7 +370,9 @@ class Scheduled(commands.Cog):
         if not changed:
             return
 
-        await self._event_notices.send_change_notifications(ctx.channel, changed)
+        await self.poliswag.event_notices.send_change_notifications(
+            ctx.channel, changed
+        )
 
     @mods_only()
     @commands.command(
@@ -766,7 +751,7 @@ class Scheduled(commands.Cog):
         changed = await self.poliswag.event_manager.check_current_events_changes()
         if not changed:
             return
-        await self._event_notices.send_change_notifications(
+        await self.poliswag.event_notices.send_change_notifications(
             self.poliswag.CONVIVIO_CHANNEL, changed, acknowledge=True
         )
 
@@ -816,7 +801,7 @@ class Scheduled(commands.Cog):
         if now.hour < 9:
             return
         try:
-            await self._event_notices.send_weekly_digest()
+            await self.poliswag.event_notices.send_weekly_digest()
         except discord.HTTPException as e:
             self.poliswag.utility.log_to_file(
                 f"Weekly digest send failed: {e}", "ERROR"
@@ -828,7 +813,7 @@ class Scheduled(commands.Cog):
     async def _check_trade_digest(self):
         """The 09:00 post naming what was added to the lists since yesterday.
         Silent on a quiet day; the module owns the timing and the watermark."""
-        await self._trade_digest.tick(datetime.datetime.now())
+        await self.poliswag.trade_digest.tick(datetime.datetime.now())
 
     async def _check_daily_error_digest(self):
         """Once a day, if anything new landed in error.log, DM a summary to
@@ -888,7 +873,7 @@ class Scheduled(commands.Cog):
 
     async def _check_tracking_health(self):
         """Log traffic silence/resumption once per episode, without pushing DMs."""
-        last_event_at = await self._tracking.last_event_at()
+        last_event_at = await self.poliswag.tracking_health.last_event_at()
         action, silence = tracking_health.decide(
             last_event_at, self._last_tracking_alert_at
         )

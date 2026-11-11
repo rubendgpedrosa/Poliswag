@@ -26,8 +26,18 @@ from cogs.scheduled import (
     _step_line,
     setup,
 )
+from modules.event_notices import EventNotices
+from modules.hundo_alerts import HundoAlerts
 from modules.permissions import is_mod
 from modules.scheduler import Step
+from modules.shiny_alerts import ShinyAlerts
+from modules.shiny_availability import ShinyAvailability
+from modules.shiny_odds import ShinyOdds
+from modules.tracking_health import TrackingHealth
+from modules.trade_announcer import TradeAnnouncer
+from modules.trade_digest import TradeDigest
+from modules.trade_dm import TradeDM
+from tests.fakes import FakeHandle
 
 # --- fixtures -----------------------------------------------------------------
 
@@ -45,7 +55,9 @@ def _no_real_side_effects(monkeypatch, tmp_path):
     # Cards check their picture over HTTP; tests/modules/test_event_images.py
     # covers that. Here every image is taken as it is.
     monkeypatch.setattr("modules.event_notices.usable_image", image_as_is)
-    monkeypatch.setattr("cogs.scheduled.ShinyAvailability.tick", AsyncMock())
+    monkeypatch.setattr(
+        "modules.shiny_availability.ShinyAvailability.tick", AsyncMock()
+    )
 
 
 def _make_poliswag():
@@ -94,6 +106,19 @@ def _make_poliswag():
     poliswag.scanner_status.rename_voice_channels = AsyncMock()
     poliswag.account_monitor.update_channel_accounts_stats = AsyncMock()
     poliswag.account_guard.tick = AsyncMock()
+    poliswag.site_db = FakeHandle()
+    poliswag.poracle_db = FakeHandle()
+    # The services the scheduler runs are built by the bot (main.py). Real
+    # ones here too, so a pass exercises them the way production does.
+    poliswag.event_notices = EventNotices(poliswag)
+    poliswag.trade_announcer = TradeAnnouncer(poliswag)
+    poliswag.trade_dm = TradeDM(poliswag)
+    poliswag.trade_digest = TradeDigest(poliswag)
+    poliswag.hundo_alerts = HundoAlerts(poliswag)
+    poliswag.shiny_odds = ShinyOdds(poliswag)
+    poliswag.shiny_availability = ShinyAvailability(poliswag)
+    poliswag.shiny_alerts = ShinyAlerts(poliswag)
+    poliswag.tracking_health = TrackingHealth(poliswag.site_db)
     return poliswag
 
 
@@ -187,16 +212,16 @@ class TestWeeklyDigestCmd:
 
     async def test_guild_deletes_message_and_sends(self, cog):
         ctx = make_ctx()
-        cog._event_notices.send_weekly_digest = AsyncMock(return_value=True)
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock(return_value=True)
         await Scheduled.weeklydigestcmd.callback(cog, ctx)
         ctx.message.delete.assert_awaited_once()
-        cog._event_notices.send_weekly_digest.assert_awaited_once_with(
+        cog.poliswag.event_notices.send_weekly_digest.assert_awaited_once_with(
             channel=ctx.channel
         )
 
     async def test_dm_skips_delete(self, cog):
         ctx = make_ctx(dm=True)
-        cog._event_notices.send_weekly_digest = AsyncMock(return_value=True)
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock(return_value=True)
         await Scheduled.weeklydigestcmd.callback(cog, ctx)
         ctx.message.delete.assert_not_called()
 
@@ -236,11 +261,11 @@ class TestTestEventCmd:
                 "ended": [{"name": "B"}],
             }
         )
-        cog._event_notices.send_change_notifications = AsyncMock()
+        cog.poliswag.event_notices.send_change_notifications = AsyncMock()
         await Scheduled.testeventcmd.callback(cog, ctx)
         embed = ctx.channel.send.call_args_list[0].kwargs["embed"]
         assert "agora" in embed.description
-        cog._event_notices.send_change_notifications.assert_awaited_once()
+        cog.poliswag.event_notices.send_change_notifications.assert_awaited_once()
 
     async def test_guild_channel_deletes_message(self, cog):
         ctx = make_ctx(dm=False)
@@ -378,11 +403,11 @@ class TestHundoAlertsStep:
             "_check_trade_digest",
         ):
             setattr(cog, name, AsyncMock())
-        cog._trade_announcer.tick = AsyncMock()
-        cog._trade_dm.tick = AsyncMock()
-        cog._shiny_alerts.tick = AsyncMock()
-        cog._shiny_odds.tick = AsyncMock()
-        cog._shiny_availability.tick = AsyncMock()
+        cog.poliswag.trade_announcer.tick = AsyncMock()
+        cog.poliswag.trade_dm.tick = AsyncMock()
+        cog.poliswag.shiny_alerts.tick = AsyncMock()
+        cog.poliswag.shiny_odds.tick = AsyncMock()
+        cog.poliswag.shiny_availability.tick = AsyncMock()
 
     @staticmethod
     def _fake_io(cog, rows_before, rows_after):
@@ -394,10 +419,10 @@ class TestHundoAlertsStep:
         poliswag.poracle.health = AsyncMock()
         poliswag.poracle.create_user = AsyncMock()
         poliswag.get_user.return_value.send = AsyncMock()
-        alerts = cog._hundo_alerts
-        alerts._read_players = MagicMock(side_effect=[rows_before, rows_after])
-        alerts._cleanup = MagicMock(return_value=False)
-        alerts._human = MagicMock(
+        alerts = cog.poliswag.hundo_alerts
+        alerts._read_players = AsyncMock(side_effect=[rows_before, rows_after])
+        alerts._cleanup = AsyncMock(return_value=False)
+        alerts._human = AsyncMock(
             return_value={
                 "id": "1",
                 "type": "discord:user",
@@ -406,10 +431,10 @@ class TestHundoAlertsStep:
                 "current_profile_no": 1,
             }
         )
-        alerts._sync_player = MagicMock(return_value=True)
-        alerts._record = MagicMock(return_value=True)
-        alerts._missing_count = MagicMock(return_value=1499)
-        alerts._record_health = MagicMock()
+        alerts._sync_player = AsyncMock(return_value=True)
+        alerts._record = AsyncMock(return_value=True)
+        alerts._missing_count = AsyncMock(return_value=1499)
+        alerts._record_health = AsyncMock()
 
         async def deliver(row, embed):
             await poliswag.get_user.return_value.send(embed=embed)
@@ -1007,17 +1032,17 @@ class TestCheckEvents:
         cog.poliswag.event_manager.check_current_events_changes = AsyncMock(
             return_value=None
         )
-        cog._event_notices.send_change_notifications = AsyncMock()
+        cog.poliswag.event_notices.send_change_notifications = AsyncMock()
         await cog._check_events()
-        cog._event_notices.send_change_notifications.assert_not_called()
+        cog.poliswag.event_notices.send_change_notifications.assert_not_called()
 
     async def test_with_changes_calls_notifications(self, cog):
         cog.poliswag.event_manager.check_current_events_changes = AsyncMock(
             return_value={"started": [], "ended": []}
         )
-        cog._event_notices.send_change_notifications = AsyncMock()
+        cog.poliswag.event_notices.send_change_notifications = AsyncMock()
         await cog._check_events()
-        cog._event_notices.send_change_notifications.assert_awaited_once()
+        cog.poliswag.event_notices.send_change_notifications.assert_awaited_once()
 
 
 # --- _check_workers -----------------------------------------------------------
@@ -1084,40 +1109,40 @@ class TestUpdateAccountsDisplay:
 class TestCheckWeeklyDigest:
     async def test_non_monday_skips(self, cog):
         tue = real_datetime.datetime(2026, 4, 7, 10, 0)  # Tuesday
-        cog._event_notices.send_weekly_digest = AsyncMock()
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = tue
             await cog._check_weekly_digest()
-        cog._event_notices.send_weekly_digest.assert_not_called()
+        cog.poliswag.event_notices.send_weekly_digest.assert_not_called()
 
     async def test_monday_before_9am_skips(self, cog):
         early_mon = real_datetime.datetime(2026, 4, 6, 8, 59)
         cog._last_weekly_digest_monday = None
-        cog._event_notices.send_weekly_digest = AsyncMock()
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = early_mon
             await cog._check_weekly_digest()
-        cog._event_notices.send_weekly_digest.assert_not_called()
+        cog.poliswag.event_notices.send_weekly_digest.assert_not_called()
 
     async def test_monday_same_day_skips(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = mon.date()
-        cog._event_notices.send_weekly_digest = AsyncMock()
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
-        cog._event_notices.send_weekly_digest.assert_not_called()
+        cog.poliswag.event_notices.send_weekly_digest.assert_not_called()
 
     async def test_new_monday_after_9am_sends_and_persists(self, cog):
         mon = real_datetime.datetime(2026, 4, 6, 10, 0)
         cog._last_weekly_digest_monday = None
-        cog._event_notices.send_weekly_digest = AsyncMock()
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock()
         cog._save_digest_date = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
         cog._save_digest_date.assert_called_once_with(mon.date())
-        cog._event_notices.send_weekly_digest.assert_awaited_once()
+        cog.poliswag.event_notices.send_weekly_digest.assert_awaited_once()
         assert cog._last_weekly_digest_monday == mon.date()
 
 
@@ -1524,16 +1549,18 @@ class TestTrackingActivityLogs:
         old = real_datetime.datetime.now(real_datetime.timezone.utc).replace(
             tzinfo=None
         ) - real_datetime.timedelta(days=5)
-        cog._tracking.last_event_at = AsyncMock(return_value=old)
+        cog.poliswag.tracking_health.last_event_at = AsyncMock(return_value=old)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
         ) as notify:
             await cog._check_tracking_health()
             assert cog._last_tracking_alert_at is not None
             await cog._check_tracking_health()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
-                real_datetime.timezone.utc
-            ).replace(tzinfo=None)
+            cog.poliswag.tracking_health.last_event_at.return_value = (
+                real_datetime.datetime.now(real_datetime.timezone.utc).replace(
+                    tzinfo=None
+                )
+            )
             await cog._check_tracking_health()
             await cog._check_tracking_health()
             notify.assert_not_awaited()
@@ -1554,16 +1581,18 @@ class TestTrackingActivityLogs:
         cog._last_tracking_alert_at = real_datetime.datetime.now(
             real_datetime.timezone.utc
         ).replace(tzinfo=None) - real_datetime.timedelta(days=5)
-        cog._tracking.last_event_at = AsyncMock(return_value=None)
+        cog.poliswag.tracking_health.last_event_at = AsyncMock(return_value=None)
         with patch(
             "modules.owner_alert.notify_owner", new_callable=AsyncMock
         ) as notify:
             await cog._check_tracking_health()
             poliswag.utility.log_to_file.assert_not_called()
             poliswag.db.execute_query_to_database.assert_not_awaited()
-            cog._tracking.last_event_at.return_value = real_datetime.datetime.now(
-                real_datetime.timezone.utc
-            ).replace(tzinfo=None)
+            cog.poliswag.tracking_health.last_event_at.return_value = (
+                real_datetime.datetime.now(real_datetime.timezone.utc).replace(
+                    tzinfo=None
+                )
+            )
             await cog._check_tracking_health()
             notify.assert_not_awaited()
         assert cog._last_tracking_alert_at is None
@@ -1585,7 +1614,7 @@ class TestWeeklyDigestRetryability:
     async def test_first_send_failure_then_retry(self, cog):
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._event_notices.send_weekly_digest = AsyncMock(
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock(
             side_effect=[
                 discord.HTTPException(MagicMock(status=500), "boom"),
                 True,
@@ -1599,28 +1628,28 @@ class TestWeeklyDigestRetryability:
             await cog._check_weekly_digest()
         assert cog._last_weekly_digest_monday == _monday_at_10().date()
         cog._save_digest_date.assert_called_once_with(_monday_at_10().date())
-        assert cog._event_notices.send_weekly_digest.await_count == 2
+        assert cog.poliswag.event_notices.send_weekly_digest.await_count == 2
 
     async def test_successful_dedup_does_not_resend(self, cog):
         mon = _monday_at_10()
         cog._last_weekly_digest_monday = mon.date()
-        cog._event_notices.send_weekly_digest = AsyncMock()
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock()
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = mon
             await cog._check_weekly_digest()
-        cog._event_notices.send_weekly_digest.assert_not_called()
+        cog.poliswag.event_notices.send_weekly_digest.assert_not_called()
 
     async def test_quiet_day_still_marks_without_retry_spam(self, cog):
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._event_notices.send_weekly_digest = AsyncMock(return_value=False)
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock(return_value=False)
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = _monday_at_10()
             await cog._check_weekly_digest()
             assert cog._last_weekly_digest_monday == _monday_at_10().date()
             cog._save_digest_date.assert_called_once()
             await cog._check_weekly_digest()
-        assert cog._event_notices.send_weekly_digest.await_count == 1
+        assert cog.poliswag.event_notices.send_weekly_digest.await_count == 1
 
     async def test_missing_channel_still_marks_without_retry_spam(
         self, cog, monkeypatch
@@ -1639,11 +1668,11 @@ class TestWeeklyDigestRetryability:
                 }
             ]
         )
-        assert (await cog._event_notices.send_weekly_digest()) is False
+        assert (await cog.poliswag.event_notices.send_weekly_digest()) is False
         cog.poliswag.utility.log_to_file.assert_called()
         cog._last_weekly_digest_monday = None
         cog._save_digest_date = AsyncMock()
-        cog._event_notices.send_weekly_digest = AsyncMock(return_value=False)
+        cog.poliswag.event_notices.send_weekly_digest = AsyncMock(return_value=False)
         with patch("cogs.scheduled.datetime") as mock_dt:
             mock_dt.datetime.now.return_value = _monday_at_10()
             await cog._check_weekly_digest()

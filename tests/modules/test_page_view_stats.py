@@ -1,16 +1,19 @@
 """Tests for modules.page_view_stats.
 
 The period helpers are pure and get a fixed clock injected. The collector
-talks to a mocked DatabaseConnector, so nothing here needs a live schema.
+talks to a DatabaseConnector whose connection is mocked, so nothing here needs
+a live schema.
 """
 
 import sqlite3
 import threading
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from modules.database_connector import DatabaseConnector
 from modules.page_view_stats import (
     _DIMENSIONS,
     _STATEMENTS,
@@ -254,35 +257,54 @@ def test_all_queries_use_bound_placeholders():
         assert sql.count("%") == sql.count("%s") == 2
 
 
+def site_db(connection):
+    """A real site handle whose unit() opens `connection` instead of MariaDB."""
+    handle = DatabaseConnector.__new__(DatabaseConnector)
+    handle.database = "pogoleiria"
+    opened = patch("modules.database_connector.connect", return_value=connection)
+    return handle, opened
+
+
 async def test_connection_work_is_off_loop_and_cached_results_are_isolated():
-    service = PageViewStats(None)
+    connection = MagicMock()
+    handle, opened = site_db(connection)
+    service = PageViewStats(SimpleNamespace(site_db=handle))
     main_thread = threading.get_ident()
     threads = []
 
-    def read(since, until, detail):
+    def read(db, since, until, detail):
+        assert db is connection
         threads.append(threading.get_ident())
         return {"as_of": until, "totals": [{"views": 1}]}
 
-    with patch.object(service, "_collect_sync", side_effect=read) as query:
+    with opened as connect, patch.object(
+        service, "_collect_sync", side_effect=read
+    ) as query:
         a = await service.collect(SINCE, UNTIL)
         a["totals"][0]["views"] = 100
         b = await service.collect(SINCE, UNTIL)
     assert query.call_count == 1
     assert b["totals"][0]["views"] == 1
     assert threads[0] != main_thread
+    # The site's schema, with the old connect(read_timeout=10, dict_rows=True)
+    # options carried over to the unit.
+    connect.assert_called_once_with(
+        "pogoleiria", read_timeout=10, dict_rows=True, autocommit=False
+    )
+    connection.close.assert_called_once()
 
 
-def test_snapshot_is_read_only_and_connection_closes_on_failure():
-    db = MagicMock()
-    with patch("modules.page_view_stats.connect", return_value=db), patch.object(
-        PageViewStats, "_read", side_effect=RuntimeError("test")
-    ):
+async def test_snapshot_is_read_only_and_connection_closes_on_failure():
+    connection = MagicMock()
+    handle, opened = site_db(connection)
+    service = PageViewStats(SimpleNamespace(site_db=handle))
+    with opened, patch.object(PageViewStats, "_read", side_effect=RuntimeError("test")):
         with pytest.raises(RuntimeError):
-            PageViewStats(None)._collect_sync(SINCE, UNTIL, "summary")
+            await service.collect(SINCE, UNTIL, "summary")
     sql = [
         call.args[0]
-        for call in db.cursor.return_value.__enter__.return_value.execute.call_args_list
+        for call in connection.cursor.return_value.__enter__.return_value.execute.call_args_list
     ]
     assert "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY" in sql
-    db.rollback.assert_called_once()
-    db.close.assert_called_once()
+    connection.rollback.assert_called_once()
+    connection.close.assert_called_once()

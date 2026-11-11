@@ -12,6 +12,7 @@ import pytest
 
 from modules.config import Config
 from modules.trade_announcer import _DETAIL_LIMIT, TradeAnnouncer
+from tests.fakes import FakeHandle
 
 
 def row(**patch):
@@ -37,7 +38,9 @@ def row(**patch):
 
 
 def announcer():
-    return TradeAnnouncer(MagicMock())
+    bot = MagicMock()
+    bot.site_db = FakeHandle()
+    return TradeAnnouncer(bot)
 
 
 class FakeCursor:
@@ -160,13 +163,13 @@ class TestAFailedSendDoesNotReAnnounce:
         second = row(actor_id=2, holder_id=2, wanter_id=20)
 
         recorded = []
-        ta._read_batch = lambda: {
+        ta._read_batch = lambda db: {
             "cutoff": "2026-09-21 10:00:00",
             "initialise": False,
             "connections": [first, second],
         }
-        ta._record_notices = lambda rows: recorded.extend(rows)
-        ta._advance_watermark = lambda cutoff: None
+        ta._record_notices = lambda db, rows: recorded.extend(rows)
+        ta._advance_watermark = lambda db, cutoff: None
 
         channel = MagicMock()
         sent = []
@@ -189,14 +192,14 @@ class TestAFailedSendDoesNotReAnnounce:
     def test_the_watermark_stays_put_when_a_send_fails(self):
         """Advancing it would skip the group that never got announced."""
         ta = announcer()
-        ta._read_batch = lambda: {
+        ta._read_batch = lambda db: {
             "cutoff": "2026-09-21 10:00:00",
             "initialise": False,
             "connections": [row(actor_id=1), row(actor_id=2)],
         }
-        ta._record_notices = lambda rows: None
+        ta._record_notices = lambda db, rows: None
         advanced = []
-        ta._advance_watermark = lambda cutoff: advanced.append(cutoff)
+        ta._advance_watermark = lambda db, cutoff: advanced.append(cutoff)
 
         channel = MagicMock()
 
@@ -219,21 +222,55 @@ class TestReadBatchSurvivesAnEmptySettingsRow:
     def test_no_settings_row_initialises_instead_of_raising(self):
         ta = announcer()
         # cutoff row, then nothing for the watermark SELECT
-        ta._connect = lambda: fake_db([{"cutoff": "2026-09-21 10:00:00"}, None])
-        batch = ta._read_batch()
+        batch = ta._read_batch(fake_db([{"cutoff": "2026-09-21 10:00:00"}, None]))
         assert batch["initialise"]
 
 
-class TestConnectionsCannotHangTheScheduler:
-    """A read with no timeout stalls the 60s loop, and _check_workers with it."""
+class TestUnitsOfWork:
+    """Every read and write is its own unit on the site's handle.
 
-    def test_connect_sets_timeouts(self):
-        with patch("pymysql.connect") as connect:
-            announcer()._connect()
-        kwargs = connect.call_args.kwargs
-        assert kwargs["connect_timeout"]
-        assert kwargs["read_timeout"]
-        assert kwargs["write_timeout"]
+    The handle bounds every wait (a read with no timeout stalls the 60s loop),
+    and the old connect(dict_rows=True, autocommit=False) carries over as the
+    unit's defaults: dict rows, one transaction committed per unit.
+    """
+
+    def test_a_batch_is_read_recorded_per_group_then_advanced(self):
+        ta = announcer()
+        handle = ta.poliswag.site_db
+        handle.cursor.fetchone.side_effect = [
+            {"cutoff": "c"},
+            {"last_trade_notice_at": "w"},
+        ]
+        handle.cursor.fetchall.return_value = [
+            row(actor_id=1, holder_id=1, wanter_id=10),
+            row(actor_id=2, holder_id=2, wanter_id=20),
+        ]
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        ta.poliswag.get_channel.return_value = channel
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(ta.tick())
+        assert [work.__name__ for work, _args, _options in handle.units] == [
+            "_read_batch",
+            "_record_notices",
+            "_record_notices",
+            "_advance_watermark",
+        ]
+        assert all(options == {} for _work, _args, options in handle.units)
+        assert handle.units[-1][1] == ("c",)
+
+    def test_a_first_run_reads_then_initialises_in_its_own_unit(self):
+        ta = announcer()
+        handle = ta.poliswag.site_db
+        handle.cursor.fetchone.side_effect = [{"cutoff": "c"}, None]
+        ta.poliswag.get_channel.return_value = MagicMock()
+        with patch.object(Config, "TRADES_CHANNEL_ID", 1):
+            asyncio.run(ta.tick())
+        assert [work.__name__ for work, _args, _options in handle.units] == [
+            "_read_batch",
+            "_initialise",
+        ]
+        assert handle.units[1][1] == ("c",)
 
 
 class TestTickDisabled:
@@ -248,13 +285,13 @@ class TestTickDisabled:
 
     def test_a_missing_cached_channel_is_fetched(self):
         ta = announcer()
-        ta._read_batch = lambda: {
+        ta._read_batch = lambda db: {
             "cutoff": "2026-09-21 10:00:00",
             "initialise": False,
             "connections": [row(actor_id=1)],
         }
-        ta._record_notices = lambda rows: None
-        ta._advance_watermark = lambda cutoff: None
+        ta._record_notices = lambda db, rows: None
+        ta._advance_watermark = lambda db, cutoff: None
         ta.poliswag.get_channel.return_value = None
         channel = MagicMock()
         channel.send = AsyncMock()
@@ -269,31 +306,24 @@ class TestInitialiseAndAdvance:
     def test_initialise_sets_the_watermark(self):
         ta = announcer()
         db = fake_db([None])
-        ta._connect = lambda: db
-        ta._initialise("2026-09-21 10:00:00")
+        ta._initialise(db, "2026-09-21 10:00:00")
         sql, params = db._cursor.executed[0]
         assert "last_trade_notice_at" in sql
         assert params == ("2026-09-21 10:00:00",)
-        db.commit.assert_called_once()
-        db.close.assert_called_once()
 
     def test_advance_moves_the_watermark(self):
         ta = announcer()
         db = fake_db([None])
-        ta._connect = lambda: db
-        ta._advance("2026-09-21 10:00:00")
+        ta._advance(db, "2026-09-21 10:00:00")
         sql, params = db._cursor.executed[0]
         assert "last_trade_notice_at" in sql
         assert params == ("2026-09-21 10:00:00",)
-        db.commit.assert_called_once()
 
     def test_empty_notices_record_nothing(self):
         ta = announcer()
         db = fake_db([None])
-        ta._connect = lambda: db
-        ta._record_notices([])
+        ta._record_notices(db, [])
         assert db._cursor.executed == []
-        db.commit.assert_not_called()
 
     def test_notices_are_recorded_per_connection(self):
         ta = announcer()
@@ -302,14 +332,11 @@ class TestInitialiseAndAdvance:
             row(actor_id=1, holder_id=1, wanter_id=11, pokemon_id=133),
         ]
         db = fake_db([None])
-        ta._connect = lambda: db
-        ta._record_notices(rows)
+        ta._record_notices(db, rows)
         assert len(db._cursor.executed) == 2
         sql, params = db._cursor.executed[0]
         assert "INSERT IGNORE INTO trade_notice" in sql
         assert params == (10, 1, 25, 0, 0, "normal")
-        db.commit.assert_called_once()
-        db.close.assert_called_once()
 
     def test_rows_since_the_watermark(self):
         ta = announcer()
@@ -320,8 +347,7 @@ class TestInitialiseAndAdvance:
                 [row(actor_id=1)],
             ]
         )
-        ta._connect = lambda: db
-        batch = ta._read_batch()
+        batch = ta._read_batch(db)
         assert batch["initialise"] is False
         assert batch["connections"] == [row(actor_id=1)]
         sql, params = db._cursor.executed[-1]
@@ -331,7 +357,7 @@ class TestInitialiseAndAdvance:
 class TestTickFirstAndEmptyRuns:
     def test_first_run_initialises_and_sends_nothing(self):
         ta = announcer()
-        ta._read_batch = lambda: {
+        ta._read_batch = lambda db: {
             "cutoff": "2026-09-21 10:00:00",
             "initialise": True,
             "connections": [],
@@ -342,12 +368,14 @@ class TestTickFirstAndEmptyRuns:
         ta.poliswag.get_channel.return_value = channel
         with patch.object(Config, "TRADES_CHANNEL_ID", 1):
             asyncio.run(ta.tick())
-        ta._initialise.assert_called_once_with("2026-09-21 10:00:00")
+        ta._initialise.assert_called_once_with(
+            ta.poliswag.site_db.connection, "2026-09-21 10:00:00"
+        )
         channel.send.assert_not_called()
 
     def test_an_empty_batch_advances_and_sends_nothing(self):
         ta = announcer()
-        ta._read_batch = lambda: {
+        ta._read_batch = lambda db: {
             "cutoff": "2026-09-21 10:00:00",
             "initialise": False,
             "connections": [],
@@ -358,7 +386,9 @@ class TestTickFirstAndEmptyRuns:
         ta.poliswag.get_channel.return_value = channel
         with patch.object(Config, "TRADES_CHANNEL_ID", 1):
             asyncio.run(ta.tick())
-        ta._advance.assert_called_once_with("2026-09-21 10:00:00")
+        ta._advance.assert_called_once_with(
+            ta.poliswag.site_db.connection, "2026-09-21 10:00:00"
+        )
         channel.send.assert_not_called()
 
 

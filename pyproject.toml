@@ -1,22 +1,23 @@
 [tool.black]
+# Directories, anchored. Unanchored, "data" also matched
+# modules/database_connector.py and its tests, so `black --check .` in CI
+# never looked at them (the commit hook did, file by file).
 exclude = '''
-\.git
-| \.venv
-| _build
-| buck-out
-| venv
-| logs
-| data
-| mock_data
-| mock_database
-| templates
-| .vscode
-| .github
-| makefile
-| README.md
-| requirements.txt
-| docker-compose.yaml
-| docker-compose.prod.yaml
+/(
+    \.git
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | logs
+  | data
+  | state
+  | mock_data
+  | mock_database
+  | templates
+  | \.vscode
+  | \.github
+)/
 '''
 
 [tool.pytest.ini_options]

@@ -1,7 +1,9 @@
 """Private, durable queue shared by the Discord bot and a host-side worker.
 
-Only standard-library imports: the worker runs outside the bot container.
-Requests and worker results are separate files so neither overwrites the other.
+The bot's public fallback (modules/conversation_model.py) submits to it and
+scripts/agent_worker.py runs the jobs. Only standard-library imports: the
+worker runs outside the bot container. Requests and worker results are
+separate files so neither overwrites the other.
 """
 
 import json
@@ -56,8 +58,6 @@ class AgentJobs:
         provider,
         prompt,
         context,
-        destination=None,
-        origin=None,
     ):
         provider = PROVIDERS.get(provider.lower())
         if not provider:
@@ -81,12 +81,10 @@ class AgentJobs:
                 "id": job_id,
                 "owner_id": str(owner_id),
                 "provider": provider,
-                # Owner agents are read-only; the worker refuses any other mode.
+                # Jobs are read-only; the worker refuses any other mode.
                 "mode": "ask",
                 "prompt": prompt.strip(),
                 "context": context,
-                "destination": destination,
-                "origin": origin,
                 "created": time.time(),
             },
         )
@@ -98,39 +96,7 @@ class AgentJobs:
         if not request or request.get("owner_id") != str(owner_id):
             raise ValueError("Tarefa não encontrada.")
         result = read_json(directory / "result.json")
-        continuation = read_json(directory / "continuation.json")
-        revision = max(result.get("revision", 0), continuation.get("revision", 0))
-        queued = continuation.get("revision", 0) > result.get("revision", 0)
-        return {
-            **request,
-            **result,
-            "state": "queued" if queued else result.get("state", "queued"),
-            "revision": revision,
-            "turns": continuation.get("turns", []),
-            "notified": self.notification_marker(job_id, revision).exists(),
-        }
-
-    def notification_marker(self, job_id, revision=0):
-        name = f"notified-{revision}" if revision else "notified"
-        return self.directory(job_id) / name
-
-    def resume(self, job_id, owner_id, response):
-        job = self.get(job_id, owner_id)
-        if job["state"] != "waiting_input":
-            raise ValueError("Esta tarefa não está à espera de uma decisão.")
-        if not response.strip() or len(response) > MAX_PROMPT:
-            raise ValueError(f"A resposta deve ter entre 1 e {MAX_PROMPT} caracteres.")
-        write_json(
-            self.directory(job_id) / "continuation.json",
-            {
-                "revision": job["revision"] + 1,
-                "turns": [
-                    *job["turns"],
-                    {"question": job.get("reply", ""), "answer": response.strip()},
-                ],
-            },
-        )
-        return self.get(job_id, owner_id)
+        return {**request, **result, "state": result.get("state", "queued")}
 
     def list(self, owner_id):
         jobs = []

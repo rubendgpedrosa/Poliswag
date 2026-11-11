@@ -3,34 +3,51 @@ import json
 import time
 from unittest.mock import MagicMock
 
+import pymysql
 import pytest
 
-from modules import spawn_history
+from modules import database_connector, spawn_history
+from modules.config import Config
+from modules.database_connector import DatabaseConnector
 from modules.shiny_roll import is_shiny_at, shiny_draw
 
 
+async def run_unit(monkeypatch, connection, work, *args, **options):
+    """Run work through the real DatabaseConnector.unit on a mock connection.
+
+    Returns (result, opened): opened is the patched connect(), so a test can
+    check the options the unit asked for; commit/rollback/close are unit()'s.
+    """
+    db = DatabaseConnector.__new__(DatabaseConnector)
+    db.database = Config.DB_POLISWAG
+    opened = MagicMock(return_value=connection)
+    monkeypatch.setattr(database_connector, "connect", opened)
+    return await db.unit(work, *args, **options), opened
+
+
 @pytest.mark.parametrize("hours", [0, 49, -1, True, "24", 1.5, None])
-def test_invalid_period_never_opens_connection(monkeypatch, hours):
+def test_invalid_period_never_touches_the_connection(hours):
+    # The callers also check hours_value before unit(), so no connection is
+    # opened at all (tests/cogs/test_spawn_history.py).
     connection = MagicMock()
-    monkeypatch.setattr(spawn_history, "connect", connection)
     for function in (
         spawn_history.status,
         spawn_history.export_json,
         spawn_history.leaderboard,
+        spawn_history.shundo_leaderboard,
     ):
         with pytest.raises(ValueError):
-            function(hours)
-    connection.assert_not_called()
+            function(connection, hours)
+    connection.cursor.assert_not_called()
 
 
-def test_failed_collector_rolls_back_and_closes(monkeypatch):
+async def test_failed_collector_rolls_back_and_closes(monkeypatch):
     connection = MagicMock()
     connection.cursor.return_value.__enter__.return_value.execute.side_effect = (
         RuntimeError("failure")
     )
-    monkeypatch.setattr(spawn_history, "connect", lambda *args, **kwargs: connection)
     with pytest.raises(RuntimeError):
-        spawn_history.capture()
+        await run_unit(monkeypatch, connection, spawn_history.capture, read_timeout=15)
     connection.rollback.assert_called_once()
     connection.close.assert_called_once()
     connection.commit.assert_not_called()
@@ -79,21 +96,26 @@ def test_capture_sql_upserts_scanner_rows_by_encounter():
 
 
 class TestCapture:
-    def run_capture(self, monkeypatch, previous, now=NOW):
+    async def run_capture(self, monkeypatch, previous, now=NOW):
         connection, cursor = make_connection(
             fetchone=[{"now_utc": now}, {"last_capture_at": previous}]
         )
-        connect = MagicMock(return_value=connection)
-        monkeypatch.setattr(spawn_history, "connect", connect)
-        assert spawn_history.capture() == now
+        result, connect = await run_unit(
+            monkeypatch, connection, spawn_history.capture, read_timeout=15
+        )
+        assert result == now
         return connection, cursor, connect
 
-    def test_happy_path_writes_state_and_prunes(self, monkeypatch):
+    async def test_happy_path_writes_state_and_prunes(self, monkeypatch):
         now = NOW
         previous = now - 30
         cutoff = now - 48 * 3600
-        connection, cursor, connect = self.run_capture(monkeypatch, previous, now)
-        assert connect.call_args.kwargs.get("read_timeout")
+        connection, cursor, connect = await self.run_capture(monkeypatch, previous, now)
+        # The options the old connect(DB_POLISWAG, dict_rows=True,
+        # read_timeout=15) had, through the unit.
+        connect.assert_called_once_with(
+            Config.DB_POLISWAG, read_timeout=15, dict_rows=True, autocommit=False
+        )
         statements = [call.args[0] for call in cursor.execute.call_args_list]
         assert statements[:3] == [
             "SET SESSION time_zone = '+00:00'",
@@ -120,9 +142,9 @@ class TestCapture:
         connection.rollback.assert_not_called()
         connection.close.assert_called_once()
 
-    def test_a_poll_gap_is_recorded(self, monkeypatch):
+    async def test_a_poll_gap_is_recorded(self, monkeypatch):
         now, previous = NOW, NOW - 91
-        _, cursor, _ = self.run_capture(monkeypatch, previous, now)
+        _, cursor, _ = await self.run_capture(monkeypatch, previous, now)
         gap = next(
             call
             for call in cursor.execute.call_args_list
@@ -130,15 +152,14 @@ class TestCapture:
         )
         assert gap.args[1] == (previous, now)
 
-    def test_a_backwards_clock_rolls_back(self, monkeypatch):
+    async def test_a_backwards_clock_rolls_back(self, monkeypatch):
         connection, _ = make_connection(
             fetchone=[{"now_utc": NOW}, {"last_capture_at": NOW + 1}]
         )
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         with pytest.raises(ValueError, match="backwards"):
-            spawn_history.capture()
+            await run_unit(
+                monkeypatch, connection, spawn_history.capture, read_timeout=15
+            )
         connection.rollback.assert_called_once()
         connection.commit.assert_not_called()
         connection.close.assert_called_once()
@@ -175,39 +196,31 @@ class TestWindowMetadata:
 
 
 class TestReader:
-    def test_reader_holds_a_consistent_snapshot(self, monkeypatch):
+    def test_reader_holds_a_consistent_snapshot(self):
         connection = MagicMock()
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
-        got_connection, cursor = spawn_history.reader()
-        assert got_connection is connection
+        cursor = spawn_history.reader(connection)
         assert cursor is connection.cursor.return_value
+        connection.cursor.assert_called_once_with(pymysql.cursors.DictCursor)
         statements = [call.args[0] for call in cursor.execute.call_args_list]
         assert "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY" in statements
 
-    def test_streaming_reader_uses_a_server_side_cursor(self, monkeypatch):
-        import pymysql
-
+    def test_streaming_reader_uses_a_server_side_cursor(self):
         connection = MagicMock()
-        connect = MagicMock(return_value=connection)
-        monkeypatch.setattr(spawn_history, "connect", connect)
-        spawn_history.reader(streaming=True)
-        assert connect.call_args.kwargs["cursorclass"] is pymysql.cursors.SSDictCursor
+        spawn_history.reader(connection, streaming=True)
+        connection.cursor.assert_called_once_with(pymysql.cursors.SSDictCursor)
 
-    def test_a_reader_failure_closes_the_connection(self, monkeypatch):
+    async def test_a_reader_failure_closes_the_connection(self, monkeypatch):
         connection = MagicMock()
         connection.cursor.side_effect = RuntimeError("down")
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         with pytest.raises(RuntimeError):
-            spawn_history.reader()
+            await run_unit(
+                monkeypatch, connection, spawn_history.status, 24, read_timeout=15
+            )
         connection.close.assert_called_once()
 
 
 class TestStatus:
-    def test_status_reports_stored_spawns(self, monkeypatch):
+    async def test_status_reports_stored_spawns(self, monkeypatch):
         end = int(time.time())
         connection = MagicMock()
         cursor = connection.cursor.return_value
@@ -216,10 +229,12 @@ class TestStatus:
             [],
         ]
         cursor.fetchone.return_value = {"stored_spawns": 7}
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
+        metadata, connect = await run_unit(
+            monkeypatch, connection, spawn_history.status, 24, read_timeout=15
         )
-        metadata = spawn_history.status(24)
+        connect.assert_called_once_with(
+            Config.DB_POLISWAG, read_timeout=15, dict_rows=True, autocommit=False
+        )
         assert metadata["stored_spawns"] == 7
         assert metadata["available"] is True
         connection.close.assert_called_once()
@@ -233,18 +248,17 @@ def state_fetches(end, gaps=None, started=1):
 
 
 class TestExport:
-    def test_without_an_archive_the_export_refuses(self, monkeypatch):
+    async def test_without_an_archive_the_export_refuses(self, monkeypatch):
         connection = MagicMock()
         cursor = connection.cursor.return_value
         cursor.fetchall.return_value = []
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         with pytest.raises(ValueError, match="recolha"):
-            spawn_history.export_json(24)
+            await run_unit(
+                monkeypatch, connection, spawn_history.export_json, 24, read_timeout=15
+            )
         connection.close.assert_called_once()
 
-    def test_export_is_a_gzipped_schema_envelope(self, monkeypatch):
+    async def test_export_is_a_gzipped_schema_envelope(self, monkeypatch):
         end = int(time.time())
         rows = [
             {"encounter_id": "1", "pokemon_id": 25},
@@ -254,10 +268,9 @@ class TestExport:
         cursor = connection.cursor.return_value
         cursor.fetchall.side_effect = state_fetches(end)
         cursor.__iter__.return_value = iter(rows)
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
+        output, _ = await run_unit(
+            monkeypatch, connection, spawn_history.export_json, 1, read_timeout=15
         )
-        output = spawn_history.export_json(1)
         try:
             with gzip.open(output, mode="rt", encoding="utf-8") as zipped:
                 payload = json.load(zipped)
@@ -268,18 +281,17 @@ class TestExport:
         assert payload["metadata"]["hours"] == 1
         assert payload["spawns"] == rows
 
-    def test_an_oversized_export_refuses(self, monkeypatch):
+    async def test_an_oversized_export_refuses(self, monkeypatch):
         end = int(time.time())
         connection = MagicMock()
         cursor = connection.cursor.return_value
         cursor.fetchall.side_effect = state_fetches(end)
         cursor.__iter__.return_value = iter([{"encounter_id": "1"}])
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         monkeypatch.setattr(spawn_history, "MAX_EXPORT_BYTES", 10)
         with pytest.raises(ValueError, match="8 MiB"):
-            spawn_history.export_json(1)
+            await run_unit(
+                monkeypatch, connection, spawn_history.export_json, 1, read_timeout=15
+            )
 
 
 PLAYER_A = "0123456789abcdef"
@@ -301,19 +313,13 @@ class TestLeaderboard:
             trainers,
             spawns,
         ]
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
-        return spawn_history.leaderboard(1)
+        return spawn_history.leaderboard(connection, 1)
 
     def test_without_an_archive_there_are_no_trainers(self, monkeypatch):
         connection = MagicMock()
         cursor = connection.cursor.return_value
         cursor.fetchall.return_value = []
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
-        assert spawn_history.leaderboard(24) == {
+        assert spawn_history.leaderboard(connection, 24) == {
             "metadata": {
                 "available": False,
                 "complete_window": False,
@@ -394,11 +400,8 @@ class TestLeaderboard:
         connection = MagicMock()
         cursor = connection.cursor.return_value
         cursor.fetchall.side_effect = state_fetches(int(time.time())) + [trainers]
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         with pytest.raises(ValueError, match="100"):
-            spawn_history.leaderboard(1)
+            spawn_history.leaderboard(connection, 1)
 
     def test_a_trainer_without_a_player_id_is_refused(self, monkeypatch):
         result_trainers = trainer_rows([("ghost", "not-an-id")])
@@ -408,8 +411,5 @@ class TestLeaderboard:
             result_trainers,
             [],
         ]
-        monkeypatch.setattr(
-            spawn_history, "connect", MagicMock(return_value=connection)
-        )
         with pytest.raises(ValueError, match="ID"):
-            spawn_history.leaderboard(1)
+            spawn_history.leaderboard(connection, 1)
