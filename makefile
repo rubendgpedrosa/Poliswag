@@ -19,7 +19,7 @@ DB_NAME := $(shell grep -s '^DB_NAME=' $(ENV_FILE) | cut -d '=' -f2 | tr -d '"' 
 # Directory for mock data
 MOCK_DATA_DIR := mock_data
 
-.PHONY: all help up down logs run stop test test-local mock-data watch check migrate deploy reload install-hooks lint format format-check dead-code
+.PHONY: all help up down logs run stop test test-local test-sql mock-data watch check migrate deploy reload install-hooks lint format format-check dead-code
 
 all: help
 
@@ -98,6 +98,9 @@ test-local: ## Run pytest locally (no Docker required)
 	pytest
 	@echo "Tests finished."
 
+test-sql: ## Run all three SQL suites against disposable local MariaDB containers
+	./scripts/test_disposable_sql.sh
+
 mock-data: ## Refresh mock_data/ JSON timestamps (run after long gaps)
 	@echo "Refreshing mock data timestamps..."
 	python3 mock_data/refresh.py
@@ -107,7 +110,7 @@ watch: ## Start dev stack with file-watching auto-restart
 	@echo "Starting Poliswag in watch mode..."
 	docker compose -f $(DOCKER_COMPOSE_FILE) up --build --watch
 
-check: ## Run all quality checks (format, lint, tests) — CI equivalent
+check: ## Run format, lint and tests (SQL suites require make test-sql)
 	@echo "==> Format check"
 	docker compose -f $(DOCKER_COMPOSE_FILE) exec $(CONTAINER_NAME) black --check .
 	@echo "==> Lint"

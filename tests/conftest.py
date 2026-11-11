@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,7 @@ from dotenv import dotenv_values
 # URL, and the legacy owner webhook reads the file, not Config). The only
 # ambient values honoured are the explicit disposable-integration selectors
 # (EVENT_SQL_TEST_PORT, HUNDO_SQL_TEST_PORT, HUNDO_SQL_TEST_PASSWORD,
-# SPAWN_HISTORY_SQL_TEST_HOST), which opt a run into the throwaway MariaDB
+# SPAWN_HISTORY_SQL_TEST_HOST, SPAWN_HISTORY_SQL_TEST_PORT), which opt a run into the throwaway MariaDB
 # suites under tests/integration/. Production secrets are never read or
 # printed here.
 _TEST_ENV_DEFAULTS = {
@@ -101,21 +102,27 @@ _REPO_ROOT = Path(__file__).parent.parent
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _refresh_mock_data_timestamps():
-    """Regenerate mock_data/ JSON timestamps before the test session runs.
+def _refresh_mock_data_timestamps(tmp_path_factory):
+    """Generate fresh responses in a private session directory."""
+    from modules.config import Config
 
-    mock_data/scanner_status.json and device_status.json embed absolute
-    timestamps used to decide whether workers/devices look "alive". Left
-    untouched between test runs they silently age past the 1h freshness
-    window a test asserts on, so refresh unconditionally here instead of
-    relying on someone remembering to run `make mock-data` first.
-    """
+    mock_dir = tmp_path_factory.mktemp("mock-data")
+    shutil.copytree(_REPO_ROOT / "mock_data", mock_dir, dirs_exist_ok=True)
     subprocess.run(
-        [sys.executable, "mock_data/refresh.py"],
+        [
+            sys.executable,
+            str(_REPO_ROOT / "mock_data/refresh.py"),
+            "--output-dir",
+            str(mock_dir),
+        ],
         cwd=_REPO_ROOT,
         check=True,
         capture_output=True,
     )
+    original = Config.MOCK_DATA_DIR
+    Config.MOCK_DATA_DIR = str(mock_dir)
+    yield mock_dir
+    Config.MOCK_DATA_DIR = original
 
 
 @pytest.fixture(autouse=True)

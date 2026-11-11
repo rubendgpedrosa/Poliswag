@@ -22,13 +22,17 @@ from modules.migrations import split_statements
 
 _REAL_CONNECT = pymysql.connect
 _HOST = os.environ.get("SPAWN_HISTORY_SQL_TEST_HOST")
+_PORT = int(os.environ.get("SPAWN_HISTORY_SQL_TEST_PORT", "3306"))
 pytestmark = pytest.mark.skipif(not _HOST, reason="No disposable spawn-history DB")
 MIGRATION = Path(__file__).parents[2] / "migrations/031_add_spawn_history.sql"
 
 
 def root(database=None):
+    if _HOST not in {"127.0.0.1", "localhost"}:
+        pytest.fail("Disposable spawn-history database must be on loopback")
     return _REAL_CONNECT(
         host=_HOST,
+        port=_PORT,
         user="root",
         password="disposable",
         database=database,
@@ -97,7 +101,7 @@ def disposable(monkeypatch):
     )
     for key, value in {
         "DB_HOST": _HOST,
-        "DB_PORT": 3306,
+        "DB_PORT": _PORT,
         "DB_USER": "root",
         "DB_PASSWORD": "disposable",
         "DB_POLISWAG": "poliswag",
