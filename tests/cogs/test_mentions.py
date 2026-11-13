@@ -431,6 +431,8 @@ def test_saying_the_name_counts_only_in_the_moderation_channel(mocker):
     assert named_in_staff_channel(msg(555, "poli, achas?"))
     assert not named_in_staff_channel(msg(777, joke))
     assert not named_in_staff_channel(msg(555, "politica não"))
+    assert named_in_staff_channel(msg(555, "Como se faz um anúncio com reações?"))
+    assert not named_in_staff_channel(msg(777, "Como se faz um anúncio com reações?"))
     assert not named_in_staff_channel(msg(555, "!sorteio estado poli"))
 
 

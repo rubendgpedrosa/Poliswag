@@ -255,7 +255,9 @@ only the reply (the 👀 acknowledgement was dropped 2026-11-13). In the
 moderation channel only a tag always gets an answer; saying the name or replying
 to Poliswag goes through `staff_unprompted`, where Hermiswag returns
 `{"reply", "for_me"}` (`STAFF_UNPROMPTED_RULES`) and answers only a real
-question for it or someone actually talking to it (owner, 2026-11-13). Mentions are disabled on every reply.
+question for it or someone actually talking to it (owner, 2026-11-13). Any
+question-looking team message there (`looks_like_question`) takes the same gate
+at once, with no wait: moderação is not in the unanswered-questions pass. Mentions are disabled on every reply.
 
 ## Execution and boundaries
 
@@ -397,7 +399,7 @@ replace the file.
 
 **Unanswered questions (owner, 2026-11-09).** `Mentions.proactive` runs every
 minute over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
-message that looks like a question, waited 5 min to 3 h (owner, 2026-11-13), is not a reply target,
+message that looks like a question, waited 3 min to 3 h (owner, 2026-11-13), is not a reply target,
 does not tag Poliswag and was not looked at before (`state/hermiswag-proactive.json`)
 goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
 empty reply means leave it (chat, aimed at a person, or already answered). An

@@ -156,7 +156,7 @@ class Config:
         ).split(",")
         if x.strip().isdigit()
     ]
-    # Where Poliswag answers questions nobody answered for 1 min (convívio,
+    # Where Poliswag answers questions nobody answered for 3 min (convívio,
     # suporte-tecnico), and the ids it already looked at.
     HERMISWAG_PROACTIVE_CHANNELS = [
         int(x)

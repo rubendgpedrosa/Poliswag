@@ -10,6 +10,7 @@ import re
 import discord
 
 from modules.config import Config
+from modules.hermiswag_proactive import looks_like_question
 
 
 def directed_mention(content, bot_id):
@@ -37,14 +38,19 @@ _NAMED = re.compile(r"(?<!\w)poli(?:swag|wag)?(?!\w)", re.I)
 
 
 def named_in_staff_channel(message):
-    """In the moderation channel, saying Poliswag's name is enough: the team
-    talks with it more directly there (owner, 2026-11-13)."""
+    """In the moderation channel, saying Poliswag's name, or asking a
+    question, is enough: the team talks with it more directly there (owner,
+    2026-11-13). Whether it then answers is Hermiswag's call."""
     if getattr(message, "guild", None) is None or message.author.bot:
         return False
     if getattr(message.channel, "id", None) != Config.MOD_CHANNEL_ID:
         return False
     content = message.content or ""
-    return not content.lstrip().startswith("!") and bool(_NAMED.search(content))
+    if content.lstrip().startswith("!"):
+        return False
+    # A team question goes straight to the gate too, no wait (owner,
+    # 2026-11-13); Hermiswag decides whether it is one for it.
+    return bool(_NAMED.search(content)) or looks_like_question(content)
 
 
 def replied_bot_message(message, bot_id):
