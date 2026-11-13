@@ -250,8 +250,8 @@ logged by the mention path.
 CLI behavior: [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 and [configuration reference](https://developers.openai.com/codex/config-reference).
 
-A guild tag that passes the cooldowns is first acknowledged with a 👀 reaction
-(`react_to_request`), never a canned message. Mentions are disabled on every reply.
+A guild tag that passes the cooldowns gets no reaction and no canned message,
+only the reply (the 👀 acknowledgement was dropped 2026-11-13). Mentions are disabled on every reply.
 
 ## Execution and boundaries
 

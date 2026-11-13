@@ -16,7 +16,6 @@ from modules.conversation_model import (
     clean_history,
     public_prompt,
 )
-from modules.embeds import react_to_request
 from modules.hermiswag_client import HermiswagClient
 from modules.hermiswag_followup import (
     FOLLOWUP_FORMAT,
@@ -139,7 +138,6 @@ class Mentions(commands.Cog):
             return True
         if not self.limiter.allow(ctx.guild.id, ctx.author.id):
             return True
-        await react_to_request(message)
         text = named_mentions(text, message)
         try:
             await scan_areas.ensure()

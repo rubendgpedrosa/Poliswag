@@ -323,16 +323,12 @@ async def test_missing_mentions_cog_does_not_greet_nonowner_in_dm(monkeypatch):
     bot.invoke.assert_not_awaited()
 
 
-async def test_member_is_acknowledged_before_agent_work(cog):
+async def test_member_tag_gets_no_reaction(cog):
+    # The 👀 acknowledgement was noise (owner, 2026-11-13): only the reply.
     context = ctx("<@456> hello")
-
-    async def reply(text):
-        context.message.add_reaction.assert_awaited_once_with("👀")
-        context.reply.assert_not_awaited()
-        return "Olá! 🐸"
-
-    cog.public.reply = AsyncMock(side_effect=reply)
+    cog.public.reply = AsyncMock(return_value="Olá! 🐸")
     await cog.handle(context)
+    context.message.add_reaction.assert_not_awaited()
     assert context.reply.await_count == 1
 
 
