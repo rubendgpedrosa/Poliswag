@@ -20,6 +20,7 @@ from modules.hermiswag_client import HermiswagClient
 from modules.hermiswag_followup import (
     FOLLOWUP_FORMAT,
     FOLLOWUP_RULES,
+    STAFF_UNPROMPTED_RULES,
     ActiveChannels,
     followup_reply,
     new_since_poliswag,
@@ -110,7 +111,8 @@ class Mentions(commands.Cog):
             return False
         pattern = rf"<@!?{user.id}>"
         replied = None
-        if not directed_mention(message.content, user.id):
+        directed = directed_mention(message.content, user.id)
+        if not directed:
             replied = replied_bot_message(message, user.id)
             if replied is None and not named_in_staff_channel(message):
                 return False
@@ -158,6 +160,11 @@ class Mentions(commands.Cog):
             # A reply to an older Poliswag answer: that answer is the context.
             history.insert(0, {"author": "Poliswag", "text": replied.content[:300]})
         history = history or None
+        if ctx.channel.id == Config.MOD_CHANNEL_ID and not directed:
+            # Named or replied to in moderação, not tagged: Poliswag answers
+            # only what it judges a question for it (owner, 2026-11-13).
+            await self.staff_unprompted(ctx, text, history)
+            return True
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(
@@ -177,6 +184,32 @@ class Mentions(commands.Cog):
         await self.respond(ctx, reply)
         self.active.spoke(ctx.channel.id, invited=True, partner=ctx.author.id)
         return True
+
+    async def staff_unprompted(self, ctx, text, history):
+        payload = {
+            "text": text[:2000],
+            "author": speaker_name(ctx.author),
+            "snapshot": None,
+            "facts": None,
+            "recent_channel_messages": clean_history(history or []),
+        }
+        try:
+            raw = await asyncio.wait_for(
+                self.hermiswag.ask(
+                    HermiswagClient.conversation(ctx.channel.id),
+                    agent_instructions(False, True) + "\n\n" + STAFF_UNPROMPTED_RULES,
+                    public_prompt("greeting", payload) + "\n\n" + FOLLOWUP_FORMAT,
+                ),
+                timeout=65,
+            )
+        except Exception:
+            return
+        # Same @everyone neutralising as the tagged staff path.
+        reply = re.sub(r"@(everyone|here)\b", r"@ \1", followup_reply(raw) or "")
+        reply = safe_reply(reply)
+        if reply:
+            await self.respond(ctx, reply)
+            self.active.spoke(ctx.channel.id, invited=True, partner=ctx.author.id)
 
     async def cog_load(self):
         if self.hermiswag.enabled:

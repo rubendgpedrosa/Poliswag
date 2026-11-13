@@ -432,3 +432,45 @@ def test_saying_the_name_counts_only_in_the_moderation_channel(mocker):
     assert not named_in_staff_channel(msg(777, joke))
     assert not named_in_staff_channel(msg(555, "politica não"))
     assert not named_in_staff_channel(msg(555, "!sorteio estado poli"))
+
+
+@pytest.mark.parametrize(
+    "raw, posted",
+    [
+        ('{"reply": "Usa o !anunciar.", "for_me": true}', "Usa o !anunciar."),
+        ('{"reply": "Ahah, eu numa cave!", "for_me": false}', None),
+    ],
+)
+async def test_moderation_name_without_tag_answers_only_when_for_it(
+    cog, monkeypatch, raw, posted
+):
+    # Owner, 2026-11-13: in moderação, a name or a reply (no tag) gets an
+    # answer only when Hermiswag judges it a question for it.
+    monkeypatch.setattr(Config, "MOD_CHANNEL_ID", 555)
+    context = ctx("poliswag, como faço um anúncio?")
+    context.channel.id = 555
+    context.message.channel.id = 555
+    context.message.reference = None
+    context.author.display_name = "JMBoy"
+    cog.channel_history = AsyncMock(return_value=[])
+    cog.hermiswag.ask = AsyncMock(return_value=raw)
+    cog.public.reply = AsyncMock()
+    assert await cog.handle(context)
+    cog.public.reply.assert_not_awaited()
+    cog.hermiswag.ask.assert_awaited_once()
+    if posted:
+        assert context.reply.call_args.args == (posted,)
+    else:
+        context.reply.assert_not_awaited()
+
+
+async def test_moderation_tag_still_always_answers(cog, monkeypatch):
+    monkeypatch.setattr(Config, "MOD_CHANNEL_ID", 555)
+    context = ctx("<@456> estás de greve?")
+    context.channel.id = 555
+    cog.channel_history = AsyncMock(return_value=[])
+    cog.hermiswag.ask = AsyncMock()
+    cog.public.reply = AsyncMock(return_value="Nunca!")
+    assert await cog.handle(context)
+    cog.hermiswag.ask.assert_not_awaited()
+    assert context.reply.call_args.args == ("Nunca!",)
