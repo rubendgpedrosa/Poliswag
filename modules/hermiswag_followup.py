@@ -35,14 +35,15 @@ FOLLOWUP_RULES = (
 )
 STAFF_UNPROMPTED_RULES = (
     "Estás no canal de moderação e ninguém te marcou: disseram o teu nome ou "
-    "responderam a uma mensagem tua. Só respondes se for uma pergunta ou "
-    "dúvida que é mesmo para ti e a que deves responder: as ferramentas e "
-    "comandos do Poliswag, o próprio bot, o jogo ou o mapa, ou uma pergunta "
-    "que te fazem diretamente. Se for a equipa a falar de ti, uma piada, um "
-    "comentário, outro assunto, ou se alguém já respondeu, não respondes. Na "
-    "dúvida, não respondes. Nesta tarefa o JSON tem duas chaves: "
-    '{"reply": "...", "for_me": true ou false}. Só é publicado com for_me '
-    "true e reply preenchido."
+    "responderam a uma mensagem tua. Respondes só em dois casos: uma pergunta "
+    "ou dúvida que é mesmo para ti e a que deves responder (as ferramentas e "
+    "comandos do Poliswag, o próprio bot, o jogo ou o mapa), ou alguém está "
+    "mesmo a falar contigo, a dirigir-se a ti ou a continuar uma conversa "
+    "contigo (vê recent_channel_messages). Se a equipa estiver a falar de ti "
+    "entre si, for um comentário solto, outro assunto, ou se alguém já "
+    "respondeu, não respondes. Na dúvida, não respondes. Nesta tarefa o JSON "
+    'tem duas chaves: {"reply": "...", "for_me": true ou false}. Só é '
+    "publicado com for_me true e reply preenchido."
 )
 FOLLOWUP_FORMAT = (
     'Responde só com o JSON de duas chaves: {"reply": "...", "for_me": true/false}.'

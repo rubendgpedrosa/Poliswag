@@ -251,7 +251,11 @@ CLI behavior: [Codex non-interactive mode](https://developers.openai.com/codex/n
 and [configuration reference](https://developers.openai.com/codex/config-reference).
 
 A guild tag that passes the cooldowns gets no reaction and no canned message,
-only the reply (the 👀 acknowledgement was dropped 2026-11-13). Mentions are disabled on every reply.
+only the reply (the 👀 acknowledgement was dropped 2026-11-13). In the
+moderation channel only a tag always gets an answer; saying the name or replying
+to Poliswag goes through `staff_unprompted`, where Hermiswag returns
+`{"reply", "for_me"}` (`STAFF_UNPROMPTED_RULES`) and answers only a real
+question for it or someone actually talking to it (owner, 2026-11-13). Mentions are disabled on every reply.
 
 ## Execution and boundaries
 
