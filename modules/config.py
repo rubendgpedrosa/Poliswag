@@ -173,6 +173,10 @@ class Config:
         "SCANNER_GAME_VERSION_FILE", f"{STATE_DIR}/scanner-game-version.json"
     )
     # The live scanner card in the mod channel and when the incident began.
+    # The nightly update plan Hermes posts and the owner accepts or cancels.
+    UPDATE_PLAN_FILE = os.environ.get(
+        "UPDATE_PLAN_FILE", f"{STATE_DIR}/update-plan.json"
+    )
     SCANNER_CARD_FILE = os.environ.get(
         "SCANNER_CARD_FILE", f"{STATE_DIR}/scanner-card.json"
     )
