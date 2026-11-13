@@ -37,36 +37,55 @@ def save(state):
 
 
 _STATUS = {
-    "scheduled": "Corre esta noite às {when}, a não ser que canceles.",
+    "scheduled": "Os ⚡ podem ir já; o resto corre esta noite às {when}, a não ser que canceles.",
     "accepted": "✅ Aceite. Corre esta noite às {when}.",
     "cancelled": "🚫 Cancelada. Nada vai ser atualizado.",
     "now": "⚡ Vai atualizar já: começa dentro de um minuto.",
     "running": "⏳ A atualizar…",
     "done": "Terminado.",
 }
+WHEN_ICON = {"now": "⚡", "night": "🌙"}
+
+
+def pending(state, when=None):
+    """Items without a result yet (optionally only those marked `when`)."""
+    return [
+        item
+        for item in state.get("items", [])
+        if "result" not in item and (when is None or item.get("when", "night") == when)
+    ]
 
 
 def embed(state):
-    """The plan as a Discord embed dict (REST and discord.Embed.from_dict)."""
-    lines = [
-        f"• **{item['label']}** — {item.get('from', '?')} → {item.get('to', '?')}"
-        for item in state.get("items", [])
-    ]
-    results = state.get("results") or []
+    """The plan as a Discord embed dict (REST and discord.Embed.from_dict):
+    each item with ⚡ (can go now) or 🌙 (04:00), or its ✅/❌ once done."""
+    lines, results = [], []
+    for item in state.get("items", []):
+        result = item.get("result")
+        if result is not None:
+            results.append(result)
+            mark = "✅" if result.get("ok") else "❌"
+            lines.append(f"{mark} **{item['label']}** — {result.get('detail', '')}")
+        else:
+            icon = WHEN_ICON.get(item.get("when", "night"), "🌙")
+            lines.append(
+                f"{icon} **{item['label']}** — {item.get('from', '?')} → {item.get('to', '?')}"
+            )
     colour = COLOUR
-    if results:
-        lines = [
-            f"{'✅' if r.get('ok') else '❌'} **{r.get('label')}** — {r.get('detail', '')}"
-            for r in results
-        ]
+    if results and not pending(state):
         colour = DONE_COLOUR if all(r.get("ok") for r in results) else FAILED_COLOUR
     status = state.get("status", "scheduled")
-    footer = _STATUS.get(status, status).format(when=state.get("when", "04:00"))
+    if status == "scheduled" and not pending(state, "now"):
+        footer = (
+            f"Corre esta noite às {state.get('when', '04:00')}, a não ser que canceles."
+        )
+    else:
+        footer = _STATUS.get(status, status).format(when=state.get("when", "04:00"))
     return {
         "title": f"🛠️ Atualização agendada ({len(state.get('items', []))})",
         "description": "\n".join(lines)[:3900],
         "color": colour,
-        "footer": {"text": footer},
+        "footer": {"text": footer + "\n⚡ já · 🌙 04:00"},
     }
 
 

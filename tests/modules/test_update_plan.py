@@ -37,19 +37,30 @@ def test_stale_or_finished_plans_ignore_buttons():
     assert update_plan.decide(_state("cancelled"), "accept", "p1") is None
 
 
-def test_embed_lists_items_then_results():
-    embed = update_plan.embed(_state())
-    assert "Loki" in embed["description"] and "3.7.10" in embed["description"]
-    assert "04:00" in embed["footer"]["text"]
-    done = {
-        **_state("done"),
-        "results": [{"label": "Loki", "ok": False, "detail": "falhou"}],
-    }
-    embed = update_plan.embed(done)
-    assert (
-        embed["description"].startswith("❌")
-        and embed["color"] == update_plan.FAILED_COLOUR
+def test_embed_marks_now_and_night_items_then_results():
+    state = _state()
+    state["items"].append(
+        {
+            "key": "immich",
+            "label": "Immich",
+            "from": "3.4.1",
+            "to": "3.5.0",
+            "when": "night",
+        }
     )
+    state["items"][0]["when"] = "now"
+    embed = update_plan.embed(state)
+    assert (
+        "⚡ **Loki**" in embed["description"]
+        and "🌙 **Immich**" in embed["description"]
+    )
+    assert [i["key"] for i in update_plan.pending(state, "now")] == ["loki"]
+    state["items"][0]["result"] = {"ok": True, "detail": "atualizado para 3.7.10"}
+    embed = update_plan.embed(state)
+    assert "✅ **Loki**" in embed["description"]
+    assert "Corre esta noite" in embed["footer"]["text"]
+    state["items"][1]["result"] = {"ok": False, "detail": "falhou"}
+    assert update_plan.embed(state)["color"] == update_plan.FAILED_COLOUR
 
 
 def test_state_round_trip():

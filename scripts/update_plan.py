@@ -6,7 +6,8 @@ Called by Hermes on CT 109 through `docker exec -i poliswag python
   post    {"plan_id", "when", "run_date", "items": [{"key","label","from","to"}]}
   status  (no input) prints the plan state
   status-set {"plan_id", "status"}  (running, before the work starts)
-  finish  {"plan_id", "results": [{"label","ok","detail"}]}
+  finish  {"plan_id", "results": {"<key>": {"ok","detail"}}}  per item; items
+          still without a result keep the plan scheduled for 04:00
 
 The message goes to the owner's private DM only, with mentions disabled;
 the buttons are handled by cogs/update_plan.py while the bot runs.
@@ -88,7 +89,11 @@ def finish(packet):
     state = update_plan.load()
     if state.get("plan_id") != packet.get("plan_id"):
         raise RuntimeError("plan mismatch")
-    state.update(status="done", results=packet.get("results") or [])
+    results = packet.get("results") or {}
+    for item in state.get("items", []):
+        if item.get("key") in results:
+            item["result"] = results[item["key"]]
+    state["status"] = "scheduled" if update_plan.pending(state) else "done"
     update_plan.save(state)
     _edit(state)
     return {"status": "done"}
