@@ -373,7 +373,9 @@ class PublicConversation:
         self.model = model
         self.map_context = map_context
 
-    async def reply(self, text, session=None, history=None, learn=True, staff=False):
+    async def reply(
+        self, text, session=None, history=None, learn=True, staff=False, author=None
+    ):
         # The team (moderation channel) may ask about the bot's tools; only
         # credentials stay off limits there.
         blocked = secret_topic(text) if staff else private_topic(text)
@@ -433,6 +435,7 @@ class PublicConversation:
                     session=session,
                     learn=learn,
                     staff=staff,
+                    author=author,
                     history=history,
                 )
                 if staff and isinstance(raw, str):

@@ -135,6 +135,7 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
         history=ANY,
         learn=ANY,
         staff=ANY,
+        author=ANY,
     )
 
 
@@ -349,7 +350,7 @@ async def test_owner_guild_mentions_use_only_public_path(cog, text):
     context = ctx("<@456> " + text, owner=True)
     assert await cog.handle(context)
     cog.public.reply.assert_awaited_once_with(
-        text, session=ANY, history=ANY, learn=ANY, staff=ANY
+        text, session=ANY, history=ANY, learn=ANY, staff=ANY, author=ANY
     )
     cog.poliswag.get_cog.assert_not_called()
     assert context.reply.call_args.args == ("Resposta pública.",)
@@ -388,6 +389,7 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
         history=ANY,
         learn=ANY,
         staff=ANY,
+        author=ANY,
     )
 
 

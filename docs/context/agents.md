@@ -158,7 +158,7 @@ light emoji touch (💧🌀✨), help first; local fallback texts match it
 PoGoLeiria, the site and Poliswag, including "who owns/made the bot"; his real
 name is never given (prompt rule plus an output filter on it). Before the public path, `cogs/mentions.py` (`named_mentions`) turns a tag of
 the owner (`MY_ID`) into "faynn" and other tagged members into their display name
-(markup stripped, 32 chars); unknown tags are then removed as before. General or vague game questions (counters, types,
+(markup stripped, 32 chars); unknown tags are then removed as before. Every turn also carries who is speaking: `speaker_name` (owner = "faynn", others by display name) fills `author` on the asker and on each line of `recent_channel_messages`, and the prompt tells the agent to credit each line to whoever said it and to name nobody when unsure. General or vague game questions (counters, types,
 moves, PvP, mechanics) are answered from game knowledge; the public Codex run has
 `web_search="cached"` (indexed results, no live page fetches) to check current data,
 and replies carry no external links or source names. pogoleiria.pt links appear only

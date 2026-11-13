@@ -55,6 +55,13 @@ from modules.public_map_context import PublicMapContext
 _GREETING = "Olá! Estou aqui — diz-me o que precisas. 🐸"
 
 
+def speaker_name(user):
+    """Who said it, as the model should read it: the owner is always faynn."""
+    if Config.MY_ID and getattr(user, "id", None) == Config.MY_ID:
+        return "faynn"
+    return getattr(user, "display_name", None) or getattr(user, "name", "") or "alguém"
+
+
 def named_mentions(text, message):
     """Turn member tags into names so the public model knows who is meant.
 
@@ -162,6 +169,7 @@ class Mentions(commands.Cog):
                     history=history,
                     learn=ctx.channel.id in Config.HERMISWAG_LEARN_CHANNELS,
                     staff=ctx.channel.id == Config.MOD_CHANNEL_ID,
+                    author=speaker_name(ctx.author),
                 ),
                 timeout=65,
             )
@@ -269,13 +277,13 @@ class Mentions(commands.Cog):
                         "author": (
                             "Poliswag"
                             if item.author.id == own
-                            else item.author.display_name
+                            else speaker_name(item.author)
                         ),
                         "text": body,
                     }
                 )
         lines = [
-            f"{m.author.display_name}: {named_mentions(m.content or '', m).strip()}"
+            f"{speaker_name(m.author)}: {named_mentions(m.content or '', m).strip()}"
             for m in new
             if (m.content or "").strip()
         ]
@@ -323,12 +331,13 @@ class Mentions(commands.Cog):
                 own = item.author.id == self.poliswag.user.id
                 history.append(
                     {
-                        "author": "Poliswag" if own else item.author.display_name,
+                        "author": "Poliswag" if own else speaker_name(item.author),
                         "text": body,
                     }
                 )
         payload = {
             "text": text[:2000],
+            "author": speaker_name(message.author),
             "snapshot": None,
             "facts": None,
             "recent_channel_messages": clean_history(history),
@@ -419,7 +428,7 @@ class Mentions(commands.Cog):
                 text = named_mentions(item.content or "", item).strip()
                 if not text:
                     continue
-                author = "Poliswag" if own else item.author.display_name
+                author = "Poliswag" if own else speaker_name(item.author)
                 out.append({"author": author, "text": text})
         except Exception:
             return None

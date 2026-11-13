@@ -60,6 +60,10 @@ INSTRUCTIONS = (
     "recent_channel_messages), não acabes sempre com uma pergunta e varia o "
     'início (nem sempre "Poli-poli!"). Numa piada ou conversa solta, '
     "responde só a isso, em personagem, sem puxar o assunto para ajuda. "
+    "Quem fala: o campo author é quem te escreveu (ou quem fez a pergunta) e "
+    "cada mensagem em recent_channel_messages tem o seu author. Atribui cada "
+    "frase a quem a disse; nunca dês razão nem respondas a uma pessoa pelo que "
+    "outra disse e, se não tiveres a certeza de quem foi, não digas nomes. "
     "Podes falar de Pokémon GO, do mapa, Raids, Quests, eventos, do site e da "
     "comunidade local. Responde também a perguntas gerais ou vagas sobre o "
     "jogo com o teu conhecimento: counters de Raids, types e fraquezas, moves, "
@@ -566,6 +570,7 @@ class ConversationModel:
         history=None,
         learn=True,
         staff=False,
+        author=None,
     ):
         if (
             topic not in TOPICS
@@ -593,6 +598,8 @@ class ConversationModel:
             from modules.hermiswag_client import reply_text
 
             agent_payload = dict(payload)
+            if author:
+                agent_payload["author"] = _clean_text(str(author), 40)
             recent = clean_history(history)
             if recent:
                 agent_payload["recent_channel_messages"] = recent

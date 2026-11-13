@@ -214,3 +214,23 @@ async def test_staff_answers_may_mention_everyone_without_pinging():
     assert "@ everyone" in staff
     member = await public.reply("como funciona o anúncio?")
     assert "@everyone" not in member and "@ everyone" not in member
+
+
+async def test_the_agent_knows_who_is_asking(tmp_path):
+    agent = MagicMock()
+    agent.ask = AsyncMock(return_value=json.dumps({"reply": "ok"}))
+    model = ConversationModel(tmp_path, agent)
+    model.jobs = MagicMock()
+    await model.line("greeting", text="Há Kubfu?", session="s1", author="JMBoy")
+    assert '"author": "JMBoy"' in agent.ask.await_args.args[2]
+
+
+def test_owner_is_always_faynn_in_the_context(mocker):
+    from types import SimpleNamespace as N
+
+    from cogs.mentions import speaker_name
+    from modules.config import Config
+
+    mocker.patch.object(Config, "MY_ID", 42)
+    assert speaker_name(N(id=42, display_name="Not Faynn")) == "faynn"
+    assert speaker_name(N(id=7, display_name="JMBoy")) == "JMBoy"

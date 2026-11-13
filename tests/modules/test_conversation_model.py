@@ -194,6 +194,7 @@ async def test_injection_is_kept_as_untrusted_question():
         history=ANY,
         learn=ANY,
         staff=ANY,
+        author=ANY,
     )
     db.get_data_from_database.assert_not_awaited()
 
@@ -223,6 +224,7 @@ async def test_model_receives_validated_facts_and_local_text_stays_authoritative
         history=ANY,
         learn=ANY,
         staff=ANY,
+        author=ANY,
     )
 
 
