@@ -392,8 +392,8 @@ not in git. The map of every Hermiswag piece is the shared guide
 replace the file.
 
 **Unanswered questions (owner, 2026-11-09).** `Mentions.proactive` runs every
-10 min over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
-message that looks like a question, waited 10 min to 3 h, is not a reply target,
+minute over `HERMISWAG_PROACTIVE_CHANNELS` (convívio, suporte-tecnico): a member
+message that looks like a question, waited 5 min to 3 h (owner, 2026-11-13), is not a reply target,
 does not tag Poliswag and was not looked at before (`state/hermiswag-proactive.json`)
 goes to Hermiswag with `PROACTIVE_RULES` and the messages that followed it; an
 empty reply means leave it (chat, aimed at a person, or already answered). An

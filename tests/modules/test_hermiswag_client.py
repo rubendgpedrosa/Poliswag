@@ -136,7 +136,7 @@ def test_open_questions_wait_10_minutes_and_skip_answered_ones():
         msg(1, "Alguém sabe como se evolui o Kubfu?", 45),
         msg(2, "Onde é que fica o Gym da Sé?", 50),
         msg(3, "isso é verdade", 40, reference=2),
-        msg(4, "Como faço reset ao Go Plus?", 5),  # too recent
+        msg(4, "Como faço reset ao Go Plus?", 2),  # too recent
         msg(9, "Qual é o melhor counter para o Garchomp?", 15),
         msg(5, "Quando volta o Dialga?", 300),  # too old
         msg(6, "Há Raids hoje?", 40, bot=True),

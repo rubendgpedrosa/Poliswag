@@ -1,7 +1,7 @@
 """Poliswag answers questions nobody answered.
 
-Every 10 minutes, in the conversation channels the owner picked (convívio
-and suporte-tecnico), a member's question that has waited at least 10
+Every minute, in the conversation channels the owner picked (convívio
+and suporte-tecnico), a member's question that has waited at least 5
 minutes (and at most three hours) with no reply gets an answer from
 Hermiswag, as a plain reply: no ping and no "I saw you asked". Hermiswag
 decides whether it really is an open question it can help with; an empty
@@ -14,14 +14,14 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MIN_WAIT = timedelta(minutes=10)
+MIN_WAIT = timedelta(minutes=5)
 MAX_AGE = timedelta(hours=3)
 PER_CHANNEL = 3  # questions weighed per channel per run
 KEEP = 300  # message ids remembered per channel
 
 PROACTIVE_RULES = (
     "Ninguém te mencionou: estás a ver se uma pergunta do canal ficou sem "
-    "resposta há mais de 10 minutos. O campo text é essa mensagem e "
+    "resposta há mais de 5 minutos. O campo text é essa mensagem e "
     "recent_channel_messages são as mensagens que vieram depois. Devolve "
     '{"reply": ""} (vazio) se não for uma pergunta sobre Pokémon GO, a '
     "comunidade, o servidor, o site ou um problema técnico do jogo; se for "

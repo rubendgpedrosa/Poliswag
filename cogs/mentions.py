@@ -172,7 +172,7 @@ class Mentions(commands.Cog):
         self.proactive.cancel()
         self.followup.cancel()
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=1)
     async def proactive(self):
         """Answer the questions nobody answered (hermiswag_proactive)."""
         user = self.poliswag.user
