@@ -25,7 +25,7 @@ def test_accept_keeps_cancel_and_cancel_closes_the_plan():
     state = update_plan.decide(_state(), "accept", "p1")
     assert state["status"] == "accepted"
     labels = [b["label"] for b in update_plan.components(state)[0]["components"]]
-    assert labels == ["Cancelar"]
+    assert labels == ["Atualizar já", "Cancelar"]
     state = update_plan.decide(state, "cancel", "p1")
     assert state["status"] == "cancelled"
     assert update_plan.components(state) == []
@@ -55,3 +55,12 @@ def test_embed_lists_items_then_results():
 def test_state_round_trip():
     update_plan.save(_state())
     assert update_plan.load()["plan_id"] == "p1"
+
+
+def test_update_now_and_buttons_order():
+    labels = [b["label"] for b in update_plan.components(_state())[0]["components"]]
+    assert labels == ["Atualizar já", "Aceitar", "Cancelar"]
+    state = update_plan.decide(_state(), "now", "p1")
+    assert state["status"] == "now"
+    assert update_plan.components(state) == []
+    assert "já" in update_plan.embed(state)["footer"]["text"]

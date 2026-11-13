@@ -4,7 +4,8 @@ Hermes (CT 109) checks the homelab services in the morning and, when some
 can be updated safely, posts one plan through scripts/update_plan.py: an
 embed listing them, "tonight at 04:00", with Aceitar / Cancelar buttons.
 The plan runs unless it is cancelled; at 04:00 Hermes reads the state and
-reports the outcome on the same message. The state is one JSON file,
+reports the outcome on the same message. "Atualizar já" sets it to run now:
+Hermes checks for that every minute. The state is one JSON file,
 UPDATE_PLAN_FILE, shared by the script and the bot's button handler.
 """
 
@@ -39,6 +40,7 @@ _STATUS = {
     "scheduled": "Corre esta noite às {when}, a não ser que canceles.",
     "accepted": "✅ Aceite. Corre esta noite às {when}.",
     "cancelled": "🚫 Cancelada. Nada vai ser atualizado.",
+    "now": "⚡ Vai atualizar já: começa dentro de um minuto.",
     "running": "⏳ A atualizar…",
     "done": "Terminado.",
 }
@@ -69,29 +71,25 @@ def embed(state):
 
 
 def components(state):
-    """Buttons while the plan can still change: Aceitar and Cancelar."""
+    """Buttons while the plan can still change: Atualizar já, Aceitar (until
+    accepted) and Cancelar."""
     status = state.get("status")
     if status not in ("scheduled", "accepted"):
         return []
     plan = state.get("plan_id", "")
-    buttons = [
-        {
+
+    def button(style, label, action):
+        return {
             "type": 2,
-            "style": 4,
-            "label": "Cancelar",
-            "custom_id": f"{PREFIX}cancel:{plan}",
+            "style": style,
+            "label": label,
+            "custom_id": f"{PREFIX}{action}:{plan}",
         }
-    ]
+
+    buttons = [button(1, "Atualizar já", "now")]
     if status == "scheduled":
-        buttons.insert(
-            0,
-            {
-                "type": 2,
-                "style": 3,
-                "label": "Aceitar",
-                "custom_id": f"{PREFIX}accept:{plan}",
-            },
-        )
+        buttons.append(button(3, "Aceitar", "accept"))
+    buttons.append(button(4, "Cancelar", "cancel"))
     return [{"type": 1, "components": buttons}]
 
 
@@ -107,6 +105,8 @@ def decide(state, action, plan_id):
         state["status"] = "accepted"
     elif action == "cancel":
         state["status"] = "cancelled"
+    elif action == "now":
+        state["status"] = "now"
     else:
         return None
     return state
