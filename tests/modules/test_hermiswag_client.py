@@ -113,7 +113,7 @@ def test_learning_skips_its_own_replies_in_conversations_only():
     ]
 
 
-def test_open_questions_wait_10_minutes_and_skip_answered_ones():
+def test_open_questions_wait_one_minute_and_skip_answered_ones():
     from datetime import timedelta
     from types import SimpleNamespace as N
 
@@ -136,7 +136,7 @@ def test_open_questions_wait_10_minutes_and_skip_answered_ones():
         msg(1, "Alguém sabe como se evolui o Kubfu?", 45),
         msg(2, "Onde é que fica o Gym da Sé?", 50),
         msg(3, "isso é verdade", 40, reference=2),
-        msg(4, "Como faço reset ao Go Plus?", 2),  # too recent
+        msg(4, "Como faço reset ao Go Plus?", 0.5),  # too recent for a 1 min floor
         msg(9, "Qual é o melhor counter para o Garchomp?", 15),
         msg(5, "Quando volta o Dialga?", 300),  # too old
         msg(6, "Há Raids hoje?", 40, bot=True),
@@ -234,3 +234,46 @@ def test_owner_is_always_faynn_in_the_context(mocker):
     mocker.patch.object(Config, "MY_ID", 42)
     assert speaker_name(N(id=42, display_name="Not Faynn")) == "faynn"
     assert speaker_name(N(id=7, display_name="JMBoy")) == "JMBoy"
+
+
+def test_person_budget_caps_proactive_answers():
+    from datetime import timedelta
+    from types import SimpleNamespace as N
+
+    from modules.hermiswag_proactive import (
+        PERSON_LIMIT,
+        candidates,
+        record_answer,
+        utcnow,
+    )
+
+    now = utcnow()
+    message = N(
+        id=1,
+        content="Alguém sabe como se evolui o Kubfu agora?",
+        created_at=now - timedelta(minutes=5),
+        author=N(id=42, bot=False),
+        webhook_id=None,
+        reference=None,
+        mentions=[],
+    )
+    people = {}
+    assert [m.id for m, _ in candidates([message], now, set(), 99, people)] == [1]
+    for _ in range(PERSON_LIMIT):
+        record_answer(people, 42, now)
+    assert candidates([message], now, set(), 99, people) == []
+
+
+def test_proactive_state_reads_the_old_flat_file_and_keeps_people(tmp_path):
+    from modules.hermiswag_proactive import ProactiveState
+
+    path = tmp_path / "proactive.json"
+    path.write_text('{"555": [1, 2]}')
+    state = ProactiveState(path)
+    messages, people = state.load()
+    assert messages == {"555": [1, 2]}
+    assert people == {}
+    state.save(messages, {"42": ["2026-11-13T10:00:00+00:00"]})
+    messages, people = state.load()
+    assert messages == {"555": [1, 2]}
+    assert people == {"42": ["2026-11-13T10:00:00+00:00"]}

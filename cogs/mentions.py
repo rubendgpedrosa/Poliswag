@@ -40,6 +40,7 @@ from modules.hermiswag_proactive import (
     ProactiveState,
     candidates,
     confirmed_reply,
+    record_answer,
     utcnow,
 )
 from modules.mention_rules import (
@@ -228,22 +229,26 @@ class Mentions(commands.Cog):
         user = self.poliswag.user
         if user is None:
             return
-        state = self.proactive_state.load()
+        messages_state, people = self.proactive_state.load()
         now = utcnow()
         for channel_id in Config.HERMISWAG_PROACTIVE_CHANNELS:
             channel = self.poliswag.get_channel(channel_id)
             if channel is None:
                 continue
-            handled = state.setdefault(str(channel_id), [])
+            handled = messages_state.setdefault(str(channel_id), [])
             try:
                 messages = [m async for m in channel.history(limit=60)]
                 messages.reverse()
                 for message, following in candidates(
-                    messages, now, set(handled), user.id
+                    messages, now, set(handled), user.id, people
                 )[:PER_CHANNEL]:
                     handled.append(message.id)
-                    self.proactive_state.save(state)
-                    await self._answer_open_question(channel, message, following)
+                    answered = await self._answer_open_question(
+                        channel, message, following
+                    )
+                    if answered:
+                        record_answer(people, message.author.id, now)
+                    self.proactive_state.save(messages_state, people)
             except Exception as error:
                 self.poliswag.utility.log_to_file(
                     f"Hermiswag proactive #{getattr(channel, 'name', channel_id)} "
@@ -380,7 +385,7 @@ class Mentions(commands.Cog):
         )
         reply = safe_reply(confirmed_reply(raw) or "")
         if not reply:
-            return
+            return False
         try:
             await message.reply(
                 reply,
@@ -388,8 +393,9 @@ class Mentions(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             self.active.spoke(channel.id, invited=False, partner=message.author.id)
+            return True
         except discord.HTTPException:
-            pass
+            return False
 
     @tasks.loop(hours=6)
     async def learn(self):

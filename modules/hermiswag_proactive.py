@@ -14,10 +14,13 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MIN_WAIT = timedelta(minutes=5)
+MIN_WAIT = timedelta(minutes=1)
 MAX_AGE = timedelta(hours=3)
 PER_CHANNEL = 3  # questions weighed per channel per run
 KEEP = 300  # message ids remembered per channel
+PERSON_KEEP = 20  # timestamps remembered per person
+PERSON_LIMIT = 3  # proactive answers one person may get...
+PERSON_WINDOW = timedelta(hours=6)  # ...within this window
 
 PROACTIVE_RULES = (
     "Ninguém te mencionou: estás a ver se uma pergunta do canal ficou sem "
@@ -57,7 +60,7 @@ def looks_like_question(text):
     return len(text) >= 12 and bool(_QUESTION.search(text))
 
 
-def candidates(messages, now, handled, own_id):
+def candidates(messages, now, handled, own_id, people=None):
     """Open questions in `messages` (oldest first), with the messages that
     followed each: [(message, following)], oldest first."""
     replied_to = {
@@ -65,6 +68,7 @@ def candidates(messages, now, handled, own_id):
         for m in messages
         if getattr(m, "reference", None) is not None
     }
+    spent = person_spent(people, now)
     out = []
     for index, message in enumerate(messages):
         author = message.author
@@ -77,6 +81,7 @@ def candidates(messages, now, handled, own_id):
             or not MIN_WAIT <= age <= MAX_AGE
             or any(u.id == own_id for u in getattr(message, "mentions", ()))
             or not looks_like_question(message.content)
+            or spent.get(str(author.id), 0) >= PERSON_LIMIT
         ):
             continue
         out.append((message, messages[index + 1 : index + 11]))
@@ -84,22 +89,65 @@ def candidates(messages, now, handled, own_id):
 
 
 class ProactiveState:
+    """Handled message ids per channel, and answer timestamps per person."""
+
     def __init__(self, path):
         self.path = Path(path)
 
     def load(self):
+        """``(messages, people)``; the old flat ``{channel: [ids]}`` still reads."""
         try:
             data = json.loads(self.path.read_text())
-            return {str(k): [int(x) for x in v] for k, v in data.items()}
-        except (OSError, ValueError, TypeError, AttributeError):
-            return {}
+        except (OSError, ValueError):
+            return {}, {}
+        if not isinstance(data, dict):
+            return {}, {}
+        if "messages" in data or "people" in data:
+            messages = data.get("messages") or {}
+            people = data.get("people") or {}
+        else:
+            messages, people = data, {}
+        try:
+            return (
+                {str(k): [int(x) for x in v] for k, v in messages.items()},
+                {str(k): [str(x) for x in v] for k, v in people.items()},
+            )
+        except (TypeError, ValueError, AttributeError):
+            return {}, {}
 
-    def save(self, state):
+    def save(self, messages, people):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        trimmed = {k: v[-KEEP:] for k, v in state.items()}
+        payload = {
+            "messages": {k: v[-KEEP:] for k, v in messages.items()},
+            "people": {k: v[-PERSON_KEEP:] for k, v in people.items()},
+        }
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(trimmed))
+        tmp.write_text(json.dumps(payload))
         tmp.replace(self.path)
+
+
+def person_spent(people, now):
+    """Proactive answers each person got inside the current window."""
+    cutoff = now - PERSON_WINDOW
+    spent = {}
+    for author_id, stamps in (people or {}).items():
+        recent = 0
+        for stamp in stamps:
+            try:
+                when = datetime.fromisoformat(str(stamp))
+            except ValueError:
+                continue
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if when > cutoff:
+                recent += 1
+        spent[str(author_id)] = recent
+    return spent
+
+
+def record_answer(people, author_id, now):
+    """Count one proactive answer against a person."""
+    people.setdefault(str(author_id), []).append(now.isoformat())
 
 
 def utcnow():
