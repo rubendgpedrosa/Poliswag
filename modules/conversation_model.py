@@ -53,7 +53,13 @@ INSTRUCTIONS = (
     "cerca de 500 caracteres), listas com 5 pontos no máximo e sem repetir "
     "avisos. Só te alongas (até cerca de 1500 caracteres) quando o membro pede "
     "detalhe ou a resposta precisa mesmo de passos. Nada de encher com "
-    "piadas. "
+    "piadas. Fala como uma pessoa no Discord, não como um assistente: nada de "
+    'fechos de catálogo ("se quiseres…", "estou à tua disposição", '
+    '"pergunta à vontade", "qualquer coisa diz"), não repitas frases nem '
+    "fórmulas que já usaste nesta conversa (vê as tuas mensagens em "
+    "recent_channel_messages), não acabes sempre com uma pergunta e varia o "
+    'início (nem sempre "Poli-poli!"). Numa piada ou conversa solta, '
+    "responde só a isso, em personagem, sem puxar o assunto para ajuda. "
     "Podes falar de Pokémon GO, do mapa, Raids, Quests, eventos, do site e da "
     "comunidade local. Responde também a perguntas gerais ou vagas sobre o "
     "jogo com o teu conhecimento: counters de Raids, types e fraquezas, moves, "
@@ -434,6 +440,61 @@ def validate_public_context(value):
 
 MAX_HISTORY = 15
 
+# Added outside the learning channels (moderation, DMs, any other channel):
+# those conversations may be read, never kept. Learning only ever comes from
+# HERMISWAG_LEARN_CHANNELS (owner, 2026-11-13).
+NO_MEMORY_RULE = (
+    "Este canal não é um canal de aprendizagem: responde normalmente, mas não "
+    "guardes nada desta conversa na tua memória, nem resumos, nem nomes, nem "
+    "decisões. A tua memória só aprende com os canais públicos da comunidade."
+)
+
+
+# Only in the moderation channel: the team may ask about the bot's moderation
+# tools there. Never in a knowledge file (that tool answers every channel).
+STAFF_RULES = (
+    "Estás no canal de moderação, a falar com a equipa (o faynn e os "
+    "moderadores Rekrad, JMBoy e Ethix). Aqui podes e deves explicar as "
+    "ferramentas de moderação do Poliswag e como se usam; o resto das regras "
+    "mantém-se. O que se fala aqui nunca sai daqui: não o repitas noutros "
+    "canais nem o guardes na memória. Comandos da equipa (o !help mostra a "
+    "lista e o detalhe de cada um):\n"
+    "- !anunciar <texto>: publica no canal de anúncios. Primeiro mostra uma "
+    "pré-visualização sem pings e só publica ao carregar em Publicar (5 min); "
+    "@everyone, negrito, links e imagens anexadas vão tal e qual.\n"
+    "- !sorteio: sorteio por reação num anúncio. Responde ao anúncio com "
+    "!sorteio (ou !sorteio <link> [<t:…>] [vencedores]); a hora e o emoji vêm "
+    "do anúncio. Também: !sorteio estado, lista, sortear, cancelar e campfire "
+    "(junta os nomes do Campfire a partir de capturas). O vencedor não é "
+    "anunciado logo: aparece uma revisão aqui com Publicar, Repetir, Repetir "
+    "sem este e Cancelar; Publicar responde ao anúncio e só pinga o vencedor.\n"
+    "- Quests: !scan começa um scan de quests; !exportquests exporta-as para o "
+    "site; !track, !untrack, !tracklist, !untrackall e !tracked gerem as "
+    "quests seguidas (!tracked envia a lista para o convívio).\n"
+    "- Eventos: !eventtypes, !exclude e !include <tipo>, !excludedlist e "
+    "!excludeclear escolhem que tipos de evento são notificados; "
+    "!weeklydigest envia o resumo semanal; !testevent HH:MM simula a "
+    "verificação de eventos a essa hora; !ticks mostra o estado do agendador.\n"
+    "- Os pedidos de acesso ao mapa de Shinies aparecem aqui com Aceitar e "
+    "Rejeitar.\n"
+    "- Os comandos do dono (contas, contentores, estatísticas, agentes) são só "
+    "do faynn.\n"
+    "Mesmo aqui, nunca fales de credenciais, palavras-passe, tokens, servidores "
+    "por dentro ou código."
+)
+
+
+def agent_instructions(learn=True, staff=False):
+    """AGENT_INSTRUCTIONS, plus NO_MEMORY_RULE outside the learning channels
+    and STAFF_RULES in the moderation channel."""
+    parts = [AGENT_INSTRUCTIONS]
+    if staff:
+        parts.append(STAFF_RULES)
+    if not learn:
+        parts.append(NO_MEMORY_RULE)
+    return "\n\n".join(parts)
+
+
 # Hermiswag has tools the worker path does not: the same rules, minus the
 # no-tools line, plus how to use them.
 AGENT_INSTRUCTIONS = (
@@ -496,7 +557,16 @@ class ConversationModel:
         self.slots = asyncio.Semaphore(2)
         self.retry_after = 0
 
-    async def line(self, topic, text="", context=None, session=None, history=None):
+    async def line(
+        self,
+        topic,
+        text="",
+        context=None,
+        session=None,
+        history=None,
+        learn=True,
+        staff=False,
+    ):
         if (
             topic not in TOPICS
             or self.slots.locked()
@@ -528,7 +598,9 @@ class ConversationModel:
                 agent_payload["recent_channel_messages"] = recent
             async with self.slots:
                 raw = await self.hermiswag.ask(
-                    session, AGENT_INSTRUCTIONS, public_prompt(topic, agent_payload)
+                    session,
+                    agent_instructions(learn, staff),
+                    public_prompt(topic, agent_payload),
                 )
             line = reply_text(raw)
             if line:

@@ -9,6 +9,8 @@ import re
 
 import discord
 
+from modules.config import Config
+
 
 def directed_mention(content, bot_id):
     """Only a visible, unescaped bot tag counts; ignore code/quoted literals."""
@@ -29,6 +31,20 @@ def directed_mention(content, bot_id):
         lines.append(line)
     visible = "\n".join(lines)
     return bool(re.search(rf"(?<!\\)<@!?{bot_id}>", visible))
+
+
+_NAMED = re.compile(r"(?<!\w)poli(?:swag|wag)?(?!\w)", re.I)
+
+
+def named_in_staff_channel(message):
+    """In the moderation channel, saying Poliswag's name is enough: the team
+    talks with it more directly there (owner, 2026-11-13)."""
+    if getattr(message, "guild", None) is None or message.author.bot:
+        return False
+    if getattr(message.channel, "id", None) != Config.MOD_CHANNEL_ID:
+        return False
+    content = message.content or ""
+    return not content.lstrip().startswith("!") and bool(_NAMED.search(content))
 
 
 def replied_bot_message(message, bot_id):

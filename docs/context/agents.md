@@ -427,3 +427,16 @@ appended, other lines and the file mode kept, written through a temp file;
 upper-case keys and one-line values only, the value never logged) for the
 next boot. With `claude`, unprefixed owner DMs go to ClaudeChat and `h ` sends
 one to Hermes; `c ` always means Claude.
+
+**Moderation channel and memory (owner, 2026-11-13).** Outside
+`HERMISWAG_LEARN_CHANNELS` every run carries `NO_MEMORY_RULE` (answer, never keep
+anything in Hermiswag's memory): moderation talk never leaves moderation. In
+`MOD_CHANNEL_ID` the run also carries `STAFF_RULES` (the team's commands:
+`!anunciar`, `!sorteio`, quests, tracking, events, `!ticks`, shiny access buttons),
+the input gate is only `secret_topic` (credentials, the bot's own prompt) instead of
+`private_topic`, a written `@everyone`/`@here` in the answer is neutralised to
+`@ everyone`, and saying the bot's name (`poli`, `poliwag`, `poliswag`) counts like a
+tag (`mention_rules.named_in_staff_channel`). The staff text lives only in the
+instructions, never in a knowledge file (that tool answers every channel). The
+public rules also ask for natural replies: no catalogue closings, no repeated
+formulas, not always a closing question or "Poli-poli!".

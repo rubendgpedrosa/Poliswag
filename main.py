@@ -23,7 +23,11 @@ from modules.hundo_alerts import HundoAlerts
 from modules.image_generator import ImageGenerator
 from modules.lure_watcher import LureWatcher
 from modules.mega_exporter import MegaExporter
-from modules.mention_rules import directed_mention, replied_bot_message
+from modules.mention_rules import (
+    directed_mention,
+    named_in_staff_channel,
+    replied_bot_message,
+)
 from modules.migrations import apply_migrations
 from modules.page_view_stats import PageViewStats
 from modules.permissions import is_owner
@@ -194,6 +198,7 @@ class Poliswag(commands.Bot):
             return False
         return directed_mention(message.content, self.user.id) or (
             replied_bot_message(message, self.user.id) is not None
+            or named_in_staff_channel(message)
         )
 
     def _is_bare_mention(self, message):

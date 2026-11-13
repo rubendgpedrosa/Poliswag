@@ -165,3 +165,52 @@ def test_unprompted_answers_need_confidence_and_a_checked_source():
     tip = {**ok, "reply": "Costuma resolver reiniciar a app. Qual é o telemóvel?"}
     assert confirmed_reply(j.dumps(tip)).endswith("Qual é o telemóvel?")
     assert confirmed_reply("Reinicia a app.") is None
+
+
+async def test_outside_learning_channels_the_agent_is_told_not_to_remember(tmp_path):
+    from modules.conversation_model import NO_MEMORY_RULE
+
+    agent = MagicMock()
+    agent.ask = AsyncMock(return_value=json.dumps({"reply": "ok"}))
+    model = ConversationModel(tmp_path, agent)
+    model.jobs = MagicMock()
+    await model.line("greeting", text="Olá?", session="s1", learn=False)
+    assert NO_MEMORY_RULE in agent.ask.await_args.args[1]
+    await model.line("greeting", text="Olá?", session="s1")
+    assert NO_MEMORY_RULE not in agent.ask.await_args.args[1]
+
+
+def test_staff_rules_only_in_the_moderation_channel():
+    from modules.conversation_model import (
+        NO_MEMORY_RULE,
+        STAFF_RULES,
+        agent_instructions,
+    )
+
+    assert STAFF_RULES not in agent_instructions(True)
+    staff = agent_instructions(False, True)
+    assert STAFF_RULES in staff and NO_MEMORY_RULE in staff and "!anunciar" in staff
+
+
+def test_staff_gate_lets_tool_questions_through_but_not_credentials():
+    from modules.public_conversation import private_topic, secret_topic
+
+    question = "como faço um scan de quests e onde vejo os logs?"
+    assert private_topic(question) and not secret_topic(question)
+    assert secret_topic("qual é a password do scanner?")
+
+
+async def test_staff_answers_may_mention_everyone_without_pinging():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from modules.public_conversation import PublicConversation
+
+    model = MagicMock()
+    model.line = AsyncMock(
+        return_value="O !anunciar publica e o @everyone vai tal e qual."
+    )
+    public = PublicConversation(MagicMock(), MagicMock(), model, None)
+    staff = await public.reply("como funciona o anúncio?", staff=True)
+    assert "@ everyone" in staff
+    member = await public.reply("como funciona o anúncio?")
+    assert "@everyone" not in member and "@ everyone" not in member

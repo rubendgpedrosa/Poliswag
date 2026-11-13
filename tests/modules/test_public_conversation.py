@@ -152,6 +152,8 @@ async def test_map_snapshot_and_question_are_passed_to_the_model():
         context={"snapshot": snapshot, "facts": None},
         session=ANY,
         history=ANY,
+        learn=ANY,
+        staff=ANY,
     )
 
 
@@ -283,6 +285,8 @@ async def test_events_and_statistics_still_reach_the_model_with_their_question(p
         },
         session=ANY,
         history=ANY,
+        learn=ANY,
+        staff=ANY,
     )
 
 

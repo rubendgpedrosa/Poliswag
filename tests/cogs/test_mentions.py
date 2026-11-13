@@ -133,6 +133,8 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
         context={"snapshot": snapshot, "facts": None},
         session=ANY,
         history=ANY,
+        learn=ANY,
+        staff=ANY,
     )
 
 
@@ -346,7 +348,9 @@ async def test_owner_guild_mentions_use_only_public_path(cog, text):
     cog.public.reply = AsyncMock(return_value="Resposta pública.")
     context = ctx("<@456> " + text, owner=True)
     assert await cog.handle(context)
-    cog.public.reply.assert_awaited_once_with(text, session=ANY, history=ANY)
+    cog.public.reply.assert_awaited_once_with(
+        text, session=ANY, history=ANY, learn=ANY, staff=ANY
+    )
     cog.poliswag.get_cog.assert_not_called()
     assert context.reply.call_args.args == ("Resposta pública.",)
 
@@ -379,7 +383,11 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
     cog.public.reply = AsyncMock(return_value="Poli-poli!")
     await cog.handle(context)
     cog.public.reply.assert_awaited_once_with(
-        "quem é o faynn? e o Ash1? e <@888>?", session=ANY, history=ANY
+        "quem é o faynn? e o Ash1? e <@888>?",
+        session=ANY,
+        history=ANY,
+        learn=ANY,
+        staff=ANY,
     )
 
 
@@ -405,3 +413,24 @@ def test_reply_to_a_poliswag_answer_counts_like_a_tag():
     assert replied_bot_message(_reply_to(42, content=""), 42) is None
     assert replied_bot_message(_reply_to(42, guild=False), 42) is None
     assert replied_bot_message(_reply_to(42, text="!quest leiria"), 42) is None
+
+
+def test_saying_the_name_counts_only_in_the_moderation_channel(mocker):
+    from modules.config import Config
+    from modules.mention_rules import named_in_staff_channel
+
+    mocker.patch.object(Config, "MOD_CHANNEL_ID", 555)
+
+    def msg(channel_id, text):
+        message = MagicMock()
+        message.author.bot = False
+        message.channel.id = channel_id
+        message.content = text
+        return message
+
+    joke = "O Faynn disse que ia meter o Poliswag numa cave a ver as Tardes da Júlia"
+    assert named_in_staff_channel(msg(555, joke))
+    assert named_in_staff_channel(msg(555, "poli, achas?"))
+    assert not named_in_staff_channel(msg(777, joke))
+    assert not named_in_staff_channel(msg(555, "politica não"))
+    assert not named_in_staff_channel(msg(555, "!sorteio estado poli"))

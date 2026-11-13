@@ -198,6 +198,18 @@ def _private_name_pattern(names):
     return re.compile(r"\b(?:%s)\w*" % "|".join(words))
 
 
+_SECRET = re.compile(
+    r"(?:password|passwd|senha|palavra[- ]passe|token|secret|segredo|credential|credencia)\w*|"
+    r"\.env\b|\bchave\s+(?:api|secreta|de\s+acesso)\b|"
+    r"\bsystem\s+prompt\b|\bprompt\s+do\s+sistema\b"
+)
+
+
+def secret_topic(text):
+    """The staff gate: only credentials and the bot's own prompt."""
+    return isinstance(text, str) and bool(_SECRET.search(normalized(text)))
+
+
 def private_topic(text):
     topic = normalized(text)
     # A Friend Code is game lingo; asking about the concept is public, while
@@ -361,8 +373,11 @@ class PublicConversation:
         self.model = model
         self.map_context = map_context
 
-    async def reply(self, text, session=None, history=None):
-        if not isinstance(text, str) or len(text) > 2000 or private_topic(text):
+    async def reply(self, text, session=None, history=None, learn=True, staff=False):
+        # The team (moderation channel) may ask about the bot's tools; only
+        # credentials stay off limits there.
+        blocked = secret_topic(text) if staff else private_topic(text)
+        if not isinstance(text, str) or len(text) > 2000 or blocked:
             return _PRIVATE_REPLY
         question = clean_question(text)
         if not question:
@@ -416,8 +431,15 @@ class PublicConversation:
                     text=question,
                     context=model_context,
                     session=session,
+                    learn=learn,
+                    staff=staff,
                     history=history,
                 )
+                if staff and isinstance(raw, str):
+                    # Explaining !anunciar means writing "@everyone"; the reply
+                    # never pings (mentions are off), so neutralise it rather
+                    # than drop the whole answer.
+                    raw = re.sub(r"@(everyone|here)\b", r"@ \1", raw)
                 line = safe_reply(raw)
                 unsafe = isinstance(raw, str) and bool(raw.strip()) and line is None
             except Exception:

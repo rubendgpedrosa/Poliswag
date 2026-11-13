@@ -12,6 +12,7 @@ from modules.config import Config
 from modules.conversation_model import (
     AGENT_INSTRUCTIONS,
     ConversationModel,
+    agent_instructions,
     clean_history,
     public_prompt,
 )
@@ -41,7 +42,11 @@ from modules.hermiswag_proactive import (
     confirmed_reply,
     utcnow,
 )
-from modules.mention_rules import directed_mention, replied_bot_message
+from modules.mention_rules import (
+    directed_mention,
+    named_in_staff_channel,
+    replied_bot_message,
+)
 from modules.permissions import is_owner
 from modules.public_conversation import MentionLimiter, PublicConversation, safe_reply
 from modules.public_dumps import PublicDumps, dump_request
@@ -101,7 +106,7 @@ class Mentions(commands.Cog):
         replied = None
         if not directed_mention(message.content, user.id):
             replied = replied_bot_message(message, user.id)
-            if replied is None:
+            if replied is None and not named_in_staff_channel(message):
                 return False
         text = re.sub(pattern, "", message.content).strip()
         if ctx.guild is None and is_owner(ctx):
@@ -151,7 +156,13 @@ class Mentions(commands.Cog):
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(
-                self.public.reply(text, session=session, history=history),
+                self.public.reply(
+                    text,
+                    session=session,
+                    history=history,
+                    learn=ctx.channel.id in Config.HERMISWAG_LEARN_CHANNELS,
+                    staff=ctx.channel.id == Config.MOD_CHANNEL_ID,
+                ),
                 timeout=65,
             )
         except Exception:
@@ -278,7 +289,12 @@ class Mentions(commands.Cog):
         }
         raw = await self.hermiswag.ask(
             HermiswagClient.conversation(channel.id),
-            AGENT_INSTRUCTIONS + "\n\n" + FOLLOWUP_RULES,
+            agent_instructions(
+                channel.id in Config.HERMISWAG_LEARN_CHANNELS,
+                channel.id == Config.MOD_CHANNEL_ID,
+            )
+            + "\n\n"
+            + FOLLOWUP_RULES,
             public_prompt("greeting", payload) + "\n\n" + FOLLOWUP_FORMAT,
         )
         reply = safe_reply(followup_reply(raw) or "")
