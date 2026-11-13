@@ -44,7 +44,7 @@ _STATUS = {
     "running": "⏳ A atualizar…",
     "done": "Terminado.",
 }
-WHEN_ICON = {"now": "⚡", "night": "🌙"}
+WHEN_ICON = {"now": "⚡", "night": "🌙", "manual": "🖐️"}
 
 
 def pending(state, when=None):
@@ -64,7 +64,7 @@ def embed(state):
         result = item.get("result")
         if result is not None:
             results.append(result)
-            mark = "✅" if result.get("ok") else "❌"
+            mark = "🖐️" if result.get("skipped") else "✅" if result.get("ok") else "❌"
             lines.append(f"{mark} **{item['label']}** — {result.get('detail', '')}")
         else:
             icon = WHEN_ICON.get(item.get("when", "night"), "🌙")
@@ -85,7 +85,7 @@ def embed(state):
         "title": f"🛠️ Atualização agendada ({len(state.get('items', []))})",
         "description": "\n".join(lines)[:3900],
         "color": colour,
-        "footer": {"text": footer + "\n⚡ já · 🌙 04:00"},
+        "footer": {"text": footer + "\n⚡ já · 🌙 04:00 · 🖐️ à mão"},
     }
 
 

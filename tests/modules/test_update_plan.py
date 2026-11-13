@@ -75,3 +75,17 @@ def test_update_now_and_buttons_order():
     assert state["status"] == "now"
     assert update_plan.components(state) == []
     assert "já" in update_plan.embed(state)["footer"]["text"]
+
+
+def test_manual_items_show_a_hand_not_a_failure():
+    state = _state()
+    state["items"][0].update(when="manual")
+    assert "🖐️ **Loki**" in update_plan.embed(state)["description"]
+    state["items"][0]["result"] = {
+        "ok": True,
+        "skipped": True,
+        "detail": "migração manual",
+    }
+    embed = update_plan.embed(state)
+    assert "🖐️ **Loki**" in embed["description"]
+    assert embed["color"] == update_plan.DONE_COLOUR
