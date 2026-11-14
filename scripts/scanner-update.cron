@@ -1,4 +1,4 @@
-# Scanner image staging, after backup and Diadem update; host timezone UTC.
+# Scanner image staging, after backup; host timezone UTC.
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 MAILTO=""
