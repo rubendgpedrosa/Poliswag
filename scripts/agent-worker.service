@@ -23,7 +23,7 @@ CPUQuota=150%
 TasksMax=256
 ProtectSystem=strict
 # /root is an empty tmpfs; only what the worker needs is mounted back, so other
-# stacks' configs (Dragonite lab, Poracle, Diadem, backups) are never readable.
+# stacks' configs (Dragonite lab, Poracle, backups) are never readable.
 ProtectHome=tmpfs
 PrivateTmp=true
 NoNewPrivileges=true
