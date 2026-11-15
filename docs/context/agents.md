@@ -81,8 +81,11 @@ indicator on and immediately replies with one live status embed (first line
 📝 = the request, credential-filtered), edited every four seconds: elapsed time, the last five tool calls
 (✓/✗ with duration), the current tool with a short preview, and Hermes' latest
 commentary. Previews and commentary pass the same credential filter as approval
-cards. On completion the embed collapses to a summary (request, tool count, time,
-errors); the answer follows as a reply. Discord does not let a bot delete a user's
+cards. On completion the answer is sent as a reply in the agent colour (Hermes
+grey, Claude orange) with the summary (outcome, tool count, time, errors) as the
+footer of its last embed, and the live card is deleted: one message per turn
+(owner, 2026-11-15). If the answer cannot be sent, the card stays and collapses to
+the summary instead. Discord does not let a bot delete a user's
 messages in a DM, so the owner's messages stay.
 
 **Follow-ups steer (2026-11-01).** A new owner DM sent while that agent's turn is

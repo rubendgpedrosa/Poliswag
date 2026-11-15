@@ -148,10 +148,13 @@ class Hermes(commands.Cog):
         except Exception:
             # Do not publish or log prompts, credentials, or transport errors.
             reply = _UNAVAILABLE.format(name=self.NAME)
-        await status.finish(
-            {"✅": "completed", "⚠️": "partial"}.get(outcome, "unavailable")
-        )
-        delivered = await self.respond(ctx, reply)
+        outcome = {"✅": "completed", "⚠️": "partial"}.get(outcome, "unavailable")
+        # One message per turn (owner, 2026-11-15): the answer goes out in the
+        # agent's colour with the card's summary as its footer, and the live
+        # card is then deleted. If the answer can't be sent, the card stays
+        # and shows the outcome as before.
+        delivered = await self.respond(ctx, reply, footer=progress.summary(outcome))
+        await status.finish(outcome, remove=delivered)
         if run_id is not None and delivered:
             self.client.forget(run_id)
         return True
@@ -176,7 +179,9 @@ class Hermes(commands.Cog):
             except (discord.HTTPException, discord.NotFound):
                 return False
         return await send_segments(
-            channel.send, "Resultado recuperado após reinício do Poliswag.\n\n" + text
+            channel.send,
+            "Resultado recuperado após reinício do Poliswag.\n\n" + text,
+            colour=self.CARD_COLOUR,
         )
 
     @staticmethod
@@ -208,9 +213,14 @@ class Hermes(commands.Cog):
             view.stop()
             await view.finish()
 
-    @staticmethod
-    async def respond(ctx, text):
-        return await send_segments(ctx.channel.send, text, first_reply=ctx.reply)
+    async def respond(self, ctx, text, footer=None):
+        return await send_segments(
+            ctx.channel.send,
+            text,
+            first_reply=ctx.reply,
+            colour=self.CARD_COLOUR,
+            footer=footer,
+        )
 
 
 def _clip(text, limit):
@@ -339,6 +349,11 @@ class RunProgress:
             )
         )
         self.dirty = True
+
+    def summary(self, outcome):
+        """The finished card in one line, for the answer's footer."""
+        embed = self.embed(outcome)
+        return f"{embed.title} · {embed.description.splitlines()[-1]}"[:2000]
 
     @property
     def active(self):
@@ -483,7 +498,7 @@ class StatusMessage:
         else:
             await self.message.edit(**kwargs)
 
-    async def finish(self, outcome):
+    async def finish(self, outcome, remove=False):
         self.cog.live.discard(self)
         if self._task is not None:
             self._task.cancel()
@@ -496,8 +511,9 @@ class StatusMessage:
         if self.message is None:
             return
         try:
-            if outcome == "redirected":
-                # The active turn's card now shows this text as guidance.
+            if outcome == "redirected" or remove:
+                # Redirected: the active turn's card now shows this text as
+                # guidance. Removed: the answer carries the summary instead.
                 await self.message.delete()
                 return
             await self.message.edit(
@@ -702,15 +718,20 @@ def prepare_reply(text):
     return split_reply(text)
 
 
-async def send_segments(send, text, *, first_reply=None, colour=REPLY_COLOUR):
+async def send_segments(
+    send, text, *, first_reply=None, colour=REPLY_COLOUR, footer=None
+):
     """Todas as respostas vão em embed, não em texto corrido.
 
     O embed dá margem a 4096 caracteres por mensagem (daí o limite próprio) e
     mantém o bloco de código a render como código dentro da descrição.
     """
     try:
-        for index, chunk in enumerate(prepare_reply(text)):
+        chunks = prepare_reply(text)
+        for index, chunk in enumerate(chunks):
             embed = discord.Embed(description=chunk, colour=colour)
+            if footer and index == len(chunks) - 1:
+                embed.set_footer(text=footer)
             kwargs = {
                 "allowed_mentions": discord.AllowedMentions.none(),
                 "embed": embed,

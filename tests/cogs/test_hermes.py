@@ -417,6 +417,7 @@ async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
     ctx = context(dm=True)
     card = MagicMock()
     card.edit = AsyncMock()
+    card.delete = AsyncMock()
     replies = []
 
     async def reply(*args, **kwargs):
@@ -443,13 +444,42 @@ async def test_live_status_card_tracks_events_and_collapses(cog, monkeypatch):
     rendered = [call.kwargs["embed"] for call in card.edit.await_args_list]
     assert any("✓ `sysadmin_execute`" in (e.description or "") for e in rendered)
     assert all("abc" not in (e.description or "") for e in rendered)
-    final = card.edit.await_args_list[-1].kwargs
-    assert final["embed"].title == "✅ Concluído"
-    assert final["view"] is None
+    # One message per turn: the answer carries the summary, the card goes.
+    card.delete.assert_awaited_once()
     final_reply = replies[-1]
     assert final_reply["mention_author"] is False
     assert "allowed_mentions" in final_reply
-    assert final_reply["embed"].description
+    assert final_reply["embed"].description == "Feito"
+    assert final_reply["embed"].footer.text.startswith("✅ Concluído · ")
+    assert final_reply["embed"].colour.value == cog.CARD_COLOUR
+
+
+async def test_card_stays_with_the_outcome_when_the_answer_fails(cog, monkeypatch):
+    from cogs import hermes
+
+    monkeypatch.setattr(hermes.StatusMessage, "FIRST_DELAY", 0)
+    ctx = context(dm=True)
+    card = MagicMock()
+    card.edit = AsyncMock()
+    card.delete = AsyncMock()
+    calls = []
+
+    async def reply(*args, **kwargs):
+        calls.append(kwargs)
+        if len(calls) > 1:
+            raise discord.HTTPException(MagicMock(status=500), "down")
+        return card
+
+    ctx.reply = AsyncMock(side_effect=reply)
+
+    async def run(*args, **kwargs):
+        await asyncio.sleep(0.02)
+        return ("run-1", "Feito")
+
+    cog.client.reply = AsyncMock(side_effect=run)
+    await cog.handle(ctx, "hello")
+    card.delete.assert_not_awaited()
+    assert card.edit.await_args_list[-1].kwargs["embed"].title == "✅ Concluído"
 
 
 async def test_first_reply_is_a_card_saying_what_was_asked(cog):
