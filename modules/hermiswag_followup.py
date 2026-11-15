@@ -16,6 +16,9 @@ import time
 from datetime import datetime, timezone
 
 ACTIVE_WINDOW = 15 * 60
+# Moderação: after Poliswag speaks, the whole team's messages go to its gate
+# for this long (owner, 2026-11-15: "10mins for now").
+STAFF_WINDOW = 10 * 60
 QUIET = 45
 MIN_GAP = 3 * 60
 MAX_CHAIN = 3
@@ -73,15 +76,11 @@ class ActiveChannels:
     def partner(self, channel_id):
         return self._state.get(channel_id, {}).get("partner")
 
-    def talking_with(self, channel_id, user_id, now=None):
-        """Poliswag answered this person here within ACTIVE_WINDOW."""
+    def in_conversation(self, channel_id, window, now=None):
+        """Poliswag spoke here within `window` seconds."""
         now = time.time() if now is None else now
         entry = self._state.get(channel_id)
-        return bool(
-            entry
-            and entry.get("partner") == user_id
-            and now - entry["at"] <= ACTIVE_WINDOW
-        )
+        return bool(entry and now - entry["at"] <= window)
 
     def followed_up(self, channel_id, now=None):
         now = time.time() if now is None else now

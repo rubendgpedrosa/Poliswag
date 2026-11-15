@@ -21,6 +21,7 @@ from modules.hermiswag_followup import (
     FOLLOWUP_FORMAT,
     FOLLOWUP_RULES,
     STAFF_UNPROMPTED_RULES,
+    STAFF_WINDOW,
     ActiveChannels,
     followup_reply,
     new_since_poliswag,
@@ -191,14 +192,16 @@ class Mentions(commands.Cog):
         return True
 
     def staff_partner_turn(self, message):
-        """In moderação, the person Poliswag is talking with gets an answer
-        right away, without the follow-up pass's wait (owner, 2026-11-15)."""
+        """In moderação, while Poliswag is in the conversation (it spoke in
+        the last STAFF_WINDOW), anyone's message goes straight to its gate,
+        without the follow-up pass's wait (owner, 2026-11-15: a reply from
+        JMBoy to what it told Rekrad counts too)."""
         channel_id = getattr(message.channel, "id", None)
         return (
             channel_id == Config.MOD_CHANNEL_ID
             and not message.author.bot
             and not (message.content or "").lstrip().startswith("!")
-            and self.active.talking_with(channel_id, message.author.id)
+            and self.active.in_conversation(channel_id, STAFF_WINDOW)
         )
 
     async def staff_unprompted(self, ctx, text, history):

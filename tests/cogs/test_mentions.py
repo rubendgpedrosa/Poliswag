@@ -490,7 +490,8 @@ async def test_moderation_partner_gets_an_answer_without_waiting(cog, monkeypatc
     cog.channel_history = AsyncMock(return_value=[])
     cog.hermiswag.ask = AsyncMock(return_value='{"reply": "Feito!", "for_me": true}')
     assert not await cog.handle(context)  # nobody talking with it yet
-    cog.active.spoke(555, invited=True, partner=context.author.id)
+    # It spoke with someone else: a teammate joining in counts too.
+    cog.active.spoke(555, invited=True, partner=12345)
     assert await cog.handle(context)
     assert context.reply.call_args.args == ("Feito!",)
     assert context.message.id in cog.followup_handled
