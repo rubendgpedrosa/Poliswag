@@ -196,9 +196,11 @@ class Poliswag(commands.Bot):
         # Same rule as the Mentions cog: a tag in code or a quote is not a tag.
         if self.user is None:
             return False
+        mentions = self.get_cog("Mentions")
         return directed_mention(message.content, self.user.id) or (
             replied_bot_message(message, self.user.id) is not None
             or named_in_staff_channel(message)
+            or (mentions is not None and mentions.staff_partner_turn(message) is True)
         )
 
     def _is_bare_mention(self, message):

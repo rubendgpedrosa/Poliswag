@@ -115,7 +115,11 @@ class Mentions(commands.Cog):
         directed = directed_mention(message.content, user.id)
         if not directed:
             replied = replied_bot_message(message, user.id)
-            if replied is None and not named_in_staff_channel(message):
+            if (
+                replied is None
+                and not named_in_staff_channel(message)
+                and not self.staff_partner_turn(message)
+            ):
                 return False
         text = re.sub(pattern, "", message.content).strip()
         if ctx.guild is None and is_owner(ctx):
@@ -186,7 +190,20 @@ class Mentions(commands.Cog):
         self.active.spoke(ctx.channel.id, invited=True, partner=ctx.author.id)
         return True
 
+    def staff_partner_turn(self, message):
+        """In moderação, the person Poliswag is talking with gets an answer
+        right away, without the follow-up pass's wait (owner, 2026-11-15)."""
+        channel_id = getattr(message.channel, "id", None)
+        return (
+            channel_id == Config.MOD_CHANNEL_ID
+            and not message.author.bot
+            and not (message.content or "").lstrip().startswith("!")
+            and self.active.talking_with(channel_id, message.author.id)
+        )
+
     async def staff_unprompted(self, ctx, text, history):
+        # The follow-up pass must not weigh this message a second time.
+        self.followup_handled.add(ctx.message.id)
         payload = {
             "text": text[:2000],
             "author": speaker_name(ctx.author),

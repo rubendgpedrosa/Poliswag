@@ -73,6 +73,16 @@ class ActiveChannels:
     def partner(self, channel_id):
         return self._state.get(channel_id, {}).get("partner")
 
+    def talking_with(self, channel_id, user_id, now=None):
+        """Poliswag answered this person here within ACTIVE_WINDOW."""
+        now = time.time() if now is None else now
+        entry = self._state.get(channel_id)
+        return bool(
+            entry
+            and entry.get("partner") == user_id
+            and now - entry["at"] <= ACTIVE_WINDOW
+        )
+
     def followed_up(self, channel_id, now=None):
         now = time.time() if now is None else now
         entry = self._state.setdefault(
