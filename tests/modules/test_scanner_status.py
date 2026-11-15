@@ -1353,11 +1353,11 @@ class TestMapDiscordAlerts:
         await scanner_status.trigger_all_down_action()
         assert dashboard.await_count == 2
         discord_alert.assert_awaited_once()
-        assert discord_alert.call_args.kwargs["title"] == "Mapa sem dados"
+        assert discord_alert.call_args.kwargs["title"] == "🔴 Mapa sem dados"
 
         await scanner_status.trigger_map_restored_action(5)
         assert discord_alert.await_count == 2
-        assert discord_alert.call_args.kwargs["title"] == "Mapa recuperado"
+        assert discord_alert.call_args.kwargs["title"] == "✅ Mapa recuperado"
         assert scanner_status.map_down_alerted is False
 
         scanner_status.last_all_down_request_time = 0
@@ -1476,7 +1476,7 @@ class TestMapAlertSurvivesARestart:
         _, discord_alert = self._setup(second, mocker, seconds_ago=5)
         await second.rename_voice_channels(_ws(0, 0))
         discord_alert.assert_awaited_once()
-        assert discord_alert.call_args.kwargs["title"] == "Mapa recuperado"
+        assert discord_alert.call_args.kwargs["title"] == "✅ Mapa recuperado"
         # Closed: a third process has nothing to pick up.
         assert self._restarted().map_down_alerted is False
 

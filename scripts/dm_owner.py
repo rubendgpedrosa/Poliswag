@@ -30,7 +30,7 @@ def read_env(path):
     return env
 
 
-def post(path, token, body):
+def post(path, token, body, method="POST"):
     request = urllib.request.Request(
         f"{API}{path}",
         data=json.dumps(body).encode(),
@@ -39,7 +39,7 @@ def post(path, token, body):
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         },
-        method="POST",
+        method=method,
     )
     with urllib.request.urlopen(request, timeout=15) as response:
         return json.load(response)

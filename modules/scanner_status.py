@@ -384,12 +384,28 @@ class ScannerStatus(LoggingMixin):
                         self._log(f"Error sending all-down dashboard update: {e}")
                     if not self._map_down_discord_sent:
                         try:
+                            if device_status is False:
+                                cause = (
+                                    "O telemóvel do scanner não está ligado ao "
+                                    "Rotom (desligado, sem rede ou sem o PoliSnatch)."
+                                )
+                            elif device_status:
+                                cause = (
+                                    "O telemóvel está ligado ao Rotom: o problema "
+                                    "está nas contas ou nos servidores do jogo."
+                                )
+                            else:
+                                cause = "Não consegui ver o estado do telemóvel."
                             self._map_down_discord_sent = await notify_owner(
                                 self.poliswag,
-                                "O mapa deixou de receber Pokémon há pelo menos "
-                                "10 minutos. Vou avisar quando voltar a receber dados.",
-                                title="Mapa sem dados",
+                                "Nenhum Pokémon novo na base de dados do scanner "
+                                f"há {max(10, (seconds_ago or 0) // 60)} min.\n"
+                                f"{cause}\nEsta mensagem muda quando o mapa "
+                                "voltar a receber dados.",
+                                title="🔴 Mapa sem dados",
                                 tag="poliswag-map",
+                                incident="map",
+                                color=0xE74C3C,
                             )
                         except Exception as e:
                             self._log(f"Error sending map-down Discord alert: {e}")
@@ -423,8 +439,10 @@ class ScannerStatus(LoggingMixin):
                 delivered = await notify_owner(
                     self.poliswag,
                     "O mapa voltou a receber Pokémon.",
-                    title="Mapa recuperado",
+                    title="✅ Mapa recuperado",
                     tag="poliswag-map",
+                    incident="map",
+                    resolved=True,
                 )
             except Exception as e:
                 self._log(f"Error sending map-restored Discord alert: {e}")

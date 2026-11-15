@@ -19,6 +19,10 @@ RETENTION = 30 * 86400
 STATE_PATH = (
     Path(__file__).resolve().parent.parent / "state/monitoring-discord-relay.json"
 )
+# Checks another alert already covers, so one incident is not reported twice:
+# the origin map-data probe goes stale exactly when Poliswag's own
+# "Mapa sem dados" (newest Pokémon row in the scanner database) fires.
+COVERED_ELSEWHERE = ("/mapa-data/pokemon",)
 
 
 def _host(labels):
@@ -100,15 +104,30 @@ def _check_endpoint(value):
         return ""
 
 
-def _group_embed(alerts):
-    """Only display selected diagnostic labels, never arbitrary webhook fields."""
+def _duration(seconds):
+    minutes = max(1, round(seconds / 60))
+    if minutes < 60:
+        return f"{minutes} min"
+    return f"{minutes // 60} h {minutes % 60:02d} min"
+
+
+def _group_embed(alerts, opened=None, now=None):
+    """Only display selected diagnostic labels, never arbitrary webhook fields.
+
+    One embed per incident: firing checks are "• " lines, recovered ones
+    "✅ " lines; the incident is recovered once every check is.
+    """
     first = alerts[0]
-    status = "Problema detetado" if first["status"] == "firing" else "Recuperado"
+    firing = any(alert["status"] == "firing" for alert in alerts)
+    status = "Problema detetado" if firing else "Recuperado"
+    hosts = ", ".join(sorted({alert["host"][:253] for alert in alerts}))
     header = (
-        f"**Estado:** {status}\n**Serviço:** {first['host'][:253]}\n"
+        f"**Estado:** {status}\n**Serviço:** {hosts[:600]}\n"
         f"**Alerta:** {first['alertname'][:256]}\n"
         f"**Verificações:** {len(alerts)}\n"
     )
+    if not firing and opened is not None and now is not None:
+        header += f"**Duração:** {_duration(now - opened)}\n"
     # Reserve equal space for every affected check, even in a 100-alert batch.
     budget = (4096 - len(header) - len(alerts)) // len(alerts)
     lines = []
@@ -127,9 +146,16 @@ def _group_embed(alerts):
         detail = " · ".join(details + [v for v in (summary, description) if v])
         detail = detail or alert["alertname"]
         # A check is one line; escape newlines in values to keep the list readable.
-        line = "• " + " ".join(detail.split())
+        mark = "• " if alert["status"] == "firing" else "✅ "
+        line = mark + " ".join(detail.split())
         lines.append(line if len(line) <= budget else line[: budget - 1] + "…")
-    return dm_owner.embed(header + "\n".join(lines), "PoGoLeiria — Monitorização")
+    body = dm_owner.embed(header + "\n".join(lines), "PoGoLeiria — Monitorização")
+    if not firing:
+        body["color"] = RECOVERED_COLOR
+    return body
+
+
+RECOVERED_COLOR = 0x2ECC71
 
 
 def _save(state_path, state):
@@ -146,13 +172,28 @@ def _save(state_path, state):
             os.unlink(name)
 
 
-def process_alerts(payload, *, send, state_path=STATE_PATH, now=None):
+def _incidents_path(state_path):
+    return state_path.with_name(state_path.stem + "-incidents.json")
+
+
+def process_alerts(payload, *, send, state_path=STATE_PATH, now=None, edit=None):
     """Validate the full batch, deliver transitions, then atomically record each success.
 
+    One Discord message per incident (an alert type, across services): the
+    first firing check sends it, later checks and the recovery edit it
+    (owner, 2026-11-15) when ``send`` returned a message reference and
+    ``edit`` is given; otherwise each change goes out as a new message.
     ValueError means a rejected request; other exceptions mean retryable failure.
     The HTTP server serializes requests to avoid concurrent state updates.
     """
-    alerts = _alerts(payload)
+    alerts = [
+        alert
+        for alert in _alerts(payload)
+        if not any(
+            path in _check_endpoint(alert["labels"].get("instance", ""))
+            for path in COVERED_ELSEWHERE
+        )
+    ]
     now = time.time() if now is None else now
     state_path = Path(state_path)
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
@@ -164,7 +205,14 @@ def process_alerts(payload, *, send, state_path=STATE_PATH, now=None):
     ):
         raise RuntimeError("invalid relay state")
     state = {k: v for k, v in state.items() if v["updated"] >= now - RETENTION}
-    groups = {}
+    incidents_path = _incidents_path(state_path)
+    try:
+        incidents = json.loads(incidents_path.read_text())
+        if not isinstance(incidents, dict):
+            incidents = {}
+    except (OSError, ValueError):
+        incidents = {}
+    changes = {}
     seen = set()
     for alert in alerts:
         key, status = alert["key"], alert["status"]
@@ -178,37 +226,76 @@ def process_alerts(payload, *, send, state_path=STATE_PATH, now=None):
             continue
         if status == "resolved" and previous is None:
             continue
-        group = (alert["host"], alert["alertname"], status)
-        groups.setdefault(group, []).append(alert)
+        changes.setdefault(alert["alertname"], []).append(alert)
 
     sent = 0
-    for group in groups.values():
-        send(_group_embed(group))
-        for alert in group:
+    for name, changed in changes.items():
+        incident = incidents.get(name)
+        if incident is None:
+            incident = {"opened": now, "message": None, "checks": {}}
+        for alert in changed:
+            incident["checks"][alert["key"]] = alert
+        shown = list(incident["checks"].values())
+        body = _group_embed(shown, incident.get("opened"), now)
+        message = incident.get("message")
+        if message and edit is not None:
+            try:
+                edit(message, body)
+            except ValueError:
+                raise
+            except Exception:
+                # The old message is gone or not editable: say it anew.
+                message = send(body)
+        else:
+            message = send(body)
+        incident["message"] = message or None
+        for alert in changed:
             state[alert["key"]] = {"status": alert["status"], "updated": now}
+        if any(alert["status"] == "firing" for alert in shown):
+            incidents[name] = incident
+        else:
+            incidents.pop(name, None)
         if len(state) > MAX_STATE:
             state = dict(
                 sorted(state.items(), key=lambda item: item[1]["updated"])[-MAX_STATE:]
             )
-        # Save the complete delivered group before attempting the next DM.
+        # Save the complete delivered incident before attempting the next DM.
         _save(state_path, state)
+        _save(incidents_path, incidents)
         sent += 1
     _save(state_path, state)
     return sent
 
 
 def send_discord(body):
+    """Post the embed; returns where it went, so a later change can edit it."""
     env = dm_owner.read_env(dm_owner.ENV_FILE)
     token, owner = env["DISCORD_API_KEY"], env["MY_ID"]
     channel = dm_owner.post("/users/@me/channels", token, {"recipient_id": owner})
-    dm_owner.post(
+    message = dm_owner.post(
         f"/channels/{channel['id']}/messages",
         token,
         {"embeds": [body], "allowed_mentions": {"parse": []}},
     )
+    if isinstance(message, dict) and message.get("id"):
+        return {"channel": channel["id"], "id": message["id"]}
+    return None
 
 
-def make_handler(token, allowed_ip, *, send=send_discord, state_path=STATE_PATH):
+def edit_discord(message, body):
+    """Replace the incident's embed in place (no new notification)."""
+    env = dm_owner.read_env(dm_owner.ENV_FILE)
+    dm_owner.post(
+        f"/channels/{message['channel']}/messages/{message['id']}",
+        env["DISCORD_API_KEY"],
+        {"embeds": [body], "allowed_mentions": {"parse": []}},
+        method="PATCH",
+    )
+
+
+def make_handler(
+    token, allowed_ip, *, send=send_discord, state_path=STATE_PATH, edit=edit_discord
+):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass  # Never log attacker-controlled paths, payloads, or credentials.
@@ -247,7 +334,7 @@ def make_handler(token, allowed_ip, *, send=send_discord, state_path=STATE_PATH)
             except OSError:
                 return self.reply(408)
             try:
-                process_alerts(payload, send=send, state_path=state_path)
+                process_alerts(payload, send=send, state_path=state_path, edit=edit)
             except Exception:
                 logging.error("Monitoring relay delivery/state failure; retry required")
                 return self.reply(503)

@@ -83,6 +83,7 @@ def test_delivery_failure_remains_retryable_and_partial_success_dedupes(tmp_path
     body = payload()
     body["alerts"] += payload(fingerprint="paired")["alerts"]
     body["alerts"] += payload(host="mapa.pogoleiria.pt", fingerprint="second")["alerts"]
+    body["alerts"][-1]["labels"]["alertname"] = "SlowResponses"
     state = tmp_path / "state"
     sent = []
 
@@ -341,3 +342,62 @@ def test_distinct_alert_types_are_delivered_separately(tmp_path):
     assert (
         relay.process_alerts(body, send=sent.append, state_path=tmp_path / "state") == 2
     )
+
+
+def test_one_message_per_incident_edited_until_it_recovers(tmp_path):
+    # Owner, 2026-11-15: quick to tell, but one message per incident; a new
+    # check or the recovery edits it instead of sending another DM.
+    state = tmp_path / "state"
+    sent, edits = [], []
+
+    def send(body):
+        sent.append(body)
+        return {"channel": "dm", "id": str(len(sent))}
+
+    def edit(message, body):
+        edits.append((message, body))
+
+    run = lambda body, now: relay.process_alerts(  # noqa: E731
+        body, send=send, edit=edit, state_path=state, now=now
+    )
+    assert run(payload(), 0) == 1
+    assert run(payload(host="tileserver.pogoleiria.pt", fingerprint="tiles"), 60) == 1
+    assert len(sent) == 1 and len(edits) == 1
+    assert "tileserver.pogoleiria.pt" in edits[-1][1]["description"]
+    both = payload("resolved")
+    both["alerts"] += payload("resolved", "tileserver.pogoleiria.pt", "tiles")["alerts"]
+    assert run(both, 600) == 1
+    message, body = edits[-1]
+    assert message == {"channel": "dm", "id": "1"}
+    assert "Recuperado" in body["description"]
+    assert "**Duração:** 10 min" in body["description"]
+    assert body["color"] == relay.RECOVERED_COLOR
+    # The next incident is a new message again.
+    assert run(payload(), 900) == 1
+    assert len(sent) == 2
+
+
+def test_edit_failure_falls_back_to_a_new_message(tmp_path):
+    state = tmp_path / "state"
+    sent = []
+
+    def send(body):
+        sent.append(body)
+        return {"channel": "dm", "id": "1"}
+
+    def edit(message, body):
+        raise OSError("deleted")
+
+    relay.process_alerts(payload(), send=send, edit=edit, state_path=state)
+    relay.process_alerts(payload("resolved"), send=send, edit=edit, state_path=state)
+    assert len(sent) == 2 and "Recuperado" in sent[1]["description"]
+
+
+def test_map_data_probe_is_left_to_the_map_alert(tmp_path):
+    body = payload()
+    body["alerts"][0]["labels"].update(
+        vantage="origin", instance="http://192.168.1.253:1080/mapa-data/pokemon"
+    )
+    sent = []
+    assert relay.process_alerts(body, send=sent.append, state_path=tmp_path / "s") == 0
+    assert sent == []
