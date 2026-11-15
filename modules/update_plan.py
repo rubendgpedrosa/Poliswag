@@ -36,15 +36,16 @@ def save(state):
     tmp.replace(path)
 
 
+# No emoji (owner, 2026-11-15): plain words for when and how each item goes.
 _STATUS = {
-    "scheduled": "Os ⚡ podem ir já; o resto corre esta noite às {when}, a não ser que canceles.",
-    "accepted": "✅ Aceite. Corre esta noite às {when}.",
-    "cancelled": "🚫 Cancelada. Nada vai ser atualizado.",
-    "now": "⚡ Vai atualizar já: começa dentro de um minuto.",
-    "running": "⏳ A atualizar…",
+    "scheduled": 'Os marcados "já" podem ir agora; o resto corre esta noite às {when}, a não ser que canceles.',
+    "accepted": "Aceite. Corre esta noite às {when}.",
+    "cancelled": "Cancelada. Nada vai ser atualizado.",
+    "now": "Vai atualizar já: começa dentro de um minuto.",
+    "running": "A atualizar…",
     "done": "Terminado.",
 }
-WHEN_ICON = {"now": "⚡", "night": "🌙", "manual": "🖐️"}
+WHEN_LABEL = {"now": "já", "night": "04:00", "manual": "à mão"}
 
 
 def pending(state, when=None):
@@ -61,22 +62,26 @@ def pending(state, when=None):
 
 def embed(state):
     """The plan as a Discord embed dict (REST and discord.Embed.from_dict):
-    each item with ⚡ (can go now) or 🌙 (04:00), or its ✅/❌ once done."""
+    each item with when it goes (já, 04:00, à mão, fora), or its outcome."""
     lines, results = [], []
     for item in state.get("items", []):
         result = item.get("result")
         if result is not None:
             results.append(result)
-            mark = "🖐️" if result.get("skipped") else "✅" if result.get("ok") else "❌"
-            lines.append(f"{mark} **{item['label']}** — {result.get('detail', '')}")
+            mark = (
+                "à mão"
+                if result.get("skipped")
+                else "feito" if result.get("ok") else "FALHOU"
+            )
+            lines.append(f"**{item['label']}** — {result.get('detail', '')} ({mark})")
         elif item.get("excluded"):
             lines.append(
-                f"⏸️ ~~{item['label']}~~ — {item.get('from', '?')} → {item.get('to', '?')}"
+                f"~~{item['label']}~~ — {item.get('from', '?')} → {item.get('to', '?')} (fora)"
             )
         else:
-            icon = WHEN_ICON.get(item.get("when", "night"), "🌙")
+            when = WHEN_LABEL.get(item.get("when", "night"), "04:00")
             lines.append(
-                f"{icon} **{item['label']}** — {item.get('from', '?')} → {item.get('to', '?')}"
+                f"**{item['label']}** — {item.get('from', '?')} → {item.get('to', '?')} ({when})"
             )
     colour = COLOUR
     if results and not pending(state):
@@ -89,10 +94,10 @@ def embed(state):
     else:
         footer = _STATUS.get(status, status).format(when=state.get("when", "04:00"))
     return {
-        "title": f"🛠️ Atualização agendada ({len(state.get('items', []))})",
+        "title": f"Atualização agendada ({len(state.get('items', []))})",
         "description": "\n".join(lines)[:3900],
         "color": colour,
-        "footer": {"text": footer + "\n⚡ já · 🌙 04:00 · 🖐️ à mão · ⏸️ fora"},
+        "footer": {"text": footer},
     }
 
 

@@ -51,13 +51,13 @@ def test_embed_marks_now_and_night_items_then_results():
     state["items"][0]["when"] = "now"
     embed = update_plan.embed(state)
     assert (
-        "⚡ **Loki**" in embed["description"]
-        and "🌙 **Immich**" in embed["description"]
+        "**Loki** — 3.7.9 → 3.7.10 (já)" in embed["description"]
+        and "**Immich** — 3.4.1 → 3.5.0 (04:00)" in embed["description"]
     )
     assert [i["key"] for i in update_plan.pending(state, "now")] == ["loki"]
     state["items"][0]["result"] = {"ok": True, "detail": "atualizado para 3.7.10"}
     embed = update_plan.embed(state)
-    assert "✅ **Loki**" in embed["description"]
+    assert "**Loki** — atualizado para 3.7.10 (feito)" in embed["description"]
     assert "Corre esta noite" in embed["footer"]["text"]
     state["items"][1]["result"] = {"ok": False, "detail": "falhou"}
     assert update_plan.embed(state)["color"] == update_plan.FAILED_COLOUR
@@ -80,14 +80,14 @@ def test_update_now_and_buttons_order():
 def test_manual_items_show_a_hand_not_a_failure():
     state = _state()
     state["items"][0].update(when="manual")
-    assert "🖐️ **Loki**" in update_plan.embed(state)["description"]
+    assert "(à mão)" in update_plan.embed(state)["description"]
     state["items"][0]["result"] = {
         "ok": True,
         "skipped": True,
         "detail": "migração manual",
     }
     embed = update_plan.embed(state)
-    assert "🖐️ **Loki**" in embed["description"]
+    assert "**Loki** — migração manual (à mão)" in embed["description"]
     assert embed["color"] == update_plan.DONE_COLOUR
 
 
@@ -112,6 +112,6 @@ def test_pick_list_leaves_items_out_of_the_plan():
     state = update_plan.decide(state, "pick", state["plan_id"], ["loki"])
     assert state["items"][1]["excluded"] is True
     assert [i["key"] for i in update_plan.pending(state)] == ["loki", "caddy"]
-    assert "⏸️ ~~Scanner — golbat~~" in update_plan.embed(state)["description"]
+    assert "~~Scanner — golbat~~" in update_plan.embed(state)["description"]
     pick = update_plan.components(state)[-1]["components"][0]
     assert [o["default"] for o in pick["options"]] == [True, False]

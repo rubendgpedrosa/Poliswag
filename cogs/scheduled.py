@@ -18,6 +18,7 @@ from modules.permissions import mods_only
 from modules.pokemon_costume_sync import sync_pokemon_costumes
 from modules.pokemon_name_sync import sync_pokemon_names
 from modules.scheduler import Step, StepRunner
+from modules.state_store import StateFile
 
 # Every loop passes once a minute; a step with `every` skips the passes in
 # between. The steps are grouped by what they must not wait behind:
@@ -203,6 +204,7 @@ class Scheduled(commands.Cog):
         self._last_progress_embed_state = None
         self._last_quest_export = None
         self._last_error_digest_at = None
+        self._digest_state = StateFile("error-digest")
         self._last_lure_status_count = None
         self._last_tracking_alert_at = None
         # False until the first successful write to poliswag.pokemon_name.
@@ -907,10 +909,17 @@ class Scheduled(commands.Cog):
             await self._save_error_digest_at(now)
             return
 
+        # Owner, 2026-11-15: the same errors as the last digest are left be.
+        signature = "|".join(sorted(_DIGITS_RE.sub("#", g[0]) for g in kept))
+        if signature == self._digest_state.load().get("last"):
+            self._last_error_digest_at = now
+            await self._save_error_digest_at(now)
+            return
+
         count = sum(group[1] for group in kept)
         noun = "erro novo" if count == 1 else "erros novos"
         embed = build_embed(
-            f"⚠️ {count} {noun} desde o último resumo",
+            f"{count} {noun} desde o último resumo",
             _error_digest_description(entries, now.date()),
         )
         try:
@@ -932,6 +941,7 @@ class Scheduled(commands.Cog):
             return
 
         self._last_error_digest_at = now
+        self._digest_state.save({"last": signature})
         await self._save_error_digest_at(now)
 
     async def _check_tracking_health(self):

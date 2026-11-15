@@ -56,7 +56,9 @@ class ScannerStatus(LoggingMixin):
                 saved.get("restored_dashboard_sent")
             )
             self.last_all_down_request_time = float(saved.get("last_request_time") or 0)
-        self.STALE_POKEMON_THRESHOLD = 600  # 10 min — matches worker liveness window
+        # 5 min without one new Pokémon row (owner, 2026-11-15: 10 was too slow;
+        # with the fleet scanning, rows land every few seconds).
+        self.STALE_POKEMON_THRESHOLD = 300
 
         # Quest-scan completion is detected by a plateau in the valid-quest count:
         # once the count stops growing for PLATEAU_TICKS consecutive minute-checks
@@ -399,10 +401,10 @@ class ScannerStatus(LoggingMixin):
                             self._map_down_discord_sent = await notify_owner(
                                 self.poliswag,
                                 "Nenhum Pokémon novo na base de dados do scanner "
-                                f"há {max(10, (seconds_ago or 0) // 60)} min.\n"
+                                f"há {max(5, (seconds_ago or 0) // 60)} min.\n"
                                 f"{cause}\nEsta mensagem muda quando o mapa "
                                 "voltar a receber dados.",
-                                title="🔴 Mapa sem dados",
+                                title="Mapa sem dados",
                                 tag="poliswag-map",
                                 incident="map",
                                 color=0xE74C3C,
@@ -439,7 +441,7 @@ class ScannerStatus(LoggingMixin):
                 delivered = await notify_owner(
                     self.poliswag,
                     "O mapa voltou a receber Pokémon.",
-                    title="✅ Mapa recuperado",
+                    title="Mapa recuperado",
                     tag="poliswag-map",
                     incident="map",
                     resolved=True,

@@ -1298,7 +1298,7 @@ class TestCheckDailyErrorDigest:
             cog, ["2026-04-07 09:00:39,032 - ERROR - Poracle down"]
         )
         assert embed.description == "• Poracle down · 09:00"
-        assert embed.title == "⚠️ 1 erro novo desde o último resumo"
+        assert embed.title == "1 erro novo desde o último resumo"
 
     async def test_times_on_another_day_include_the_day(self, cog):
         embed = await self._digest(
