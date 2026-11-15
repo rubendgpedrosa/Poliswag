@@ -1813,3 +1813,34 @@ class TestLurePresenceRetryability:
         await cog._update_lure_status()
         assert cog._last_lure_status_count == 3
         assert cog.poliswag.change_presence.await_count == 2
+
+
+def test_error_digest_groups_by_cause_and_drops_restart_blips():
+    # Owner, 2026-11-15: one line per cause, and a service that was down for
+    # a moment while it restarted is not news.
+    import datetime as dt
+
+    from cogs.scheduled import _error_digest_description
+
+    entries = [
+        f"2026-11-14 01:{27 + i:02d}:00,000 - ERROR - Wi-Fi link check failed: "
+        "Comando ADB expirou após 10s"
+        for i in range(16)
+    ]
+    entries.append(
+        "2026-11-14 01:50:00,000 - INFO - No workers in rotom-ng; phone "
+        "unreachable: error: device '192.168.1.222:5555' not found"
+    )
+    entries.append(
+        "2026-11-14 08:22:49,000 - ERROR - Poracle GET /health failed: Cannot "
+        "connect to host poracle:3030 ssl:default [Connect call failed]"
+    )
+    entries += [
+        f"2026-11-14 0{h}:00:00,000 - ERROR - Error fetching data from "
+        "account_status: Cannot connect to host dragonite:7272 ssl:default"
+        for h in (2, 4, 6)
+    ]
+    text = _error_digest_description(entries, dt.date(2026, 11, 15))
+    assert "17× Telemóvel do scanner sem resposta (ADB)" in text
+    assert "poracle" not in text  # restart blip
+    assert "3× dragonite indisponível" in text  # hours apart: real

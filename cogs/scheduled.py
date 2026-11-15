@@ -48,6 +48,38 @@ _ERROR_LINE_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - \w+ - (.*)$", re.DOTALL
 )
 _DIGITS_RE = re.compile(r"\d+")
+# Errors with a known cause are grouped on the cause, not the message (owner,
+# 2026-11-15): sixteen Wi-Fi checks during one phone outage are one line.
+_CAUSES = (
+    (
+        re.compile(
+            r"Wi-Fi link check failed|phone unreachable|Comando ADB expirou|"
+            r"device '[\d.:]+' not found|ADB session .* not ready"
+        ),
+        lambda match: "Telemóvel do scanner sem resposta (ADB)",
+    ),
+    (
+        re.compile(r"Cannot connect to host ([\w.-]+):\d+"),
+        lambda match: f"{match.group(1)} indisponível",
+    ),
+    (
+        re.compile(r"Hermiswag .* failed: ClientConnectorError"),
+        lambda match: "Hermiswag indisponível",
+    ),
+)
+# A service that was unreachable only this briefly was restarting: left out.
+_RESTART_BLIP = datetime.timedelta(minutes=3)
+_RESTART_BLIP_MAX = 5
+
+
+def _cause(text):
+    for pattern, label in _CAUSES:
+        match = pattern.search(text)
+        if match:
+            return label(match)
+    return None
+
+
 _DIGEST_MAX_GROUPS = 10
 _DIGEST_MESSAGE_LIMIT = 300
 _DIGEST_DESCRIPTION_LIMIT = 4000
@@ -65,6 +97,9 @@ def _group_error_entries(
         if match:
             when = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
             text = match.group(2)
+            cause = _cause(text)
+            if cause:
+                text = cause
             key = ("log", _DIGITS_RE.sub("#", text))
         else:
             when = None
@@ -79,6 +114,17 @@ def _group_error_entries(
             group[2] = when if group[2] is None else min(group[2], when)
             group[3] = when if group[3] is None else max(group[3], when)
     return [tuple(group) for group in groups.values()]
+
+
+def _restart_blip(text, count, first, last) -> bool:
+    """A service unreachable for a moment and a few errors: a restart."""
+    return (
+        text.endswith(" indisponível")
+        and count <= _RESTART_BLIP_MAX
+        and first is not None
+        and last is not None
+        and last - first <= _RESTART_BLIP
+    )
 
 
 def _digest_line(text, count, first, last, today) -> str:
@@ -99,7 +145,7 @@ def _digest_line(text, count, first, last, today) -> str:
 
 
 def _error_digest_description(entries, today) -> str:
-    groups = _group_error_entries(entries)
+    groups = [g for g in _group_error_entries(entries) if not _restart_blip(*g)]
     lines = [_digest_line(*group, today) for group in groups[:_DIGEST_MAX_GROUPS]]
     left_out = len(groups) - _DIGEST_MAX_GROUPS
     if left_out > 0:
@@ -852,12 +898,16 @@ class Scheduled(commands.Cog):
         since = self._last_error_digest_at or (now - datetime.timedelta(days=1))
         entries = self.poliswag.utility.read_new_error_entries(since)
 
+        if entries:
+            kept = [g for g in _group_error_entries(entries) if not _restart_blip(*g)]
+            if not kept:
+                entries = []
         if not entries or not Config.MY_ID:
             self._last_error_digest_at = now
             await self._save_error_digest_at(now)
             return
 
-        count = len(entries)
+        count = sum(group[1] for group in kept)
         noun = "erro novo" if count == 1 else "erros novos"
         embed = build_embed(
             f"⚠️ {count} {noun} desde o último resumo",
