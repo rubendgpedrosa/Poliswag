@@ -161,7 +161,7 @@ the owner (`MY_ID`) into "faynn" and other tagged members into their display nam
 (markup stripped, 32 chars); unknown tags are then removed as before. Every turn also carries who is speaking: `speaker_name` (owner = "faynn", others by display name) fills `author` on the asker and on each line of `recent_channel_messages`, and the prompt tells the agent to credit each line to whoever said it and to name nobody when unsure. General or vague game questions (counters, types,
 moves, PvP, mechanics) are answered from game knowledge; the public Codex run has
 `web_search="cached"` (indexed results, no live page fetches) to check current data,
-and replies carry no external links or source citations; a site or app is named only when the member asks which tool to use (owner, 2026-11-15: the per-topic source list is in the prompt and SOUL.md, the recommended tools in Hermiswag `knowledge/poliswag.md`, "Ferramentas para jogar"). pogoleiria.pt links appear only
+and replies carry no external links or source names (the per-topic source list, owner 2026-11-15, is in the prompt and SOUL.md). pogoleiria.pt links appear only
 when the member asks about the map/Quests/Pokédex; generic fallbacks carry none.
 
 The public path has no repository reader, command invocation, owner/scanner
