@@ -48,11 +48,14 @@ WHEN_ICON = {"now": "⚡", "night": "🌙", "manual": "🖐️"}
 
 
 def pending(state, when=None):
-    """Items without a result yet (optionally only those marked `when`)."""
+    """Items without a result yet (optionally only those marked `when`).
+    Items the owner left out of the plan are not pending."""
     return [
         item
         for item in state.get("items", [])
-        if "result" not in item and (when is None or item.get("when", "night") == when)
+        if "result" not in item
+        and not item.get("excluded")
+        and (when is None or item.get("when", "night") == when)
     ]
 
 
@@ -66,6 +69,10 @@ def embed(state):
             results.append(result)
             mark = "🖐️" if result.get("skipped") else "✅" if result.get("ok") else "❌"
             lines.append(f"{mark} **{item['label']}** — {result.get('detail', '')}")
+        elif item.get("excluded"):
+            lines.append(
+                f"⏸️ ~~{item['label']}~~ — {item.get('from', '?')} → {item.get('to', '?')}"
+            )
         else:
             icon = WHEN_ICON.get(item.get("when", "night"), "🌙")
             lines.append(
@@ -85,7 +92,7 @@ def embed(state):
         "title": f"🛠️ Atualização agendada ({len(state.get('items', []))})",
         "description": "\n".join(lines)[:3900],
         "color": colour,
-        "footer": {"text": footer + "\n⚡ já · 🌙 04:00 · 🖐️ à mão"},
+        "footer": {"text": footer + "\n⚡ já · 🌙 04:00 · 🖐️ à mão · ⏸️ fora"},
     }
 
 
@@ -109,12 +116,46 @@ def components(state):
     if status == "scheduled":
         buttons.append(button(3, "Aceitar", "accept"))
     buttons.append(button(4, "Cancelar", "cancel"))
-    return [{"type": 1, "components": buttons}]
+    rows = [{"type": 1, "components": buttons}]
+    # Owner, 2026-11-15: one message for every update, and he picks which go.
+    choices = [
+        item
+        for item in state.get("items", [])
+        if "result" not in item and item.get("when") != "manual"
+    ][:25]
+    if choices:
+        rows.append(
+            {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 3,
+                        "custom_id": f"{PREFIX}pick:{plan}",
+                        "placeholder": "O que entra nesta atualização",
+                        "min_values": 0,
+                        "max_values": len(choices),
+                        "options": [
+                            {
+                                "label": item["label"][:100],
+                                "value": item["key"][:100],
+                                "description": (
+                                    f"{item.get('from', '?')} → {item.get('to', '?')}"
+                                )[:100],
+                                "default": not item.get("excluded"),
+                            }
+                            for item in choices
+                        ],
+                    }
+                ],
+            },
+        )
+    return rows
 
 
-def decide(state, action, plan_id):
-    """Apply a button press; returns the new state or None when it no longer
-    applies (another plan, or it already ran or was cancelled)."""
+def decide(state, action, plan_id, values=None):
+    """Apply a button press (or the pick list, with its chosen keys in
+    `values`); returns the new state or None when it no longer applies
+    (another plan, or it already ran or was cancelled)."""
     if state.get("plan_id") != plan_id or state.get("status") not in (
         "scheduled",
         "accepted",
@@ -126,6 +167,12 @@ def decide(state, action, plan_id):
         state["status"] = "cancelled"
     elif action == "now":
         state["status"] = "now"
+    elif action == "pick":
+        chosen = set(values or ())
+        for item in state.get("items", []):
+            if "result" in item or item.get("when") == "manual":
+                continue
+            item["excluded"] = item.get("key") not in chosen
     else:
         return None
     return state

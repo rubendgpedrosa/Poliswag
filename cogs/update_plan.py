@@ -24,7 +24,8 @@ class UpdatePlan(commands.Cog):
             )
             return
         _, action, plan_id = custom_id.split(":", 2)
-        state = update_plan.decide(update_plan.load(), action, plan_id)
+        values = (interaction.data or {}).get("values")
+        state = update_plan.decide(update_plan.load(), action, plan_id, values)
         if state is None:
             await interaction.response.send_message(
                 "Este plano já não está pendente.", ephemeral=True
@@ -43,6 +44,25 @@ def _view(state):
     view = discord.ui.View(timeout=None)
     for row in update_plan.components(state):
         for button in row["components"]:
+            if button["type"] == 3:
+                view.add_item(
+                    discord.ui.Select(
+                        custom_id=button["custom_id"],
+                        placeholder=button["placeholder"],
+                        min_values=button["min_values"],
+                        max_values=button["max_values"],
+                        options=[
+                            discord.SelectOption(
+                                label=option["label"],
+                                value=option["value"],
+                                description=option["description"],
+                                default=option["default"],
+                            )
+                            for option in button["options"]
+                        ],
+                    )
+                )
+                continue
             view.add_item(
                 discord.ui.Button(
                     label=button["label"],

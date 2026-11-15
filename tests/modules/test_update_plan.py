@@ -89,3 +89,29 @@ def test_manual_items_show_a_hand_not_a_failure():
     embed = update_plan.embed(state)
     assert "🖐️ **Loki**" in embed["description"]
     assert embed["color"] == update_plan.DONE_COLOUR
+
+
+def test_pick_list_leaves_items_out_of_the_plan():
+    # Owner, 2026-11-15: one message for every update; he picks which go.
+    state = _state()
+    state["items"].append(
+        {
+            "key": "scanner:golbat",
+            "label": "Scanner — golbat",
+            "from": "a",
+            "to": "b",
+            "when": "night",
+        }
+    )
+    state["items"].append(
+        {"key": "caddy", "label": "Caddy", "from": "1", "to": "2", "when": "manual"}
+    )
+    pick = update_plan.components(state)[-1]["components"][0]
+    assert pick["type"] == 3
+    assert [o["value"] for o in pick["options"]] == ["loki", "scanner:golbat"]
+    state = update_plan.decide(state, "pick", state["plan_id"], ["loki"])
+    assert state["items"][1]["excluded"] is True
+    assert [i["key"] for i in update_plan.pending(state)] == ["loki", "caddy"]
+    assert "⏸️ ~~Scanner — golbat~~" in update_plan.embed(state)["description"]
+    pick = update_plan.components(state)[-1]["components"][0]
+    assert [o["default"] for o in pick["options"]] == [True, False]
