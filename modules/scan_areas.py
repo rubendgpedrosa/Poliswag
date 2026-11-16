@@ -274,8 +274,16 @@ def setting_code(keys) -> int:
     return sum(bit_for(key) for key in keys or ())
 
 
-# The two per-area quest commands kept from before the generic !quest form.
-LEGACY_QUEST_COMMANDS = {"leiria": "questleiria", "marinha": "questmarinha"}
+# One-word quest commands, !quest<área>, next to the generic !quest <área>.
+# Leiria and Marinha had them from before; the other areas got theirs on
+# 2026-11-16 (owner): the scan embed now shows every area the same way.
+LEGACY_QUEST_COMMANDS = {
+    "leiria": "questleiria",
+    "marinha": "questmarinha",
+    "batalha": "questbatalha",
+    "portodemos": "questportodemos",
+    "moita": "questmoita",
+}
 
 
 def fences() -> dict[str, tuple]:

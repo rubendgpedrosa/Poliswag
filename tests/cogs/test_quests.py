@@ -243,3 +243,12 @@ class TestSetup:
         await setup(poliswag)
         poliswag.add_cog.assert_awaited_once()
         assert isinstance(poliswag.add_cog.call_args.args[0], Quests)
+
+
+def test_every_area_has_its_one_word_command():
+    # Owner, 2026-11-16: !questmoita, !questbatalha and !questportodemos work
+    # like !questleiria, and the scan embed shows them that way.
+    from cogs.quests import Quests
+
+    aliases = set(Quests.legacy_questcmd.aliases)
+    assert {"questmarinha", "questbatalha", "questportodemos", "questmoita"} <= aliases

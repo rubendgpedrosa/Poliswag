@@ -82,8 +82,12 @@ class Quests(commands.Cog):
 
     @commands.command(
         name="questleiria",
-        aliases=["questmarinha"],
-        brief="Procura quests numa área (forma antiga)",
+        aliases=[
+            name
+            for name in scan_areas.LEGACY_QUEST_COMMANDS.values()
+            if name != "questleiria"
+        ],
+        brief="Procura quests numa área (forma curta)",
         help=(
             "Pesquisa quests numa área com base na palavra-chave fornecida. "
             "Utilize: !questleiria <palavra-chave>, !questmarinha <palavra-chave> "

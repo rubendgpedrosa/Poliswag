@@ -925,7 +925,7 @@ class TestCheckQuestScanProgress:
         assert "**Moita:** 3/3 Quests" in embed.description
         assert "`!questleiria <QUEST/ITEM>`" in embed.description
         assert "`!questmarinha <QUEST/ITEM>`" in embed.description
-        assert "`!quest moita <QUEST/ITEM>`" in embed.description
+        assert "`!questmoita <QUEST/ITEM>`" in embed.description
         cog.poliswag.scanner_status.record_quest_scan_completion.assert_awaited_once_with(
             {"leiria": 10, "marinha": 8, "moita": 3}
         )
