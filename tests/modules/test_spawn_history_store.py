@@ -127,7 +127,10 @@ class TestCapture:
             for call in cursor.execute.call_args_list
             if "INSERT INTO spawn_history" in call.args[0]
         )
-        assert upsert.args[1] == (now, now, now, cutoff, now)
+        assert upsert.args[1][:5] == (now, now, now, cutoff, now)
+        # Only rows the scanner changed since the previous poll, minus a minute.
+        assert upsert.args[1][5] == upsert.args[1][5] // 1 and upsert.args[1][5] < now
+        assert "AND p.updated >= %s" in upsert.args[0]
         deletes = [
             call
             for call in cursor.execute.call_args_list

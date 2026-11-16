@@ -22,6 +22,7 @@ from modules.shiny_roll import is_player_id, is_shiny_at, shiny_draw
 RETENTION_HOURS = 48
 POLL_SECONDS = 30
 MAX_POLL_GAP = 90
+UPDATED_OVERLAP = 60
 ALGORITHM = "java-sha1-nextfloat-v1"
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 
@@ -57,6 +58,7 @@ LEFT JOIN shiny_eligible_variant e ON e.pokemon_id = p.pokemon_id
   AND e.form_id = COALESCE(p.form, 0) AND e.costume_id = COALESCE(p.costume, 0)
 LEFT JOIN shiny_rate r ON r.pokemon_id = p.pokemon_id AND r.ends_at > UTC_TIMESTAMP()
 WHERE p.first_seen_timestamp >= %s AND p.first_seen_timestamp <= %s
+  AND p.updated >= %s
 ON DUPLICATE KEY UPDATE
   shiny_eligible = IF({variant_changed}, VALUES(shiny_eligible), spawn_history.shiny_eligible),
   shiny_odds = IF({variant_changed}, VALUES(shiny_odds), spawn_history.shiny_odds),
@@ -107,7 +109,12 @@ def capture(connection):
                 "INSERT IGNORE INTO spawn_history_gap VALUES (%s, %s)",
                 (previous, now),
             )
-        cursor.execute(capture_sql(), (now, now, now, cutoff, now))
+        # Only the scanner rows that changed since the last poll (with a
+        # minute of overlap): re-upserting every live Pokémon each 30 s
+        # rewrote ~13k rows per poll, ~100 GB/day on the NVMe (2026-11-16).
+        cursor.execute(
+            capture_sql(), (now, now, now, cutoff, now, previous - UPDATED_OVERLAP)
+        )
         cursor.execute("DELETE FROM spawn_history WHERE first_seen_at < %s", (cutoff,))
         cursor.execute("DELETE FROM spawn_history_gap WHERE ended_at < %s", (cutoff,))
         cursor.execute(
