@@ -87,7 +87,11 @@ def embed(state):
     if results and not pending(state):
         colour = DONE_COLOUR if all(r.get("ok") for r in results) else FAILED_COLOUR
     status = state.get("status", "scheduled")
-    if status == "scheduled" and not pending(state, "now"):
+    automatic = [i for i in pending(state) if i.get("when") != "manual"]
+    if status in ("scheduled", "accepted") and pending(state) and not automatic:
+        # Only hand-updated items: nothing runs at 04:00, so don't say it does.
+        footer = "Nada corre sozinho: estes ficam para fazer à mão."
+    elif status == "scheduled" and not pending(state, "now"):
         footer = (
             f"Corre esta noite às {state.get('when', '04:00')}, a não ser que canceles."
         )

@@ -115,3 +115,9 @@ def test_pick_list_leaves_items_out_of_the_plan():
     assert "~~Scanner — golbat~~" in update_plan.embed(state)["description"]
     pick = update_plan.components(state)[-1]["components"][0]
     assert [o["default"] for o in pick["options"]] == [True, False]
+
+
+def test_only_manual_items_do_not_promise_a_run_tonight():
+    state = _state()
+    state["items"][0].update(when="manual")
+    assert "Nada corre sozinho" in update_plan.embed(state)["footer"]["text"]
