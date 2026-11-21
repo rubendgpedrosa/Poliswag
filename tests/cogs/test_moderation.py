@@ -80,7 +80,16 @@ class TestOnInteraction:
 
     @pytest.mark.parametrize(
         "custom_id",
-        ["AlertasLeiria", "AlertasMarinha", "Remote", "Mystic", "Valor", "Instinct"],
+        [
+            "AlertasLeiria",
+            "AlertasMarinha",
+            "Leiria",
+            "Marinha",
+            "Remote",
+            "Mystic",
+            "Valor",
+            "Instinct",
+        ],
     )
     async def test_known_custom_ids_trigger_role_manager(self, cog, custom_id):
         interaction = MagicMock()
