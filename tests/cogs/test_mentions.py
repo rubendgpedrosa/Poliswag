@@ -499,7 +499,7 @@ async def test_moderation_partner_gets_an_answer_without_waiting(cog, monkeypatc
     assert context.message.id in cog.followup_handled
 
 
-async def test_reply_carries_the_agents_image(cog):
+async def test_reply_carries_the_agents_image(cog, monkeypatch):
     # Owner, 2026-11-21: Hermiswag can answer with a chart or a Pokémon image.
     context = ctx("<@456> mostra o Dragonite")
 
@@ -510,10 +510,40 @@ async def test_reply_carries_the_agents_image(cog):
         return "Aqui está o Dragonite!"
 
     cog.public.reply = AsyncMock(side_effect=reply)
+    fetched = []
+
+    class Response:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        async def read(self):
+            import io
+
+            from PIL import Image
+
+            out = io.BytesIO()
+            Image.new("RGBA", (64, 64), (200, 120, 40, 255)).save(out, "PNG")
+            return out.getvalue()
+
+    class Session:
+        def get(self, url, **kwargs):
+            fetched.append(url)
+            return Response()
+
+    import cogs.mentions as mentions_cog
+
+    monkeypatch.setattr(mentions_cog, "get_session", lambda: Session())
     assert await cog.handle(context)
     kwargs = context.reply.call_args.kwargs
     assert context.reply.call_args.args == ("Aqui está o Dragonite!",)
-    assert "149" in kwargs["embed"].image.url
+    assert "149" in fetched[0]
+    assert kwargs["file"].filename == "pokemon.png"
 
 
 async def test_reply_with_a_chart_attaches_a_png(cog):

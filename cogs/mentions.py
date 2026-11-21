@@ -4,6 +4,7 @@ import asyncio
 import io
 import re
 
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 
@@ -44,13 +45,14 @@ from modules.hermiswag_proactive import (
     record_answer,
     utcnow,
 )
+from modules.http_client import get_session
 from modules.mention_rules import (
     directed_mention,
     named_in_staff_channel,
     replied_bot_message,
 )
 from modules.permissions import is_owner
-from modules.pokemon_sprites import pokemon_sprite_url
+from modules.pokemon_sprites import LARGE_SPRITE_BASE, pokemon_sprite_url
 from modules.public_conversation import MentionLimiter, PublicConversation, safe_reply
 from modules.public_dumps import PublicDumps, dump_request
 from modules.public_map_context import PublicMapContext
@@ -521,7 +523,7 @@ class Mentions(commands.Cog):
     async def respond(self, ctx, text, image=None):
         extra = {}
         try:
-            extra = self.image_parts(image)
+            extra = await self.image_parts(image)
         except Exception:
             extra = {}  # the text still goes out
         try:
@@ -534,14 +536,15 @@ class Mentions(commands.Cog):
         except discord.HTTPException:
             pass
 
-    def image_parts(self, image):
-        """The reply's attachment or embed for a validated image spec
-        (modules.reply_images): a chart drawn here, or the sprite table's
-        artwork. Unknown Pokémon simply send no image."""
+    async def image_parts(self, image):
+        """The reply's attachment for a validated image spec
+        (modules.reply_images), drawn in the PoGoLeiria board design: a bar
+        chart, or a Pokémon card from the sprite table's artwork. Unknown
+        Pokémon or an unreachable sprite simply send no image."""
         if not image:
             return {}
         if image["type"] == "bar":
-            data = reply_images.render_bar(image)
+            data = await asyncio.to_thread(reply_images.render_bar, image)
             return {"file": discord.File(io.BytesIO(data), filename="grafico.png")}
         if image["type"] == "pokemon":
             pid = reply_images.pokemon_id(
@@ -549,9 +552,18 @@ class Mentions(commands.Cog):
             )
             if pid is None:
                 return {}
-            embed = discord.Embed(colour=Config.EMBED_COLOR)
-            embed.set_image(url=pokemon_sprite_url(pid, shiny=image["shiny"]))
-            return {"embed": embed}
+            # The 512px set for a sharp card; reviewed art keeps its own file.
+            url = pokemon_sprite_url(pid, shiny=image["shiny"], base=LARGE_SPRITE_BASE)
+            async with get_session().get(
+                url, timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                response.raise_for_status()
+                sprite = await response.read()
+            name = getattr(self, "pokemon_names", {}).get(str(pid), image["name"])
+            data = await asyncio.to_thread(
+                reply_images.render_pokemon, sprite, name, image["shiny"]
+            )
+            return {"file": discord.File(io.BytesIO(data), filename="pokemon.png")}
         return {}
 
 
