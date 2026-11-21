@@ -1,10 +1,12 @@
 """The scan-area registry and the Dragonite fences behind it.
 
-An area is a row in ``scan_area`` (``area_key``, label, Dragonite area name,
-Poracle geofence name, alert role, display order, active). Nothing outside
-this module names an individual area: adding one is a row plus its Dragonite
-area, and every reader follows the registry. Rows with ``active = 0`` are
-ignored everywhere.
+Which areas exist and scan is Dragonite's call: an enabled Dragonite area is
+active (``merge_registry``). A row in ``scan_area`` (``area_key``, label,
+Dragonite area name, Poracle geofence name, alert role, display order) only
+adds what Dragonite cannot say; an enabled area without one gets defaults
+from its name. Nothing outside this module names an individual area, and
+every reader follows the merged registry. Inactive areas are ignored
+everywhere.
 
 The polygon of an area is its Dragonite area's geofence, fetched from
 Dragonite's HTTP API (``/v2/areas/`` then ``/v2/areas/{id}``), refreshed every
@@ -19,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -39,6 +42,10 @@ _REGISTRY_SQL = (
     "SELECT area_key, label, dragonite_area, poracle_area, alert_role, "
     "sort_order, active FROM scan_area ORDER BY sort_order, area_key"
 )
+
+# Dragonite's own area table, in the database the scanner stack shares: the
+# areas it scans are the areas that exist (see merge_registry).
+_DRAGONITE_SQL = "SELECT name, enabled FROM dragonite.area ORDER BY id"
 
 logger = logging.getLogger(__name__)
 _lock = asyncio.Lock()
@@ -383,6 +390,71 @@ def _read_registry(connection) -> list[dict]:
         return [_normalize_row(row) for row in cursor.fetchall()]
 
 
+def _read_dragonite_areas(connection) -> list[dict]:
+    """Dragonite's area rows (name, enabled); empty when it has no usable one."""
+    with connection.cursor() as cursor:
+        cursor.execute(_DRAGONITE_SQL)
+        return [
+            {"name": str(row["name"]).strip(), "enabled": bool(row.get("enabled"))}
+            for row in cursor.fetchall()
+            if str(row.get("name") or "").strip()
+        ]
+
+
+def _humanize(name: str) -> str:
+    """ "MarinhaGrande" -> "Marinha Grande": the label of an area with no registry row."""
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
+
+
+def merge_registry(stored: list[dict], live: list[dict] | None) -> list[dict]:
+    """The registry rows, with Dragonite deciding which areas exist and scan.
+
+    A Dragonite area that is enabled is active; one that is disabled or gone
+    is not, whatever the stored row says. The stored row only supplies what
+    Dragonite cannot (display label, alert role, Poracle name, order). An
+    enabled area with no row gets defaults derived from its name: key and
+    Poracle name lowercase, role "Alertas<Name>", label split on capitals,
+    and the next sort order. ``live`` None (Dragonite unreadable) leaves the
+    stored rows as they are.
+    """
+    if live is None:
+        return stored
+    enabled = {row["name"].casefold() for row in live if row["enabled"]}
+    rows = []
+    known = set()
+    for row in stored:
+        merged = dict(row)
+        merged["active"] = int(merged["dragonite_area"].casefold() in enabled)
+        rows.append(merged)
+        known.add(merged["dragonite_area"].casefold())
+    keys = {row["area_key"] for row in rows}
+    order = max((row["sort_order"] for row in rows), default=0)
+    for entry in live:
+        folded = entry["name"].casefold()
+        if not entry["enabled"] or folded in known:
+            continue
+        key = re.sub(r"[^a-z0-9]", "", folded)[:32]
+        if not key or key in keys:
+            continue
+        order += 1
+        keys.add(key)
+        known.add(folded)
+        rows.append(
+            _normalize_row(
+                {
+                    "area_key": key,
+                    "label": _humanize(entry["name"]),
+                    "dragonite_area": entry["name"],
+                    "poracle_area": key,
+                    "alert_role": f"Alertas{entry['name']}",
+                    "sort_order": order,
+                    "active": 1,
+                }
+            )
+        )
+    return sorted(rows, key=lambda row: (row["sort_order"], row["area_key"]))
+
+
 def _cache_path() -> Path:
     return Path(Config.SCAN_AREA_CACHE)
 
@@ -537,6 +609,15 @@ async def refresh(log=None) -> bool:
         except Exception as error:
             _log(f"scan_area registry read failed: {error}", "ERROR")
             return False
+        try:
+            live = await _db.unit(_read_dragonite_areas) or None
+        except Exception as error:
+            live = None
+            _log(
+                f"Dragonite area table unavailable, using the registry: {error}",
+                "ERROR",
+            )
+        rows = merge_registry(rows, live)
         active = [row for row in rows if row["active"]]
         cached = _read_cache()
         geometries: dict[str, object] = {}
