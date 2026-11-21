@@ -155,6 +155,7 @@ async def test_map_snapshot_and_question_are_passed_to_the_model():
         learn=ANY,
         staff=ANY,
         author=ANY,
+        images=ANY,
     )
 
 
@@ -289,6 +290,7 @@ async def test_events_and_statistics_still_reach_the_model_with_their_question(p
         learn=ANY,
         staff=ANY,
         author=ANY,
+        images=ANY,
     )
 
 

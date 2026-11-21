@@ -136,6 +136,7 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
         learn=ANY,
         staff=ANY,
         author=ANY,
+        images=ANY,
     )
 
 
@@ -346,7 +347,7 @@ async def test_owner_guild_mentions_use_only_public_path(cog, text):
     context = ctx("<@456> " + text, owner=True)
     assert await cog.handle(context)
     cog.public.reply.assert_awaited_once_with(
-        text, session=ANY, history=ANY, learn=ANY, staff=ANY, author=ANY
+        text, session=ANY, history=ANY, learn=ANY, staff=ANY, author=ANY, images=ANY
     )
     cog.poliswag.get_cog.assert_not_called()
     assert context.reply.call_args.args == ("Resposta pública.",)
@@ -386,6 +387,7 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
         learn=ANY,
         staff=ANY,
         author=ANY,
+        images=ANY,
     )
 
 
@@ -495,3 +497,34 @@ async def test_moderation_partner_gets_an_answer_without_waiting(cog, monkeypatc
     assert await cog.handle(context)
     assert context.reply.call_args.args == ("Feito!",)
     assert context.message.id in cog.followup_handled
+
+
+async def test_reply_carries_the_agents_image(cog):
+    # Owner, 2026-11-21: Hermiswag can answer with a chart or a Pokémon image.
+    context = ctx("<@456> mostra o Dragonite")
+
+    async def reply(text, **kwargs):
+        kwargs["images"].append(
+            {"type": "pokemon", "name": "Dragonite", "shiny": False}
+        )
+        return "Aqui está o Dragonite!"
+
+    cog.public.reply = AsyncMock(side_effect=reply)
+    assert await cog.handle(context)
+    kwargs = context.reply.call_args.kwargs
+    assert context.reply.call_args.args == ("Aqui está o Dragonite!",)
+    assert "149" in kwargs["embed"].image.url
+
+
+async def test_reply_with_a_chart_attaches_a_png(cog):
+    context = ctx("<@456> gráfico")
+
+    async def reply(text, **kwargs):
+        kwargs["images"].append(
+            {"type": "bar", "title": "T", "labels": ["a"], "values": [1.0], "unit": ""}
+        )
+        return "Toma."
+
+    cog.public.reply = AsyncMock(side_effect=reply)
+    assert await cog.handle(context)
+    assert context.reply.call_args.kwargs["file"].filename == "grafico.png"

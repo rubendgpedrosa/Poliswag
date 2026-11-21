@@ -374,7 +374,14 @@ class PublicConversation:
         self.map_context = map_context
 
     async def reply(
-        self, text, session=None, history=None, learn=True, staff=False, author=None
+        self,
+        text,
+        session=None,
+        history=None,
+        learn=True,
+        staff=False,
+        author=None,
+        images=None,
     ):
         # The team (moderation channel) may ask about the bot's tools; only
         # credentials stay off limits there.
@@ -437,6 +444,7 @@ class PublicConversation:
                     staff=staff,
                     author=author,
                     history=history,
+                    images=images,
                 )
                 if staff and isinstance(raw, str):
                     # Explaining !anunciar means writing "@everyone"; the reply

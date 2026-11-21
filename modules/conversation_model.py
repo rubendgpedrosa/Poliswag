@@ -527,7 +527,18 @@ AGENT_INSTRUCTIONS = (
     '"lista de …" (o Poliswag manda um ficheiro). A amostra do mapa que '
     "possa vir no pedido é só um ponto de partida. Não existem contas, "
     "dispositivos nem infraestrutura nessa base de dados e nunca falas disso. "
-    "És o Poliswag; nunca te apresentes com outro nome."
+    "És o Poliswag; nunca te apresentes com outro nome.\n\n"
+    "Imagens (owner, 2026-11-21): podes juntar uma imagem à resposta quando a "
+    "pedem ou quando ajuda mesmo, com uma chave extra image no mesmo JSON. "
+    "Gráfico de barras com números que leste nas ferramentas: "
+    '{"reply": "...", "image": {"type": "bar", "title": "Spawns por hora em '
+    'Leiria", "labels": ["10h", "11h"], "values": [812, 905], "unit": '
+    '"spawns"}} (até 25 barras, valores não negativos, nunca inventados). '
+    "Imagem de um Pokémon: "
+    '{"reply": "...", "image": {"type": "pokemon", "name": "Dragonite", '
+    '"shiny": false}} (nome em inglês). O Poliswag desenha ou junta a imagem; '
+    "tu nunca mandas ficheiros nem links. Sem image a resposta é só texto, "
+    "como sempre. Nunca digas que não consegues mandar imagens."
 )
 
 
@@ -575,6 +586,7 @@ class ConversationModel:
         learn=True,
         staff=False,
         author=None,
+        images=None,
     ):
         if (
             topic not in TOPICS
@@ -615,6 +627,12 @@ class ConversationModel:
                 )
             line = reply_text(raw)
             if line:
+                if images is not None:
+                    from modules.reply_images import parse_image
+
+                    spec = parse_image(raw)
+                    if spec:
+                        images.append(spec)
                 return line
         job = None
         async with self.slots:

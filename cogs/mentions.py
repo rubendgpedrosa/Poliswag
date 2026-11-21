@@ -7,7 +7,7 @@ import re
 import discord
 from discord.ext import commands, tasks
 
-from modules import scan_areas
+from modules import reply_images, scan_areas
 from modules.config import Config
 from modules.conversation_model import (
     AGENT_INSTRUCTIONS,
@@ -50,6 +50,7 @@ from modules.mention_rules import (
     replied_bot_message,
 )
 from modules.permissions import is_owner
+from modules.pokemon_sprites import pokemon_sprite_url
 from modules.public_conversation import MentionLimiter, PublicConversation, safe_reply
 from modules.public_dumps import PublicDumps, dump_request
 from modules.public_map_context import PublicMapContext
@@ -90,6 +91,7 @@ class Mentions(commands.Cog):
         quest_search = poliswag.quest_search
         # Pass only the query interface and a copy of public species names.
         pokemon_names = dict(getattr(quest_search, "pokemon_name_map", {}) or {})
+        self.pokemon_names = pokemon_names
         self.hermiswag = HermiswagClient(
             Config.HERMISWAG_API_URL, Config.HERMISWAG_API_KEY
         )
@@ -171,6 +173,7 @@ class Mentions(commands.Cog):
             # only what it judges a question for it (owner, 2026-11-13).
             await self.staff_unprompted(ctx, text, history)
             return True
+        images = []
         try:
             # Map data (5 s) plus the model wait (PUBLIC_WAIT_SECONDS) and a margin.
             reply = await asyncio.wait_for(
@@ -181,13 +184,15 @@ class Mentions(commands.Cog):
                     learn=ctx.channel.id in Config.HERMISWAG_LEARN_CHANNELS,
                     staff=ctx.channel.id == Config.MOD_CHANNEL_ID,
                     author=speaker_name(ctx.author),
+                    images=images,
                 ),
                 timeout=65,
             )
         except Exception:
             # Neither prompt text nor exception details are logged or published.
             reply = self.public.unavailable()
-        await self.respond(ctx, reply)
+            images = []
+        await self.respond(ctx, reply, image=images[0] if images else None)
         self.active.spoke(ctx.channel.id, invited=True, partner=ctx.author.id)
         return True
 
@@ -513,16 +518,41 @@ class Mentions(commands.Cog):
         except discord.HTTPException:
             pass
 
-    @staticmethod
-    async def respond(ctx, text):
+    async def respond(self, ctx, text, image=None):
+        extra = {}
+        try:
+            extra = self.image_parts(image)
+        except Exception:
+            extra = {}  # the text still goes out
         try:
             await ctx.reply(
                 text[:2000],
                 mention_author=False,
                 allowed_mentions=discord.AllowedMentions.none(),
+                **extra,
             )
         except discord.HTTPException:
             pass
+
+    def image_parts(self, image):
+        """The reply's attachment or embed for a validated image spec
+        (modules.reply_images): a chart drawn here, or the sprite table's
+        artwork. Unknown Pokémon simply send no image."""
+        if not image:
+            return {}
+        if image["type"] == "bar":
+            data = reply_images.render_bar(image)
+            return {"file": discord.File(io.BytesIO(data), filename="grafico.png")}
+        if image["type"] == "pokemon":
+            pid = reply_images.pokemon_id(
+                image["name"], getattr(self, "pokemon_names", {})
+            )
+            if pid is None:
+                return {}
+            embed = discord.Embed(colour=Config.EMBED_COLOR)
+            embed.set_image(url=pokemon_sprite_url(pid, shiny=image["shiny"]))
+            return {"embed": embed}
+        return {}
 
 
 async def setup(poliswag):
