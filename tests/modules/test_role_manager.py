@@ -254,7 +254,5 @@ def test_notif_roles_follow_the_active_registry_rows(monkeypatch):
     assert notif_roles() == [
         "AlertasLeiria",
         "AlertasBatalha",
-        "AlertasRaids",
-        "AlertasPvP",
         "Remote",
     ]

@@ -7,10 +7,21 @@ _TEAM_ROLES = ["Instinct", "Mystic", "Valor"]
 # Roles auto-granted to first-time users (len(roles) == 1 means only @everyone).
 # The per-area alert roles come from the registry, so activating an area
 # lights its role up everywhere; these are the ones that are not areas.
-_EXTRA_NOTIF_ROLES = ["AlertasRaids", "AlertasPvP", "Remote"]
+# AlertasRaids and AlertasPvP were dropped on 2026-11-21: nothing used them
+# (no Poracle raid or PvP filters; #chat-raids now opens by team role).
+_EXTRA_NOTIF_ROLES = ["Remote"]
 
-# Mention roles members toggle in #notificações (pinged by raid groups).
-_MENTION_ROLES = ["Leiria", "Marinha", "Remote"]
+# Mention roles members toggle in #notificações (pinged to gather a group).
+# Discord role names; the buttons use them as custom_ids.
+_MENTION_ROLES = [
+    "Leiria",
+    "Marinha",
+    "Batalha",
+    "Porto de Mós",
+    "Moita",
+    "Maceira",
+    "Remote",
+]
 
 
 def notif_roles():
