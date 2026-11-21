@@ -9,6 +9,9 @@ _TEAM_ROLES = ["Instinct", "Mystic", "Valor"]
 # lights its role up everywhere; these are the ones that are not areas.
 _EXTRA_NOTIF_ROLES = ["AlertasRaids", "AlertasPvP", "Remote"]
 
+# Mention roles members toggle in #notificações (pinged by raid groups).
+_MENTION_ROLES = ["Leiria", "Marinha", "Remote"]
+
 
 def notif_roles():
     return scan_areas.alert_roles() + _EXTRA_NOTIF_ROLES
