@@ -85,6 +85,8 @@ class TestOnInteraction:
             "AlertasMarinha",
             "Leiria",
             "Marinha",
+            "Porto de Mós",
+            "Maceira",
             "Remote",
             "Mystic",
             "Valor",
