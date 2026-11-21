@@ -301,8 +301,12 @@ async def test_the_registry_is_one_unit_on_the_given_handle(monkeypatch, tmp_pat
     assert await scan_areas.refresh() is True
     # Same options as the old connect(DB_POLISWAG, dict_rows=True): dict rows,
     # a 5 s read timeout, no autocommit; all three are unit()'s defaults.
-    assert handle.units == [(scan_areas._read_registry, (), {})]
-    handle.cursor.execute.assert_called_once_with(scan_areas._REGISTRY_SQL)
+    assert handle.units == [
+        (scan_areas._read_registry, (), {}),
+        (scan_areas._read_dragonite_areas, (), {}),
+    ]
+    handle.cursor.execute.assert_any_call(scan_areas._REGISTRY_SQL)
+    handle.cursor.execute.assert_any_call(scan_areas._DRAGONITE_SQL)
     assert scan_areas.active_keys() == ["leiria", "marinha", "moita"]
 
 
@@ -375,3 +379,64 @@ async def test_ensure_refreshes_at_most_every_ten_minutes(monkeypatch, tmp_path)
     scan_areas._last_attempt -= scan_areas.REFRESH_SECONDS + 1
     assert await scan_areas.ensure() is True
     assert calls == [1, 1]
+
+
+def _stored(key, name, order, active=1, role=None):
+    return {
+        "area_key": key,
+        "label": name,
+        "dragonite_area": name,
+        "poracle_area": key,
+        "alert_role": role or f"Alertas{name}",
+        "sort_order": order,
+        "active": active,
+    }
+
+
+def test_dragonite_decides_which_areas_are_active():
+    stored = [_stored("leiria", "Leiria", 1), _stored("moita", "Moita", 2, active=0)]
+    live = [
+        {"name": "Leiria", "enabled": False},
+        {"name": "Moita", "enabled": True},
+    ]
+    merged = {
+        row["area_key"]: row["active"]
+        for row in scan_areas.merge_registry(stored, live)
+    }
+    assert merged == {"leiria": 0, "moita": 1}
+
+
+def test_an_enabled_dragonite_area_without_a_row_gets_defaults():
+    stored = [_stored("marinha", "MarinhaGrande", 2, role="AlertasMarinha")]
+    live = [
+        {"name": "MarinhaGrande", "enabled": True},
+        {"name": "Maceira", "enabled": True},
+        {"name": "PortoDeMos", "enabled": True},
+        {"name": "Off", "enabled": False},
+    ]
+    rows = scan_areas.merge_registry(stored, live)
+    assert [row["area_key"] for row in rows] == ["marinha", "maceira", "portodemos"]
+    maceira = rows[1]
+    assert maceira == {
+        "area_key": "maceira",
+        "label": "Maceira",
+        "dragonite_area": "Maceira",
+        "poracle_area": "maceira",
+        "alert_role": "AlertasMaceira",
+        "sort_order": 3,
+        "active": 1,
+    }
+    assert rows[2]["label"] == "Porto De Mos"
+    # The stored row keeps its own role and label.
+    assert rows[0]["alert_role"] == "AlertasMarinha"
+
+
+def test_unreadable_dragonite_leaves_the_registry_alone():
+    stored = [_stored("leiria", "Leiria", 1, active=1)]
+    assert scan_areas.merge_registry(stored, None) is stored
+
+
+def test_a_dragonite_name_matches_its_row_ignoring_case():
+    stored = [_stored("leiria", "Leiria", 1, active=0)]
+    rows = scan_areas.merge_registry(stored, [{"name": "leiria", "enabled": True}])
+    assert [(row["area_key"], row["active"]) for row in rows] == [("leiria", 1)]
