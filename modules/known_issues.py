@@ -18,7 +18,8 @@ SECTION_URL = (
 )
 BASE = "https://scopelyexplore.helpshift.com"
 KEEP_VERSIONS = 5
-_ARTICLE_RE = re.compile(r'href="(/hc/en/5-pokemon-go/faq/(\d+)-[a-z0-9-]+/)"')
+# Links may be relative or absolute and in either quote style.
+_ARTICLE_RE = re.compile(r"(/hc/en/5-pokemon-go/faq/(\d+)-[a-z0-9-]+/)")
 
 
 def parse_section(page):

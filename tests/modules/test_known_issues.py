@@ -5,7 +5,7 @@ from modules import known_issues as ki
 SECTION = """
 <a href="/hc/en/5-pokemon-go/faq/864-reporting-a-bug/">x</a>
 <a href="/hc/en/5-pokemon-go/faq/2659-bisharp-evolution/">y</a>
-<a href="/hc/en/5-pokemon-go/faq/2659-bisharp-evolution/">y again</a>
+<a href='https://scopelyexplore.helpshift.com/hc/en/5-pokemon-go/faq/2659-bisharp-evolution/'>y again</a>
 """
 
 
