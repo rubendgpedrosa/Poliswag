@@ -40,6 +40,7 @@ _TEST_ENV_DEFAULTS = {
     "RECREATE_SERVICES": "dragonite rotom-ng",
     "HEARTBEAT_FILE": "logs/heartbeat",
     "STATE_DIR": "/tmp/poliswag-test/state",
+    "KNOWN_ISSUES_CHANNEL_ID": "0",
     "AGENT_JOBS_DIR": "logs/agent-jobs",
     "HERMES_API_URL": "http://hermes.test.invalid",
     "HERMES_API_KEY": "",

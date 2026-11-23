@@ -119,6 +119,8 @@ class Config:
     RECREATE_SERVICES = os.environ.get("RECREATE_SERVICES", "dragonite rotom-ng")
     ENV = os.environ.get("ENV", "DEV")
     IS_PRODUCTION = ENV == "PRODUCTION"
+    # Where the Known Issues watcher posts; unset = the owner's DM (2026-11-23).
+    KNOWN_ISSUES_CHANNEL_ID = int(os.environ.get("KNOWN_ISSUES_CHANNEL_ID", "0") or 0)
 
     # Written after every pass of each scheduler loop; scripts/watchdog.sh on
     # the host restarts the container when it goes stale (bind-mounted).
