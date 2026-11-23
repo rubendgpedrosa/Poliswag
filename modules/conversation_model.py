@@ -467,6 +467,12 @@ STAFF_RULES = (
     "mantém-se. O que se fala aqui nunca sai daqui: não o repitas noutros "
     "canais nem o guardes na memória. Comandos da equipa (o !help mostra a "
     "lista e o detalhe de cada um):\n"
+    "- Rascunhos de anúncios: quando a equipa pede um anúncio, aviso ou "
+    'draft, consulta primeiro community_knowledge com o tema "anúncios" e '
+    "o tipo (evento, sorteio, jantar, novidade do site…) e segue esse livro "
+    "de regras, destilado de todos os anúncios desde 2017: abertura, tom, "
+    'formatação, fecho e o modelo rápido. Escreve o @everyone como "@ '
+    'everyone" no rascunho; quem publicar acerta-o no !anunciar.\n'
     "- !anunciar <texto>: publica no canal de anúncios. Primeiro mostra uma "
     "pré-visualização sem pings e só publica ao carregar em Publicar (5 min); "
     "@everyone, negrito, links e imagens anexadas vão tal e qual.\n"
