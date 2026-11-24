@@ -170,6 +170,7 @@ class Mentions(commands.Cog):
             # A reply to an older Poliswag answer: that answer is the context.
             history.insert(0, {"author": "Poliswag", "text": replied.content[:300]})
         history = history or None
+        other_channels = await self.referenced_channels(ctx)
         if ctx.channel.id == Config.MOD_CHANNEL_ID and not directed:
             # Named or replied to in moderação, not tagged: Poliswag answers
             # only what it judges a question for it (owner, 2026-11-13).
@@ -187,6 +188,7 @@ class Mentions(commands.Cog):
                     staff=ctx.channel.id == Config.MOD_CHANNEL_ID,
                     author=speaker_name(ctx.author),
                     images=images,
+                    other_channels=other_channels,
                 ),
                 timeout=65,
             )
@@ -474,29 +476,81 @@ class Mentions(commands.Cog):
     async def before_learn(self):
         await self.poliswag.wait_until_ready()
 
-    async def channel_history(self, ctx, limit=15):
-        """The channel's last messages before this one, oldest first, as
-        {"author", "text"}: Poliswag's own replies included, other bots,
-        webhooks and empty messages left out. Tags become names."""
+    @staticmethod
+    def message_text(item):
+        """A message as text: its content (tags as names) and, for the
+        notifications other bots post as embeds, their title, description
+        and fields."""
+        parts = [named_mentions(item.content or "", item).strip()]
+        for embed in getattr(item, "embeds", None) or []:
+            for value in (
+                getattr(embed, "title", None),
+                getattr(embed, "description", None),
+            ):
+                if isinstance(value, str) and value.strip():
+                    parts.append(value.strip())
+            for field in getattr(embed, "fields", None) or []:
+                name, value = getattr(field, "name", ""), getattr(field, "value", "")
+                if isinstance(name, str) and isinstance(value, str):
+                    parts.append(f"{name}: {value}".strip(": "))
+        return " / ".join(part for part in parts if part)[:300]
+
+    async def channel_history(self, ctx, limit=15, channel=None, before=True):
+        """A channel's last messages (this one's, before the tag), oldest
+        first, as {"author", "text"}. Everything is seen (owner,
+        2026-11-24): members, Poliswag's own replies, and other bots' and
+        webhooks' messages such as the Pokémon notifications, marked
+        "(bot)". Seeing is not indexing: learning still reads only
+        HERMISWAG_LEARN_CHANNELS."""
+        channel = channel or ctx.channel
         out = []
         try:
-            async for item in ctx.channel.history(limit=limit, before=ctx.message):
-                if item.webhook_id is not None:
-                    continue
+            kwargs = {"limit": limit}
+            if before and channel is ctx.channel:
+                kwargs["before"] = ctx.message
+            async for item in channel.history(**kwargs):
                 own = (
                     self.poliswag.user is not None
                     and item.author.id == self.poliswag.user.id
                 )
-                if item.author.bot and not own:
-                    continue
-                text = named_mentions(item.content or "", item).strip()
+                text = self.message_text(item)
                 if not text:
                     continue
-                author = "Poliswag" if own else speaker_name(item.author)
+                if own:
+                    author = "Poliswag"
+                elif item.author.bot or item.webhook_id is not None:
+                    author = f"{getattr(item.author, 'display_name', None) or item.author.name} (bot)"
+                else:
+                    author = speaker_name(item.author)
                 out.append({"author": author, "text": text})
         except Exception:
             return None
         return list(reversed(out)) or None
+
+    async def referenced_channels(self, ctx, limit=10):
+        """Recent messages of the public channels the member pointed at with
+        #channel (at most two): [{"channel", "messages"}]. Only channels
+        everyone can read, never moderação, so nothing private reaches a
+        public answer."""
+        out = []
+        guild = ctx.guild
+        for channel in (getattr(ctx.message, "channel_mentions", None) or [])[:2]:
+            if (
+                guild is None
+                or channel.id in (ctx.channel.id, Config.MOD_CHANNEL_ID)
+                or not hasattr(channel, "history")
+            ):
+                continue
+            try:
+                everyone = channel.permissions_for(guild.default_role)
+                if not (everyone.view_channel and everyone.read_message_history):
+                    continue
+            except Exception:
+                continue
+            messages = await self.channel_history(ctx, limit, channel=channel)
+            if messages:
+                out.append({"channel": channel.name[:40], "messages": messages})
+        return out or None
 
     async def send_dump(self, ctx, kind, area):
         try:

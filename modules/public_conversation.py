@@ -382,6 +382,7 @@ class PublicConversation:
         staff=False,
         author=None,
         images=None,
+        other_channels=None,
     ):
         # The team (moderation channel) may ask about the bot's tools; only
         # credentials stay off limits there.
@@ -445,6 +446,7 @@ class PublicConversation:
                     author=author,
                     history=history,
                     images=images,
+                    other_channels=other_channels,
                 )
                 if staff and isinstance(raw, str):
                     # Explaining !anunciar means writing "@everyone"; the reply

@@ -137,6 +137,7 @@ async def test_member_question_reaches_model_with_public_map_context(cog):
         staff=ANY,
         author=ANY,
         images=ANY,
+        other_channels=ANY,
     )
 
 
@@ -347,7 +348,14 @@ async def test_owner_guild_mentions_use_only_public_path(cog, text):
     context = ctx("<@456> " + text, owner=True)
     assert await cog.handle(context)
     cog.public.reply.assert_awaited_once_with(
-        text, session=ANY, history=ANY, learn=ANY, staff=ANY, author=ANY, images=ANY
+        text,
+        session=ANY,
+        history=ANY,
+        learn=ANY,
+        staff=ANY,
+        author=ANY,
+        images=ANY,
+        other_channels=ANY,
     )
     cog.poliswag.get_cog.assert_not_called()
     assert context.reply.call_args.args == ("Resposta pública.",)
@@ -388,6 +396,7 @@ async def test_tagged_owner_and_members_reach_public_path_by_name(cog, monkeypat
         staff=ANY,
         author=ANY,
         images=ANY,
+        other_channels=ANY,
     )
 
 
@@ -558,3 +567,58 @@ async def test_reply_with_a_chart_attaches_a_png(cog):
     cog.public.reply = AsyncMock(side_effect=reply)
     assert await cog.handle(context)
     assert context.reply.call_args.kwargs["file"].filename == "grafico.png"
+
+
+async def test_history_sees_bot_notifications(cog):
+    # Owner, 2026-11-24: Hermiswag sees every message, the Pokémon
+    # notifications included; seeing is not indexing.
+    context = ctx("<@456> o que saiu?")
+    note = MagicMock()
+    note.webhook_id = 1
+    note.content = ""
+    note.author.bot = True
+    note.author.id = 777
+    note.author.display_name = "Poracle"
+    embed = MagicMock(
+        title="Dragonite 100%", description="Leiria, até 14:30", fields=[]
+    )
+    note.embeds = [embed]
+
+    async def history(**kwargs):
+        yield note
+
+    context.channel.history = history
+    out = await cog.channel_history(context)
+    assert out == [
+        {"author": "Poracle (bot)", "text": "Dragonite 100% / Leiria, até 14:30"}
+    ]
+
+
+async def test_referenced_channel_only_when_public(cog, monkeypatch):
+    monkeypatch.setattr(Config, "MOD_CHANNEL_ID", 555)
+    context = ctx("<@456> o que saiu em #hundos?")
+    context.channel.id = 1
+    public, private, mod = MagicMock(), MagicMock(), MagicMock()
+    for channel, cid, visible in (
+        (public, 10, True),
+        (private, 11, False),
+        (mod, 555, True),
+    ):
+        channel.id = cid
+        channel.name = f"c{cid}"
+        perms = MagicMock(view_channel=visible, read_message_history=visible)
+        channel.permissions_for = MagicMock(return_value=perms)
+    context.message.channel_mentions = [private, mod, public]
+    cog.channel_history = AsyncMock(
+        return_value=[{"author": "Poracle (bot)", "text": "x"}]
+    )
+    out = await cog.referenced_channels(context)
+    # Only two are looked at; the private one and moderação never are.
+    assert out is None or all(
+        item["channel"] != "c11" and item["channel"] != "c555" for item in out
+    )
+    context.message.channel_mentions = [public]
+    out = await cog.referenced_channels(context)
+    assert out == [
+        {"channel": "c10", "messages": [{"author": "Poracle (bot)", "text": "x"}]}
+    ]

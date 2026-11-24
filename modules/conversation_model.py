@@ -534,6 +534,12 @@ AGENT_INSTRUCTIONS = (
     "possa vir no pedido é só um ponto de partida. Não existem contas, "
     "dispositivos nem infraestrutura nessa base de dados e nunca falas disso. "
     "És o Poliswag; nunca te apresentes com outro nome.\n\n"
+    "Vês os canais (owner, 2026-11-24): recent_channel_messages inclui as "
+    "mensagens de bots, marcadas (bot), como as notificações de Pokémon e "
+    "de Raids; other_channel_messages traz as últimas mensagens de um canal "
+    "público que o membro apontou com #canal. Usa-as para responder (o que "
+    "saiu, onde, quando), mas não as guardes na memória: só aprendes com os "
+    "canais de conversa.\n\n"
     "Imagens (owner, 2026-11-21): podes juntar uma imagem à resposta quando a "
     "pedem ou quando ajuda mesmo, com uma chave extra image no mesmo JSON. "
     "Gráfico de barras com números que leste nas ferramentas: "
@@ -593,6 +599,7 @@ class ConversationModel:
         staff=False,
         author=None,
         images=None,
+        other_channels=None,
     ):
         if (
             topic not in TOPICS
@@ -625,6 +632,17 @@ class ConversationModel:
             recent = clean_history(history)
             if recent:
                 agent_payload["recent_channel_messages"] = recent
+            others = [
+                {
+                    "channel": _clean_text(str(item.get("channel", "")), 40),
+                    "messages": msgs,
+                }
+                for item in (other_channels or [])[:2]
+                if isinstance(item, dict)
+                and (msgs := clean_history(item.get("messages")))
+            ]
+            if others:
+                agent_payload["other_channel_messages"] = others
             async with self.slots:
                 raw = await self.hermiswag.ask(
                     session,
