@@ -188,9 +188,20 @@ class Poliswag(commands.Bot):
             elif hermes is not None:
                 await hermes.handle(ctx, message.content)
             return
+        if ctx.command is None:
+            # !quest<área> works for every active area, new ones included,
+            # without a fixed alias list (owner, 2026-11-26: !questmaceira).
+            ctx.command = self.area_quest_command(ctx.invoked_with)
         if ctx.command is not None and not may_run_in_dm(ctx):
             return
         await self.invoke(ctx)
+
+    def area_quest_command(self, name):
+        """The one-word quest command for an active area key, or None."""
+        name = (name or "").lower()
+        if name.startswith("quest") and name[5:] in scan_areas.active_keys():
+            return self.get_command("questleiria")
+        return None
 
     def _mentions_poliswag(self, message):
         # Same rule as the Mentions cog: a tag in code or a quote is not a tag.

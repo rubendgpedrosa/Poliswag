@@ -252,3 +252,19 @@ def test_every_area_has_its_one_word_command():
 
     aliases = set(Quests.legacy_questcmd.aliases)
     assert {"questmarinha", "questbatalha", "questportodemos", "questmoita"} <= aliases
+
+
+def test_one_word_quest_command_for_any_active_area(monkeypatch):
+    # Owner, 2026-11-26: !questmaceira, and any area added later, work
+    # without a fixed alias list.
+    import main
+    from modules import scan_areas
+
+    monkeypatch.setattr(scan_areas, "active_keys", lambda: ["leiria", "maceira"])
+    bot = MagicMock()
+    bot.get_command.return_value = "legacy"
+    assert main.Poliswag.area_quest_command(bot, "questmaceira") == "legacy"
+    assert main.Poliswag.area_quest_command(bot, "QuestMaceira") == "legacy"
+    assert main.Poliswag.area_quest_command(bot, "questlisboa") is None
+    assert main.Poliswag.area_quest_command(bot, "help") is None
+    assert main.Poliswag.area_quest_command(bot, None) is None

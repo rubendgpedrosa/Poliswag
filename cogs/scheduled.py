@@ -713,12 +713,8 @@ class Scheduled(commands.Cog):
             )
             commands = []
             for key in progress:
-                legacy = scan_areas.LEGACY_QUEST_COMMANDS.get(key)
-                commands.append(
-                    f"`!{legacy} <QUEST/ITEM>`"
-                    if legacy
-                    else f"`!quest {key} <QUEST/ITEM>`"
-                )
+                # Every active area answers to !quest<área> (main.py).
+                commands.append(f"`!quest{key} <QUEST/ITEM>`")
             embed = build_embed(
                 "✅ SCAN DE QUESTS CONCLUÍDO!",
                 (
